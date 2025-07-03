@@ -4,7 +4,7 @@
   "parameters": {
     "api-version": "2024-06-10-preview",
     "subscriptionId": "FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D",
-    "location": "adbtcqjkymyzrefddom"
+    "location": "uksouth"
   },
   "responses": {
     "200": {

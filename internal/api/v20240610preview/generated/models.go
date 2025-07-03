@@ -90,6 +90,16 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfile struct {
+	// The encryption type used. By default, "KMS" is used.
+	EncryptionType *CustomerManagedEncryptionType
+
+	// The Key Management Service (KMS) encryption key details.
+	// Required when encryptionType is "KMS".
+	Kms *KmsEncryptionProfile
+}
+
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
@@ -132,6 +142,22 @@ type ErrorDetail struct {
 type ErrorResponse struct {
 	// The error object.
 	Error *ErrorDetail
+}
+
+// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+type EtcdDataEncryptionProfile struct {
+	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
+	CustomerManaged *CustomerManagedEncryptionProfile
+
+	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
+	// is used.
+	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
+}
+
+// EtcdProfile - The ETCD settings and configuration options.
+type EtcdProfile struct {
+	// ETCD Data Encryption settings. If not specified platform managed keys are used.
+	DataEncryption *EtcdDataEncryptionProfile
 }
 
 // HcpOpenShiftCluster - HCP cluster resource
@@ -190,11 +216,14 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
-	// Configure cluter capabilities.
+	// Configure cluster capabilities.
 	Capabilities *ClusterCapabilitiesProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile
+
+	// Configure ETCD.
+	Etcd *EtcdProfile
 
 	// Cluster network configuration
 	Network *NetworkProfile
@@ -319,6 +348,26 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
 	DataPlaneOperators []*OperatorIdentityRoles
+}
+
+// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
+// to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+type KmsEncryptionProfile struct {
+	// REQUIRED; The details of the active key.
+	ActiveKey *KmsKey
+}
+
+// KmsKey - A representation of a KeyVault Secret.
+type KmsKey struct {
+	// REQUIRED; name is the name of the keyvault key used for encryption/decryption.
+	Name *string
+
+	// REQUIRED; vaultName is the name of the keyvault that contains the secret.
+	VaultName *string
+
+	// REQUIRED; version contains the version of the key to use.
+	Version *string
 }
 
 // Label represents the Kubernetes label

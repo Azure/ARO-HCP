@@ -74,9 +74,13 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
-  /** Configure cluter capabilities. */
+  /** Configure cluster capabilities. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   capabilities?: ClusterCapabilitiesProfile;
+
+  /** Configure ETCD. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  etcd?: EtcdProfile;
 }
 
 /** Cluster capabilities configuration. */
@@ -321,6 +325,94 @@ scalar UserAssignedIdentityResourceId
       type: "Microsoft.ManagedIdentity/userAssignedIdentities",
     }
   ]>;
+
+/** A representation of a KeyVault Secret. */
+model KmsKey {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @maxLength(255)
+  @minLength(1)
+  vaultName: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @maxLength(255)
+  @minLength(1)
+  name: string;
+
+  /** version contains the version of the key to use. */
+  @maxLength(255)
+  @minLength(1)
+  version: string;
+}
+
+/** The ETCD settings and configuration options. */
+model EtcdProfile {
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  dataEncryption?: EtcdDataEncryptionProfile;
+}
+
+/** The ETCD data encryption settings. */
+model EtcdDataEncryptionProfile {
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+   * By default, "PlatformManaged" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  customerManaged?: CustomerManagedEncryptionProfile;
+}
+
+/** Customer managed encryption key profile. */
+model CustomerManagedEncryptionProfile {
+  /** The encryption type used.
+   * By default, "KMS" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
+
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  kms?: KmsEncryptionProfile;
+}
+
+/** Configure etcd encryption Key Management Service (KMS) key.
+ * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
+ *
+ */
+model KmsEncryptionProfile {
+  /** The details of the active key. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  activeKey: KmsKey;
+}
+
+/** The encryption types supported for a customer managed key. */
+union CustomerManagedEncryptionType {
+  string,
+
+  /** KMS encryption type. */
+  Kms: "KMS",
+}
+
+/** The encryption key management mode types supported for ETCD data encryption. */
+union EtcdDataEncryptionKeyManagementModeType {
+  string,
+
+  /** Customer managed encryption key management mode type. */
+  CustomerManaged: "CustomerManaged",
+
+  /** Platform managed encryption key management mode type. */
+  PlatformManaged: "PlatformManaged",
+}
 
 /*
  * =======================================

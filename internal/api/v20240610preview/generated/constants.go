@@ -46,6 +46,21 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// CustomerManagedEncryptionType - The encryption type used. By default, "KMS" is used.
+type CustomerManagedEncryptionType string
+
+const (
+	// CustomerManagedEncryptionTypeKms - KMS encryption type.
+	CustomerManagedEncryptionTypeKms CustomerManagedEncryptionType = "KMS"
+)
+
+// PossibleCustomerManagedEncryptionTypeValues returns the possible values for the CustomerManagedEncryptionType const type.
+func PossibleCustomerManagedEncryptionTypeValues() []CustomerManagedEncryptionType {
+	return []CustomerManagedEncryptionType{
+		CustomerManagedEncryptionTypeKms,
+	}
+}
+
 // DiskStorageAccountType - The type of the disk storage account
 // * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 type DiskStorageAccountType string
@@ -86,6 +101,25 @@ func PossibleEffectValues() []Effect {
 		EffectNoExecute,
 		EffectNoSchedule,
 		EffectPreferNoSchedule,
+	}
+}
+
+// EtcdDataEncryptionKeyManagementModeType - Specify the key management strategy used for the encryption key that encrypts
+// the ETCD data. By default, "PlatformManaged" is used.
+type EtcdDataEncryptionKeyManagementModeType string
+
+const (
+	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
+	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
+	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
+	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
+)
+
+// PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.
+func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptionKeyManagementModeType {
+	return []EtcdDataEncryptionKeyManagementModeType{
+		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	}
 }
 
