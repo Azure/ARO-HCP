@@ -1317,9 +1317,8 @@ func (n *NodePoolListResult) UnmarshalJSON(data []byte) error {
 func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "availabilityZone", n.AvailabilityZone)
-	populate(objectMap, "diskSizeGiB", n.DiskSizeGiB)
-	populate(objectMap, "diskStorageAccountType", n.DiskStorageAccountType)
 	populate(objectMap, "enableEncryptionAtHost", n.EnableEncryptionAtHost)
+	populate(objectMap, "osDisk", n.OSDisk)
 	populate(objectMap, "subnetId", n.SubnetID)
 	populate(objectMap, "vmSize", n.VMSize)
 	return json.Marshal(objectMap)
@@ -1337,14 +1336,11 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 		case "availabilityZone":
 			err = unpopulate(val, "AvailabilityZone", &n.AvailabilityZone)
 			delete(rawMsg, key)
-		case "diskSizeGiB":
-			err = unpopulate(val, "DiskSizeGiB", &n.DiskSizeGiB)
-			delete(rawMsg, key)
-		case "diskStorageAccountType":
-			err = unpopulate(val, "DiskStorageAccountType", &n.DiskStorageAccountType)
-			delete(rawMsg, key)
 		case "enableEncryptionAtHost":
 			err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
+			delete(rawMsg, key)
+		case "osDisk":
+			err = unpopulate(val, "OSDisk", &n.OSDisk)
 			delete(rawMsg, key)
 		case "subnetId":
 			err = unpopulate(val, "SubnetID", &n.SubnetID)
@@ -1761,6 +1757,43 @@ func (o *OperatorsAuthenticationProfileUpdate) UnmarshalJSON(data []byte) error 
 		switch key {
 		case "userAssignedIdentities":
 			err = unpopulate(val, "UserAssignedIdentities", &o.UserAssignedIdentities)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", o, err)
+		}
+	}
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaller interface for type OsDiskProfile.
+func (o OsDiskProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "diskStorageAccountType", o.DiskStorageAccountType)
+	populate(objectMap, "encryptionSetId", o.EncryptionSetID)
+	populate(objectMap, "sizeGiB", o.SizeGiB)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type OsDiskProfile.
+func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", o, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "diskStorageAccountType":
+			err = unpopulate(val, "DiskStorageAccountType", &o.DiskStorageAccountType)
+			delete(rawMsg, key)
+		case "encryptionSetId":
+			err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)
+			delete(rawMsg, key)
+		case "sizeGiB":
+			err = unpopulate(val, "SizeGiB", &o.SizeGiB)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)

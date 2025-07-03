@@ -54,12 +54,19 @@ type NodePoolVersionProfile struct {
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string                 `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	VMSize                 string                 `json:"vmSize,omitempty"                 validate:"required_for_put"`
-	EnableEncryptionAtHost bool                   `json:"enableEncryptionAtHost"`
-	DiskSizeGiB            int32                  `json:"diskSizeGiB,omitempty"            validate:"min=1"`
+	SubnetID               string        `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	VMSize                 string        `json:"vmSize,omitempty"                 validate:"required_for_put"`
+	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
+	OSDisk                 OSDiskProfile `json:"osDisk"`
+	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
+}
+
+// OSDiskProfile represents a OS Disk configuration.
+// Visibility for the entire struct is "read create".
+type OSDiskProfile struct {
+	SizeGiB                int32                  `json:"sizeGiB,omitempty"            validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
-	AvailabilityZone       string                 `json:"availabilityZone,omitempty"`
+	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"    validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
@@ -84,8 +91,10 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 				ChannelGroup: "stable",
 			},
 			Platform: NodePoolPlatformProfile{
-				DiskSizeGiB:            64,
-				DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
+				OSDisk: OSDiskProfile{
+					SizeGiB:                64,
+					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
+				},
 			},
 			AutoRepair: true,
 		},

@@ -566,15 +566,9 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
-  /** The OS disk size in GiB */
+  /** The settings and configuration options for OSDisk */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskSizeGiB?: int32 = 64;
-
-  /** The type of the disk storage account
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+  osDisk?: OsDiskProfile;
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
@@ -582,6 +576,31 @@ model NodePoolPlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
+}
+
+/** The settings and configuration options for OSDisk */
+model OsDiskProfile {
+  /** The OS disk size in GiB */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  sizeGiB?: int32 = 64;
+
+  /** The type of the disk storage account
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+
+  /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
+   * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
+   * DiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location
+   * listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.
+   *
+   * Details on how to create a Disk Encryption Set can be found here:
+   * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(285)
+  encryptionSetId?: DiskEncryptionSetResourceId;
 }
 
 /** Supported Azure storage account types
@@ -610,6 +629,13 @@ model NodePoolAutoScaling {
   @minValue(0)
   max?: int32;
 }
+
+scalar DiskEncryptionSetResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Compute/diskEncryptionSets",
+    }
+  ]>;
 
 /*
  * =======================================
