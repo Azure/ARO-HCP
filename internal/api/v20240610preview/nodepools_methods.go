@@ -131,8 +131,8 @@ func normalizeNodePoolPlatform(p *generated.NodePoolPlatformProfile, out *api.No
 	if p.EnableEncryptionAtHost != nil {
 		out.EnableEncryptionAtHost = *p.EnableEncryptionAtHost
 	}
-	if p.OSDiskProfile != nil {
-		normalizeOSDiskProfile(p.OSDiskProfile, &out.OSDiskProfile)
+	if p.OSDisk != nil {
+		normalizeOSDiskProfile(p.OSDisk, &out.OSDisk)
 	}
 	if p.SubnetID != nil {
 		out.SubnetID = *p.SubnetID
@@ -195,7 +195,7 @@ func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.No
 		VMSize:                 api.PtrOrNil(from.VMSize),
 		AvailabilityZone:       api.PtrOrNil(from.AvailabilityZone),
 		EnableEncryptionAtHost: api.PtrOrNil(from.EnableEncryptionAtHost),
-		OSDiskProfile:          newOSDiskProfile(&from.OSDiskProfile),
+		OSDisk:                 newOSDiskProfile(&from.OSDisk),
 		SubnetID:               api.PtrOrNil(from.SubnetID),
 	}
 }

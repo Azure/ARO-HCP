@@ -57,7 +57,7 @@ type NodePoolPlatformProfile struct {
 	SubnetID               string        `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	VMSize                 string        `json:"vmSize,omitempty"                 validate:"required_for_put"`
 	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
-	OSDiskProfile          OSDiskProfile `json:"osDiskProfile"`
+	OSDisk                 OSDiskProfile `json:"osDisk"`
 	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
 }
 
@@ -91,7 +91,7 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 				ChannelGroup: "stable",
 			},
 			Platform: NodePoolPlatformProfile{
-				OSDiskProfile: OSDiskProfile{
+				OSDisk: OSDiskProfile{
 					DiskSizeGiB:            64,
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 				},

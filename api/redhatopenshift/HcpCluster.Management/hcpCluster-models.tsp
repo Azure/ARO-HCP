@@ -568,7 +568,7 @@ model NodePoolPlatformProfile {
 
   /** The settings and configuration options for OSDisk */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  osDiskProfile?: OsDiskProfile;
+  osDisk?: OsDiskProfile;
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones

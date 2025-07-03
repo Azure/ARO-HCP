@@ -1318,7 +1318,7 @@ func (n NodePoolPlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "availabilityZone", n.AvailabilityZone)
 	populate(objectMap, "enableEncryptionAtHost", n.EnableEncryptionAtHost)
-	populate(objectMap, "osDiskProfile", n.OSDiskProfile)
+	populate(objectMap, "osDisk", n.OSDisk)
 	populate(objectMap, "subnetId", n.SubnetID)
 	populate(objectMap, "vmSize", n.VMSize)
 	return json.Marshal(objectMap)
@@ -1339,8 +1339,8 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 		case "enableEncryptionAtHost":
 			err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
 			delete(rawMsg, key)
-		case "osDiskProfile":
-			err = unpopulate(val, "OSDiskProfile", &n.OSDiskProfile)
+		case "osDisk":
+			err = unpopulate(val, "OSDisk", &n.OSDisk)
 			delete(rawMsg, key)
 		case "subnetId":
 			err = unpopulate(val, "SubnetID", &n.SubnetID)

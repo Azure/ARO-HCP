@@ -54,7 +54,7 @@
             "vmSize": "Standard_D2s_v3",
             "availabilityZone": "australiaeast-az1",
             "enableEncryptionAtHost": true,
-            "osDiskProfile": {
+            "osDisk": {
               "diskSizeGiB": 10,
               "diskStorageAccountType": "Premium_LRS",
               "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"

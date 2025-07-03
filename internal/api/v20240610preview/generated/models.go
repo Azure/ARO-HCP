@@ -497,7 +497,7 @@ type NodePoolPlatformProfile struct {
 	EnableEncryptionAtHost *bool
 
 	// The settings and configuration options for OSDisk
-	OSDiskProfile *OsDiskProfile
+	OSDisk *OsDiskProfile
 
 	// The Azure resource ID of the worker subnet
 	SubnetID *string

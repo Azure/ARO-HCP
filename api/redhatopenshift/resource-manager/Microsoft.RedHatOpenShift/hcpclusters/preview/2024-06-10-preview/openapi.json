@@ -1959,7 +1959,7 @@
             "create"
           ]
         },
-        "osDiskProfile": {
+        "osDisk": {
           "$ref": "#/definitions/OsDiskProfile",
           "description": "The settings and configuration options for OSDisk",
           "x-ms-mutability": [
