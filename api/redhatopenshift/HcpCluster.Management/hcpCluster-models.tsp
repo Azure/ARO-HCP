@@ -885,10 +885,8 @@ model ExternalAuthClaimProfile {
  * At a minimum username or groups must be defined.
  */
 model TokenClaimMappingsProfile {
-  /** The claim mappings username.
-   * If not specified a default value of "sub" will be used.
-   */
-  username?: UsernameClaimProfile;
+  /** The claim mappings username. */
+  username: UsernameClaimProfile;
 
   /** The claim mappings groups. */
   groups?: GroupClaimProfile;

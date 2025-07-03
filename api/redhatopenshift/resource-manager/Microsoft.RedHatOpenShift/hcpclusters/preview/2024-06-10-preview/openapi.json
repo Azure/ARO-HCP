@@ -3327,13 +3327,16 @@
       "properties": {
         "username": {
           "$ref": "#/definitions/UsernameClaimProfile",
-          "description": "The claim mappings username.\nIf not specified a default value of \"sub\" will be used."
+          "description": "The claim mappings username."
         },
         "groups": {
           "$ref": "#/definitions/GroupClaimProfile",
           "description": "The claim mappings groups."
         }
-      }
+      },
+      "required": [
+        "username"
+      ]
     },
     "TokenClaimMappingsProfileUpdate": {
       "type": "object",
@@ -3341,7 +3344,7 @@
       "properties": {
         "username": {
           "$ref": "#/definitions/UsernameClaimProfileUpdate",
-          "description": "The claim mappings username.\nIf not specified a default value of \"sub\" will be used."
+          "description": "The claim mappings username."
         },
         "groups": {
           "$ref": "#/definitions/GroupClaimProfileUpdate",

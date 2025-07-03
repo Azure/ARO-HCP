@@ -958,11 +958,11 @@ type Taint struct {
 
 // TokenClaimMappingsProfile - External Auth claim mappings profile. At a minimum username or groups must be defined.
 type TokenClaimMappingsProfile struct {
+	// REQUIRED; The claim mappings username.
+	Username *UsernameClaimProfile
+
 	// The claim mappings groups.
 	Groups *GroupClaimProfile
-
-	// The claim mappings username. If not specified a default value of "sub" will be used.
-	Username *UsernameClaimProfile
 }
 
 // TokenClaimMappingsProfileUpdate - External Auth claim mappings profile. At a minimum username or groups must be defined.
@@ -970,7 +970,7 @@ type TokenClaimMappingsProfileUpdate struct {
 	// The claim mappings groups.
 	Groups *GroupClaimProfileUpdate
 
-	// The claim mappings username. If not specified a default value of "sub" will be used.
+	// The claim mappings username.
 	Username *UsernameClaimProfileUpdate
 }
 
