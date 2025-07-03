@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -38,7 +37,6 @@ func shouldRunE2E() bool {
 }
 
 type E2E interface {
-	SetConfig(updates config.Configuration)
 	UseRandomRG() func() error
 	AddBicepTemplate(template, templateFileName, paramfile, paramfileName string)
 	SetOSArgs()
@@ -54,7 +52,7 @@ type bicepTemplate struct {
 }
 
 type e2eImpl struct {
-	config   config.Configuration
+	config   map[string]any
 	makefile string
 	pipeline types.Pipeline
 	biceps   []bicepTemplate
@@ -69,19 +67,19 @@ func newE2E(tmpdir string, pipelineFilePath string) (*e2eImpl, error) {
 	imp := e2eImpl{
 		tmpdir: tmpdir,
 		schema: `{"type": "object"}`,
-		config: config.Configuration{
+		config: map[string]any{
 			"$schema": "schema.json",
-			"defaults": config.Configuration{
+			"defaults": map[string]any{
 				"region":       "westus3",
 				"subscription": "ARO Hosted Control Planes (EA Subscription 1)",
 				"rg":           defaultRgName,
 			},
-			"clouds": config.Configuration{
-				"public": config.Configuration{
-					"defaults": config.Configuration{},
-					"environments": config.Configuration{
-						"dev": config.Configuration{
-							"defaults": config.Configuration{},
+			"clouds": map[string]any{
+				"public": map[string]any{
+					"defaults": map[string]any{},
+					"environments": map[string]any{
+						"dev": map[string]any{
+							"defaults": map[string]any{},
 						},
 					},
 				},
@@ -116,7 +114,16 @@ func GenerateRandomRGName() string {
 
 func (e *e2eImpl) UseRandomRG() func() error {
 	e.rgName = GenerateRandomRGName()
-	e.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": e.rgName}})
+	defaults, ok := e.config["defaults"]
+	if !ok {
+		panic("defaults not set")
+	}
+	asMap, ok := defaults.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("defaults not a map[string]any: %T", defaults))
+	}
+	asMap["rg"] = e.rgName
+	e.config["defaults"] = asMap
 
 	return func() error {
 		subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
@@ -149,10 +156,6 @@ func (e *e2eImpl) SetOSArgs() {
 
 func (e *e2eImpl) EnableDryRun() {
 	os.Args = append(os.Args, "--dry-run")
-}
-
-func (e *e2eImpl) SetConfig(updates config.Configuration) {
-	config.MergeConfiguration(e.config, updates)
 }
 
 func (e *e2eImpl) AddBicepTemplate(template, templateFileName, paramfile, paramfileName string) {
