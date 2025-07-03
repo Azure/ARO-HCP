@@ -377,6 +377,47 @@ log STEP "Step 6: Deleting Network Security Groups"
 nsgs=$(get_resources_by_type "Microsoft.Network/networkSecurityGroups")
 safe_delete "$nsgs" "Network Security Groups"
 
+# Step 7: Purge soft-deleted Key Vaults
+# Key Vaults with soft delete enabled go into a "deleted" state and need to be purged
+log STEP "Step 7: Purging soft-deleted Key Vaults"
+
+# Get list of all soft-deleted vault names filtered by resource group
+deleted_vaults=$(az keyvault list-deleted --query "[?contains(properties.vaultId, '/resourceGroups/$RESOURCE_GROUP/')].name" --output tsv 2>/dev/null || echo "")
+
+if [[ -n "$deleted_vaults" ]]; then
+    while IFS= read -r vault_name; do
+        [[ -z "$vault_name" ]] && continue
+        
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log INFO "[DRY RUN] Would purge Key Vault: $vault_name"
+        else
+            log INFO "Purging Key Vault: $vault_name"
+            
+            attempt=1
+            max_retries=3
+            while [[ $attempt -le $max_retries ]]; do
+                if [[ $attempt -gt 1 ]]; then
+                    log INFO "Retry attempt $attempt for: $vault_name"
+                    sleep 10  # Wait between retries
+                fi
+
+                if az keyvault purge --name "$vault_name" --output none 2>/dev/null; then
+                    log SUCCESS "Purged Key Vault: $vault_name"
+                    break
+                elif [[ $attempt -eq $max_retries ]]; then
+                    log ERROR "Failed to purge after $max_retries attempts: $vault_name"
+                else
+                    log WARN "Attempt $attempt failed for: $vault_name (retrying...)"
+                fi
+
+                ((attempt++))
+            done
+        fi
+    done <<< "$deleted_vaults"
+else
+    log INFO "No soft-deleted Key Vaults found from this resource group"
+fi
+
 # Final summary
 
 log STEP "Cleanup completed for resource group: $RESOURCE_GROUP"
