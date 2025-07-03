@@ -38,7 +38,8 @@
             "value": "x",
             "effect": "NoSchedule"
           }
-        ]
+        ],
+        "nodeDrainGracePeriod": 20
       },
       "tags": {
         "key7212": "uufkzlwqnoxdfihpqz"

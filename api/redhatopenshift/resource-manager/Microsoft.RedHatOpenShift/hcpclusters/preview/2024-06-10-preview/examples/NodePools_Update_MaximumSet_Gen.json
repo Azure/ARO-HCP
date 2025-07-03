@@ -35,7 +35,8 @@
             "value": "x",
             "effect": "NoSchedule"
           }
-        ]
+        ],
+        "nodeDrainGracePeriod": 20
       }
     }
   },
