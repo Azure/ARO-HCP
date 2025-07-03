@@ -626,7 +626,7 @@ func (h HcpOpenShiftClusterProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "dns", h.DNS)
 	populate(objectMap, "etcd", h.Etcd)
 	populate(objectMap, "network", h.Network)
-	populate(objectMap, "nodeDrainGracePeriod", h.NodeDrainGracePeriod)
+	populate(objectMap, "nodeDrainGracePeriodMinutes", h.NodeDrainGracePeriodMinutes)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "provisioningState", h.ProvisioningState)
 	populate(objectMap, "version", h.Version)
@@ -663,8 +663,8 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		case "network":
 			err = unpopulate(val, "Network", &h.Network)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriod":
-			err = unpopulate(val, "NodeDrainGracePeriod", &h.NodeDrainGracePeriod)
+		case "nodeDrainGracePeriodMinutes":
+			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &h.NodeDrainGracePeriodMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
@@ -689,7 +689,7 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 func (h HcpOpenShiftClusterPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoscaling", h.Autoscaling)
-	populate(objectMap, "nodeDrainGracePeriod", h.NodeDrainGracePeriod)
+	populate(objectMap, "nodeDrainGracePeriodMinutes", h.NodeDrainGracePeriodMinutes)
 	populate(objectMap, "platform", h.Platform)
 	populate(objectMap, "version", h.Version)
 	return json.Marshal(objectMap)
@@ -707,8 +707,8 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		case "autoscaling":
 			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriod":
-			err = unpopulate(val, "NodeDrainGracePeriod", &h.NodeDrainGracePeriod)
+		case "nodeDrainGracePeriodMinutes":
+			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &h.NodeDrainGracePeriodMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &h.Platform)
@@ -1368,7 +1368,7 @@ func (n NodePoolProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "autoRepair", n.AutoRepair)
 	populate(objectMap, "autoScaling", n.AutoScaling)
 	populate(objectMap, "labels", n.Labels)
-	populate(objectMap, "nodeDrainGracePeriod", n.NodeDrainGracePeriod)
+	populate(objectMap, "nodeDrainGracePeriodMinutes", n.NodeDrainGracePeriodMinutes)
 	populate(objectMap, "platform", n.Platform)
 	populate(objectMap, "provisioningState", n.ProvisioningState)
 	populate(objectMap, "replicas", n.Replicas)
@@ -1395,8 +1395,8 @@ func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 		case "labels":
 			err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriod":
-			err = unpopulate(val, "NodeDrainGracePeriod", &n.NodeDrainGracePeriod)
+		case "nodeDrainGracePeriodMinutes":
+			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &n.NodeDrainGracePeriodMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &n.Platform)
@@ -1428,7 +1428,7 @@ func (n NodePoolPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoScaling", n.AutoScaling)
 	populate(objectMap, "labels", n.Labels)
-	populate(objectMap, "nodeDrainGracePeriod", n.NodeDrainGracePeriod)
+	populate(objectMap, "nodeDrainGracePeriodMinutes", n.NodeDrainGracePeriodMinutes)
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
 	populate(objectMap, "version", n.Version)
@@ -1450,8 +1450,8 @@ func (n *NodePoolPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		case "labels":
 			err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriod":
-			err = unpopulate(val, "NodeDrainGracePeriod", &n.NodeDrainGracePeriod)
+		case "nodeDrainGracePeriodMinutes":
+			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &n.NodeDrainGracePeriodMinutes)
 			delete(rawMsg, key)
 		case "replicas":
 			err = unpopulate(val, "Replicas", &n.Replicas)
