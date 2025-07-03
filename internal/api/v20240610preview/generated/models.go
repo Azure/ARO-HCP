@@ -198,15 +198,15 @@ type ExternalAuthClaimProfileUpdate struct {
 
 // ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
 type ExternalAuthClientComponentProfile struct {
+	// REQUIRED; The namespace of the external Auth client This specifies the namespace in which the platform component being
+	// configured to use the identity provider as an authentication mode is running.
+	// It is used in combination with name as a unique identifier.
+	AuthClientNamespace *string
+
 	// REQUIRED; The name of the external auth client
 	// This specifies the name of the platform component being configured to use the identity provider as an authentication mode.
 	// It is used in combination with namespace as a unique identifier.
 	Name *string
-
-	// The namespace of the external Auth client This specifies the namespace in which the platform component being configured
-	// to use the identity provider as an authentication mode is running.
-	// It is used in combination with name as a unique identifier.
-	AuthClientNamespace *string
 }
 
 // ExternalAuthClientProfile - External Auth client profile This configures how on-cluster, platform clients should request
@@ -229,19 +229,19 @@ type ExternalAuthClientProfile struct {
 
 // ExternalAuthCondition - Condition defines an observation of the external auth state.
 type ExternalAuthCondition struct {
-	// REQUIRED; The last time the condition transitioned from one status to another.
+	// READ-ONLY; The last time the condition transitioned from one status to another.
 	LastTransitionTime *time.Time
 
-	// REQUIRED; This is a human readable message indicating details about the transition. This may be an empty string.
+	// READ-ONLY; This is a human readable message indicating details about the transition. This may be an empty string.
 	Message *string
 
-	// REQUIRED; This contains a programmatic identifier indicating the reason for the condition's last transition.
+	// READ-ONLY; This contains a programmatic identifier indicating the reason for the condition's last transition.
 	Reason *string
 
-	// REQUIRED; The status of the condition.
+	// READ-ONLY; The status of the condition.
 	Status *StatusType
 
-	// REQUIRED; This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.
+	// READ-ONLY; This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.
 	Type *ExternalAuthConditionType
 }
 

@@ -781,12 +781,7 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "azure-async-operation"
         },
-        "x-ms-long-running-operation": true,
-        "x-ms-examples": {
-          "ExternalAuths_CreateOrUpdate_MaximumSet_Gen": {
-            "$ref": "./examples/ExternalAuths_CreateOrUpdate_MaximumSet_Gen.json"
-          }
-        }
+        "x-ms-long-running-operation": true
       },
       "patch": {
         "operationId": "ExternalAuths_Update",
@@ -861,12 +856,7 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
-        "x-ms-long-running-operation": true,
-        "x-ms-examples": {
-          "ExternalAuths_Update_MaximumSet_Gen": {
-            "$ref": "./examples/ExternalAuths_Update_MaximumSet_Gen.json"
-          }
-        }
+        "x-ms-long-running-operation": true
       },
       "delete": {
         "operationId": "ExternalAuths_Delete",
@@ -929,12 +919,7 @@
         "x-ms-long-running-operation-options": {
           "final-state-via": "location"
         },
-        "x-ms-long-running-operation": true,
-        "x-ms-examples": {
-          "ExternalAuths_Delete_MaximumSet_Gen": {
-            "$ref": "./examples/ExternalAuths_Delete_MaximumSet_Gen.json"
-          }
-        }
+        "x-ms-long-running-operation": true
       }
     },
     "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/nodePools": {
@@ -1783,7 +1768,8 @@
         }
       },
       "required": [
-        "name"
+        "name",
+        "authClientNamespace"
       ]
     },
     "ExternalAuthClientProfile": {
@@ -1821,8 +1807,8 @@
       "type": "string",
       "description": "Representation of the possible values of an external authentication client's type",
       "enum": [
-        "confidential",
-        "public"
+        "Confidential",
+        "Public"
       ],
       "x-ms-enum": {
         "name": "ExternalAuthClientType",
@@ -1830,12 +1816,12 @@
         "values": [
           {
             "name": "Confidential",
-            "value": "confidential",
+            "value": "Confidential",
             "description": "Indicates that the client is confidential.\nConfidential clients must provide a client secret.\nThe secret should be provided within the cluster itself."
           },
           {
             "name": "Public",
-            "value": "public",
+            "value": "Public",
             "description": "Indicates that the client is public.\nPublic clients must not provide a client secret."
           }
         ]
@@ -1847,28 +1833,29 @@
       "properties": {
         "type": {
           "$ref": "#/definitions/ExternalAuthConditionType",
-          "description": "This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition."
+          "description": "This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.",
+          "readOnly": true
         },
         "status": {
           "$ref": "#/definitions/StatusType",
-          "description": "The status of the condition."
+          "description": "The status of the condition.",
+          "readOnly": true
         },
         "lastTransitionTime": {
           "type": "string",
           "format": "date-time",
-          "description": "The last time the condition transitioned from one status to another."
+          "description": "The last time the condition transitioned from one status to another.",
+          "readOnly": true
         },
         "reason": {
           "type": "string",
           "description": "This contains a programmatic identifier indicating the reason for the condition's last transition.",
-          "minLength": 1,
-          "maxLength": 1024
+          "readOnly": true
         },
         "message": {
           "type": "string",
           "description": "This is a human readable message indicating details about the transition.\nThis may be an empty string.",
-          "minLength": 1,
-          "maxLength": 32768
+          "readOnly": true
         }
       },
       "required": [

@@ -724,24 +724,25 @@ model ExternalAuthProperties {
 /** Condition defines an observation of the external auth state. */
 model ExternalAuthCondition {
   /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  @visibility(Lifecycle.Read)
   type: ExternalAuthConditionType;
 
   /** The status of the condition. */
+  @visibility(Lifecycle.Read)
   status: StatusType;
 
   /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
   lastTransitionTime: utcDateTime;
 
   /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
-  @minLength(1)
-  @maxLength(1024)
+  @visibility(Lifecycle.Read)
   reason: string;
 
   /** This is a human readable message indicating details about the transition.
    * This may be an empty string.
    */
-  @minLength(1)
-  @maxLength(32768)
+  @visibility(Lifecycle.Read)
   message: string;
 }
 
@@ -837,12 +838,12 @@ union ExternalAuthClientType {
    * Confidential clients must provide a client secret.
    * The secret should be provided within the cluster itself.
    */
-  Confidential: "confidential",
+  Confidential: "Confidential",
 
   /** Indicates that the client is public.
    * Public clients must not provide a client secret.
    */
-  Public: "public",
+  Public: "Public",
 }
 
 /** External Auth component profile
@@ -867,7 +868,7 @@ model ExternalAuthClientComponentProfile {
    */
   @minLength(1)
   @maxLength(63)
-  authClientNamespace?: string;
+  authClientNamespace: string;
 }
 
 /** External Auth claim profile */

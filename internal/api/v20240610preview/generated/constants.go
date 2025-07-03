@@ -130,10 +130,10 @@ const (
 	// ExternalAuthClientTypeConfidential - Indicates that the client is confidential.
 	// Confidential clients must provide a client secret.
 	// The secret should be provided within the cluster itself.
-	ExternalAuthClientTypeConfidential ExternalAuthClientType = "confidential"
+	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
 	// ExternalAuthClientTypePublic - Indicates that the client is public.
 	// Public clients must not provide a client secret.
-	ExternalAuthClientTypePublic ExternalAuthClientType = "public"
+	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
 )
 
 // PossibleExternalAuthClientTypeValues returns the possible values for the ExternalAuthClientType const type.
