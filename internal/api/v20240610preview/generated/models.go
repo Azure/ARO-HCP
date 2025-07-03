@@ -69,11 +69,13 @@ type ClusterAutoscalingProfile struct {
 	PodPriorityThreshold *int32
 }
 
-// ClusterCapabilitiesProfile - Cluster capabilities configuration.
-type ClusterCapabilitiesProfile struct {
-	// Immutable list of disabled capabilities. May only contain "ImageRegistry" at this time. Additional capabilities may be
-	// available in the future. Clients should expect to handle additional values.
-	Disabled []*OptionalClusterCapability
+// ClusterImageRegistryProfile - OpenShift cluster image registry
+type ClusterImageRegistryProfile struct {
+	// state indicates the desired ImageStream-backed cluster image registry installation mode. This can only be set during cluster
+	// creation and cannot be changed after cluster creation. Enabled means the
+	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+	// image registry will not be present in the cluster. The default is Enabled.
+	State *ClusterImageRegistryProfileState
 }
 
 type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
@@ -216,8 +218,8 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
 
-	// Configure cluster capabilities.
-	Capabilities *ClusterCapabilitiesProfile
+	// OpenShift internal image registry
+	ClusterImageRegistry *ClusterImageRegistryProfile
 
 	// Cluster DNS configuration
 	DNS *DNSProfile

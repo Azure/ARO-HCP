@@ -65,7 +65,10 @@
             }
           }
         },
-        "nodeDrainTimeoutMinutes": 20
+        "nodeDrainTimeoutMinutes": 20,
+        "clusterImageRegistry": {
+          "state": "Enabled"
+        }
       },
       "identity": {
         "type": "UserAssigned",
@@ -147,7 +150,10 @@
               }
             }
           },
-          "nodeDrainTimeoutMinutes": 20
+          "nodeDrainTimeoutMinutes": 20,
+          "clusterImageRegistry": {
+            "state": "Enabled"
+          }
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",
@@ -246,7 +252,10 @@
               }
             }
           },
-          "nodeDrainTimeoutMinutes": 20
+          "nodeDrainTimeoutMinutes": 20,
+          "clusterImageRegistry": {
+            "state": "Enabled"
+          }
         },
         "identity": {
           "principalId": "e5867472-f0ed-4fc1-80e1-59b4c0256adb",

@@ -74,10 +74,6 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
-  /** Configure cluster capabilities. */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  capabilities?: ClusterCapabilitiesProfile;
-
   /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
@@ -97,24 +93,13 @@ model HcpOpenShiftClusterProperties {
   @maxValue(10080)
   @minValue(0)
   nodeDrainTimeoutMinutes?: int32 = 0;
-}
-/** Cluster capabilities configuration. */
-model ClusterCapabilitiesProfile {
-  /**
-   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
-   * this time. Additional capabilities may be available in the future. Clients
-   * should expect to handle additional values.
-   */
+
+  // Optional features begin here. Each feature has
+  // its own model with at least a "state" property.
+
+  /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  disabled?: OptionalClusterCapability[];
-}
-
-/** Cluster capabilities that can be disabled. */
-union OptionalClusterCapability {
-  string,
-
-  /** Enables the OpenShift internal image registry. */
-  ImageRegistry: "ImageRegistry",
+  clusterImageRegistry?: ClusterImageRegistryProfile;
 }
 
 /** The resource provisioning state. */
@@ -280,6 +265,17 @@ model ClusterAutoscalingProfile {
    * See the following for more details:
    * https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption */
   podPriorityThreshold?: int32 = -10;
+}
+
+/** OpenShift cluster image registry */
+model ClusterImageRegistryProfile {
+  /** state indicates the desired ImageStream-backed cluster image registry installation mode.
+   * This can only be set during cluster creation and cannot be changed after cluster creation.
+   * Enabled means the ImageStream-backed image registry will be run as pods on worker nodes in
+   * the cluster. Disabled means the ImageStream-backed image registry will not be present in
+   * the cluster. The default is Enabled. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  state?: "Enabled" | "Disabled" | string = "Enabled";
 }
 
 scalar SubnetResourceId

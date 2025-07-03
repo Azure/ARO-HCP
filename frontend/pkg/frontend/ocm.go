@@ -81,38 +81,6 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	return
 }
 
-func convertDisabledCapabilitiesToCS(in []api.OptionalClusterCapability) []string {
-	var out []string
-	for _, c := range in {
-		out = append(out, string(c))
-	}
-	return out
-}
-
-func convertDisableCapabilitiesToRP(in []string) []api.OptionalClusterCapability {
-	var out []api.OptionalClusterCapability
-	for _, c := range in {
-		out = append(out, api.OptionalClusterCapability(c))
-	}
-	return out
-}
-
-func convertClusterCapabilitiesToRP(in *arohcpv1alpha1.Cluster) api.ClusterCapabilitiesProfile {
-	out := api.ClusterCapabilitiesProfile{}
-	if in == nil {
-		return out
-	}
-	if in.Capabilities() != nil {
-		out.Disabled = convertDisableCapabilitiesToRP(in.Capabilities().Disabled())
-	}
-	return out
-}
-
-func convertClusterCapabilitiesToCSBuilder(in api.ClusterCapabilitiesProfile) *arohcpv1alpha1.ClusterCapabilitiesBuilder {
-	return arohcpv1alpha1.NewClusterCapabilities().
-		Disabled(convertDisabledCapabilitiesToCS(in.Disabled)...)
-}
-
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -174,7 +142,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
-			Capabilities: convertClusterCapabilitiesToRP(cluster),
 		},
 	}
 
@@ -283,8 +250,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
-		Capabilities(convertClusterCapabilitiesToCSBuilder(hcpCluster.Properties.Capabilities))
+			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility)))
 
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).

@@ -26,6 +26,25 @@ func PossibleActionTypeValues() []ActionType {
 	}
 }
 
+// ClusterImageRegistryProfileState - state indicates the desired ImageStream-backed cluster image registry installation mode.
+// This can only be set during cluster creation and cannot be changed after cluster creation. Enabled means the
+// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+// image registry will not be present in the cluster. The default is Enabled.
+type ClusterImageRegistryProfileState string
+
+const (
+	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
+	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
+
+// PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
+func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProfileState {
+	return []ClusterImageRegistryProfileState{
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
+	}
+}
+
 // CreatedByType - The type of identity that created the resource.
 type CreatedByType string
 
@@ -177,21 +196,6 @@ func PossibleOperatorIdentityRequiredValues() []OperatorIdentityRequired {
 	return []OperatorIdentityRequired{
 		OperatorIdentityRequiredAlways,
 		OperatorIdentityRequiredOnEnablement,
-	}
-}
-
-// OptionalClusterCapability - Cluster capabilities that can be disabled.
-type OptionalClusterCapability string
-
-const (
-	// OptionalClusterCapabilityImageRegistry - Enables the OpenShift internal image registry.
-	OptionalClusterCapabilityImageRegistry OptionalClusterCapability = "ImageRegistry"
-)
-
-// PossibleOptionalClusterCapabilityValues returns the possible values for the OptionalClusterCapability const type.
-func PossibleOptionalClusterCapabilityValues() []OptionalClusterCapability {
-	return []OptionalClusterCapability{
-		OptionalClusterCapabilityImageRegistry,
 	}
 }
 

@@ -106,8 +106,6 @@ func TestClusterStructTagMap(t *testing.T) {
 		"Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators":     api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity": api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.IssuerURL":               api.VisibilityRead,
-		"Properties.Capabilities":                     skip,
-		"Properties.Capabilities.Disabled":            api.VisibilityRead | api.VisibilityCreate,
 		"Identity":                                    skip,
 		"Identity.PrincipalID":                        api.VisibilityRead,
 		"Identity.TenantID":                           api.VisibilityRead,

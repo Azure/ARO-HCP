@@ -1187,15 +1187,20 @@
         }
       }
     },
-    "ClusterCapabilitiesProfile": {
+    "ClusterImageRegistryProfile": {
       "type": "object",
-      "description": "Cluster capabilities configuration.",
+      "description": "OpenShift cluster image registry",
       "properties": {
-        "disabled": {
-          "type": "array",
-          "description": "Immutable list of disabled capabilities. May only contain \"ImageRegistry\" at\nthis time. Additional capabilities may be available in the future. Clients\nshould expect to handle additional values.",
-          "items": {
-            "$ref": "#/definitions/OptionalClusterCapability"
+        "state": {
+          "type": "string",
+          "description": "state indicates the desired ImageStream-backed cluster image registry installation mode.\nThis can only be set during cluster creation and cannot be changed after cluster creation.\nEnabled means the ImageStream-backed image registry will be run as pods on worker nodes in\nthe cluster. Disabled means the ImageStream-backed image registry will not be present in\nthe cluster. The default is Enabled.",
+          "default": "Enabled",
+          "enum": [
+            "Enabled",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "modelAsString": true
           },
           "x-ms-mutability": [
             "read",
@@ -1504,14 +1509,6 @@
             "create"
           ]
         },
-        "capabilities": {
-          "$ref": "#/definitions/ClusterCapabilitiesProfile",
-          "description": "Configure cluster capabilities.",
-          "x-ms-mutability": [
-            "read",
-            "create"
-          ]
-        },
         "etcd": {
           "$ref": "#/definitions/EtcdProfile",
           "description": "Configure ETCD.",
@@ -1530,6 +1527,14 @@
           "x-ms-mutability": [
             "read",
             "update",
+            "create"
+          ]
+        },
+        "clusterImageRegistry": {
+          "$ref": "#/definitions/ClusterImageRegistryProfile",
+          "description": "OpenShift internal image registry",
+          "x-ms-mutability": [
+            "read",
             "create"
           ]
         }
@@ -2275,24 +2280,6 @@
           "$ref": "#/definitions/UserAssignedIdentitiesProfileUpdate",
           "description": "Represents the information related to Azure User-Assigned managed identities needed\nto perform Operators authentication based on Azure User-Assigned Managed Identities"
         }
-      }
-    },
-    "OptionalClusterCapability": {
-      "type": "string",
-      "description": "Cluster capabilities that can be disabled.",
-      "enum": [
-        "ImageRegistry"
-      ],
-      "x-ms-enum": {
-        "name": "OptionalClusterCapability",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "ImageRegistry",
-            "value": "ImageRegistry",
-            "description": "Enables the OpenShift internal image registry."
-          }
-        ]
       }
     },
     "OsDiskProfile": {
