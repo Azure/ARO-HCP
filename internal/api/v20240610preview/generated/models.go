@@ -207,6 +207,15 @@ type HcpOpenShiftClusterListResult struct {
 
 // HcpOpenShiftClusterProperties - HCP cluster properties
 type HcpOpenShiftClusterProperties struct {
+	// REQUIRED; NodeDrainGracePeriod is grace period for how long Pod Disruption Budget-protected workloads will be respected
+	// during upgrades. After this grace period, any workloads protected by Pod Disruption
+	// Budgets that have not been successfully drained from a node will be forcibly evicted.
+	// Valid values are in minutes and from 0 to 10080 minutes (1 week) . 0 or empty value means that the MachinePool can be drained
+	// without any time limitation.
+	// This value acts as a global default for all nodePools but can be overridden but setting nodeDrainGracePeriod for a specific
+	// nodePool.
+	NodeDrainGracePeriod *int32
+
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
@@ -242,6 +251,15 @@ type HcpOpenShiftClusterProperties struct {
 type HcpOpenShiftClusterPropertiesUpdate struct {
 	// Configure ClusterAutoscaling .
 	Autoscaling *ClusterAutoscalingProfile
+
+	// NodeDrainGracePeriod is grace period for how long Pod Disruption Budget-protected workloads will be respected during upgrades.
+	// After this grace period, any workloads protected by Pod Disruption
+	// Budgets that have not been successfully drained from a node will be forcibly evicted.
+	// Valid values are in minutes and from 0 to 10080 minutes (1 week) . 0 or empty value means that the MachinePool can be drained
+	// without any time limitation.
+	// This value acts as a global default for all nodePools but can be overridden but setting nodeDrainGracePeriod for a specific
+	// nodePool.
+	NodeDrainGracePeriod *int32
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
@@ -501,6 +519,14 @@ type NodePoolProperties struct {
 	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
 
+	// NodeDrainGracePeriod is grace period for how long Pod Disruption Budget-protected workloads will be respected during upgrades.
+	// After this grace period, any workloads protected by Pod Disruption
+	// Budgets that have not been successfully drained from a node will be forcibly evicted.
+	// Valid values are from 0 to 10080 minutes (1 week) . 0 or empty value means that the MachinePool can be drained without
+	// any time limitation.
+	// If unset the cluster nodeDrainGracePeriod value is used as a default.
+	NodeDrainGracePeriod *int32
+
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
 
@@ -521,6 +547,14 @@ type NodePoolPropertiesUpdate struct {
 
 	// Kubernetes labels to propagate to the NodePool Nodes
 	Labels []*Label
+
+	// NodeDrainGracePeriod is grace period for how long Pod Disruption Budget-protected workloads will be respected during upgrades.
+	// After this grace period, any workloads protected by Pod Disruption
+	// Budgets that have not been successfully drained from a node will be forcibly evicted.
+	// Valid values are from 0 to 10080 minutes (1 week) . 0 or empty value means that the MachinePool can be drained without
+	// any time limitation.
+	// If unset the cluster nodeDrainGracePeriod value is used as a default.
+	NodeDrainGracePeriod *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling
 	Replicas *int32
