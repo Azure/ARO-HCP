@@ -28,7 +28,11 @@
           },
           "api": {
             "visibility": "Public",
-            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
+            "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443",
+            "authorizedCidrs": [
+              "192.168.1.0/24",
+              "203.0.113.0/24"
+            ]
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
