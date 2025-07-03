@@ -82,22 +82,22 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   etcd?: EtcdProfile;
 
-  /** nodeDrainGracePeriodMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
-   * respected during upgrades. After this grace period, any workloads protected by Pod Disruption
-   * Budgets that have not been successfully drained from a node will be forcibly evicted.
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
    *
-   * Valid values are in minutes and from 0 to 10080 minutes (1 week) .
+   * Valid values are in minutes and from 0 to 10080 minutes (1 week).
    * 0 means that the MachinePool can be drained without any time limitation.
    *
-   * This value acts as a global default for all nodePools but can be overridden but setting
-   * nodeDrainGracePeriodMinutes for a specific nodePool.
+   * This is the value is used a default for all NodePools. It can be overridden
+   * by specifying nodeDrainGracePeriodMinutes for a given NodePool
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @maxValue(10080)
   @minValue(0)
   nodeDrainGracePeriodMinutes?: int32 = 0;
 }
-
 /** Cluster capabilities configuration. */
 model ClusterCapabilitiesProfile {
   /**
@@ -477,19 +477,18 @@ model NodePoolProperties {
   @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
 
-  /** nodeDrainGracePeriodMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
-   * respected during upgrades. After this grace period, any workloads protected by Pod Disruption
-   * Budgets that have not been successfully drained from a node will be forcibly evicted.
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
    *
    * Valid values are from 0 to 10080 minutes (1 week) .
-   * 0 means that the MachinePool can be drained without any time limitation.
+   * 0 means that the NodePool can be drained without any time limitation.
    *
-   * If unset the cluster nodeDrainGracePeriodMinutes value is used as a default.
+   * If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @maxValue(10080)
-  @minValue(0)
-  nodeDrainGracePeriodMinutes?: int32;
+  nodeDrainTimeoutMinutes?: int32;
 }
 
 /** The taint effect the same as in Kubernetes */

@@ -1368,7 +1368,7 @@ func (n NodePoolProperties) MarshalJSON() ([]byte, error) {
 	populate(objectMap, "autoRepair", n.AutoRepair)
 	populate(objectMap, "autoScaling", n.AutoScaling)
 	populate(objectMap, "labels", n.Labels)
-	populate(objectMap, "nodeDrainGracePeriodMinutes", n.NodeDrainGracePeriodMinutes)
+	populate(objectMap, "nodeDrainTimeoutMinutes", n.NodeDrainTimeoutMinutes)
 	populate(objectMap, "platform", n.Platform)
 	populate(objectMap, "provisioningState", n.ProvisioningState)
 	populate(objectMap, "replicas", n.Replicas)
@@ -1395,8 +1395,8 @@ func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 		case "labels":
 			err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriodMinutes":
-			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &n.NodeDrainGracePeriodMinutes)
+		case "nodeDrainTimeoutMinutes":
+			err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
 			err = unpopulate(val, "Platform", &n.Platform)
@@ -1428,7 +1428,7 @@ func (n NodePoolPropertiesUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "autoScaling", n.AutoScaling)
 	populate(objectMap, "labels", n.Labels)
-	populate(objectMap, "nodeDrainGracePeriodMinutes", n.NodeDrainGracePeriodMinutes)
+	populate(objectMap, "nodeDrainTimeoutMinutes", n.NodeDrainTimeoutMinutes)
 	populate(objectMap, "replicas", n.Replicas)
 	populate(objectMap, "taints", n.Taints)
 	populate(objectMap, "version", n.Version)
@@ -1450,8 +1450,8 @@ func (n *NodePoolPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		case "labels":
 			err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
-		case "nodeDrainGracePeriodMinutes":
-			err = unpopulate(val, "NodeDrainGracePeriodMinutes", &n.NodeDrainGracePeriodMinutes)
+		case "nodeDrainTimeoutMinutes":
+			err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "replicas":
 			err = unpopulate(val, "Replicas", &n.Replicas)
