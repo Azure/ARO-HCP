@@ -23,7 +23,7 @@ deploy: pull-chart
 	SERVICE_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='services'].immutableId" -o tsv) && \
 	HCP_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='hcp'].immutableId" -o tsv) && \
 	HCP_REMOTE_WRITE_URL=$$(if [ "$${HCP_DCR_IMMUTABLE_ID}" != "" ]; then echo "$${DCE_METRICS_INGESTION_URL}/dataCollectionRules/$${HCP_DCR_IMMUTABLE_ID}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24"; else echo ""; fi) && \
-	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n prometheus --query clientId -o tsv) && \
+	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az identity show -g ${RESOURCE_GROUP} -n prometheus --query clientId -o tsv) && \
 	${HELM_CMD} arohcp-monitor deploy/ \
 		--version ${CHART_VERSION} \
 		--namespace ${NAMESPACE} \
