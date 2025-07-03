@@ -16,11 +16,17 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -32,6 +38,39 @@ var (
 	subscriptionID string
 	e2eSetup       integration.SetupModel
 )
+
+// systemDataPolicy adds the X-Ms-Arm-Resource-System-Data header to cluster creation PUT requests.
+type systemDataPolicy struct{}
+
+func (p *systemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
+	// This policy should only apply to the PUT request that creates a cluster.
+	if req.Raw().Method == http.MethodPut && strings.Contains(req.Raw().URL.Path, "/hcpOpenShiftClusters/") {
+		createdBy := "shadownman@example.com"
+		createdByType := api.CreatedByTypeUser
+		createdAt := time.Now()
+		systemData := &api.SystemData{
+			CreatedBy:     &createdBy,
+			CreatedByType: &createdByType,
+			CreatedAt:     &createdAt,
+		}
+		systemDataBytes, err := json.Marshal(systemData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal systemData for header: %w", err)
+		}
+		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", string(systemDataBytes))
+	}
+	return req.Next()
+}
+
+// identityURLPolicy adds the X-Ms-Identity-Url header to simulate ARM.
+type identityURLPolicy struct{}
+
+func (p *identityURLPolicy) Do(req *policy.Request) (*http.Response, error) {
+	// This header is needed for requests directly against the frontend.
+	// The value can be a dummy value for local development.
+	req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
+	return req.Next()
+}
 
 func prepareDevelopmentConf() azcore.ClientOptions {
 	c := cloud.Configuration{
@@ -67,6 +106,8 @@ func setup(ctx context.Context) error {
 	}
 
 	opts := prepareDevelopmentConf()
+	// Add the custom policies to the PerCallPolicies slice.
+	opts.PerCallPolicies = []policy.Policy{&systemDataPolicy{}, &identityURLPolicy{}}
 
 	envOptions := &azidentity.EnvironmentCredentialOptions{
 		ClientOptions: opts,
