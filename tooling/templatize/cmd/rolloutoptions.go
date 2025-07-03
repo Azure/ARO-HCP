@@ -164,9 +164,9 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 		return nil, fmt.Errorf("error loading embedded ev2 config: %v", err)
 	}
 
-	rawRegionShort, present := ev2Cfg.GetByPath("regionShortName")
-	if !present {
-		return nil, fmt.Errorf("regionShortName not found for ev2Config[%s][%s]", o.Ev2Cloud, o.Region)
+	rawRegionShort, err := ev2Cfg.GetByPath("regionShortName")
+	if err != nil {
+		return nil, fmt.Errorf("regionShortName not found for ev2Config[%s][%s]: %w", o.Ev2Cloud, o.Region, err)
 	}
 	regionShort, isString := rawRegionShort.(string)
 	if !isString {
@@ -197,16 +197,11 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 	}
 	variables["extraVars"] = extraVars
 
-	cfg, ok := config.InterfaceToConfiguration(variables)
-	if !ok {
-		return nil, fmt.Errorf("invalid configuration")
-	}
-
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			ValidatedRolloutOptions: o,
 			Options:                 completed,
-			Config:                  cfg,
+			Config:                  variables,
 		},
 	}, nil
 }

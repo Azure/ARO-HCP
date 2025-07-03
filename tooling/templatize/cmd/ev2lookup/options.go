@@ -87,9 +87,9 @@ func (o *ValidatedLookupOptions) Complete() (*LookupOptions, error) {
 }
 
 func (opts *LookupOptions) Lookup() error {
-	val, ok := opts.Ev2Config.GetByPath(opts.Path)
-	if !ok {
-		return fmt.Errorf("invalid path %q", opts.Path)
+	val, err := opts.Ev2Config.GetByPath(opts.Path)
+	if err != nil {
+		return fmt.Errorf("failed to look up value: %w", err)
 	}
 	fmt.Printf("%v\n", val)
 	return nil

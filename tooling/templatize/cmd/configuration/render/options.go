@@ -167,9 +167,9 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 	for key, into := range map[string]*string{
 		"regionShortName": &replacements.RegionShortReplacement,
 	} {
-		value, ok := ev2Cfg.GetByPath(key)
-		if !ok {
-			return fmt.Errorf("%q not found in ev2 config", key)
+		value, err := ev2Cfg.GetByPath(key)
+		if err != nil {
+			return fmt.Errorf("%q not found in ev2 config: %w", key, err)
 		}
 		str, ok := value.(string)
 		if !ok {
@@ -186,14 +186,9 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 		return fmt.Errorf("failed to get resolver: %w", err)
 	}
 
-	rawCfg, err := resolver.GetRegionConfiguration(opts.Region)
+	cfg, err := resolver.GetRegionConfiguration(opts.Region)
 	if err != nil {
 		return fmt.Errorf("failed to get region config: %w", err)
-	}
-
-	cfg, ok := config.InterfaceToConfiguration(rawCfg)
-	if !ok {
-		return fmt.Errorf("invalid configuration")
 	}
 
 	if err := resolver.ValidateSchema(cfg); err != nil {

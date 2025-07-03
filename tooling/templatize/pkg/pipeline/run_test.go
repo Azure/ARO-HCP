@@ -214,7 +214,7 @@ func TestAddInputVars(t *testing.T) {
 		{
 			name: "configref",
 			cfg: config.Configuration{
-				"some": config.Configuration{
+				"some": map[string]any{
 					"config": "bar",
 				},
 			},
@@ -231,7 +231,7 @@ func TestAddInputVars(t *testing.T) {
 		{
 			name: "configref missing",
 			cfg: config.Configuration{
-				"some": config.Configuration{
+				"some": map[string]any{
 					"config": "bar",
 				},
 			},
