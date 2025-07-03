@@ -1247,7 +1247,7 @@
           ]
         },
         "kms": {
-          "$ref": "#/definitions/KmsConfig",
+          "$ref": "#/definitions/KmsEncryptionProfile",
           "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
           "x-ms-mutability": [
             "read",
@@ -1687,7 +1687,7 @@
         "dataPlaneOperators"
       ]
     },
-    "KmsConfig": {
+    "KmsEncryptionProfile": {
       "type": "object",
       "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
       "properties": {

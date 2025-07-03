@@ -381,7 +381,7 @@ model CustomerManagedEncryptionProfile {
    * Required when encryptionType is "KMS".
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  kms?: KmsConfig;
+  kms?: KmsEncryptionProfile;
 }
 
 /** Configure etcd encryption Key Management Service (KMS) key.
@@ -389,7 +389,7 @@ model CustomerManagedEncryptionProfile {
  * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
  *
  */
-model KmsConfig {
+model KmsEncryptionProfile {
   /** The details of the active key. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   activeKey: KmsKey;

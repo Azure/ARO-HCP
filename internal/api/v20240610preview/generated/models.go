@@ -97,7 +97,7 @@ type CustomerManagedEncryptionProfile struct {
 
 	// The Key Management Service (KMS) encryption key details.
 	// Required when encryptionType is "KMS".
-	Kms *KmsConfig
+	Kms *KmsEncryptionProfile
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
@@ -350,10 +350,10 @@ type HcpOperatorIdentityRoleSetProperties struct {
 	DataPlaneOperators []*OperatorIdentityRoles
 }
 
-// KmsConfig - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used to create
-// the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
+// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
+// to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
 // set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
-type KmsConfig struct {
+type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
 }
