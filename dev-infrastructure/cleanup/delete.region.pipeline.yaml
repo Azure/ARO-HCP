@@ -9,7 +9,7 @@ resourceGroups:
     action: ARM
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
+    deploymentLevel: Subscription
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription }}'
   steps:
