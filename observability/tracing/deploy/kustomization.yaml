@@ -5,3 +5,5 @@ resources:
 - namespace.yaml
 - service.yaml
 - jaeger.yaml
+- collector.yaml
+- lgtm.yaml
