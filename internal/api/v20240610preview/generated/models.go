@@ -16,6 +16,9 @@ type APIProfile struct {
 
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
+
+	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries.
+	AuthorizedCidrs []*string
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned

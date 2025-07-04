@@ -219,6 +219,11 @@ model ApiProfile {
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = Visibility.Public;
+
+  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxItems(5000)
+  authorizedCidrs?: string[];
 }
 
 /** The internet visibility of the OpenShift API server */
