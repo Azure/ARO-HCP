@@ -212,21 +212,43 @@ func (csc *clusterServiceClientWithTracing) GetBreakGlassCredential(ctx context.
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetBreakGlassCredential")
 	defer span.End()
 
-	return csc.csc.GetBreakGlassCredential(ctx, internalID)
+	credential, err := csc.csc.GetBreakGlassCredential(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetBreakGlassCredentialAttributes(span, credential)
+	}
+
+	return credential, err
 }
 
 func (csc *clusterServiceClientWithTracing) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostBreakGlassCredential")
 	defer span.End()
 
-	return csc.csc.PostBreakGlassCredential(ctx, clusterInternalID)
+	credential, err := csc.csc.PostBreakGlassCredential(ctx, clusterInternalID)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetBreakGlassCredentialAttributes(span, credential)
+	}
+
+	return credential, err
 }
 
 func (csc *clusterServiceClientWithTracing) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.DeleteBreakGlassCredentials")
 	defer span.End()
 
-	return csc.csc.DeleteBreakGlassCredentials(ctx, clusterInternalID)
+	span.SetAttributes(
+		tracing.ClusterIDKey.String(clusterInternalID.ID()),
+	)
+	err := csc.csc.DeleteBreakGlassCredentials(ctx, clusterInternalID)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return err
 }
 
 func (csc *clusterServiceClientWithTracing) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
