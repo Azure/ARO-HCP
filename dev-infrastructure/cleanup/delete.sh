@@ -390,12 +390,12 @@ deleted_vaults=$(az keyvault list-deleted --output tsv 2>/dev/null || echo "")
 if [[ -n "$deleted_vaults" ]]; then
     while IFS= read -r vault_name; do
         [[ -z "$vault_name" ]] && continue
-        
+
         if [[ "$DRY_RUN" == "true" ]]; then
             log INFO "[DRY RUN] Would purge Key Vault: $vault_name"
         else
             log INFO "Purging Key Vault: $vault_name"
-            
+
             attempt=1
             max_retries=3
             while [[ $attempt -le $max_retries ]]; do
@@ -404,7 +404,7 @@ if [[ -n "$deleted_vaults" ]]; then
                     sleep 10  # Wait between retries
                 fi
 
-                if az keyvault purge --name "$vault_name" --output none 2>/dev/null; then
+                if az keyvault purge --name "$vault_name" --no-wait --output none 2>/dev/null; then
                     log SUCCESS "Purged Key Vault: $vault_name"
                     break
                 elif [[ $attempt -eq $max_retries ]]; then
