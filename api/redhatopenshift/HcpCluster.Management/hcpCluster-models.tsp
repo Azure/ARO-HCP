@@ -581,7 +581,7 @@ model NodePoolPlatformProfile {
    * same subnet can be used for NodePools of the same cluster.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  subnetId?: string;
+  subnetId?: SubnetResourceId;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
