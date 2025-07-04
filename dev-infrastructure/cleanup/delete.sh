@@ -387,7 +387,7 @@ log STEP "Step 7: Purging soft-deleted Key Vaults"
 # Note: The original query was filtering by resource group, but this can be problematic if the vaults were deleted from different resource groups
 # TODO: Switch around the query to filter by resource group when needed
 # deleted_vaults=$(az keyvault list-deleted --query "[?contains(properties.vaultId, '/resourceGroups/$RESOURCE_GROUP/')].name" --output tsv 2>/dev/null || echo "")
-deleted_vaults=$(az keyvault list-deleted --output tsv 2>/dev/null || echo "")
+deleted_vaults=$(az keyvault list-deleted --query '[].name' --output tsv 2>/dev/null || echo "")
 
 if [[ -n "$deleted_vaults" ]]; then
     while IFS= read -r vault_name; do
@@ -406,13 +406,19 @@ if [[ -n "$deleted_vaults" ]]; then
                     sleep 10  # Wait between retries
                 fi
 
-                if az keyvault purge --name "$vault_name" --no-wait --output none 2>/dev/null; then
+                # Capture error output from az keyvault purge
+                error_output=$(az keyvault purge --name "$vault_name" --no-wait 2>&1)
+                purge_result=$?
+
+                if [[ $purge_result -eq 0 ]]; then
                     log SUCCESS "Purged Key Vault: $vault_name"
                     break
                 elif [[ $attempt -eq $max_retries ]]; then
                     log ERROR "Failed to purge after $max_retries attempts: $vault_name"
+                    log ERROR "Last error: $error_output"
                 else
                     log WARN "Attempt $attempt failed for: $vault_name (retrying...)"
+                    log WARN "Error: $error_output"
                 fi
 
                 ((attempt++))
