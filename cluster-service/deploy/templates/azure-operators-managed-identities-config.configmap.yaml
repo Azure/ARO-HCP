@@ -77,7 +77,7 @@ data:
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
             name: '{{ .name }}'
         {{- end }}
-        optional: true
+        optional: false
     dataPlaneOperatorsIdentities:
       disk-csi-driver:
         minOpenShiftVersion: 4.18
