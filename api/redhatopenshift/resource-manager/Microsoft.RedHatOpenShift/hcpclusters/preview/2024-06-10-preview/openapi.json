@@ -2698,7 +2698,7 @@
       "description": "Azure node pool platform configuration",
       "properties": {
         "subnetId": {
-          "type": "string",
+          "$ref": "#/definitions/SubnetResourceId",
           "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters, however the\nsame subnet can be used for NodePools of the same cluster.",
           "x-ms-mutability": [
             "read",
