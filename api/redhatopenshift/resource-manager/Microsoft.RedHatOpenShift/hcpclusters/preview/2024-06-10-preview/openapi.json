@@ -2699,7 +2699,7 @@
       "properties": {
         "subnetId": {
           "type": "string",
-          "description": "The Azure resource ID of the worker subnet",
+          "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters, however the\nsame subnet can be used for NodePools of the same cluster.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3114,7 +3114,7 @@
         },
         "subnetId": {
           "$ref": "#/definitions/SubnetResourceId",
-          "description": "The Azure resource ID of the worker subnet",
+          "description": "The Azure resource ID of the worker subnet\nNote that a subnet cannot be reused between ARO-HCP Clusters.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3145,7 +3145,7 @@
         },
         "networkSecurityGroupId": {
           "$ref": "#/definitions/NetworkSecurityGroupResourceId",
-          "description": "ResourceId for the network security group attached to the cluster subnet",
+          "description": "ResourceId for the NSG (network security group) attached to the cluster subnet\n\nNote that NSGs cannot be reused for other ARO-HCP clusters.",
           "x-ms-mutability": [
             "read",
             "create"
