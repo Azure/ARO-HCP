@@ -20,10 +20,22 @@ deploy:
 	- helm uninstall --ignore-not-found \
 		clc-state-metrics \
 		--namespace ${MCE_NS}
+	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
+			-g ${RESOURCEGROUP} \
+			-n image-puller \
+			--query clientId -o tsv) && \
+	IMAGE_PULLER_MI_TENANT_ID=$$(az identity show \
+			-g ${RESOURCEGROUP} \
+			-n image-puller \
+			--query tenantId -o tsv) && \
 	${HELM_CMD} \
 		mce ${MCE_CHART_DIR} \
 		--namespace ${MCE_NS} \
-		--set imageRegistry=${REGISTRY}
+		--set imageRegistry=${REGISTRY} \
+		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
+		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
+		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
+		--set pullBinding.scope=repository:${IMAGE_BASE}:pull
 	${HELM_CMD} \
 		mce-config ${MCE_CONFIG_DIR} \
 		--namespace ${MCE_NS} \
