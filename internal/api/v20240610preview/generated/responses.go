@@ -7,6 +7,35 @@
 
 package generated
 
+// ExternalAuthsClientCreateOrUpdateResponse contains the response from method ExternalAuthsClient.BeginCreateOrUpdate.
+type ExternalAuthsClientCreateOrUpdateResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
+}
+
+// ExternalAuthsClientDeleteResponse contains the response from method ExternalAuthsClient.BeginDelete.
+type ExternalAuthsClientDeleteResponse struct {
+	// placeholder for future response values
+}
+
+// ExternalAuthsClientGetResponse contains the response from method ExternalAuthsClient.Get.
+type ExternalAuthsClientGetResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
+}
+
+// ExternalAuthsClientListByParentResponse contains the response from method ExternalAuthsClient.NewListByParentPager.
+type ExternalAuthsClientListByParentResponse struct {
+	// The response of a ExternalAuth list operation.
+	ExternalAuthListResult
+}
+
+// ExternalAuthsClientUpdateResponse contains the response from method ExternalAuthsClient.BeginUpdate.
+type ExternalAuthsClientUpdateResponse struct {
+	// ExternalAuth resource
+	ExternalAuth
+}
+
 // HcpOpenShiftClustersClientCreateOrUpdateResponse contains the response from method HcpOpenShiftClustersClient.BeginCreateOrUpdate.
 type HcpOpenShiftClustersClientCreateOrUpdateResponse struct {
 	// HCP cluster resource

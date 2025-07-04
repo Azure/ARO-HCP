@@ -142,6 +142,84 @@ func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptio
 	}
 }
 
+// ExternalAuthClientType - Representation of the possible values of an external authentication client's type
+type ExternalAuthClientType string
+
+const (
+	// ExternalAuthClientTypeConfidential - Indicates that the client is confidential.
+	// Confidential clients must provide a client secret.
+	// The secret should be provided within the cluster itself.
+	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
+	// ExternalAuthClientTypePublic - Indicates that the client is public.
+	// Public clients must not provide a client secret.
+	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
+)
+
+// PossibleExternalAuthClientTypeValues returns the possible values for the ExternalAuthClientType const type.
+func PossibleExternalAuthClientTypeValues() []ExternalAuthClientType {
+	return []ExternalAuthClientType{
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	}
+}
+
+// ExternalAuthConditionType - Representation of the possible types of a external auths condition.
+type ExternalAuthConditionType string
+
+const (
+	// ExternalAuthConditionTypeAvailable - Indicates that the external auth resource is available.
+	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
+	// ExternalAuthConditionTypeDegraded - Indicates that the external auth resource is in a degraded state.
+	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
+	// ExternalAuthConditionTypeProgressing - Indicates that the external auth resource is in a progressing state.
+	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
+)
+
+// PossibleExternalAuthConditionTypeValues returns the possible values for the ExternalAuthConditionType const type.
+func PossibleExternalAuthConditionTypeValues() []ExternalAuthConditionType {
+	return []ExternalAuthConditionType{
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	}
+}
+
+// ExternalAuthProvisioningState - The resource provisioning state.
+type ExternalAuthProvisioningState string
+
+const (
+	// ExternalAuthProvisioningStateAccepted - Non-terminal state indicating the resource has been accepted
+	ExternalAuthProvisioningStateAccepted ExternalAuthProvisioningState = "Accepted"
+	// ExternalAuthProvisioningStateAwaitingSecret - Non-terminal state indicating the resource is awaiting secret
+	ExternalAuthProvisioningStateAwaitingSecret ExternalAuthProvisioningState = "AwaitingSecret"
+	// ExternalAuthProvisioningStateCanceled - Resource creation was canceled.
+	ExternalAuthProvisioningStateCanceled ExternalAuthProvisioningState = "Canceled"
+	// ExternalAuthProvisioningStateDeleting - Non-terminal state indicating the resource is deleting
+	ExternalAuthProvisioningStateDeleting ExternalAuthProvisioningState = "Deleting"
+	// ExternalAuthProvisioningStateFailed - Resource creation failed.
+	ExternalAuthProvisioningStateFailed ExternalAuthProvisioningState = "Failed"
+	// ExternalAuthProvisioningStateProvisioning - Non-terminal state indicating the resource is provisioning
+	ExternalAuthProvisioningStateProvisioning ExternalAuthProvisioningState = "Provisioning"
+	// ExternalAuthProvisioningStateSucceeded - Resource has been created.
+	ExternalAuthProvisioningStateSucceeded ExternalAuthProvisioningState = "Succeeded"
+	// ExternalAuthProvisioningStateUpdating - Non-terminal state indicating the resource is updating
+	ExternalAuthProvisioningStateUpdating ExternalAuthProvisioningState = "Updating"
+)
+
+// PossibleExternalAuthProvisioningStateValues returns the possible values for the ExternalAuthProvisioningState const type.
+func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningState {
+	return []ExternalAuthProvisioningState{
+		ExternalAuthProvisioningStateAccepted,
+		ExternalAuthProvisioningStateAwaitingSecret,
+		ExternalAuthProvisioningStateCanceled,
+		ExternalAuthProvisioningStateDeleting,
+		ExternalAuthProvisioningStateFailed,
+		ExternalAuthProvisioningStateProvisioning,
+		ExternalAuthProvisioningStateSucceeded,
+		ExternalAuthProvisioningStateUpdating,
+	}
+}
+
 // ManagedServiceIdentityType - Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
 type ManagedServiceIdentityType string
 
@@ -263,6 +341,44 @@ func PossibleProvisioningStateValues() []ProvisioningState {
 		ProvisioningStateProvisioning,
 		ProvisioningStateSucceeded,
 		ProvisioningStateUpdating,
+	}
+}
+
+// StatusType - Representation of the possible values of a external auths condition status.
+type StatusType string
+
+const (
+	// StatusTypeFalse - Indicates that the condition status is False.
+	StatusTypeFalse StatusType = "False"
+	// StatusTypeTrue - Indicates that the condition status is True.
+	StatusTypeTrue StatusType = "True"
+	// StatusTypeUnknown - Indicates that the condition status is unknown.
+	StatusTypeUnknown StatusType = "Unknown"
+)
+
+// PossibleStatusTypeValues returns the possible values for the StatusType const type.
+func PossibleStatusTypeValues() []StatusType {
+	return []StatusType{
+		StatusTypeFalse,
+		StatusTypeTrue,
+		StatusTypeUnknown,
+	}
+}
+
+// TokenValidationRuleType - This configures the type of the validation rule. It defaults to "RequiredClaim"
+type TokenValidationRuleType string
+
+const (
+	// TokenValidationRuleTypeRequiredClaim - Indicates that a Required Claim validation rule.
+	// When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+	// contains the required claim and that its value matches the required value.
+	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
+)
+
+// PossibleTokenValidationRuleTypeValues returns the possible values for the TokenValidationRuleType const type.
+func PossibleTokenValidationRuleTypeValues() []TokenValidationRuleType {
+	return []TokenValidationRuleType{
+		TokenValidationRuleTypeRequiredClaim,
 	}
 }
 

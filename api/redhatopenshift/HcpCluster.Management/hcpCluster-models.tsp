@@ -40,6 +40,15 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
+/** ExternalAuth resource */
+@parentResource(HcpOpenShiftCluster)
+model ExternalAuth is ProxyResource<ExternalAuthProperties> {
+  ...ResourceNameParameter<
+    ExternalAuth,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+  >;
+}
+
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
@@ -119,6 +128,16 @@ union ProvisioningState {
 
   /** Non-terminal state indicating the resource is updating */
   "Updating",
+}
+
+/** The resource provisioning state. */
+@lroStatus
+union ExternalAuthProvisioningState {
+  string,
+  ProvisioningState,
+
+  /** Non-terminal state indicating the resource is awaiting secret */
+  "AwaitingSecret",
 }
 
 /** Versions represents an OpenShift version. */
@@ -660,5 +679,298 @@ model HcpOpenShiftClusterAdminCredential {
 /*
  * =======================================
  *   End HCP cluster credentials
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
+
+/** External Auth profile */
+model ExternalAuthProperties {
+  /** Provisioning state */
+  @visibility(Lifecycle.Read)
+  provisioningState?: ExternalAuthProvisioningState;
+
+  /** An observation of the current state with additional information. */
+  @visibility(Lifecycle.Read)
+  condition?: ExternalAuthCondition;
+
+  /** Token Issuer profile */
+  issuer: TokenIssuerProfile;
+
+  /** External Auth OIDC clients
+   * There must not be more than 20 entries and entries must have unique namespace/name pairs.
+   */
+  @maxItems(20)
+  @OpenAPI.extension(
+    "x-ms-identifiers",
+    #["component", "clientId", "extraScopes"]
+  )
+  clients?: ExternalAuthClientProfile[];
+
+  /** External Auth claim
+   * This configures how claims are validated and applied.
+   */
+  claim: ExternalAuthClaimProfile;
+}
+
+/** Condition defines an observation of the external auth state. */
+model ExternalAuthCondition {
+  /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  @visibility(Lifecycle.Read)
+  type: ExternalAuthConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
+  @visibility(Lifecycle.Read)
+  reason: string;
+
+  /** This is a human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  message: string;
+}
+
+/** Representation of the possible values of a external auths condition status. */
+union StatusType {
+  string,
+
+  /** Indicates that the condition status is True. */
+  True: "True",
+
+  /** Indicates that the condition status is False. */
+  False: "False",
+
+  /** Indicates that the condition status is unknown. */
+  Unknown: "Unknown",
+}
+
+/** Representation of the possible types of a external auths condition. */
+union ExternalAuthConditionType {
+  string,
+
+  /** Indicates that the external auth resource is available. */
+  Available: "Available",
+
+  /** Indicates that the external auth resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the external auth resource is in a progressing state. */
+  Progressing: "Progressing",
+}
+
+/** Token issuer profile
+ * This configures how the platform interacts with the identity provider and
+ * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+ */
+model TokenIssuerProfile {
+  /** This configures the URL used to issue tokens by the identity provider.
+   * The Kubernetes API server determines how authentication tokens should be handled
+   * by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.
+   *
+   * issuerURL must use the 'https' scheme.
+   * */
+  url: url;
+
+  /** This configures the acceptable audiences the JWT token, issued by the identity
+   * provider, must be issued to. At least one of the entries must match the
+   * 'aud' claim in the JWT token.
+   *
+   * audiences must contain at least one entry and must not exceed ten entries.
+   */
+  @minItems(1)
+  @maxItems(10)
+  audiences: string[];
+
+  /** The issuer of the token
+   *
+   * Certificate bundle to use to validate server certificates for the configured URL.
+   * It must be PEM encoded and when not specified, the system trust is used.
+   */
+  ca?: string;
+}
+
+/** External Auth client profile
+ * This configures how on-cluster, platform clients should request tokens from the identity provider.
+ */
+model ExternalAuthClientProfile {
+  /** External Auth client component */
+  component: ExternalAuthClientComponentProfile;
+
+  /** External Auth client id
+   * The clientId must appear in the audience field of the TokenIssuerProfile.
+   */
+  @minLength(1)
+  clientId: string;
+
+  /** external auth client scopes
+   *
+   * This is useful if you have configured claim mappings that requires specific
+   * scopes to be requested beyond the standard OIDC scopes.
+   * When omitted, no additional scopes are requested.
+   */
+  extraScopes?: string[];
+
+  /** Determines the OIDC provider client type. */
+  type: ExternalAuthClientType;
+}
+
+/** Representation of the possible values of an external authentication client's type */
+union ExternalAuthClientType {
+  string,
+
+  /** Indicates that the client is confidential.
+   * Confidential clients must provide a client secret.
+   * The secret should be provided within the cluster itself.
+   */
+  Confidential: "Confidential",
+
+  /** Indicates that the client is public.
+   * Public clients must not provide a client secret.
+   */
+  Public: "Public",
+}
+
+/** External Auth component profile
+ * Must have unique namespace/name pairs.
+ */
+model ExternalAuthClientComponentProfile {
+  /** The name of the external auth client
+   *
+   * This specifies the name of the platform component being configured to use
+   * the identity provider as an authentication mode.
+   * It is used in combination with namespace as a unique identifier.
+   */
+  @minLength(1)
+  @maxLength(256)
+  name: string;
+
+  /** The namespace of the external Auth client
+   * This specifies the namespace in which the platform component being configured
+   * to use the identity provider as an authentication mode is running.
+   *
+   * It is used in combination with name as a unique identifier.
+   */
+  @minLength(1)
+  @maxLength(63)
+  authClientNamespace: string;
+}
+
+/** External Auth claim profile */
+model ExternalAuthClaimProfile {
+  /** The claim mappings */
+  mappings: TokenClaimMappingsProfile;
+
+  /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  validationRules?: TokenClaimValidationRule[];
+}
+
+/** External Auth claim mappings profile.
+ * At a minimum username or groups must be defined.
+ */
+model TokenClaimMappingsProfile {
+  /** The claim mappings username. */
+  username: UsernameClaimProfile;
+
+  /** The claim mappings groups. */
+  groups?: GroupClaimProfile;
+}
+
+/** External Auth claim profile
+ * This configures how the groups of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider. When
+ * referencing a claim, if the claim is present in the JWT token, its value
+ * must be a list of groups separated by a comma (',').
+ *
+ * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+ */
+model GroupClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
+  prefix?: string;
+}
+
+/** External Auth claim profile
+ * This configures how the username of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider.
+ */
+model UsernameClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
+  prefix?: string;
+
+  /** Prefix policy
+   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
+  prefixPolicy?: string;
+}
+
+/** External Auth claim validation rule */
+model TokenClaimValidationRule {
+  /** This configures the type of the validation rule.
+   * It defaults to "RequiredClaim"
+   */
+  type?: TokenValidationRuleType = TokenValidationRuleType.RequiredClaim;
+
+  /** The required claim rule to be applied. */
+  requiredClaim?: TokenRequiredClaim;
+}
+
+/** Token required claim validation rule. */
+model TokenRequiredClaim {
+  /** Claim name for the validation profile
+   * claim is a required field that configures the name of the required claim.
+   * */
+  @minLength(1)
+  claim: string;
+
+  /** Required value
+   * requiredValue is a required field that configures the value that 'claim' must
+   * have when taken from the incoming JWT claims.
+   * If the value in the JWT claims does not match, the token
+   * will be rejected for authentication.
+   */
+  @minLength(1)
+  requiredValue: string;
+}
+
+/** Representation of the different claim validation rule types that can be configured. */
+union TokenValidationRuleType {
+  string,
+
+  /** Indicates that a Required Claim validation rule.
+   *
+   * When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+   * contains the required claim and that its value matches the required value.
+   */
+  RequiredClaim: "RequiredClaim",
+}
+
+/*
+ * =======================================
+ *  End ExternalAuth resources
  * =======================================
  */

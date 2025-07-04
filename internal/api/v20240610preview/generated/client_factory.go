@@ -35,6 +35,14 @@ func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, 
 	}, nil
 }
 
+// NewExternalAuthsClient creates a new instance of ExternalAuthsClient.
+func (c *ClientFactory) NewExternalAuthsClient() *ExternalAuthsClient {
+	return &ExternalAuthsClient{
+		subscriptionID: c.subscriptionID,
+		internal:       c.internal,
+	}
+}
+
 // NewHcpOpenShiftClustersClient creates a new instance of HcpOpenShiftClustersClient.
 func (c *ClientFactory) NewHcpOpenShiftClustersClient() *HcpOpenShiftClustersClient {
 	return &HcpOpenShiftClustersClient{
