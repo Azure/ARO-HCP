@@ -667,7 +667,8 @@ type NodePoolPlatformProfile struct {
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
-	// The Azure resource ID of the worker subnet
+	// The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters, however the same
+	// subnet can be used for NodePools of the same cluster.
 	SubnetID *string
 }
 
@@ -860,13 +861,14 @@ type OsDiskProfile struct {
 
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
-	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
+	// REQUIRED; ResourceId for the NSG (network security group) attached to the cluster subnet
+	// Note that NSGs cannot be reused for other ARO-HCP clusters.
 	NetworkSecurityGroupID *string
 
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
-	// REQUIRED; The Azure resource ID of the worker subnet
+	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
 	// Resource group to put cluster resources
