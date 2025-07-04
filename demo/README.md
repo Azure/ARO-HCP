@@ -1,5 +1,7 @@
 # Create an HCP
 
+Let's make sure that CI does what we expect!
+
 ## Prepare
 
 * have a `KUBECONFIG` for a SC and MC, e.g. for the [integrated DEV environment](../dev-infrastructure/docs/development-setup.md#access-integrated-dev-environment)
