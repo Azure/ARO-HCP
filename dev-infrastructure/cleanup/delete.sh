@@ -329,18 +329,20 @@ else
     echo "No public DNS zones found"
 fi
 
-# Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs and DCRs/DCEs)
+# Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs, DCRs/DCEs, and Container Instances)
 # These resources can be safely deleted after handling private networking
-log STEP "Step 3: Deleting application and infrastructure resources (excluding networking and monitoring)"
+# Note: Skip container instances since this script may be running inside one
+log STEP "Step 3: Deleting application and infrastructure resources (excluding networking, monitoring, and container instances)"
 all_resources=$(az resource list --resource-group "$RESOURCE_GROUP" --query "[].id" --output tsv 2>/dev/null || true)
 non_network_resources=""
 while IFS= read -r resource_id; do
     [[ -z "$resource_id" ]] && continue
-    # Skip VNETs, NSGs, DCRs, and DCEs - these will be handled in later steps
+    # Skip VNETs, NSGs, DCRs, DCEs, and Container Instances - these will be handled in later steps or left to avoid self-deletion
     if [[ "$resource_id" != *"/Microsoft.Network/virtualNetworks/"* ]] && \
        [[ "$resource_id" != *"/Microsoft.Network/networkSecurityGroups/"* ]] && \
        [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionRules/"* ]] && \
-       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionEndpoints/"* ]]; then
+       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionEndpoints/"* ]] && \
+       [[ "$resource_id" != *"/Microsoft.ContainerInstance/containerGroups/"* ]]; then
         if [[ -n "$non_network_resources" ]]; then
             non_network_resources+=$'\n'
         fi
