@@ -71,6 +71,7 @@ param svcAcrResourceId = '__svcAcrResourceId__'
 // OIDC
 param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
 param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
+param enableAFD = {{ .oidcEnableAFD }}
 
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 

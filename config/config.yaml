@@ -389,6 +389,7 @@ defaults:
   # OIDC
   oidcStorageAccountName: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
   oidcZoneRedundantMode: Auto
+  oidcEnableAFD: true
   # Service Key Vault
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -444,6 +445,8 @@ clouds:
       armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       armHelperCertName: armHelperCert2
+      # OIDC
+      oidcEnableAFD: false
       # Geneva Actions
       genevaActions:
         serviceTag: GenevaActionsNonProd

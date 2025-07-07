@@ -196,6 +196,9 @@ param oidcStorageAccountName string
 @description('The zone redundant mode of the OIDC storage account')
 param oidcZoneRedundantMode string
 
+@description('Enable or diasble Azure Front Door for OIDC storage account')
+param enableAFD bool
+
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
 
@@ -566,6 +569,7 @@ module oidc '../modules/oidc/main.bicep' = {
       : 'Standard_LRS'
     msiId: aroDevopsMsiId
     deploymentScriptLocation: location
+    enabledAFD: enableAFD
   }
   dependsOn: [
     svcCluster
