@@ -222,7 +222,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
 			}
 			if c.Properties.Autoscaling != nil {
-				normailzeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
+				normalizeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
 			}
 		}
 	}
@@ -320,7 +320,7 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 	}
 }
 
-func normailzeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
+func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.ClusterAutoscalingProfile) {
 	if p.MaxNodeProvisionTimeSeconds != nil {
 		out.MaxNodeProvisionTimeSeconds = *p.MaxNodeProvisionTimeSeconds
 	}
