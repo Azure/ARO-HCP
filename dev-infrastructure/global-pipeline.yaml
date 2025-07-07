@@ -23,6 +23,20 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: geneva-kv-private-issuer
+    action: SetCertificateIssuer
+    dependsOn:
+    - global-infra
+    secretId:
+      configRef: ev2.assistedId.certificate
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        name: genevaKeyVaultUrl
+        step: global-infra
+    issuer:
+      configRef: geneva.genevaActionCertificate.issuer
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh

@@ -124,6 +124,8 @@ module genevaKv '../modules/keyvault/keyvault.bicep' = {
   }
 }
 
+output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
+
 var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
 
 module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
