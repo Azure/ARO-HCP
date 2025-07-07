@@ -115,7 +115,7 @@ func setup(ctx context.Context) error {
 		testEnv = environment.Development
 	}
 
-	opts := prepareDevelopmentConf()
+	opts = prepareEnvironmentConf(testEnv)
 	// Add the custom policies to the PerCallPolicies slice.
 	opts.PerCallPolicies = []policy.Policy{&systemDataPolicy{}, &identityURLPolicy{}}
 
