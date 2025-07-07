@@ -111,13 +111,14 @@ func TestClusterStructTagMap(t *testing.T) {
 		"Properties.Autoscaling.MaxPodGracePeriodSeconds":    api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Autoscaling.MaxNodeProvisionTimeSeconds": api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Autoscaling.PodPriorityThreshold":        api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
-		"Identity":                                    skip,
-		"Identity.PrincipalID":                        api.VisibilityRead,
-		"Identity.TenantID":                           api.VisibilityRead,
-		"Identity.Type":                               skip,
-		"Identity.UserAssignedIdentities":             skip,
-		"Identity.UserAssignedIdentities.ClientID":    api.VisibilityRead,
-		"Identity.UserAssignedIdentities.PrincipalID": api.VisibilityRead,
+		"Properties.NodeDrainTimeoutMinutes":                 api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Identity":                                           skip,
+		"Identity.PrincipalID":                               api.VisibilityRead,
+		"Identity.TenantID":                                  api.VisibilityRead,
+		"Identity.Type":                                      skip,
+		"Identity.UserAssignedIdentities":                    skip,
+		"Identity.UserAssignedIdentities.ClientID":           api.VisibilityRead,
+		"Identity.UserAssignedIdentities.PrincipalID":        api.VisibilityRead,
 	}
 
 	testStructTagMap(t, clusterStructTagMap, expectedVisibility)
@@ -164,6 +165,7 @@ func TestNodePoolStructTagMap(t *testing.T) {
 		"Properties.Taints.Effect":                               api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Taints.Key":                                  api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Taints.Value":                                api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.NodeDrainTimeoutMinutes":                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 	}
 
 	testStructTagMap(t, nodePoolStructTagMap, expectedVisibility)

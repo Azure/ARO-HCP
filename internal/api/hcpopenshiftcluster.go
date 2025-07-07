@@ -35,14 +35,15 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState     `json:"provisioningState,omitempty"             visibility:"read"`
-	Version           VersionProfile            `json:"version,omitempty"`
-	DNS               DNSProfile                `json:"dns,omitempty"`
-	Network           NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
-	Console           ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
-	API               APIProfile                `json:"api,omitempty"`
-	Platform          PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
-	Autoscaling       ClusterAutoscalingProfile `json:"autoscaling,omitempty"                   visibility:"read create update"`
+	ProvisioningState       arm.ProvisioningState     `json:"provisioningState,omitempty"       visibility:"read"`
+	Version                 VersionProfile            `json:"version,omitempty"`
+	DNS                     DNSProfile                `json:"dns,omitempty"`
+	Network                 NetworkProfile            `json:"network,omitempty"                 visibility:"read create"`
+	Console                 ConsoleProfile            `json:"console,omitempty"                 visibility:"read"`
+	API                     APIProfile                `json:"api,omitempty"`
+	Platform                PlatformProfile           `json:"platform,omitempty"                visibility:"read create"`
+	Autoscaling             ClusterAutoscalingProfile `json:"autoscaling,omitempty"             visibility:"read create update"`
+	NodeDrainTimeoutMinutes int32                     `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
 }
 
 // VersionProfile represents the cluster control plane version.
