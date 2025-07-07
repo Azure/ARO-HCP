@@ -88,18 +88,6 @@ func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *
 	}
 }
 
-func newClusterCapabilitiesProfile(from *api.ClusterCapabilitiesProfile) *generated.ClusterCapabilitiesProfile {
-	out := &generated.ClusterCapabilitiesProfile{
-		Disabled: make([]*generated.OptionalClusterCapability, len(from.Disabled)),
-	}
-
-	for index, item := range from.Disabled {
-		out.Disabled[index] = api.PtrOrNil(generated.OptionalClusterCapability(item))
-	}
-
-	return out
-}
-
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
 		from = api.NewDefaultHCPOpenShiftCluster()
@@ -127,7 +115,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Console:           newConsoleProfile(&from.Properties.Console),
 				API:               newAPIProfile(&from.Properties.API),
 				Platform:          newPlatformProfile(&from.Properties.Platform),
-				Capabilities:      newClusterCapabilitiesProfile(&from.Properties.Capabilities),
 			},
 		},
 	}
@@ -224,9 +211,6 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
-			}
-			if c.Properties.Capabilities != nil {
-				normalizeCapabilities(c.Properties.Capabilities, &out.Properties.Capabilities)
 			}
 		}
 	}
@@ -348,17 +332,6 @@ func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssigne
 				ClientID:    value.ClientID,
 				PrincipalID: value.PrincipalID,
 			}
-		}
-	}
-}
-
-func normalizeCapabilities(c *generated.ClusterCapabilitiesProfile, out *api.ClusterCapabilitiesProfile) {
-	if out == nil {
-		out = &api.ClusterCapabilitiesProfile{}
-	}
-	if c.Disabled != nil {
-		for _, v := range api.NonNilSliceValues(c.Disabled) {
-			out.Disabled = append(out.Disabled, api.OptionalClusterCapability(*v))
 		}
 	}
 }

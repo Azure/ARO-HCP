@@ -10,6 +10,14 @@ spec:
     port: 16686
     targetPort: 16686
     protocol: TCP
+  - name: grpc-otlp
+    port: 4317
+    targetPort: 4317
+    protocol: TCP
+  - name: http-otlp
+    port: 4318
+    targetPort: 4318
+    protocol: TCP
   type: ClusterIP
 ---
 apiVersion: v1
@@ -18,7 +26,7 @@ metadata:
   name: ingest
 spec:
   selector:
-    app: jaeger
+    app: otel-collector
   ports:
   - name: grpc-otlp
     port: 4317

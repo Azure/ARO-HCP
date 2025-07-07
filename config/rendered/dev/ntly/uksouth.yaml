@@ -313,6 +313,7 @@ msiKeyVault:
   name: ah-ntly-mi-ln-1
   private: false
   softDelete: false
+oidcEnableAFD: false
 oidcStorageAccountName: arohcpntlyoidcln
 oidcZoneRedundantMode: Auto
 pko:

@@ -329,18 +329,20 @@ else
     echo "No public DNS zones found"
 fi
 
-# Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs and DCRs/DCEs)
+# Step 3: Delete remaining application and infrastructure resources (excluding VNETs/NSGs, DCRs/DCEs, and Container Instances)
 # These resources can be safely deleted after handling private networking
-log STEP "Step 3: Deleting application and infrastructure resources (excluding networking and monitoring)"
+# Note: Skip container instances since this script may be running inside one
+log STEP "Step 3: Deleting application and infrastructure resources (excluding networking, monitoring, and container instances)"
 all_resources=$(az resource list --resource-group "$RESOURCE_GROUP" --query "[].id" --output tsv 2>/dev/null || true)
 non_network_resources=""
 while IFS= read -r resource_id; do
     [[ -z "$resource_id" ]] && continue
-    # Skip VNETs, NSGs, DCRs, and DCEs - these will be handled in later steps
+    # Skip VNETs, NSGs, DCRs, DCEs, and Container Instances - these will be handled in later steps or left to avoid self-deletion
     if [[ "$resource_id" != *"/Microsoft.Network/virtualNetworks/"* ]] && \
        [[ "$resource_id" != *"/Microsoft.Network/networkSecurityGroups/"* ]] && \
        [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionRules/"* ]] && \
-       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionEndpoints/"* ]]; then
+       [[ "$resource_id" != *"/Microsoft.Insights/dataCollectionEndpoints/"* ]] && \
+       [[ "$resource_id" != *"/Microsoft.ContainerInstance/containerGroups/"* ]]; then
         if [[ -n "$non_network_resources" ]]; then
             non_network_resources+=$'\n'
         fi
@@ -376,6 +378,56 @@ safe_delete "$vnets" "Virtual Networks"
 log STEP "Step 6: Deleting Network Security Groups"
 nsgs=$(get_resources_by_type "Microsoft.Network/networkSecurityGroups")
 safe_delete "$nsgs" "Network Security Groups"
+
+# Step 7: Purge soft-deleted Key Vaults
+# Key Vaults with soft delete enabled go into a "deleted" state and need to be purged
+log STEP "Step 7: Purging soft-deleted Key Vaults"
+
+# Get list of all soft-deleted vault names filtered by resource group
+# Note: The original query was filtering by resource group, but this can be problematic if the vaults were deleted from different resource groups
+# TODO: Switch around the query to filter by resource group when needed
+# deleted_vaults=$(az keyvault list-deleted --query "[?contains(properties.vaultId, '/resourceGroups/$RESOURCE_GROUP/')].name" --output tsv 2>/dev/null || echo "")
+deleted_vaults=$(az keyvault list-deleted --query '[].name' --output tsv 2>/dev/null || echo "")
+
+if [[ -n "$deleted_vaults" ]]; then
+    while IFS= read -r vault_name; do
+        [[ -z "$vault_name" ]] && continue
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log INFO "[DRY RUN] Would purge Key Vault: $vault_name"
+        else
+            log INFO "Purging Key Vault: $vault_name"
+
+            attempt=1
+            max_retries=3
+            while [[ $attempt -le $max_retries ]]; do
+                if [[ $attempt -gt 1 ]]; then
+                    log INFO "Retry attempt $attempt for: $vault_name"
+                    sleep 10  # Wait between retries
+                fi
+
+                # Capture error output from az keyvault purge
+                error_output=$(az keyvault purge --name "$vault_name" --no-wait 2>&1)
+                purge_result=$?
+
+                if [[ $purge_result -eq 0 ]]; then
+                    log SUCCESS "Purged Key Vault: $vault_name"
+                    break
+                elif [[ $attempt -eq $max_retries ]]; then
+                    log ERROR "Failed to purge after $max_retries attempts: $vault_name"
+                    log ERROR "Last error: $error_output"
+                else
+                    log WARN "Attempt $attempt failed for: $vault_name (retrying...)"
+                    log WARN "Error: $error_output"
+                fi
+
+                ((attempt++))
+            done
+        fi
+    done <<< "$deleted_vaults"
+else
+    log INFO "No soft-deleted Key Vaults found from this resource group"
+fi
 
 # Final summary
 

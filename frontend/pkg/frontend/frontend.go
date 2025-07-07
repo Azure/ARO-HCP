@@ -40,6 +40,7 @@ import (
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -66,6 +67,7 @@ func NewFrontend(
 	dbClient database.DBClient,
 	location string,
 	csClient ocm.ClusterServiceClientSpec,
+	auditClient *audit.AuditClient,
 ) *Frontend {
 	f := &Frontend{
 		clusterServiceClient: csClient,
@@ -77,6 +79,7 @@ func NewFrontend(
 				ctx := context.Background()
 				ctx = ContextWithLogger(ctx, logger)
 				ctx = ContextWithDBClient(ctx, dbClient)
+				ctx = ContextWithAuditClient(ctx, auditClient)
 				return ctx
 			},
 		},

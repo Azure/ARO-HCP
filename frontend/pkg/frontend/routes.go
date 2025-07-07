@@ -65,6 +65,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareReferer,
 		metricsMiddleware.Metrics(),
 		MiddlewareCorrelationData,
+		MiddlewareAudit,
 		MiddlewareTracing,
 		MiddlewareLogging,
 		// NOTE: register panic middlware twice.

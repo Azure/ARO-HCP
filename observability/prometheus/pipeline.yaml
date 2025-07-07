@@ -4,10 +4,10 @@ rolloutName: Management Cluster Prometheus Rollout
 resourceGroups:
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription  }}'
-  aksCluster: '{{ .mgmt.aks.name  }}'
   steps:
   - name: deploy
     action: Shell
+    aksCluster: '{{ .mgmt.aks.name  }}'
     command: make deploy
     dryRun:
       variables:
@@ -46,3 +46,5 @@ resourceGroups:
       configRef: mgmt.aks.name
     - name: CS_ENVIRONMENT
       configRef: clustersService.environment
+    shellIdentity:
+      configRef: aroDevopsMsiId

@@ -302,9 +302,9 @@ func ValidateServiceConfig(
 				for key, into := range map[string]*string{
 					"regionShortName": &replacements.RegionShortReplacement,
 				} {
-					value, ok := ev2Cfg.GetByPath(key)
-					if !ok {
-						return fmt.Errorf("%s %q not found in ev2 config", prefix, key)
+					value, err := ev2Cfg.GetByPath(key)
+					if err != nil {
+						return fmt.Errorf("%s %q not found in ev2 config: %w", prefix, key, err)
 					}
 					str, ok := value.(string)
 					if !ok {
@@ -321,14 +321,9 @@ func ValidateServiceConfig(
 					return fmt.Errorf("%s failed to get resolver: %w", prefix, err)
 				}
 
-				rawCfg, err := resolver.GetRegionConfiguration(region)
+				cfg, err := resolver.GetRegionConfiguration(region)
 				if err != nil {
 					return fmt.Errorf("%s failed to get region config: %w", prefix, err)
-				}
-
-				cfg, ok := config.InterfaceToConfiguration(rawCfg)
-				if !ok {
-					return fmt.Errorf("%s: invalid configuration", prefix)
 				}
 
 				var schemaResolutionErr error

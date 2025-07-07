@@ -201,9 +201,9 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
 			}
 		} else if i.ConfigRef != "" {
-			value, found := cfg.GetByPath(i.ConfigRef)
-			if !found {
-				return nil, fmt.Errorf("failed to lookup config reference %s for %s", i.ConfigRef, i.Name)
+			value, err := cfg.GetByPath(i.ConfigRef)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lookup config reference %s for %s: %w", i.ConfigRef, i.Name, err)
 			}
 			values[i.Name] = value
 		} else {

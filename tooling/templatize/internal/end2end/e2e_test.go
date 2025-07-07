@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -53,7 +52,16 @@ func TestE2EMake(t *testing.T) {
 	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eMake.yaml")
 	assert.NoError(t, err)
 
-	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"test_env": "test_env"}})
+	defaults, ok := e2eImpl.config["defaults"]
+	if !ok {
+		panic("defaults not set")
+	}
+	asMap, ok := defaults.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("defaults not a map[string]any: %T", defaults))
+	}
+	asMap["test_env"] = "test_env"
+	e2eImpl.config["defaults"] = asMap
 
 	e2eImpl.makefile = `
 test:
@@ -76,7 +84,16 @@ func TestE2EKubernetes(t *testing.T) {
 	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eKubernetes.yaml")
 	assert.NoError(t, err)
 
-	e2eImpl.SetConfig(config.Configuration{"defaults": config.Configuration{"rg": "hcp-underlay-dev-westus3-svc"}})
+	defaults, ok := e2eImpl.config["defaults"]
+	if !ok {
+		panic("defaults not set")
+	}
+	asMap, ok := defaults.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("defaults not a map[string]any: %T", defaults))
+	}
+	asMap["rg"] = "hcp-underlay-dev-westus3-svc"
+	e2eImpl.config["defaults"] = asMap
 
 	persistAndRun(t, e2eImpl)
 }

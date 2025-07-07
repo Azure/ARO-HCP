@@ -56,11 +56,3 @@ const (
 	// EffectPreferNoSchedule - PreferNoSchedule taint effect
 	EffectPreferNoSchedule Effect = "PreferNoSchedule"
 )
-
-// OptionalClusterCapability - Cluster capabilities that can be disabled.
-type OptionalClusterCapability string
-
-const (
-	// OptionalClusterCapabilityImageRegistry - Enables the OpenShift internal image registry.
-	OptionalClusterCapabilityImageRegistry OptionalClusterCapability = "ImageRegistry"
-)

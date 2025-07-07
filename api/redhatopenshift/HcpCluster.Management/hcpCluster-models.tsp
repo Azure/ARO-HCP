@@ -40,6 +40,15 @@ model NodePool is TrackedResource<NodePoolProperties> {
   ...ManagedServiceIdentityProperty;
 }
 
+/** ExternalAuth resource */
+@parentResource(HcpOpenShiftCluster)
+model ExternalAuth is ProxyResource<ExternalAuthProperties> {
+  ...ResourceNameParameter<
+    ExternalAuth,
+    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+  >;
+}
+
 /** HCP cluster properties */
 model HcpOpenShiftClusterProperties {
   /** The status of the last operation. */
@@ -74,28 +83,32 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoscaling?: ClusterAutoscalingProfile;
 
-  /** Configure cluter capabilities. */
+  /** Configure ETCD. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  capabilities?: ClusterCapabilitiesProfile;
-}
+  etcd?: EtcdProfile;
 
-/** Cluster capabilities configuration. */
-model ClusterCapabilitiesProfile {
-  /**
-   * Immutable list of disabled capabilities. May only contain "ImageRegistry" at
-   * this time. Additional capabilities may be available in the future. Clients
-   * should expect to handle additional values.
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are in minutes and from 0 to 10080 minutes (1 week).
+   * 0 means that the MachinePool can be drained without any time limitation.
+   *
+   * This is the value is used a default for all NodePools. It can be overridden
+   * by specifying nodeDrainTimeoutMinutes for a given NodePool
    */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxValue(10080)
+  @minValue(0)
+  nodeDrainTimeoutMinutes?: int32 = 0;
+
+  // Optional features begin here. Each feature has
+  // its own model with at least a "state" property.
+
+  /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  disabled?: OptionalClusterCapability[];
-}
-
-/** Cluster capabilities that can be disabled. */
-union OptionalClusterCapability {
-  string,
-
-  /** Enables the OpenShift internal image registry. */
-  ImageRegistry: "ImageRegistry",
+  clusterImageRegistry?: ClusterImageRegistryProfile;
 }
 
 /** The resource provisioning state. */
@@ -115,6 +128,16 @@ union ProvisioningState {
 
   /** Non-terminal state indicating the resource is updating */
   "Updating",
+}
+
+/** The resource provisioning state. */
+@lroStatus
+union ExternalAuthProvisioningState {
+  string,
+  ProvisioningState,
+
+  /** Non-terminal state indicating the resource is awaiting secret */
+  "AwaitingSecret",
 }
 
 /** Versions represents an OpenShift version. */
@@ -196,6 +219,11 @@ model ApiProfile {
   /** The internet visibility of the OpenShift API server */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = Visibility.Public;
+
+  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @maxItems(5000)
+  authorizedCidrs?: string[];
 }
 
 /** The internet visibility of the OpenShift API server */
@@ -263,6 +291,17 @@ model ClusterAutoscalingProfile {
   podPriorityThreshold?: int32 = -10;
 }
 
+/** OpenShift cluster image registry */
+model ClusterImageRegistryProfile {
+  /** state indicates the desired ImageStream-backed cluster image registry installation mode.
+   * This can only be set during cluster creation and cannot be changed after cluster creation.
+   * Enabled means the ImageStream-backed image registry will be run as pods on worker nodes in
+   * the cluster. Disabled means the ImageStream-backed image registry will not be present in
+   * the cluster. The default is Enabled. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  state?: "Enabled" | "Disabled" | string = "Enabled";
+}
+
 scalar SubnetResourceId
   extends Azure.Core.armResourceIdentifier<[
     {
@@ -322,6 +361,94 @@ scalar UserAssignedIdentityResourceId
     }
   ]>;
 
+/** A representation of a KeyVault Secret. */
+model KmsKey {
+  /** vaultName is the name of the keyvault that contains the secret. */
+  @maxLength(255)
+  @minLength(1)
+  vaultName: string;
+
+  /** name is the name of the keyvault key used for encryption/decryption. */
+  @maxLength(255)
+  @minLength(1)
+  name: string;
+
+  /** version contains the version of the key to use. */
+  @maxLength(255)
+  @minLength(1)
+  version: string;
+}
+
+/** The ETCD settings and configuration options. */
+model EtcdProfile {
+  /** ETCD Data Encryption settings.
+   * If not specified platform managed keys are used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  dataEncryption?: EtcdDataEncryptionProfile;
+}
+
+/** The ETCD data encryption settings. */
+model EtcdDataEncryptionProfile {
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
+   * By default, "PlatformManaged" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify customer managed encryption key details.
+   * Required when keyManagementMode is "CustomerManaged".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  customerManaged?: CustomerManagedEncryptionProfile;
+}
+
+/** Customer managed encryption key profile. */
+model CustomerManagedEncryptionProfile {
+  /** The encryption type used.
+   * By default, "KMS" is used.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  encryptionType?: CustomerManagedEncryptionType = CustomerManagedEncryptionType.Kms;
+
+  /** The Key Management Service (KMS) encryption key details.
+   *
+   * Required when encryptionType is "KMS".
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  kms?: KmsEncryptionProfile;
+}
+
+/** Configure etcd encryption Key Management Service (KMS) key.
+ * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
+ *
+ */
+model KmsEncryptionProfile {
+  /** The details of the active key. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  activeKey: KmsKey;
+}
+
+/** The encryption types supported for a customer managed key. */
+union CustomerManagedEncryptionType {
+  string,
+
+  /** KMS encryption type. */
+  Kms: "KMS",
+}
+
+/** The encryption key management mode types supported for ETCD data encryption. */
+union EtcdDataEncryptionKeyManagementModeType {
+  string,
+
+  /** Customer managed encryption key management mode type. */
+  CustomerManaged: "CustomerManaged",
+
+  /** Platform managed encryption key management mode type. */
+  PlatformManaged: "PlatformManaged",
+}
+
 /*
  * =======================================
  *   End HCP cluster core resources
@@ -369,6 +496,19 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value", "effect"])
   taints?: Taint[];
+
+  /** nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be
+   * respected during any node draining operation. After this grace period, any workloads protected by Pod Disruption
+   * Budgets that have not been successfully drained from a node will be forcibly evicted. This is
+   * especially relevant to cluster upgrades.
+   *
+   * Valid values are from 0 to 10080 minutes (1 week) .
+   * 0 means that the NodePool can be drained without any time limitation.
+   *
+   * If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  nodeDrainTimeoutMinutes?: int32;
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -446,15 +586,9 @@ model NodePoolPlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   enableEncryptionAtHost?: boolean = false;
 
-  /** The OS disk size in GiB */
+  /** The settings and configuration options for OSDisk */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskSizeGiB?: int32 = 64;
-
-  /** The type of the disk storage account
-   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
-   */
-  @visibility(Lifecycle.Read, Lifecycle.Create)
-  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+  osDisk?: OsDiskProfile;
 
   /** The availability zone for the node pool.
    * Please read the documentation to see which regions support availability zones
@@ -462,6 +596,31 @@ model NodePoolPlatformProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   availabilityZone?: string;
+}
+
+/** The settings and configuration options for OSDisk */
+model OsDiskProfile {
+  /** The OS disk size in GiB */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  sizeGiB?: int32 = 64;
+
+  /** The type of the disk storage account
+   * - https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  diskStorageAccountType?: DiskStorageAccountType = "Premium_LRS";
+
+  /** The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs.
+   * This needs to exist in the same subscription id listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.SubscriptionID.
+   * DiskEncryptionSetID should also exist in a resource group under the same subscription id and the same location
+   * listed in the Hosted Cluster, HostedCluster.Spec.Platform.Azure.Location.
+   *
+   * Details on how to create a Disk Encryption Set can be found here:
+   * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+   */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  @maxLength(285)
+  encryptionSetId?: DiskEncryptionSetResourceId;
 }
 
 /** Supported Azure storage account types
@@ -491,6 +650,13 @@ model NodePoolAutoScaling {
   max?: int32;
 }
 
+scalar DiskEncryptionSetResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Compute/diskEncryptionSets",
+    }
+  ]>;
+
 /*
  * =======================================
  * End NodePool resources
@@ -518,5 +684,298 @@ model HcpOpenShiftClusterAdminCredential {
 /*
  * =======================================
  *   End HCP cluster credentials
+ * =======================================
+ */
+
+/*
+ * =======================================
+ *  ExternalAuth resources
+ * =======================================
+ */
+
+/** External Auth profile */
+model ExternalAuthProperties {
+  /** Provisioning state */
+  @visibility(Lifecycle.Read)
+  provisioningState?: ExternalAuthProvisioningState;
+
+  /** An observation of the current state with additional information. */
+  @visibility(Lifecycle.Read)
+  condition?: ExternalAuthCondition;
+
+  /** Token Issuer profile */
+  issuer: TokenIssuerProfile;
+
+  /** External Auth OIDC clients
+   * There must not be more than 20 entries and entries must have unique namespace/name pairs.
+   */
+  @maxItems(20)
+  @OpenAPI.extension(
+    "x-ms-identifiers",
+    #["component", "clientId", "extraScopes"]
+  )
+  clients?: ExternalAuthClientProfile[];
+
+  /** External Auth claim
+   * This configures how claims are validated and applied.
+   */
+  claim: ExternalAuthClaimProfile;
+}
+
+/** Condition defines an observation of the external auth state. */
+model ExternalAuthCondition {
+  /** This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition. */
+  @visibility(Lifecycle.Read)
+  type: ExternalAuthConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** This contains a programmatic identifier indicating the reason for the condition's last transition. */
+  @visibility(Lifecycle.Read)
+  reason: string;
+
+  /** This is a human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  message: string;
+}
+
+/** Representation of the possible values of a external auths condition status. */
+union StatusType {
+  string,
+
+  /** Indicates that the condition status is True. */
+  True: "True",
+
+  /** Indicates that the condition status is False. */
+  False: "False",
+
+  /** Indicates that the condition status is unknown. */
+  Unknown: "Unknown",
+}
+
+/** Representation of the possible types of a external auths condition. */
+union ExternalAuthConditionType {
+  string,
+
+  /** Indicates that the external auth resource is available. */
+  Available: "Available",
+
+  /** Indicates that the external auth resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the external auth resource is in a progressing state. */
+  Progressing: "Progressing",
+}
+
+/** Token issuer profile
+ * This configures how the platform interacts with the identity provider and
+ * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+ */
+model TokenIssuerProfile {
+  /** This configures the URL used to issue tokens by the identity provider.
+   * The Kubernetes API server determines how authentication tokens should be handled
+   * by matching the 'iss' claim in the JWT to the issuerURL of configured identity providers.
+   *
+   * issuerURL must use the 'https' scheme.
+   * */
+  url: url;
+
+  /** This configures the acceptable audiences the JWT token, issued by the identity
+   * provider, must be issued to. At least one of the entries must match the
+   * 'aud' claim in the JWT token.
+   *
+   * audiences must contain at least one entry and must not exceed ten entries.
+   */
+  @minItems(1)
+  @maxItems(10)
+  audiences: string[];
+
+  /** The issuer of the token
+   *
+   * Certificate bundle to use to validate server certificates for the configured URL.
+   * It must be PEM encoded and when not specified, the system trust is used.
+   */
+  ca?: string;
+}
+
+/** External Auth client profile
+ * This configures how on-cluster, platform clients should request tokens from the identity provider.
+ */
+model ExternalAuthClientProfile {
+  /** External Auth client component */
+  component: ExternalAuthClientComponentProfile;
+
+  /** External Auth client id
+   * The clientId must appear in the audience field of the TokenIssuerProfile.
+   */
+  @minLength(1)
+  clientId: string;
+
+  /** external auth client scopes
+   *
+   * This is useful if you have configured claim mappings that requires specific
+   * scopes to be requested beyond the standard OIDC scopes.
+   * When omitted, no additional scopes are requested.
+   */
+  extraScopes?: string[];
+
+  /** Determines the OIDC provider client type. */
+  type: ExternalAuthClientType;
+}
+
+/** Representation of the possible values of an external authentication client's type */
+union ExternalAuthClientType {
+  string,
+
+  /** Indicates that the client is confidential.
+   * Confidential clients must provide a client secret.
+   * The secret should be provided within the cluster itself.
+   */
+  Confidential: "Confidential",
+
+  /** Indicates that the client is public.
+   * Public clients must not provide a client secret.
+   */
+  Public: "Public",
+}
+
+/** External Auth component profile
+ * Must have unique namespace/name pairs.
+ */
+model ExternalAuthClientComponentProfile {
+  /** The name of the external auth client
+   *
+   * This specifies the name of the platform component being configured to use
+   * the identity provider as an authentication mode.
+   * It is used in combination with namespace as a unique identifier.
+   */
+  @minLength(1)
+  @maxLength(256)
+  name: string;
+
+  /** The namespace of the external Auth client
+   * This specifies the namespace in which the platform component being configured
+   * to use the identity provider as an authentication mode is running.
+   *
+   * It is used in combination with name as a unique identifier.
+   */
+  @minLength(1)
+  @maxLength(63)
+  authClientNamespace: string;
+}
+
+/** External Auth claim profile */
+model ExternalAuthClaimProfile {
+  /** The claim mappings */
+  mappings: TokenClaimMappingsProfile;
+
+  /** The claim validation rules */
+  @OpenAPI.extension("x-ms-identifiers", #["type", "requiredClaim"])
+  validationRules?: TokenClaimValidationRule[];
+}
+
+/** External Auth claim mappings profile.
+ * At a minimum username or groups must be defined.
+ */
+model TokenClaimMappingsProfile {
+  /** The claim mappings username. */
+  username: UsernameClaimProfile;
+
+  /** The claim mappings groups. */
+  groups?: GroupClaimProfile;
+}
+
+/** External Auth claim profile
+ * This configures how the groups of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider. When
+ * referencing a claim, if the claim is present in the JWT token, its value
+ * must be a list of groups separated by a comma (',').
+ *
+ * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+ */
+model GroupClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
+  prefix?: string;
+}
+
+/** External Auth claim profile
+ * This configures how the username of a cluster identity should be constructed
+ * from the claims in a JWT token issued by the identity provider.
+ */
+model UsernameClaimProfile {
+  /** Claim name of the external profile */
+  @minLength(1)
+  @maxLength(256)
+  claim: string;
+
+  /** Prefix for the claim external profile
+   * If this is specified prefixPolicy will be set to "Prefix" by default
+   */
+  prefix?: string;
+
+  /** Prefix policy
+   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
+  prefixPolicy?: string;
+}
+
+/** External Auth claim validation rule */
+model TokenClaimValidationRule {
+  /** This configures the type of the validation rule.
+   * It defaults to "RequiredClaim"
+   */
+  type?: TokenValidationRuleType = TokenValidationRuleType.RequiredClaim;
+
+  /** The required claim rule to be applied. */
+  requiredClaim?: TokenRequiredClaim;
+}
+
+/** Token required claim validation rule. */
+model TokenRequiredClaim {
+  /** Claim name for the validation profile
+   * claim is a required field that configures the name of the required claim.
+   * */
+  @minLength(1)
+  claim: string;
+
+  /** Required value
+   * requiredValue is a required field that configures the value that 'claim' must
+   * have when taken from the incoming JWT claims.
+   * If the value in the JWT claims does not match, the token
+   * will be rejected for authentication.
+   */
+  @minLength(1)
+  requiredValue: string;
+}
+
+/** Representation of the different claim validation rule types that can be configured. */
+union TokenValidationRuleType {
+  string,
+
+  /** Indicates that a Required Claim validation rule.
+   *
+   * When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+   * contains the required claim and that its value matches the required value.
+   */
+  RequiredClaim: "RequiredClaim",
+}
+
+/*
+ * =======================================
+ *  End ExternalAuth resources
  * =======================================
  */
