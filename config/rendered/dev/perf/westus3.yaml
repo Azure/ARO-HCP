@@ -107,6 +107,10 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  genevaActionCertificate:
+    issuer: Self
+    manage: true
+    name: genevaAction
   keyVault:
     name: arohcpperf-geneva-kv
     private: false

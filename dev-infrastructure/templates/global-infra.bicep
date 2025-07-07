@@ -55,6 +55,14 @@ param globalNSPName string
 @description('Access mode for this NSP')
 param globalNSPAccessMode string
 
+param genevaCertificateName string
+
+param genevaCertificateIssuer string
+
+param genevaCertificateManage bool
+
+param svcDNSZoneName string
+
 //
 //  G L O B A L   M S I
 //
@@ -114,6 +122,25 @@ module genevaKv '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: genevaKeyVaultSoftDelete
     purpose: 'geneva'
   }
+}
+
+var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
+
+module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
+  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
+  params: {
+    keyVaultName: genevaKeyVaultName
+    subjectName: 'CN=${genevaCertificateSNI}'
+    certName: genevaCertificateName
+    keyVaultManagedIdentityId: globalMSI.id
+    dnsNames: [
+      genevaCertificateSNI
+    ]
+    issuerName: genevaCertificateIssuer
+  }
+  dependsOn: [
+    genevaKv
+  ]
 }
 
 //
