@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+
+    exporters:
+      otlp/jaeger:
+        endpoint: http://jaeger:4318
+        tls:
+          insecure: true
+      otlp/lgtm:
+        endpoint: http://lgtm:4318
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/jaeger, otlp/lgtm]
+
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/lgtm]
+
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/lgtm]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.128.0
+        args: ["--config=/etc/otel/config/otel-collector-config.yaml"]
+        volumeMounts:
+        - name: otel-config
+          mountPath: /etc/otel/config
+      volumes:
+      - name: otel-config
+        configMap:
+          name: otel-collector-config
