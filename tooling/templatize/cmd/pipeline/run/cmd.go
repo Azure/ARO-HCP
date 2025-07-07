@@ -43,6 +43,11 @@ var versionConstraints = []Version{
 		Cmd:        "az bicep version --only-show-errors |grep 'CLI version' |awk '{print $4}'",
 		Constraint: ">=0.31.0",
 	},
+	{
+		Name:       "Azure CLI Extension: amg",
+		Cmd:        "az extension show --name amg --query version -otsv",
+		Constraint: ">=2.7.0",
+	},
 }
 
 func NewCommand() (*cobra.Command, error) {
