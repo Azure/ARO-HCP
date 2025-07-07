@@ -12,7 +12,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-        "description": "Backend Health where # number of replicas should equal the value",
+        "description": "backend_health where 1 is good and 0 is bad",
         "fieldConfig": {
           "defaults": {
             "custom": {
@@ -48,7 +48,7 @@
               "uid": "${datasource}"
             },
             "editorMode": "code",
-            "expr": "count(max without(prometheus_replica) (backend_health{cluster=\"$cluster\"}))",
+            "expr": "sum(max without(prometheus_replica) (backend_health{cluster=\"$cluster\"})) / \ncount(max without(prometheus_replica) (backend_health{cluster=\"$cluster\"}))",
             "instant": false,
             "legendFormat": "__auto",
             "range": true,
@@ -178,7 +178,7 @@
               "type": "prometheus",
               "uid": "${datasource}"
             },
-            "description": "Ratio of Backend requests taking less than 1 second",
+            "description": "Ratio of Backend requests taking longer than 1 second",
             "fieldConfig": {
               "defaults": {
                 "custom": {
@@ -214,14 +214,66 @@
                   "uid": "${datasource}"
                 },
                 "editorMode": "code",
-                "expr": "sum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{le=~\"^1(\\\\.0)?$\"}[5m])))\n/\nsum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{le=\"+Inf\"}[5m])))",
+                "expr": "sum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\",le=~\"^1(\\\\.0)?$\"}[5m])))\n/\nsum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\",le=\"+Inf\"}[5m])))",
                 "instant": false,
                 "legendFormat": "__auto",
                 "range": true,
                 "refId": "A"
               }
             ],
-            "title": "Latency: Backend Request Latency",
+            "title": "Latency: Backend Request Latency longer than 1 second",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Approximated percentile value of backend latency",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 25
+            },
+            "id": 10,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "histogram_quantile(0.9, sum by(le,type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\"}[5m]))))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Latency: Backend Request Latency (Histrogram 90 percentile)",
             "type": "timeseries"
           },
           {
@@ -274,58 +326,6 @@
               }
             ],
             "title": "Backend Subscriptions by State",
-            "type": "timeseries"
-          },
-          {
-            "datasource": {
-              "default": false,
-              "type": "prometheus",
-              "uid": "${datasource}"
-            },
-            "description": "Backend last operation by timestamp",
-            "fieldConfig": {
-              "defaults": {
-                "custom": {
-                  "fillOpacity": 10,
-                  "gradientMode": "hue",
-                  "showPoints": "never"
-                }
-              }
-            },
-            "gridPos": {
-              "h": 10,
-              "w": 24,
-              "x": 0,
-              "y": 42
-            },
-            "id": 6,
-            "options": {
-              "legend": {
-                "calcs": [],
-                "displayMode": "list",
-                "placement": "bottom",
-                "showLegend": true
-              },
-              "tooltip": {
-                "mode": "single",
-                "sort": "none"
-              }
-            },
-            "targets": [
-              {
-                "datasource": {
-                  "type": "prometheus",
-                  "uid": "${datasource}"
-                },
-                "editorMode": "code",
-                "expr": "time() - max by(namespace,pod,cluster) (backend_last_operation_timestamp_seconds{cluster=\"$cluster\"})",
-                "instant": false,
-                "legendFormat": "__auto",
-                "range": true,
-                "refId": "A"
-              }
-            ],
-            "title": "backend_last_operation_timestamp_seconds",
             "type": "timeseries"
           },
           {
