@@ -39,7 +39,8 @@
     "containerUser": "vscode",
 
     "mounts": [
-        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
+        "source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind"
     ],
 
     "postCreateCommand": "./.devcontainer/postCreate.sh"
