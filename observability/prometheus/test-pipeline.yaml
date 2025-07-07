@@ -1,3 +1,4 @@
+# The real pipelines are in dev-infrastructure/mgmt-pipeline.yaml dev-infrastructure/svc-pipeline.yaml
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Prometheus
 rolloutName: Management Cluster Prometheus Rollout
@@ -14,7 +15,7 @@ resourceGroups:
 - name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: deploy
+  - name: deploy mgmt
     action: Shell
     aksCluster: '{{ .mgmt.aks.name }}'
     command: make deploy
@@ -53,6 +54,57 @@ resourceGroups:
       configRef: mgmt.rg
     - name: CLUSTER_NAME
       configRef: mgmt.aks.name
+    - name: CS_ENVIRONMENT
+      configRef: clustersService.environment
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+
+- name: '{{ .svc.rg  }}'
+  subscription: '{{ .svc.subscription  }}'
+  steps:
+  - name: deploy svc
+    action: Shell
+    aksCluster: '{{ .svc.aks.name  }}'
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: PROMETHEUS_OPERATOR_REGISTRY
+      configRef: svc.prometheus.prometheusOperator.image.registry
+    - name: PROMETHEUS_OPERATOR_REPOSITORY
+      configRef: svc.prometheus.prometheusOperator.image.repository
+    - name: PROMETHEUS_OPERATOR_DIGEST
+      configRef: svc.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
+      configRef: svc.prometheus.prometheusConfigReloader.image.registry
+    - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
+      configRef: svc.prometheus.prometheusConfigReloader.image.repository
+    - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
+      configRef: svc.prometheus.prometheusConfigReloader.image.digest
+    - name: PROMETHEUS_SPEC_REGISTRY
+      configRef: svc.prometheus.prometheusSpec.image.registry
+    - name: PROMETHEUS_SPEC_REPOSITORY
+      configRef: svc.prometheus.prometheusSpec.image.repository
+    - name: PROMETHEUS_SPEC_DIGEST
+      configRef: svc.prometheus.prometheusSpec.image.digest
+    - name: PROMETHEUS_SPEC_REPLICAS
+      configRef: svc.prometheus.prometheusSpec.replicas
+    - name: PROMETHEUS_SPEC_SHARDS
+      configRef: svc.prometheus.prometheusSpec.shards
+    - name: PROMETHEUS_SPEC_VERSION
+      configRef: svc.prometheus.prometheusSpec.version
+    - name: PROMETHEUS_NAMESPACE_LABEL
+      configRef: svc.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
     - name: CS_ENVIRONMENT
       configRef: clustersService.environment
     shellIdentity:
