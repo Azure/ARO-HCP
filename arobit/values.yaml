@@ -120,7 +120,27 @@ forwarder:
     ## The configMap that contains the configuration files for fluent-bit
     ##
     configMap:
-      service.conf: "[SERVICE]\n    Flush                     1\n    Log_Level                 info\n    Parsers_File              /fluent-bit/etc/parsers.conf\n    Parsers_File              /forwarder/etc/parsers_custom.conf\n    Plugins_File              /fluent-bit/etc/plugins.conf\n    HTTP_Server               On\n    storage.path              /var/log/flb-storage/\n    # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.\n    # (default: 128)\n    storage.max_chunks_up     256\n    # This option configure a hint of maximum value of memory to use when processing the backlog data.\n    # (default: 5M)\n    storage.backlog.mem_limit 256M\n    storage.metrics           on\n    # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy. \n    Health_Check              On\n    HC_Errors_Count           5\n    HC_Retry_Failure_Count    5\n    HC_Period                 60\n"
+      service.conf: |
+        [SERVICE]
+            Flush                     1
+            Log_Level                 info
+            Parsers_File              /fluent-bit/etc/parsers.conf
+            Parsers_File              /forwarder/etc/parsers_custom.conf
+            Plugins_File              /fluent-bit/etc/plugins.conf
+            HTTP_Server               On
+            storage.path              /var/log/flb-storage/
+            # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
+            # (default: 128)
+            storage.max_chunks_up     256
+            # This option configure a hint of maximum value of memory to use when processing the backlog data.
+            # (default: 5M)
+            storage.backlog.mem_limit 256M
+            storage.metrics           on
+            # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy. 
+            Health_Check              On
+            HC_Errors_Count           5
+            HC_Retry_Failure_Count    5
+            HC_Period                 60
       parsers_custom.conf: |
         # Previously, docker parser would parse the container log as record["log"].
         # With the default cri parser, the container log will be parsed as record["message"].
