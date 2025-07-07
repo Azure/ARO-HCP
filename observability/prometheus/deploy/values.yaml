@@ -57,7 +57,7 @@ kube-prometheus-stack:
   kubeApiServer:
     enabled: false
   kubeStateMetrics:
-    enabled: false
+    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
   prometheusOperator:
     enabled: true
     ## Use '{{ template "kube-prometheus-stack.fullname" . }}-operator' by default
