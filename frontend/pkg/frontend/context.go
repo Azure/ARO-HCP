@@ -124,7 +124,7 @@ func AuditClientFromContext(ctx context.Context) audit.Client {
 	if !ok {
 		err := &ContextError{
 			got: auditClient,
-			key: contextKeyLogger,
+			key: contextKeyAuditLogger,
 		}
 		util.DefaultLogger().Error(err.Error())
 		return nil

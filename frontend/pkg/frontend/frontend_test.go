@@ -40,7 +40,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -58,12 +57,6 @@ func newClusterResourceID(t *testing.T) *azcorearm.ResourceID {
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 	return resourceID
-}
-
-func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(0, "", true)
-	require.NoError(t, err)
-	return c
 }
 
 func equalResourceID(expectResourceID *azcorearm.ResourceID) gomock.Matcher {
