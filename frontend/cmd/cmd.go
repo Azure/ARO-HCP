@@ -47,7 +47,7 @@ import (
 
 type FrontendOpts struct {
 	auditLogQueueSize int
-	auditTCPAddr      string
+	auditTCPAddress   string
 
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -83,7 +83,7 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&opts.auditTCPAddr, "audit-tcp-addr", os.Getenv("AUDIT_TCP_ADDR"), "OTEL Address to send audit logging to")
+	rootCmd.Flags().StringVar(&opts.auditTCPAddress, "audit-tcp-address", os.Getenv("AUDIT_TCP_ADDRESS"), "OTEL Address to send audit logging to")
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
@@ -131,9 +131,9 @@ func (opts *FrontendOpts) Run() error {
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
-	auditNoOp := opts.auditTCPAddr == ""
+	auditNoOp := opts.auditTCPAddress == ""
 	logger.InfoContext(ctx, "initialising Audit Logger", "isNoop", auditNoOp)
-	auditClient, err := audit.NewOtelAuditClient(opts.auditLogQueueSize, opts.auditTCPAddr, auditNoOp)
+	auditClient, err := audit.NewOtelAuditClient(opts.auditLogQueueSize, opts.auditTCPAddress, auditNoOp)
 	if err != nil {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
 	}

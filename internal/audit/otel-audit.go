@@ -45,19 +45,19 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 	return c.client.Send(ctx, msg)
 }
 
-func NewOtelAuditClient(auditLogQueueSize int, remoteAddr string, useNoop bool) (*AuditClient, error) {
+func NewOtelAuditClient(auditLogQueueSize int, remoteAddress string, useNoop bool) (*AuditClient, error) {
 	if useNoop {
 		return initializeNoOPOtelAuditClient()
 	}
 
-	return initializeOtelAuditClient(auditLogQueueSize, remoteAddr)
+	return initializeOtelAuditClient(auditLogQueueSize, remoteAddress)
 }
 
 // https://eng.ms/docs/products/geneva/collect/instrument/opentelemetryaudit/golang/linux/installation
-func initializeOtelAuditClient(auditLogQueueSize int, remoteAddr string) (*AuditClient, error) {
+func initializeOtelAuditClient(auditLogQueueSize int, remoteAddress string) (*AuditClient, error) {
 	c, err := audit.New(
 		func() (conn.Audit, error) {
-			return conn.NewTCPConn(remoteAddr)
+			return conn.NewTCPConn(remoteAddress)
 		},
 		audit.WithAuditOptions(
 			base.WithSettings(
