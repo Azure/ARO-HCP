@@ -39,11 +39,13 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 
 	if auditClient == nil {
 		logger.Error("empty audit client, skipping audit")
-	} else {
-		msg = audit.CreateOtelAuditMsg(logger, r)
-		correlationData := arm.NewCorrelationData(r)
-		msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
+		next(w, r)
+		return
 	}
+
+	msg = audit.CreateOtelAuditMsg(logger, r)
+	correlationData := arm.NewCorrelationData(r)
+	msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
 
 	next(w, r)
 
