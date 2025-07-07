@@ -88,6 +88,10 @@ defaults:
       rp:
         accountName: ARORPLogs
         accountCert: ""
+    keyVault:
+      name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
+      private: false
+      softDelete: true
   kusto:
     resourceGroup: ""
     cluster: ""

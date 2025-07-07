@@ -107,6 +107,10 @@ frontend:
     address: http://ingest.observability:4318
     exporter: otlp
 geneva:
+  keyVault:
+    name: arohcppers-geneva-kv
+    private: false
+    softDelete: true
   logs:
     administrators:
       alias: AME\WEINONGW

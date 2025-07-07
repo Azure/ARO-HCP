@@ -15,6 +15,15 @@ param keyVaultPrivate bool
 @description('Defines if the keyvault should have soft delete enabled')
 param keyVaultSoftDelete bool
 
+@description('Name of the geneva keyvault where the pull secret is stored')
+param genevaKeyVaultName string
+
+@description('Resource group of the geneva keyvault')
+param genevaKeyVaultPrivate bool
+
+@description('Defines if the geneva keyvault should have soft delete enabled')
+param genevaKeyVaultSoftDelete bool
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -91,6 +100,19 @@ module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
   params: {
     keyVaultName: globalKV.outputs.kvName
     keyName: 'secretSyncKey'
+  }
+}
+
+//   G E N E V A    K V
+
+module genevaKv '../modules/keyvault/keyvault.bicep' = {
+  name: 'geneva-kv'
+  params: {
+    location: location
+    keyVaultName: genevaKeyVaultName
+    private: genevaKeyVaultPrivate
+    enableSoftDelete: genevaKeyVaultSoftDelete
+    purpose: 'geneva'
   }
 }
 

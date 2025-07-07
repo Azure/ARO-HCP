@@ -11,6 +11,10 @@ param keyVaultName = '{{ .global.keyVault.name}}'
 param keyVaultPrivate = {{ .global.keyVault.private }}
 param keyVaultSoftDelete = {{ .global.keyVault.softDelete }}
 
+param genevaKeyVaultName = '{{ .geneva.keyVault.name}}'
+param genevaKeyVaultPrivate = {{ .geneva.keyVault.private }}
+param genevaKeyVaultSoftDelete = {{ .geneva.keyVault.softDelete }}
+
 param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'

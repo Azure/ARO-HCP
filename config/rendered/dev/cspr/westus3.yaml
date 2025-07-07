@@ -107,6 +107,10 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  keyVault:
+    name: arohcpcspr-geneva-kv
+    private: false
+    softDelete: true
   logs:
     administrators:
       alias: AME\WEINONGW

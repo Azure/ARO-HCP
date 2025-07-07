@@ -711,6 +711,9 @@
         "resourceContributor": {
           "type": "string"
         },
+        "keyVault": {
+          "$ref": "#/definitions/keyVault"
+        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
@@ -837,7 +840,8 @@
         "principalId",
         "resourceContributor",
         "metrics",
-        "logs"
+        "logs",
+        "keyVault"
       ]
     },
     "kusto": {
