@@ -334,7 +334,7 @@
               "type": "prometheus",
               "uid": "${datasource}"
             },
-            "description": "Backend workers by Count",
+            "description": "Total number of active Backend workers",
             "fieldConfig": {
               "defaults": {
                 "custom": {
