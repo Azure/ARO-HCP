@@ -1,0 +1,10 @@
+items:
+- location: eastus
+  name: test-cluster
+  resourcegroup: test-rg
+  state: ""
+  subscription: ""
+  subscriptionid: sub-123
+  tags: null
+kind: ManagementClusters
+total: 1
