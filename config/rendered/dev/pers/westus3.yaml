@@ -315,6 +315,7 @@ msiKeyVault:
   name: ah-pers-mi-usw3test-1
   private: false
   softDelete: false
+oidcEnableAFD: false
 oidcStorageAccountName: arohcppersoidcusw3test
 oidcZoneRedundantMode: Auto
 pko:

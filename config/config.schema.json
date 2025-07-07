@@ -1401,6 +1401,10 @@
     "oidcZoneRedundantMode": {
       "$ref": "#/definitions/zoneRedundantMode"
     },
+    "oidcEnableAFD": {
+      "type": "boolean",
+      "description": "Enable Azure Front Door for OIDC"
+    },
     "region": {
       "type": "string"
     },
@@ -1562,6 +1566,7 @@
     "msiKeyVault",
     "oidcStorageAccountName",
     "oidcZoneRedundantMode",
+    "oidcEnableAFD",
     "region",
     "regionRG",
     "serviceKeyVault",

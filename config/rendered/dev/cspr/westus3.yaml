@@ -313,6 +313,7 @@ msiKeyVault:
   name: ah-cspr-mi-usw3-1
   private: false
   softDelete: false
+oidcEnableAFD: false
 oidcStorageAccountName: arohcpcsproidcusw3
 oidcZoneRedundantMode: Auto
 pko:
