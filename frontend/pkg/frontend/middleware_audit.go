@@ -33,17 +33,14 @@ type AuditResponseWriter struct {
 func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
-	auditClient := AuditClientFromContext(ctx)
-
-	var msg msgs.Msg
-
-	if auditClient == nil {
-		logger.Error("empty audit client, skipping audit")
+	auditClient, err := AuditClientFromContext(ctx)
+	if err != nil {
+		logger.Error("error getting audit client", "error", err.Error())
 		next(w, r)
 		return
 	}
 
-	msg = audit.CreateOtelAuditMsg(logger, r)
+	msg := audit.CreateOtelAuditMsg(logger, r)
 	correlationData := arm.NewCorrelationData(r)
 	msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
 

@@ -119,17 +119,16 @@ func ContextWithAuditClient(ctx context.Context, auditClient audit.Client) conte
 	return context.WithValue(ctx, contextKeyAuditLogger, auditClient)
 }
 
-func AuditClientFromContext(ctx context.Context) audit.Client {
+func AuditClientFromContext(ctx context.Context) (audit.Client, error) {
 	auditClient, ok := ctx.Value(contextKeyAuditLogger).(audit.Client)
 	if !ok {
 		err := &ContextError{
 			got: auditClient,
 			key: contextKeyAuditLogger,
 		}
-		util.DefaultLogger().Error(err.Error())
-		return nil
+		return nil, err
 	}
-	return auditClient
+	return auditClient, nil
 }
 
 func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context {
