@@ -107,6 +107,14 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  genevaActionCertificate:
+    issuer: Self
+    manage: true
+    name: genevaAction
+  keyVault:
+    name: arohcpdev-geneva-kv
+    private: false
+    softDelete: true
   logs:
     administrators:
       alias: AME\WEINONGW

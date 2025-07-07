@@ -107,6 +107,14 @@ frontend:
     address: http://ingest.observability:4318
     exporter: otlp
 geneva:
+  genevaActionCertificate:
+    issuer: Self
+    manage: true
+    name: genevaAction
+  keyVault:
+    name: arohcppers-geneva-kv
+    private: false
+    softDelete: true
   logs:
     administrators:
       alias: AME\WEINONGW
