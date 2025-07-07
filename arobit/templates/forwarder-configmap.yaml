@@ -1,5 +1,5 @@
-{{- if .Values.forwarder.enabled -}}
 ---
+{{- if .Values.forwarder.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,11 +10,11 @@ metadata:
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
-    
+
     @INCLUDE /forwarder/etc/input.conf
-    
+
     @INCLUDE /forwarder/etc/filter.conf
-    
+
     @INCLUDE /forwarder/etc/output.conf
 
 {{- range $key, $value := .Values.forwarder.fluentbit.configMap }}

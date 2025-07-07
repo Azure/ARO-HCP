@@ -642,7 +642,7 @@ aggregator:
           command:
           - "/bin/sleep"
           - "60"
-          # Workaround to delay starting the test container 
+          # Workaround to delay starting the test container
     # postStart:
     #   exec:
     #     command:

@@ -9,12 +9,12 @@ metadata:
 data:
   fluent-bit.conf: |
     @INCLUDE /aggregator/etc/service.conf
-    
+
     @INCLUDE /aggregator/etc/input.conf
-    
+
     @INCLUDE /aggregator/etc/filter.conf
-    
-    @INCLUDE /aggregator/etc/output.conf  
+
+    @INCLUDE /aggregator/etc/output.conf
 
 {{- range $key, $value := .Values.aggregator.fluentbit.configMap }}
   {{ $key }}: |

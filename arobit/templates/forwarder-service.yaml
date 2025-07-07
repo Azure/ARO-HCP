@@ -19,12 +19,6 @@ spec:
     - name: {{ $key }}
       {{ toYaml $value | nindent 6 }}
   {{- end }}
-  {{- if .Values.forwarder.jsonExporter }}
-    - name: exporter
-      port: 7979
-      protocol: TCP
-      targetPort: exporter
-  {{- end }}
   selector:
     app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
     app.kubernetes.io/instance: {{ .Release.Name }}
