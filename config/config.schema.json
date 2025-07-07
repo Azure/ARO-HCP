@@ -827,6 +827,29 @@
         "resourceContributor": {
           "type": "string"
         },
+        "keyVault": {
+          "$ref": "#/definitions/keyVault"
+        },
+        "genevaActionCertificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage"
+          ]
+        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
@@ -953,7 +976,9 @@
         "principalId",
         "resourceContributor",
         "metrics",
-        "logs"
+        "logs",
+        "keyVault",
+        "genevaActionCertificate"
       ]
     },
     "kusto": {

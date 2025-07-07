@@ -128,6 +128,14 @@ defaults:
         accountCert:
           keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
           name: ""
+    keyVault:
+      name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
+      private: false
+      softDelete: true
+    genevaActionCertificate:
+      name: genevaAction
+      issuer: Self
+      manage: true
   kusto:
     resourceGroup: ""
     cluster: ""
