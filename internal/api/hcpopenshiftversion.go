@@ -15,11 +15,7 @@
 package api
 
 import (
-	"fmt"
-	"net/http"
 	"time"
-
-	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -36,4 +32,3 @@ type HCPOpenShiftVersionProperties struct {
 	Enabled            bool      `json:"enabled" validate:"required"`
 	EndOfLifeTimestamp time.Time `json:"endOfLifeTimestamp" validate:"required"`
 }
-
