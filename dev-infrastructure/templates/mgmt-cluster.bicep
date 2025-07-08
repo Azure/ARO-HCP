@@ -186,6 +186,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     location: location
     locationAvailabilityZones: locationAvailabilityZoneList
     regionalResourceGroup: regionalResourceGroup
+    ipResourceGroup: resourceGroup().name
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
