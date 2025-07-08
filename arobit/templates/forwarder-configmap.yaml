@@ -15,8 +15,11 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
+{{- if .Values.forwarder.mdsd -}}
+    @INCLUDE /forwarder/etc/output-mdsd.conf
+{{- else }}
     @INCLUDE /forwarder/etc/output.conf
-
+{{- end }}
 {{- range $key, $value := .Values.forwarder.fluentbit.configMap }}
   {{ $key }}: |
 {{ $value | default "{}" | indent 4 }}
