@@ -139,6 +139,11 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			Platform: PlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
 			},
+			Autoscaling: ClusterAutoscalingProfile{
+				MaxPodGracePeriodSeconds:    600,
+				MaxNodeProvisionTimeSeconds: 900,
+				PodPriorityThreshold:        -10,
+			},
 		},
 	}
 }
