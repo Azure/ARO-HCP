@@ -23,12 +23,12 @@ import (
 // HCPOpenShiftVersion represents a location-based available HCP OpenShift version resource.
 type HCPOpenShiftVersion struct {
 	arm.ProxyResource
-	Properties HCPOpenShiftVersionProperties `json:"properties,omitempty" validate:"required"`
+	Properties HCPOpenShiftVersionProperties `json:"properties,omitempty"`
 }
 
 // HCPOpenShiftVersionProperties contains details of an available HCP OpenShift version.
 type HCPOpenShiftVersionProperties struct {
-	ChannelGroup       string    `json:"channelGroup" validate:"required"`
-	Enabled            bool      `json:"enabled" validate:"required"`
-	EndOfLifeTimestamp time.Time `json:"endOfLifeTimestamp" validate:"required"`
+	ChannelGroup       string    `json:"channelGroup"`
+	Enabled            bool      `json:"enabled"`
+	EndOfLifeTimestamp time.Time `json:"endOfLifeTimestamp"`
 }
