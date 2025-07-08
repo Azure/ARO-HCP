@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "arobit.name" . }}-aggregator
+  labels: {{- include "arobit.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "arobit.name" . }}-aggregator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  fluent-bit.conf: |
+    @INCLUDE /aggregator/etc/service.conf
+
+    @INCLUDE /aggregator/etc/input.conf
+
+    @INCLUDE /aggregator/etc/filter.conf
+
+    @INCLUDE /aggregator/etc/output.conf
+
+{{- range $key, $value := .Values.aggregator.fluentbit.configMap }}
+  {{ $key }}: |
+{{ $value | default "{}" | indent 4 }}
+{{- end }}
