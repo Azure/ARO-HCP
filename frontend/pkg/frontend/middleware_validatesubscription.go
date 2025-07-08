@@ -39,7 +39,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 	dbClient, err := DBClientFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(w)
+		arm.WriteInternalServerError(w, "failed getting database client")
 		return
 	}
 
@@ -109,6 +109,6 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 			subscription.State)
 	default:
 		logger.Error(fmt.Sprintf("unsupported subscription state %q", subscription.State))
-		arm.WriteInternalServerError(w)
+		arm.WriteInternalServerError(w, "unhandled subscription state")
 	}
 }

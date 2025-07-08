@@ -79,7 +79,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
 			logger.Error(err.Error())
-			return arm.NewInternalServerError()
+			return arm.NewInternalServerError("reading document ancestor to check for deletion")
 		}
 
 		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
@@ -101,7 +101,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError("parsing subscription id")
 	}
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
@@ -128,13 +128,13 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	err = dbIterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError("failed iterating resource documents to delete")
 	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError("executing the delete all transaction")
 	}
 
 	return nil
@@ -155,7 +155,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError("unknown resource kind")
 	}
 
 	if err != nil {
@@ -178,7 +178,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError("cancelling active operations")
 	}
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
@@ -208,7 +208,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError("failed iterating child resource documents")
 	}
 
 	return operationID, nil
@@ -225,7 +225,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		if database.IsResponseError(err, http.StatusNotFound) {
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError("failed reading resource document to marshal")
 		}
 	}
 
@@ -240,7 +240,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError("failed marshalling cluster to bytes")
 		}
 
 	case arohcpv1alpha1.NodePoolKind:
@@ -252,12 +252,12 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError("failed marshalling node pool to bytes")
 		}
 
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
-		return nil, arm.NewInternalServerError()
+		return nil, arm.NewInternalServerError("unknown resource kind to marshal")
 	}
 
 	return responseBody, nil
