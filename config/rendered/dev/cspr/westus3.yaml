@@ -219,7 +219,8 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2: false
+    enableSwiftV2Nodepools: false
+    enableSwiftV2Vnet: false
     etcd:
       kvName: ah-cspr-me-usw3-1
       kvSoftDelete: false

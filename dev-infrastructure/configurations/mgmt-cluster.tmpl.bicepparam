@@ -27,7 +27,8 @@ param aksUserOsDiskSizeGB = {{ .mgmt.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .mgmt.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
-param aksEnableSwift = {{ .mgmt.aks.enableSwiftV2 }}
+param aksEnableSwiftVnet = {{ .mgmt.aks.enableSwiftV2Vnet }}
+param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
 
 // Maestro
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
@@ -65,4 +66,3 @@ param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
-

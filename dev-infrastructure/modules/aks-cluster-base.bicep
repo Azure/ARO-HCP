@@ -53,7 +53,8 @@ param workloadIdentities array
 param nodeSubnetNSGId string
 param networkDataplane string
 param networkPolicy string
-param enableSwiftV2 bool
+param enableSwiftV2Vnet bool
+param enableSwiftV2Nodepools bool
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -208,7 +209,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     location: location
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: enableSwiftV2
+    enableSwift: enableSwiftV2Vnet
     deploymentMsiId: deploymentMsiId
   }
   dependsOn: [
@@ -575,7 +576,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       nodeLabels: {
         'aro-hcp.azure.com/role': 'worker'
       }
-      tags: enableSwiftV2
+      tags: enableSwiftV2Nodepools
         ? {
             'aks-nic-enable-multi-tenancy': 'true'
           }
