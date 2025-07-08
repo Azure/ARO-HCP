@@ -339,6 +339,50 @@
           }
         }
       }
+    },
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "deploy": {
+          "type": "boolean"
+        },
+        "name": {
+          "$ref": "#/definitions/postgresName"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "serverStorageSizeGB": {
+          "type": "integer"
+        },
+        "serverVersion": {
+          "type": "string"
+        },
+        "minTLSVersion": {
+          "type": "string",
+          "enum": [
+            "TLSV1.2",
+            "TLSV1.3"
+          ]
+        },
+        "databaseName": {
+          "type": "string"
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "deploy",
+        "name",
+        "private",
+        "serverStorageSizeGB",
+        "serverVersion",
+        "minTLSVersion",
+        "databaseName",
+        "zoneRedundantMode"
+      ]
     }
   },
   "properties": {
@@ -1162,48 +1206,7 @@
           "$ref": "#/definitions/containerImage"
         },
         "postgres": {
-          "type": "object",
-          "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
-            "name": {
-              "$ref": "#/definitions/postgresName"
-            },
-            "private": {
-              "type": "boolean"
-            },
-            "serverStorageSizeGB": {
-              "type": "integer"
-            },
-            "serverVersion": {
-              "type": "string"
-            },
-            "minTLSVersion": {
-              "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
-            },
-            "databaseName": {
-              "type": "string"
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "deploy",
-            "name",
-            "private",
-            "serverStorageSizeGB",
-            "serverVersion",
-            "minTLSVersion",
-            "databaseName",
-            "zoneRedundantMode"
-          ]
+          "$ref": "#/definitions/postgres"
         },
         "restrictIstioIngress": {
           "type": "boolean"
