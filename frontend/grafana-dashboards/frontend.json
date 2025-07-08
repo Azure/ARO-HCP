@@ -43,7 +43,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (frontend_health{cluster=\"$cluster\"})) / \ncount(max without(prometheus_replica) (frontend_healt{cluster=\"$cluster\"}))",
+          "expr": "sum(max without(prometheus_replica) (frontend_health{cluster=\"$cluster\"})) / \ncount(max without(prometheus_replica) (frontend_health{cluster=\"$cluster\"}))",
           "legendFormat": "__auto"
         }
       ],
