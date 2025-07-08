@@ -512,36 +512,7 @@
           ]
         },
         "postgres": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
-            "name": {
-              "$ref": "#/definitions/postgresName"
-            },
-            "private": {
-              "type": "boolean"
-            },
-            "minTLSVersion": {
-              "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            }
-          },
-          "required": [
-            "deploy",
-            "name",
-            "private",
-            "minTLSVersion",
-            "zoneRedundantMode"
-          ]
+          "$ref": "#/definitions/postgres"
         },
         "azureOperatorsManagedIdentities": {
           "type": "object",

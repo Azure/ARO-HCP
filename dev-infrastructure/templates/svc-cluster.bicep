@@ -142,8 +142,17 @@ param csPostgresZoneRedundantMode string
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The name of the CS Postgres database')
+param csPostgresDatabaseName string
+
 @description('The minimum TLS version for the Postgres server for CS')
 param csPostgresServerMinTLSVersion string
+
+@description('The version of the Postgres server for CS')
+param csPostgresServerVersion string
+
+@description('The size of the Postgres server for CS')
+param csPostgresServerStorageSizeGB int
 
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
@@ -547,6 +556,9 @@ module cs '../modules/cluster-service.bicep' = {
   params: {
     postgresServerName: csPostgresServerName
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
+    postgresServerVersion: csPostgresServerVersion
+    postgresServerStorageSizeGB: csPostgresServerStorageSizeGB
+    csDatabaseName: csPostgresDatabaseName
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     privateEndpointResourceGroup: resourceGroup().name

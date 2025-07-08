@@ -363,6 +363,9 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
+      serverVersion: '12'
+      serverStorageSizeGB: 128
+      databaseName: clusters-service
       zoneRedundantMode: 'Auto'
     managedIdentityName: clusters-service
     k8s:

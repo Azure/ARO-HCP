@@ -61,10 +61,13 @@ clustersService:
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
+    databaseName: clusters-service
     deploy: false
     minTLSVersion: TLSV1.2
     name: arohcp-pers-dbcs-usw3test
     private: false
+    serverStorageSizeGB: 128
+    serverVersion: "12"
     zoneRedundantMode: Auto
   tracing:
     address: http://ingest.observability:4318
