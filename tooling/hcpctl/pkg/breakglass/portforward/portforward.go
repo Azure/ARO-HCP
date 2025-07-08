@@ -21,16 +21,74 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
+
+// isExpectedConnectionCloseError determines if an error is an expected connection close
+// that should not be logged as an error. This includes cases where kubectl exits and
+// closes connections abruptly, which is normal behavior.
+func isExpectedConnectionCloseError(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Common connection close patterns that are expected during normal kubectl usage
+	expectedPatterns := []string{
+		"connection was forcibly closed",
+		"wsarecv: an existing connection was forcibly closed",
+		"broken pipe",
+		"connection reset by peer",
+		"use of closed network connection",
+		"io: read/write on closed pipe",
+		"network connection closed",
+	}
+
+	for _, pattern := range expectedPatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// gracefulErrorHandler is a custom error handler that filters out expected connection close errors
+type gracefulErrorHandler struct {
+	logger logr.Logger
+}
+
+// newGracefulErrorHandler creates a new graceful error handler
+func newGracefulErrorHandler(logger logr.Logger) *gracefulErrorHandler {
+	return &gracefulErrorHandler{logger: logger}
+}
+
+// Handle processes errors, filtering out expected connection close errors
+// This matches the signature expected by runtime.ErrorHandler
+func (h *gracefulErrorHandler) Handle(ctx context.Context, err error, msg string, keysAndValues ...interface{}) {
+	if err == nil {
+		return
+	}
+
+	// Only log unexpected errors
+	if !isExpectedConnectionCloseError(err) {
+		h.logger.Error(err, msg, keysAndValues...)
+	} else {
+		// Log expected errors at debug level only
+		h.logger.V(2).Info("Expected connection close", append([]interface{}{"error", err.Error(), "msg", msg}, keysAndValues...)...)
+	}
+}
 
 // Forwarder is an interface for port forwarding operations.
 // This interface abstracts port forwarding setup and management to enable
@@ -92,6 +150,18 @@ func (pf *PortForwarder) FindFreePort() (int, error) {
 // ForwardPorts starts port forwarding with graceful error handling
 func (pf *PortForwarder) ForwardPorts(ctx context.Context, stopCh <-chan struct{}, readyCh chan struct{}) error {
 	logger := logr.FromContextOrDiscard(ctx)
+
+	// Install graceful error handler to filter out expected connection close errors
+	gracefulHandler := newGracefulErrorHandler(logger)
+
+	// Save original error handlers and install our graceful handler
+	originalHandlers := runtime.ErrorHandlers
+	runtime.ErrorHandlers = []runtime.ErrorHandler{gracefulHandler.Handle}
+
+	// Ensure we restore original handlers when done
+	defer func() {
+		runtime.ErrorHandlers = originalHandlers
+	}()
 
 	// Resolve service to a pod
 	podName, err := pf.resolveServiceToPod(ctx, pf.targetService)

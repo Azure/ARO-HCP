@@ -21,6 +21,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -450,4 +451,149 @@ func TestResolveServiceToPodWithKubernetesErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Note: ForwardPorts method is hard to test without a real Kubernetes cluster
+// as it depends on SPDY connections and the actual port forwarding infrastructure.
+// These integration-style tests would require more complex setup with test servers.
+// For now, we focus on testing the individual components and logic.
+
+// TestPortForwarderTargetParsing test removed since we now only accept plain service names
+
+func TestPortForwarderFields(t *testing.T) {
+	restConfig := &rest.Config{Host: "https://test-server"}
+	namespace := "test-namespace"
+	target := "test-target"
+	localPort := 8080
+	remotePort := 80
+
+	pf, err := New(restConfig, namespace, target, localPort, remotePort)
+	if err != nil {
+		t.Fatalf("Failed to create PortForwarder: %v", err)
+	}
+
+	// Test that all fields are set correctly
+	if pf.restConfig != restConfig {
+		t.Error("restConfig not set correctly")
+	}
+	if pf.namespace != namespace {
+		t.Errorf("expected namespace %s, got %s", namespace, pf.namespace)
+	}
+	if pf.targetService != target {
+		t.Errorf("expected targetService %s, got %s", target, pf.targetService)
+	}
+	if pf.localPort != localPort {
+		t.Errorf("expected localPort %d, got %d", localPort, pf.localPort)
+	}
+	if pf.remotePort != remotePort {
+		t.Errorf("expected remotePort %d, got %d", remotePort, pf.remotePort)
+	}
+	if pf.kubeClient == nil {
+		t.Error("kubeClient should not be nil")
+	}
+}
+
+func TestIsExpectedConnectionCloseError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: true,
+		},
+		{
+			name:     "forcibly closed error",
+			err:      fmt.Errorf("connection was forcibly closed"),
+			expected: true,
+		},
+		{
+			name:     "Windows specific forcibly closed error",
+			err:      fmt.Errorf("wsarecv: An existing connection was forcibly closed by the remote host"),
+			expected: true,
+		},
+		{
+			name:     "broken pipe error",
+			err:      fmt.Errorf("broken pipe"),
+			expected: true,
+		},
+		{
+			name:     "connection reset error",
+			err:      fmt.Errorf("connection reset by peer"),
+			expected: true,
+		},
+		{
+			name:     "use of closed connection",
+			err:      fmt.Errorf("use of closed network connection"),
+			expected: true,
+		},
+		{
+			name:     "unexpected error",
+			err:      fmt.Errorf("some other network error"),
+			expected: false,
+		},
+		{
+			name:     "authentication error",
+			err:      fmt.Errorf("authentication failed"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isExpectedConnectionCloseError(tt.err)
+			if result != tt.expected {
+				t.Errorf("isExpectedConnectionCloseError(%v) = %v, expected %v", tt.err, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGracefulErrorHandler(t *testing.T) {
+	// Create a test logger that captures output
+	var capturedLogs []string
+	testLogger := logr.New(logr.Discard().GetSink())
+
+	handler := newGracefulErrorHandler(testLogger)
+
+	tests := []struct {
+		name      string
+		err       error
+		msg       string
+		shouldLog bool
+	}{
+		{
+			name:      "nil error",
+			err:       nil,
+			msg:       "test message",
+			shouldLog: false,
+		},
+		{
+			name:      "expected connection close error",
+			err:       fmt.Errorf("connection was forcibly closed"),
+			msg:       "test message",
+			shouldLog: false, // Should be filtered out
+		},
+		{
+			name:      "unexpected error",
+			err:       fmt.Errorf("authentication failed"),
+			msg:       "test message",
+			shouldLog: true, // Should be logged
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This test verifies the handler doesn't panic and processes errors correctly
+			// In a real scenario, we'd need to capture the actual log output
+			handler.Handle(context.Background(), tt.err, tt.msg)
+
+			// Since we're using logr.Discard(), we can't easily test the actual logging
+			// but we can verify the function completes without error
+		})
+	}
+
+	_ = capturedLogs // Prevent unused variable error
 }
