@@ -54,6 +54,15 @@ func (src *TrackedResource) Copy(dst *TrackedResource) {
 	dst.Tags = maps.Clone(src.Tags)
 }
 
+// ProxyResource represents an ARM resource without location/tags
+type ProxyResource struct {
+	Resource
+}
+
+func (src *ProxyResource) Copy(dst *ProxyResource) {
+	src.Resource.Copy(&dst.Resource)
+}
+
 // CreatedByType is the type of identity that created (or modified) the resource
 type CreatedByType string
 
