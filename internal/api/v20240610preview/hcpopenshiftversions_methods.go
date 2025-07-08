@@ -34,14 +34,6 @@ func NewHcpOpenShiftVersion(from *api.HCPOpenShiftVersion) *HcpOpenShiftVersion 
 			ID:   api.PtrOrNil(from.ID),
 			Name: api.PtrOrNil(from.Name),
 			Type: api.PtrOrNil(from.Type),
-			SystemData: &generated.SystemData{
-				CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
-				CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
-				CreatedAt:          from.SystemData.CreatedAt,
-				LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
-				LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
-				LastModifiedAt:     from.SystemData.LastModifiedAt,
-			},
 			Properties: &generated.HcpOpenShiftVersionProperties{
 				ChannelGroup:       api.PtrOrNil(from.Properties.ChannelGroup),
 				Enabled:            api.PtrOrNil(from.Properties.Enabled),
