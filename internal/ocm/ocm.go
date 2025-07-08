@@ -383,3 +383,27 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 	}
 	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }
+
+func (csc *clusterServiceClient) GetVersion(ctx context.Context, internalID InternalID) (*cmv1.Version, error) {
+	client, ok := internalID.GetVersionClient(csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a version: %s", internalID)
+	}
+	resp, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	version, ok := resp.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return version, nil
+}
+
+func (csc *clusterServiceClient) ListVersions(searchExpression string) VersionsListIterator {
+	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
+	if searchExpression != "" {
+		versionsListRequest.Search(searchExpression)
+	}
+	return VersionsListIterator{request: versionsListRequest}
+}

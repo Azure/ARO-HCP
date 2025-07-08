@@ -29,10 +29,12 @@ const (
 	v1ClusterPattern              = v1Pattern + "/clusters/*"
 	v1NodePoolPattern             = v1ClusterPattern + "/node_pools/*"
 	v1BreakGlassCredentialPattern = v1ClusterPattern + "/break_glass_credentials/*"
+	v1VersionPattern              = v1Pattern + "/versions/*"
 
 	aroHcpV1Alpha1Pattern         = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern  = aroHcpV1Alpha1Pattern + "/clusters/*"
 	aroHcpV1Alpha1NodePoolPattern = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
+	aroHcpV1Alpha1VersionPattern  = aroHcpV1Alpha1Pattern + "/versions/*"
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -77,6 +79,11 @@ func (id *InternalID) validate() error {
 		return nil
 	}
 
+	if match, _ = path.Match(v1VersionPattern, id.path); match {
+		id.kind = cmv1.VersionKind
+		return nil
+	}
+
 	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
 		id.kind = arohcpv1alpha1.ClusterKind
 		return nil
@@ -84,6 +91,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
 		id.kind = arohcpv1alpha1.NodePoolKind
+		return nil
+	}
+
+	if match, _ = path.Match(aroHcpV1Alpha1VersionPattern, id.path); match {
+		id.kind = arohcpv1alpha1.VersionKind
 		return nil
 	}
 
@@ -198,4 +210,11 @@ func (id *InternalID) GetBreakGlassCredentialClient(transport http.RoundTripper)
 		return nil, false
 	}
 	return cmv1.NewBreakGlassCredentialClient(transport, id.path), true
+}
+
+func (id *InternalID) GetVersionClient(transport http.RoundTripper) (*cmv1.VersionClient, bool) {
+	if id.Kind() != cmv1.VersionKind {
+		return nil, false
+	}
+	return cmv1.NewVersionClient(transport, id.path), true
 }
