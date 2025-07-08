@@ -17,11 +17,11 @@ data:
 
     exporters:
       otlp/jaeger:
-        endpoint: http://jaeger:4318
+        endpoint: http://jaeger:4317
         tls:
           insecure: true
       otlp/lgtm:
-        endpoint: http://lgtm:4318
+        endpoint: http://lgtm:4317
         tls:
           insecure: true
 
