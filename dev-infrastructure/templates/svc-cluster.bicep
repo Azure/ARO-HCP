@@ -386,7 +386,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: aroDevopsMsiId
-    enableSwiftV2: false
+    enableSwiftV2Vnet: false
+    enableSwiftV2Nodepools: false
   }
 }
 

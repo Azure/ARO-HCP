@@ -228,7 +228,10 @@
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },
-        "enableSwiftV2": {
+        "enableSwiftV2Vnet": {
+          "type": "boolean"
+        },
+        "enableSwiftV2Nodepools": {
           "type": "boolean"
         }
       },

@@ -229,7 +229,8 @@ defaults:
         osDiskSizeGB: 32
         azCount: {{ .ev2.availabilityZoneCount }}
       clusterOutboundIPAddressIPTags: ""
-      enableSwiftV2: true
+      enableSwiftV2Vnet: true
+      enableSwiftV2Nodepools: true
     logs:
       namespace: HCPCustomerLogs
       san: ""
@@ -562,7 +563,8 @@ clouds:
             azCount: 1
           etcd:
             kvSoftDelete: false
-          enableSwiftV2: false
+          enableSwiftV2Vnet: false
+          enableSwiftV2Nodepools: false
         nsp:
           accessMode: 'Learning'
         prometheus:
