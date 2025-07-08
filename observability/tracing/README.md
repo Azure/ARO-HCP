@@ -1,6 +1,6 @@
 # Observability for developer environments
 
-This page explains how you can enable tracing for ARO HCP in your [development setup](../dev-infrastructure/docs/development-setup.md).
+This page explains the tracing setup for ARO HCP in [personal developer environments](../dev-infrastructure/docs/development-setup.md).
 
 ## Pre-requisites
 
@@ -8,55 +8,69 @@ This page explains how you can enable tracing for ARO HCP in your [development s
 
 ## Tracing
 
-The ARO resource provider frontend, Clusters Service and other components are
-instrumented with the OpenTelemetry SDK but by default, there's no backend
-configured to collect and visualize the traces.
+The ARO resource provider Frontend & Backend, Clusters Service and Maestro are
+all instrumented with the Go OpenTelemetry SDK for traces. By default, these
+services aren't configured to export traces, except for personal developer
+environments where the [Jaeger](https://www.jaegertracing.io/) and Grafana
+[lgtm](https://github.com/grafana/docker-otel-lgtm) backends are used.
 
-### Deploy Jaeger all-in-one testing backend
 
-We will deploy [Jaeger](https://www.jaegertracing.io/) with in-memory storage to store and visualize the traces received from the ARO-HCP components.
+### Installation
 
-#### Install
+To deploy the tracing components, run:
 
 ```
 make deploy
 ```
 
-After installation, the `jaeger` service becomes available in the `observability` namespace. We can access the UI using `kubectl port-forward`:
+```mermaid
+flowchart LR
+    A["ARO HCP service"] --> B["OTEL collector"]
+    B --> C["Jaeger"]
+    B --> D["lgtm"]
+```
+
+The `observability` namespace contains a service named `ingest` which accepts otlp via gRPC and HTTP and points to the OpenTelemetry collector.
+
+### OpenTelemetry collector
+
+The OpenTelemetry collector is used to receive traces from the ARO-HCP components and dispatch them to the trace backends (Jaeger and lgtm).
+
+### Jaeger all-in-one
+
+Jaeger receives traces from the OpenTelemetry collector, store them in-memory and provides visualization and query capabilities.
+
+After installation, we can access the UI using `kubectl port-forward`:
 
 ```
 kubectl port-forward -n observability svc/jaeger 16686:16686
 ```
 
 Open http://localhost:16686 in your browser to access the Jaeger UI.
-The `observability` namespace contains a second service named `ingest` which accepts otlp via gRPC and HTTP.
 
-##### Alternative visualization with log support
 
-In addition to Jaeger, Grafana [OTEL lgtm](https://github.com/grafana/docker-otel-lgtm) is also deployed which can store and visualize traces and logs.
-We can access the UI using  `kubectl port-forward`:
+##### lgtm
 
-```
-kubectl port-forward -n observability svc/grafana 3000:3000
-```
+The lgtm deployment embeds Grafana (visualization) + Tempo (trace storage) +
+Loki (logs storage) + Prometheus (metrics storage).
 
-#### Configure the ARO services
-
-Run the following commands:
+We can access the Grafana UI using  `kubectl port-forward`:
 
 ```
-make patch-frontend
-make patch-clusterservice
-make patch-maestro-server
+kubectl port-forward -n observability svc/lgtm 3000:3000
 ```
 
-The export of the trace information is configured via environment variables for the RP Frontend, maestro server and command-line arguments for the Clusters Service.
+#### Configuration of the ARO services
 
-### Correlate with ARM requests
+The export of the trace information is configured by environment variables for
+the RP Frontend/Backend, maestro server and command-line arguments for the
+Clusters Service.
 
 #### Generate Traces
 
-Traces are automatically generated for every incoming HTTP request (sampling rate: 100%). A simple way to generate incoming requests is to follow the [demo instructions](../../demo/README.md).
+Traces are automatically generated for every incoming HTTP request (sampling
+rate: 100%). A simple way to generate incoming requests is to follow the [demo
+instructions](../../demo/README.md).
 
 #### Common Attributes
 
