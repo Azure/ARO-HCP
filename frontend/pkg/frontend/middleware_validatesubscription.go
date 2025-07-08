@@ -114,6 +114,6 @@ func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWrite
 			subscription.State)
 	default:
 		logger.Error(fmt.Sprintf("unsupported subscription state %q", subscription.State))
-		arm.WriteInternalServerError(w)
+		arm.WriteInternalServerError(w, "unhandled subscription state")
 	}
 }

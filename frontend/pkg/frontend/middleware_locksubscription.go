@@ -60,7 +60,7 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 					"/subscriptions/"+subscriptionID, "%s", message)
 			} else {
 				message += err.Error()
-				arm.WriteInternalServerError(w)
+				arm.WriteInternalServerError(w, "failed to acquire lock")
 			}
 			logger.Error(message)
 			return
