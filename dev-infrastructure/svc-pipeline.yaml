@@ -104,6 +104,10 @@ resourceGroups:
       input:
         step: region-output
         name: logAnalyticsWorkspaceId
+    - name: azureFrontDoorResourceId
+      input:
+        step: global-output
+        name: azureFrontDoorResourceId
     dependsOn:
     - svc-oncert-private-kv-issuer
     - svc-oncert-public-kv-issuer
