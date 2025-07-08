@@ -8,10 +8,10 @@ use (
 	./frontend
 	./internal
 	./test
+	./tooling/hcpctl
 	./tooling/mcerepkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
 	./tooling/secret-sync
-	./tooling/hcpctl
 	./tooling/templatize
 )
