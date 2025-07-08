@@ -437,7 +437,7 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 			return arm.NewCloudError(
 				statusCode,
 				arm.CloudErrorCodeInvalidRequestContent,
-				"", "%s", ocmError.Reason())
+				"", "Originating from cluster-service: %s", ocmError.Reason())
 		case http.StatusNotFound:
 			if resourceID != nil {
 				return arm.NewResourceNotFoundError(resourceID)
@@ -445,7 +445,7 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 			return arm.NewCloudError(
 				statusCode,
 				arm.CloudErrorCodeNotFound,
-				"", "%s", ocmError.Reason())
+				"", "Originating from cluster-service: %s", ocmError.Reason())
 		case http.StatusConflict:
 			var target string
 			if resourceID != nil {
@@ -454,7 +454,7 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 			return arm.NewCloudError(
 				statusCode,
 				arm.CloudErrorCodeConflict,
-				target, "%s", ocmError.Reason())
+				target, "Originating from cluster-service: %s", ocmError.Reason())
 		}
 	}
 
