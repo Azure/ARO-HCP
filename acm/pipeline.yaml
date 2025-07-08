@@ -20,3 +20,19 @@ resourceGroups:
       configRef: acm.mce.pauseReconciliation
     shellIdentity:
       configRef: aroDevopsMsiId
+  - name: scale-down
+    aksCluster: '{{ .mgmt.aks.name  }}'
+    action: Shell
+    command: make scale-down
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: acr.svc.name
+    - name: MCE_PAUSE_RECONCILIATION
+      configRef: acm.mce.pauseReconciliation
+    shellIdentity:
+      configRef: aroDevopsMsiId
+

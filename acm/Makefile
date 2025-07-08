@@ -33,6 +33,17 @@ ifneq ($(DRY_RUN),true)
 endif
 	$(MAKE) deploy-policies
 
+scale-down:
+	@if [  "${MCE_PAUSE_RECONCILIATION}" != "true" ]; then \
+		echo "MCE_PAUSE_RECONCILIATION is not set, skipping scale down"; \
+		exit 0; \
+	fi; \
+	echo "Waiting for MCE multiclusterengine to reach Paused status..."; \
+	kubectl wait --for=jsonpath='{.status.phase}'=Paused mce multiclusterengine -n ${MCE_NS} --timeout=600s; \
+	echo "Phase is Paused, scaling down all deployments to 0..."; \
+	kubectl -n ${MCE_NS} get deployments -o name | xargs -I {} kubectl -n ${MCE_NS} scale {} --replicas=0; \
+	echo "All deployments scaled down to 0 replicas"
+
 deploy-policies:
 	${HELM_CMD} \
 		policy ${POLICY_CHART_DIR} \
