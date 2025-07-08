@@ -15,8 +15,10 @@
 package labels
 
 import (
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 )
+
+// TODO makes these ginkgo.Labels produced by ginkgo.Label (notice the plural return) into strings and refactor the test usage.
 
 // Positivity of test cases
 var (
@@ -38,4 +40,12 @@ var (
 	CreateCluster      = ginkgo.Label("Create-Cluster")
 	SetupValidation    = ginkgo.Label("Setup-Validation")
 	TeardownValidation = ginkgo.Label("Teardown-Validation")
+)
+
+// Environments this test can be used in.
+var (
+	Any         = ginkgo.Label("Any")
+	Integration = ginkgo.Label("Integration")
+	Stage       = ginkgo.Label("Stage")
+	Production  = ginkgo.Label("Production")
 )

@@ -17,3 +17,4 @@ tooling/bin
 **/venv
 **/__pycache__
 **/charts/*.tgz
+/vendor/
