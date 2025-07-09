@@ -34,8 +34,9 @@ func TestInternalID(t *testing.T) {
 	tests := []struct {
 		name      string
 		path      string
-		id        string
 		kind      string
+		id        string
+		clusterID string
 		expectErr bool
 	}{
 		{
@@ -47,29 +48,33 @@ func TestInternalID(t *testing.T) {
 		{
 			name:      "parse v1 cluster",
 			path:      "/api/clusters_mgmt/v1/clusters/abc",
-			id:        "abc",
 			kind:      cmv1.ClusterKind,
+			id:        "abc",
+			clusterID: "abc",
 			expectErr: false,
 		},
 		{
 			name:      "parse aro_hcp v1alpha1 cluster",
 			path:      "/api/aro_hcp/v1alpha1/clusters/abc",
-			id:        "abc",
 			kind:      arohcpv1alpha1.ClusterKind,
+			id:        "abc",
+			clusterID: "abc",
 			expectErr: false,
 		},
 		{
 			name:      "parse v1 node pool",
 			path:      "/api/clusters_mgmt/v1/clusters/abc/node_pools/def",
-			id:        "def",
 			kind:      cmv1.NodePoolKind,
+			id:        "def",
+			clusterID: "abc",
 			expectErr: false,
 		},
 		{
 			name:      "parse aro_hcp v1alpha1 node pool",
 			path:      "/api/aro_hcp/v1alpha1/clusters/abc/node_pools/def",
-			id:        "def",
 			kind:      arohcpv1alpha1.NodePoolKind,
+			id:        "def",
+			clusterID: "abc",
 			expectErr: false,
 		},
 	}
@@ -94,11 +99,14 @@ func TestInternalID(t *testing.T) {
 				return
 			}
 
+			kind := internalID.Kind()
+			assert.Equal(t, tt.kind, kind)
+
 			id := internalID.ID()
 			assert.Equal(t, tt.id, id)
 
-			kind := internalID.Kind()
-			assert.Equal(t, tt.kind, kind)
+			clusterID := internalID.ClusterID()
+			assert.Equal(t, tt.clusterID, clusterID)
 
 			str := internalID.String()
 			assert.Equal(t, tt.path, str)
