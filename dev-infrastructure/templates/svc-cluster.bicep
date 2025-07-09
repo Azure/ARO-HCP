@@ -597,7 +597,6 @@ module oidc '../modules/oidc/region/main.bicep' = {
   }
 }
 
-
 //
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //

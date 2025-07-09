@@ -28,10 +28,10 @@ param wafManagedRuleSets array = [
 @description('The mode that the WAF should be deployed using. In \'Prevention\' mode, the WAF will block requests it detects as malicious. In \'Detection\' mode, the WAF will not block requests and will simply log the request.')
 param wafMode string = 'Prevention'
 
-@description('The regEx pattren to match valid oidc discovery doc request uri.')
+@description('The regEx pattern to match valid oidc discovery doc request uri.')
 param discoveryDocRequestUriRegex string
 
-@description('The regEx pattren to match valid oidc JWKS key request uri.')
+@description('The regEx pattern to match valid oidc JWKS key request uri.')
 param jwksRequestUriRegex string
 
 // Read the Readme.md for more information on the regex patterns and explanation.

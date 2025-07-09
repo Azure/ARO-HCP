@@ -18,7 +18,7 @@ module keyVault '../../keyvault/keyvault.bicep' = {
   }
 }
 
-module adminKeyVaultAccess '../../keyvault/keyvault-secret-access.bicep' = {
+module keyVaultCertificateOfficer '../../keyvault/keyvault-secret-access.bicep' = {
   name: guid(keyVaultName, keyVaultAdminPrincipalId, 'Key Vault Certificates Officer')
   params: {
     keyVaultName: keyVaultName
@@ -30,8 +30,8 @@ module adminKeyVaultAccess '../../keyvault/keyvault-secret-access.bicep' = {
   ]
 }
 
-module frontDoorKeyVaultAccess '../../keyvault/keyvault-secret-access.bicep' = {
-  name: guid(keyVaultName, frontDoorPrincipalId, 'Key Vault Certificates Officer')
+module keyVaultSecretsUser '../../keyvault/keyvault-secret-access.bicep' = {
+  name: guid(keyVaultName, frontDoorPrincipalId, 'Key Vault Secrets User')
   params: {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets User'
