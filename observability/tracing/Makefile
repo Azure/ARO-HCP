@@ -2,11 +2,14 @@
 
 all: deploy
 	@echo "Observability services are now configured and enabled."
-	@echo "Run the following command to port-forward traffic to the Jaeger service:"
+	@echo "Run the following command to port-forward traffic to the Jaeger or LGTM service:"
 	@echo ""
+	@echo "Jaeger"
 	@echo "kubectl port-forward -n observability svc/jaeger 16686:16686"
+	@echo "LGTM"
+	@echo "kubectl port-forward -n observability svc/lgtm 3000:3000"
 	@echo ""
-	@echo "Then open 'http://localhost:16686' in your browser."
+	@echo "Then open 'http://localhost:16686' or 'http://localhost:3000' in your browser."
 
 deploy:
 	@if [ "$(DEPLOY)" = "true" ]; then \
