@@ -35,9 +35,6 @@ param dnsServiceIP string = '10.130.0.10'
 // Passed Params and Overrides
 param location string
 
-@description('The regional resource group')
-param regionalResourceGroup string
-
 @description('The resource group hosting IP Addresses of the AKS Clusters')
 param ipResourceGroup string
 
