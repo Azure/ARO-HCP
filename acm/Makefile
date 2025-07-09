@@ -25,7 +25,7 @@ export HELM_CMD
 deploy:
 	./deploy.sh
 
-scale-down:
+scale:
 ifneq ($(DRY_RUN),true)
 	@if [  "${MCE_PAUSE_RECONCILIATION}" != "true" ]; then \
 		echo "MCE_PAUSE_RECONCILIATION is not set, skipping scale down"; \

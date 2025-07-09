@@ -23,7 +23,7 @@ resourceGroups:
   - name: scale-down
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
-    command: make scale-down
+    command: make scale
     dryRun:
       variables:
       - name: DRY_RUN
