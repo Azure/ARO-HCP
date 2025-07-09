@@ -194,6 +194,9 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
+@description('Whether the OIDC storage account is public or private. If private, it can only be accessed via Azure Front Door')
+param oidcStorageAccountPublic bool
+
 @description('The zone redundant mode of the OIDC storage account')
 param oidcZoneRedundantMode string
 
@@ -593,7 +596,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     keyVaultName: azureFrontDoorKeyVaultName
     aroDevopsMsiId: aroDevopsMsiId
     deploymentScriptLocation: location
-    storageAccountBlobPublicAccess: true
+    storageAccountBlobPublicAccess: oidcStorageAccountPublic
   }
 }
 

@@ -71,6 +71,7 @@ param svcAcrResourceId = '__svcAcrResourceId__'
 // OIDC
 param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
 param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
+param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
 param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
 param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.cxParentZoneName }}'
 param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'

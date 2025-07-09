@@ -392,6 +392,7 @@ defaults:
     storageAccount:
       name: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
       zoneRedundantMode: Auto
+      public: false
     frontdoor:
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
@@ -455,6 +456,8 @@ clouds:
       armHelperCertName: armHelperCert2
       # OIDC
       oidc:
+        storageAccount:
+          public: true
         frontdoor:
           name: arohcpdev
       # Geneva Actions
