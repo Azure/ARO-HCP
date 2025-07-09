@@ -14,24 +14,16 @@ POLICY_NS = open-cluster-management-policies
 POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
 POLICY_HELM_REPO_BRANCH = release-2.12
 
+export MCE_NS
+export MCE_CHART_DIR
+export MCE_CONFIG_DIR
+export MCE_PAUSE_RECONCILIATION
+export REGISTRY
+export DRY_RUN
+export HELM_CMD
+
 deploy:
-	@kubectl create namespace ${MCE_NS} --dry-run=client -o json | kubectl apply -f -
-	# Ensure smooth upgrade from mce 2.7.0 to 2.8.1
-	- helm uninstall --ignore-not-found \
-		clc-state-metrics \
-		--namespace ${MCE_NS}
-	${HELM_CMD} \
-		mce ${MCE_CHART_DIR} \
-		--namespace ${MCE_NS} \
-		--set imageRegistry=${REGISTRY}
-	${HELM_CMD} \
-		mce-config ${MCE_CONFIG_DIR} \
-		--namespace ${MCE_NS} \
-		--set global.registryOverride=${REGISTRY}
-ifneq ($(DRY_RUN),true)
-	kubectl annotate mce multiclusterengine installer.multicluster.openshift.io/pause=${MCE_PAUSE_RECONCILIATION} --overwrite
-endif
-	$(MAKE) deploy-policies
+	./deploy.sh
 
 scale-down:
 	@if [  "${MCE_PAUSE_RECONCILIATION}" != "true" ]; then \
