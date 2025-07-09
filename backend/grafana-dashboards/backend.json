@@ -1,0 +1,494 @@
+{
+  "description": "ARO HCP Backend Component",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 178,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "default": false,
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+        "description": "backend_health where 1 is good and 0 is bad",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 10,
+              "gradientMode": "hue",
+              "showPoints": "never"
+            }
+          }
+        },
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "editorMode": "code",
+            "expr": "sum(max without(prometheus_replica) (backend_health{cluster=\"$cluster\"})) / \ncount(max without(prometheus_replica) (backend_health{cluster=\"$cluster\"}))",
+            "instant": false,
+            "legendFormat": "__auto",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "SLO Availability: Backend Health",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": true,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "panels": [
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Total Backend Operations by Type",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 9
+            },
+            "id": 2,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "sum by(type) (max without(prometheus_replica) (rate(backend_operations_total{cluster=\"$cluster\"}[5m])))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Request Volume: Total Backend Operations by Type",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Backend Failed Operations by Type",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 17
+            },
+            "id": 5,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "sum by(type) (max without(prometheus_replica) (rate(backend_failed_operations_total{cluster=\"$cluster\"}[5m])))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Request Volume: Backend Failed Operations by Type",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Ratio of Backend requests taking longer than 1 second",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 25
+            },
+            "id": 4,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "sum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\",le=~\"^1(\\\\.0)?$\"}[5m])))\n/\nsum by(type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\",le=\"+Inf\"}[5m])))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Latency: Backend Request Latency longer than 1 second",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Approximated percentile value of backend latency",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 25
+            },
+            "id": 10,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "histogram_quantile(0.9, sum by(le,type) (max without(prometheus_replica) (rate(backend_operations_duration_seconds_bucket{cluster=\"$cluster\"}[5m]))))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Latency: Backend Request Latency (Histrogram 90 percentile)",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Backend Subscriptions by State",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 33
+            },
+            "id": 8,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "count by (state) (max without(prometheus_replica) (backend_subscriptions{cluster=\"$cluster\"}))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Backend Subscriptions by State",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Total number of active Backend workers",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 50
+            },
+            "id": 7,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "count(max without(prometheus_replica) (backend_workers{cluster=\"$cluster\"}))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Backend Workers by Count",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "default": false,
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "description": "Backend Leader election by Cluster, Namespace, Pod",
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "fillOpacity": 10,
+                  "gradientMode": "hue",
+                  "showPoints": "never"
+                }
+              }
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 59
+            },
+            "id": 9,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "targets": [
+              {
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "${datasource}"
+                },
+                "editorMode": "code",
+                "expr": "sum by (cluster,namespace,pod) (max without(prometheus_replica) (backend_leader_election_state{cluster=\"$cluster\"}))",
+                "instant": false,
+                "legendFormat": "__auto",
+                "range": true,
+                "refId": "A"
+              }
+            ],
+            "title": "Backend Leader Election State",
+            "type": "timeseries"
+          }
+        ],
+        "title": "Backend Operations",
+        "type": "row"
+      }
+    ],
+    "schemaVersion": 39,
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {},
+          "hide": 0,
+          "includeAll": false,
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "queryValue": "",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "type": "datasource"
+        },
+        {
+          "current": {},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "definition": "label_values(up,cluster)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "cluster",
+          "multi": false,
+          "name": "cluster",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up,cluster)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Backend",
+    "uid": "bepcy70a38jk0d",
+    "version": 9,
+    "weekStart": ""
+  }
