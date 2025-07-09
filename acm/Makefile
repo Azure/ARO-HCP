@@ -26,6 +26,7 @@ deploy:
 	./deploy.sh
 
 scale-down:
+ifneq ($(DRY_RUN),true)
 	@if [  "${MCE_PAUSE_RECONCILIATION}" != "true" ]; then \
 		echo "MCE_PAUSE_RECONCILIATION is not set, skipping scale down"; \
 		exit 0; \
@@ -35,6 +36,7 @@ scale-down:
 	echo "Phase is Paused, scaling down all deployments to 0..."; \
 	kubectl -n ${MCE_NS} get deployments -o name | xargs -I {} kubectl -n ${MCE_NS} scale {} --replicas=0; \
 	echo "All deployments scaled down to 0 replicas"
+endif
 
 deploy-policies:
 	${HELM_CMD} \
