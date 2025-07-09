@@ -1394,19 +1394,68 @@
     "msiKeyVault": {
       "$ref": "#/definitions/keyVault"
     },
-    "oidcStorageAccountName": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 24,
-      "pattern": "^[a-z0-9]+$",
-      "description": "The field can contain only lowercase letters and numbers. Name must be between 3 and 24 characters."
-    },
-    "oidcZoneRedundantMode": {
-      "$ref": "#/definitions/zoneRedundantMode"
-    },
-    "oidcEnableAFD": {
-      "type": "boolean",
-      "description": "Enable Azure Front Door for OIDC"
+    "oidc": {
+      "type": "object",
+      "properties": {
+        "storageAccount": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
+            },
+            "public": {
+              "type": "boolean",
+              "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "zoneRedundantMode",
+            "public"
+          ]
+        },
+        "frontdoor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "sku": {
+              "type": "string",
+              "enum": [
+                "Premium_AzureFrontDoor",
+                "Standard_AzureFrontDoor"
+              ]
+            },
+            "subdomain": {
+              "type": "string"
+            },
+            "keyVaultName": {
+              "type": "string"
+            },
+            "msiName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "subdomain",
+            "sku",
+            "keyVaultName",
+            "msiName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "storageAccount",
+        "frontdoor"
+      ]
     },
     "region": {
       "type": "string"
@@ -1567,9 +1616,7 @@
     "mgmtKeyVault",
     "monitoring",
     "msiKeyVault",
-    "oidcStorageAccountName",
-    "oidcZoneRedundantMode",
-    "oidcEnableAFD",
+    "oidc",
     "region",
     "regionRG",
     "serviceKeyVault",

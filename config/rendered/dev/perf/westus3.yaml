@@ -314,9 +314,17 @@ msiKeyVault:
   name: ah-perf-mi-usw3ptest-1
   private: false
   softDelete: false
-oidcEnableAFD: false
-oidcStorageAccountName: arohcpperfoidcusw3ptest
-oidcZoneRedundantMode: Auto
+oidc:
+  frontdoor:
+    keyVaultName: ""
+    msiName: arohcp-afd
+    name: arohcpdev
+    sku: Premium_AzureFrontDoor
+    subdomain: oic
+  storageAccount:
+    name: arohcpperfoidcusw3ptest
+    public: true
+    zoneRedundantMode: Auto
 pko:
   imageManager:
     digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f

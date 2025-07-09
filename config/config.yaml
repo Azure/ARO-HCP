@@ -388,9 +388,17 @@ defaults:
   armHelperFPAPrincipalId: ""
   armHelperCertName: ""
   # OIDC
-  oidcStorageAccountName: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
-  oidcZoneRedundantMode: Auto
-  oidcEnableAFD: true
+  oidc:
+    storageAccount:
+      name: "arohcp{{ .ctx.environment }}oidc{{ .ctx.regionShort }}" # [globally-unique]
+      zoneRedundantMode: Auto
+      public: false
+    frontdoor:
+      subdomain: oic
+      name: arohcp{{ .ctx.environment }}
+      sku: Premium_AzureFrontDoor
+      keyVaultName: "" # intentionally left empty as we don't need one in public cloud
+      msiName: arohcp-afd
   # Service Key Vault
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -447,7 +455,11 @@ clouds:
       armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
       armHelperCertName: armHelperCert2
       # OIDC
-      oidcEnableAFD: false
+      oidc:
+        storageAccount:
+          public: true
+        frontdoor:
+          name: arohcpdev
       # Geneva Actions
       genevaActions:
         serviceTag: GenevaActionsNonProd

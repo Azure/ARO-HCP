@@ -20,13 +20,13 @@ param skuName string
 param principalId string = ''
 
 @description('Id of the MSI that will be used to run the deploymentScript')
-param msiId string
+param deploymentMsiId string
 
 // Since deployment script is limted to specific regions, we run deployment script from the same location as the private link.
 // The location where deployment script run doesn't matter as it will be removed once the script is completed to enable static website on storage account.
 param deploymentScriptLocation string
 
-param isDevEnv bool = false
+param allowBlobPublicAccess bool = false
 
 // Storage Account Contributor: Lets you manage storage accounts, including accessing storage account keys which provide full access to storage account data.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage#storage-account-contributor
@@ -36,7 +36,7 @@ var storageAccountContributorRole = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
 // Storage Blob Data Contributor: Grants access to Read, write, and delete Azure Storage containers and blobs
 var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
-var scriptToRun = '../../scripts/storage.sh'
+var scriptToRun = 'storage.sh'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   location: location
@@ -48,7 +48,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   properties: {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
-    allowBlobPublicAccess: isDevEnv
+    allowBlobPublicAccess: allowBlobPublicAccess
     minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
     publicNetworkAccess: 'Enabled'
@@ -66,10 +66,10 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
 }
 
 resource storageAccountContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, msiId, storageAccountContributorRole)
+  name: guid(storageAccount.id, deploymentMsiId, storageAccountContributorRole)
   scope: storageAccount
   properties: {
-    principalId: reference(msiId, '2023-01-31').principalId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageAccountContributorRole)
   }
@@ -82,7 +82,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${msiId}': {}
+      '${deploymentMsiId}': {}
     }
   }
   properties: {

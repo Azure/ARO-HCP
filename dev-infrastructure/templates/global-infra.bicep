@@ -46,6 +46,13 @@ param globalNSPName string
 @description('Access mode for this NSP')
 param globalNSPAccessMode string
 
+param oidcSubdomain string
+param azureFrontDoorProfileName string
+param azureFrontDoorkeyVaultName string
+param azureFrontDoorSkuName string
+param keyVaultAdminPrincipalId string
+param oidcMsiName string
+
 //
 //  G L O B A L   M S I
 //
@@ -213,5 +220,25 @@ module globalNSPProfile '../modules/network/nsp-profile.bicep' = {
       //TODO: add ev2 access
       subscription().id
     ]
+  }
+}
+
+//
+//   A Z U R E   F R O N T   D O O R
+//
+
+module azureFrontDoor '../modules/oidc/global/main.bicep' = {
+  name: 'azureFrontDoor'
+  params: {
+    subdomain: oidcSubdomain
+    parentZoneName: cxParentZoneName
+    frontDoorProfileName: azureFrontDoorProfileName
+    frontDoorEndpointName: azureFrontDoorProfileName
+    frontDoorSkuName: azureFrontDoorSkuName
+    securityPolicyName: azureFrontDoorProfileName
+    wafPolicyName: azureFrontDoorProfileName
+    keyVaultName: azureFrontDoorkeyVaultName
+    keyVaultAdminSPObjId: keyVaultAdminPrincipalId
+    oidcMsiName: oidcMsiName
   }
 }

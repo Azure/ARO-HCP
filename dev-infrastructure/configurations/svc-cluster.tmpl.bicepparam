@@ -69,9 +69,13 @@ param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
 
 // OIDC
-param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
-param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
-param enableAFD = {{ .oidcEnableAFD }}
+param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
+param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
+param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
+param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
+param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.cxParentZoneName }}'
+param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
 
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
