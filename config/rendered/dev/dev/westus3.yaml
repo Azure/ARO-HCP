@@ -323,6 +323,7 @@ oidc:
     subdomain: oic
   storageAccount:
     name: arohcpdevoidcusw3
+    public: true
     zoneRedundantMode: Auto
 pko:
   imageManager:
