@@ -160,9 +160,19 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	if err != nil {
 		cloudError := CSErrorToCloudError(err, resourceDoc.ResourceID)
-		// Do not log attempts to delete a nonexistent
-		// resource because the end result is the same.
-		if cloudError.StatusCode != http.StatusNotFound {
+		if cloudError.StatusCode == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB.
+			// This can happen in test environments if a user bypasses
+			// the RP to delete a resource (e.g. "ocm delete"). It can
+			// also happen if an asynchronous deletion operation fails.
+			// To provide a way out of this mess we will try to delete
+			// the errant Cosmos DB document here.
+			logger.Info(fmt.Sprintf("Deleting errant Resources container item for '%s'", resourceDoc.ResourceID))
+			recoveryErr := f.dbClient.DeleteResourceDoc(ctx, resourceDoc.ResourceID)
+			if recoveryErr != nil {
+				logger.Error(recoveryErr.Error())
+			}
+		} else {
 			logger.Error(err.Error())
 		}
 		return "", cloudError
