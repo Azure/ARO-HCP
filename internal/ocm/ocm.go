@@ -83,6 +83,14 @@ type ClusterServiceClientSpec interface {
 	// Items() on the returned iterator in a for/range loop to execute the request and paginate
 	// over results, then call GetError() to check for an iteration error.
 	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
+
+	// GetVersion sends a GET request to fetch cluster version
+	GetVersion(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Version, error)
+
+	// ListVersions prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListVersions(searchExpression string) VersionsListIterator
 }
 
 type clusterServiceClient struct {
@@ -384,8 +392,8 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }
 
-func (csc *clusterServiceClient) GetVersion(ctx context.Context, internalID InternalID) (*cmv1.Version, error) {
-	client, ok := internalID.GetVersionClient(csc.conn)
+func (csc *clusterServiceClient) GetVersion(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Version, error) {
+	client, ok := internalID.GetHCPClusterVersionClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a version: %s", internalID)
 	}
