@@ -35,4 +35,3 @@ resourceGroups:
       configRef: acm.mce.pauseReconciliation
     shellIdentity:
       configRef: aroDevopsMsiId
-
