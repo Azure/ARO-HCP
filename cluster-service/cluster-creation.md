@@ -15,121 +15,121 @@ This document outlines the process of creating an HCP via the Cluster Service ru
 
 ## Creating a cluster
 
-1) Login to your CS deployment
+1. Login to your CS deployment
 
-* Access your CS deployment locally
+    * Access your CS deployment locally
 
-    ```bash
-    KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
-    ```
+        ```bash
+        KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+        ```
 
-  Alternative: if you run CS on your local machine, this step is not necessary.
+      Alternative: if you run CS on your local machine, this step is not necessary.
 
-* Login to your CS deployment
+    * Login to your CS deployment
 
-    ```bash
-    ocm login --url=http://localhost:8000 --use-auth-code
-    ```
+        ```bash
+        ocm login --url=http://localhost:8000 --use-auth-code
+        ```
 
-1) Create pre-requisite resources for cluster creation
+1. Create pre-requisite resources for cluster creation
 
-Replace `resource-group`, `vnet-name`, `nsg-name` and `subnet-name` with any valid names.
+    Replace `resource-group`, `vnet-name`, `nsg-name` and `subnet-name` with any valid names.
 
-* Create a resource group for your ARO HCP cluster. This is used, alongside the resource name and subscription ID, to represent your ARO HCP cluster resource in Azure.
+    * Create a resource group for your ARO HCP cluster. This is used, alongside the resource name and subscription ID, to represent your ARO HCP cluster resource in Azure.
 
-    ```bash
-    az group create --name <resource-group> --location "westus3"
-    ```
+        ```bash
+        az group create --name <resource-group> --location "westus3"
+        ```
 
-* Create a Virtual Network.
-  > [!NOTE] This may be created in the same resource group above, or a different one.
+    * Create a Virtual Network.
+      > [!NOTE] This may be created in the same resource group above, or a different one.
 
-    ```bash
-    az network vnet create -n <vnet-name> -g <resource-group> --subnet-name <subnet-name>
-    ```
+        ```bash
+        az network vnet create -n <vnet-name> -g <resource-group> --subnet-name <subnet-name>
+        ```
 
-* Create a Network security group
-  > [!NOTE] This may be created in the same resource group above, or a different one.
+    * Create a Network security group
+      > [!NOTE] This may be created in the same resource group above, or a different one.
 
-    ```bash
-    az network nsg create -n <nsg-name> -g <resource-group>
-    ```
+        ```bash
+        az network nsg create -n <nsg-name> -g <resource-group>
+        ```
 
-* Associate the created VNet with the subnet of the created NSG
+    * Associate the created VNet with the subnet of the created NSG
 
-    ```bash
-    az network vnet subnet update -g <resource-group> -n <subnet-name> --vnet-name <vnet-name> --network-security-group <nsg-name>
-    ```
+        ```bash
+        az network vnet subnet update -g <resource-group> -n <subnet-name> --vnet-name <vnet-name> --network-security-group <nsg-name>
+        ```
 
-* Generate a random alphanumeric string used as a suffix for the User-Assigned Managed Identities of the operators of the cluster
-  > [!NOTE] The random suffix used has to be different for each cluster to be created
+    * Generate a random alphanumeric string used as a suffix for the User-Assigned Managed Identities of the operators of the cluster
+      > [!NOTE] The random suffix used has to be different for each cluster to be created
 
-    ```bash
-    export OPERATORS_UAMIS_SUFFIX=$(openssl rand -hex 3)
-    ```
+        ```bash
+        export OPERATORS_UAMIS_SUFFIX=$(openssl rand -hex 3)
+        ```
 
-* Define and export an environment variable with the desired name of the ARO-HCP Cluster in CS
+    * Define and export an environment variable with the desired name of the ARO-HCP Cluster in CS
 
-    ```bash
-    export CS_CLUSTER_NAME="<desired-cluster-name>"
-    ```
+        ```bash
+        export CS_CLUSTER_NAME="<desired-cluster-name>"
+        ```
 
-* Create the User-Assigned Managed Identities for the Control Plane operators. This assumes OCP 4.18 based will be created.
-  > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
-  >
-  > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    * Create the User-Assigned Managed Identities for the Control Plane operators. This assumes OCP 4.18 based will be created.
+      > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
+      >
+      > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
 
-    ```bash
-    # We create the control plane operators User-Assigned Managed Identities
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        ```bash
+        # We create the control plane operators User-Assigned Managed Identities
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
-    # And then we create variables containing their Azure resource IDs and export them to be used later
-    export CP_CONTROL_PLANE_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_CAPZ_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_CCM_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    ```
+        # And then we create variables containing their Azure resource IDs and export them to be used later
+        export CP_CONTROL_PLANE_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-control-plane-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_CAPZ_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cluster-api-azure-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_CCM_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-controller-manager-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_INGRESS_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-ingress-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export CP_CNC_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-cp-cloud-network-config-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        ```
 
-* Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.18 clusters will be created.
-  > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
-  >
-  > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    * Create the User-Assigned Managed Identities for the Data Plane operators. This assumes OCP 4.18 clusters will be created.
+      > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
+      >
+      > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
 
-    ```bash
-    # We create the data plane operators User-Assigned Managed Identities
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        ```bash
+        # We create the data plane operators User-Assigned Managed Identities
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
-    # And then we create variables containing their Azure resource IDs and export them to be used later
-    export DP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export DP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    export DP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    ```
+        # And then we create variables containing their Azure resource IDs and export them to be used later
+        export DP_DISK_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-disk-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export DP_IMAGE_REGISTRY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-image-registry-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        export DP_FILE_CSI_DRIVER_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-dp-file-csi-driver-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        ```
 
-* Create the User-Assigned Service Managed Identity
-  > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
-  >
-  > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
+    * Create the User-Assigned Service Managed Identity
+      > [!NOTE] Managed Identities cannot be reused between operators nor between clusters. This is, each operator must use a different managed identity, and different clusters must use different managed identities, even for the same operators.
+      >
+      > [!NOTE] Remember to cleanup the created Managed Identities once you are done with the cluster. See the `Cleaning up a Cluster` section
 
-    ```bash
-    az identity create -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
+        ```bash
+        az identity create -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group>
 
-    export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
-    ```
+        export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
+        ```
 
-1) Create the cluster. This assumes OCP 4.18 clusters will be created.
+1. Create the cluster. This assumes OCP 4.18 clusters will be created.
     > [!NOTE] See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters) documentation
     > for further information on the properties within the payload below
 
@@ -263,7 +263,7 @@ ocm get /api/aro_hcp/v1alpha1/clusters/$CLUSTER_ID/node_pools/$UID
 
    > [!NOTE] Deleting it will also delete all of its associated node pools.
 
-2. Delete the created managed identities that were initially created for the cluster:
+1. Delete the created managed identities that were initially created for the cluster:
 
    ```bash
    az identity delete --ids "${CP_CONTROL_PLANE_UAMI}"
