@@ -14,7 +14,7 @@ set -e
 # Check if MCE resource exists
 if kubectl get mce multiclusterengine -n ${MCE_NS} >/dev/null 2>&1; then
     phase=$(kubectl -n ${MCE_NS} get mce multiclusterengine -o json | jq -r '.status.phase')
-    
+
     if [ "${phase}" = "Paused" ] && [ "${MCE_PAUSE_RECONCILIATION}" = "true" ]; then
         echo "MCE is already paused, skipping deploy"
         exit 0
@@ -54,6 +54,7 @@ ${HELM_CMD} \
     --namespace ${MCE_NS} \
     --set imageRegistry=${REGISTRY}
 ${HELM_CMD} \
+    --timeout 1200s \
     mce-config ${MCE_CONFIG_DIR} \
     --namespace ${MCE_NS} \
     --set global.registryOverride=${REGISTRY}
