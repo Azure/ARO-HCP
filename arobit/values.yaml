@@ -191,6 +191,20 @@ forwarder:
             Threaded          On
 
         [INPUT]
+            Name              forward
+            Alias             input.forward
+            Listen            0.0.0.0
+            Port              24224
+            # By default, the buffer to store the incoming Forward messages, do not allocate the maximum memory allowed,
+            # instead it allocate memory when is required. The rounds of allocations are set by Buffer_Chunk_Size.
+            # (default: 32KB)
+            Buffer_Chunk_Size 1M
+            # Specify the maximum buffer memory size used to receive a Forward message.
+            # (default: Buffer_Chunk_Size)
+            Buffer_Max_Size   16M
+            Mem_Buf_Limit     512M
+
+        [INPUT]
             Name            fluentbit_metrics
             Alias           metrics.fluentbit
             Tag             metrics.fluentbit
@@ -230,6 +244,22 @@ forwarder:
             Match metrics.fluentbit
             Host  0.0.0.0
             Port  2020
+      output-mdsd.conf: |
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd
+            Match kubernetes.*
+            Host  127.0.0.1
+            Port  5001
+            Tag   kubernetes
+
+        [OUTPUT]
+            Name  prometheus_exporter
+            Alias exporter.fluentbit
+            Match metrics.fluentbit
+            Host  0.0.0.0
+            Port  2020
+
       reassemble_cri.lua: |
         local reassemble_state = {}
         function reassemble_cri(tag, timestamp, record)
@@ -455,116 +485,6 @@ aggregator:
         drop: ['ALL']
         # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
     # readOnlyRootFilesystem: true
-
-    ## The configMap that contains the configuration files for fluent-bit
-    ##
-    configMap:
-      service.conf: "[SERVICE]\n    Flush                  1\n    Log_Level              info\n    Parsers_File           /fluent-bit/etc/parsers.conf\n    Plugins_File           /fluent-bit/etc/plugins.conf\n    HTTP_Server            On\n    # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy. \n    Health_Check           On\n    HC_Errors_Count        5\n    HC_Retry_Failure_Count 5\n    HC_Period              60\n"
-      input.conf: |
-        [INPUT]
-            Name              forward
-            Alias             input.forward
-            Listen            0.0.0.0
-            Port              24224
-            # By default, the buffer to store the incoming Forward messages, do not allocate the maximum memory allowed,
-            # instead it allocate memory when is required. The rounds of allocations are set by Buffer_Chunk_Size.
-            # (default: 32KB)
-            Buffer_Chunk_Size 1M
-            # Specify the maximum buffer memory size used to receive a Forward message.
-            # (default: Buffer_Chunk_Size)
-            Buffer_Max_Size   16M
-            Mem_Buf_Limit     512M
-
-        [INPUT]
-            Name            fluentbit_metrics
-            Alias           metrics.fluentbit
-            Tag             metrics.fluentbit
-            scrape_interval 15
-      filter.conf: |
-        [FILTER]
-            Name   lua
-            Alias  lua.modify_record
-            Match  kubernetes.*
-            script /aggregator/etc/modify_record.lua
-            call   modify_record
-
-        [FILTER]
-            Name         parser
-            Alias        parser.json
-            Match        kubernetes.*
-            Parser       json
-            Key_Name     log
-            Reserve_Data On
-
-        [FILTER]
-            Name       record_modifier
-            Alias      remove_key.logtag
-            Match      kubernetes.*
-            Remove_key logtag
-
-        # Rename the event key from "log" to "message" if needed
-        # [FILTER]
-        #     Name      modify
-        #     Alias     rename_key.log
-        #     Match     kubernetes.*
-        #     Condition Key_exists log
-        #     Rename    log message
-      output.conf: |
-        # If test is enabled, forward logs to a file instead
-        # [OUTPUT]
-        #     Name  file
-        #     Match *
-        #     Path  /test/var/
-        #     File  output.log
-        [OUTPUT]
-            Name  forward
-            Alias forward.mdsd
-            Match kubernetes.*
-            Host  127.0.0.1
-            Port  5001
-            Tag   kubernetes
-
-        [OUTPUT]
-            Name  prometheus_exporter
-            Alias exporter.fluentbit
-            Match metrics.fluentbit
-            Host  0.0.0.0
-            Port  2020
-      modify_record.lua: |
-        function modify_record(tag, timestamp, record)
-          new_record = record
-          if record["log"] ~= nil then
-            new_record["log"] = record["log"]:gsub('\x1b%[%d+m', '')
-          end
-          return 2, timestamp, new_record
-        end
-    ## aggregator containers' liveness and readiness probes
-    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
-    ##
-    livenessProbe:
-      enabled: true
-      initialDelaySeconds: 15
-      periodSeconds: 15
-      timeoutSeconds: 5
-      failureThreshold: 6
-      successThreshold: 1
-    readinessProbe:
-      enabled: true
-      initialDelaySeconds: 15
-      periodSeconds: 15
-      timeoutSeconds: 5
-      failureThreshold: 6
-      successThreshold: 1
-    ## fluentbit resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
   mdsd:
     ## mdsd image version
     ##
