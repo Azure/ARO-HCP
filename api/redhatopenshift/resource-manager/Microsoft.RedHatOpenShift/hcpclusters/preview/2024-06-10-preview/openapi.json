@@ -1450,8 +1450,8 @@
         },
         "authorizedCidrs": {
           "type": "array",
-          "description": "The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries.",
-          "maxItems": 5000,
+          "description": "The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.",
+          "maxItems": 500,
           "items": {
             "type": "string"
           },
