@@ -259,7 +259,6 @@ forwarder:
             Match metrics.fluentbit
             Host  0.0.0.0
             Port  2020
-
       reassemble_cri.lua: |
         local reassemble_state = {}
         function reassemble_cri(tag, timestamp, record)
