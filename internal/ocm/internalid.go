@@ -121,6 +121,21 @@ func (id *InternalID) ID() string {
 	return path.Base(id.path)
 }
 
+// ClusterID returns the path element following "clusters", if present.
+func (id *InternalID) ClusterID() string {
+	var returnNextElement bool
+
+	for _, element := range strings.Split(id.path, "/") {
+		if returnNextElement {
+			return element
+		} else if element == "clusters" {
+			returnNextElement = true
+		}
+	}
+
+	return ""
+}
+
 // Kind returns the kind of resource described by InternalID, currently
 // limited to "Cluster" and "NodePool".
 func (id *InternalID) Kind() string {
