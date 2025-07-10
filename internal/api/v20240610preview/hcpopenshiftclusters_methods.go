@@ -82,6 +82,36 @@ func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) *generate
 		PodPriorityThreshold:        api.PtrOrNil(from.PodPriorityThreshold),
 	}
 }
+
+func newEtcdProfile(from *api.EtcdProfile) *generated.EtcdProfile {
+	return &generated.EtcdProfile{
+		DataEncryption: newEtcdDataEncryptionProfile(&from.DataEncryption),
+	}
+}
+func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) *generated.EtcdDataEncryptionProfile {
+	return &generated.EtcdDataEncryptionProfile{
+		CustomerManaged:   newCustomerManagedEncryptionProfile(&from.CustomerManaged),
+		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
+	}
+}
+func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
+	return &generated.CustomerManagedEncryptionProfile{
+		Kms:            newKmsEncryptionProfile(&from.Kms),
+		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
+	}
+}
+func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) *generated.KmsEncryptionProfile {
+	return &generated.KmsEncryptionProfile{
+		ActiveKey: newKmsKey(&from.ActiveKey),
+	}
+}
+func newKmsKey(from *api.KmsKey) *generated.KmsKey {
+	return &generated.KmsKey{
+		Name:      api.PtrOrNil(from.Name),
+		VaultName: api.PtrOrNil(from.VaultName),
+		Version:   api.PtrOrNil(from.Version),
+	}
+}
 func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) *generated.OperatorsAuthenticationProfile {
 	return &generated.OperatorsAuthenticationProfile{
 		UserAssignedIdentities: newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities),
@@ -124,6 +154,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				API:               newAPIProfile(&from.Properties.API),
 				Platform:          newPlatformProfile(&from.Properties.Platform),
 				Autoscaling:       newClusterAutoscalingProfile(&from.Properties.Autoscaling),
+				Etcd:              newEtcdProfile(&from.Properties.Etcd),
 			},
 		},
 	}
@@ -223,6 +254,9 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Autoscaling != nil {
 				normalizeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
+			}
+			if c.Properties.Etcd != nil {
+				normalizeEtcd(c.Properties.Etcd, &out.Properties.Etcd)
 			}
 		}
 	}
@@ -332,6 +366,42 @@ func normalizeAutoscaling(p *generated.ClusterAutoscalingProfile, out *api.Clust
 	}
 	if p.PodPriorityThreshold != nil {
 		out.PodPriorityThreshold = *p.PodPriorityThreshold
+	}
+}
+
+func normalizeEtcd(p *generated.EtcdProfile, out *api.EtcdProfile) {
+	if p.DataEncryption != nil {
+		normalizeEtcdDataEncryptionProfile(p.DataEncryption, &out.DataEncryption)
+	}
+}
+
+func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *api.EtcdDataEncryptionProfile) {
+	if p.CustomerManaged != nil {
+		normalizeCustomerManaged(p.CustomerManaged, &out.CustomerManaged)
+	}
+	if p.KeyManagementMode != nil {
+		out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
+	}
+}
+
+func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
+	if p.EncryptionType != nil {
+		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
+	}
+	if p.Kms != nil {
+		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
+	}
+}
+
+func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
+	if p.Name != nil {
+		out.Name = *p.Name
+	}
+	if p.VaultName != nil {
+		out.VaultName = *p.VaultName
+	}
+	if p.Version != nil {
+		out.Version = *p.Version
 	}
 }
 
