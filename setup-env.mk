@@ -1,7 +1,7 @@
 SHELL = /bin/bash
 SHELLFLAGS = -eu -o pipefail
 
-ifndef EV2
+ifndef __zz_injected_EV2__
 ifndef RUNS_IN_TEMPLATIZE
 PROJECT_ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
