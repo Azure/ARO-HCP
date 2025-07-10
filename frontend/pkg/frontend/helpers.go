@@ -231,6 +231,8 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
 		}
+
+		return responseBody, nil
 	}
 
 	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
