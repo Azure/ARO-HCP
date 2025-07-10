@@ -409,6 +409,22 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 	}
 }
 
+func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *cmv1.Version) *api.HCPOpenShiftVersion {
+	return &api.HCPOpenShiftVersion{
+		ProxyResource: arm.ProxyResource{
+			Resource: arm.Resource{
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
+			}},
+		Properties: api.HCPOpenShiftVersionProperties{
+			ChannelGroup:       version.ChannelGroup(),
+			Enabled:            version.Enabled(),
+			EndOfLifeTimestamp: version.EndOfLifeTimestamp(),
+		},
+	}
+}
+
 // CSErrorToCloudError attempts to convert various 4xx status codes from
 // Cluster Service to an ARM-compliant error structure, with 500 Internal
 // Server Error as a last-ditch fallback.

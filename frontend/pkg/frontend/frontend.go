@@ -319,6 +319,20 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 		err = csIterator.GetError()
 
+	case strings.ToLower(api.ClusterVersionTypeName):
+		csIterator := f.clusterServiceClient.ListVersions(query)
+
+		for csVersion := range csIterator.Items(ctx) {
+			value, err := marshalCSVersion(*prefix, csVersion, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+		err = csIterator.GetError()
+
 	default:
 		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
 	}
@@ -1357,4 +1371,9 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 		}
 	}
 	return featureMap
+}
+
+func marshalCSVersion(resourceID azcorearm.ResourceID, version *cmv1.Version, versionedInterface api.Version) ([]byte, error) {
+	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
+	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
 }

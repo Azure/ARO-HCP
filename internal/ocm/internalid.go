@@ -199,10 +199,3 @@ func (id *InternalID) GetBreakGlassCredentialClient(transport http.RoundTripper)
 	}
 	return cmv1.NewBreakGlassCredentialClient(transport, id.path), true
 }
-
-func (id *InternalID) GetHCPClusterVersionClient(transport http.RoundTripper) (*arohcpv1alpha1.VersionClient, bool) {
-	if id.Kind() != arohcpv1alpha1.VersionKind {
-		return nil, false
-	}
-	return arohcpv1alpha1.NewVersionClient(transport, id.path), true
-}
