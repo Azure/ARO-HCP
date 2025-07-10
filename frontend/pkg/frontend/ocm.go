@@ -145,6 +145,14 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	}
 }
 
+// convertAuthorizedCidrs extracts authorized CIDRs from CS cluster API object
+func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
+	if cidrs := clusterAPI.AllowedCIDRBlocks(); cidrs != nil {
+		return cidrs
+	}
+	return nil
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -342,8 +350,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				URL: cluster.Console().URL(),
 			},
 			API: api.APIProfile{
-				URL:        cluster.API().URL(),
-				Visibility: apiVisibility,
+				URL:             cluster.API().URL(),
+				Visibility:      apiVisibility,
+				AuthorizedCidrs: convertAuthorizedCidrs(cluster.API()),
 			},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
@@ -505,7 +514,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(apiListening)).
+			Listening(apiListening).
+			AllowedCIDRBlocks(hcpCluster.Properties.API.AuthorizedCidrs)).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
