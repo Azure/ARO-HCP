@@ -34,7 +34,7 @@ var _ = Describe("Customer", func() {
 	It("should be able to create an HCP cluster using bicep templates",
 		labels.Any,
 		labels.Critical,
-		labels.Positive,
+		labels.Negative,
 		func(ctx context.Context) {
 			ic := framework.InvocationContext()
 			hcpClusterClient := ic.Get20240610ClientFactoryOrDie().NewHcpOpenShiftClustersClient()
