@@ -35,8 +35,8 @@ param dnsServiceIP string = '10.130.0.10'
 // Passed Params and Overrides
 param location string
 
-@description('The regional resource group')
-param regionalResourceGroup string
+@description('The resource group hosting IP Addresses of the AKS Clusters')
+param ipResourceGroup string
 
 @description('List of Availability Zones to use for the AKS cluster')
 param locationAvailabilityZones array
@@ -53,7 +53,8 @@ param workloadIdentities array
 param nodeSubnetNSGId string
 param networkDataplane string
 param networkPolicy string
-param enableSwiftV2 bool
+param enableSwiftV2Vnet bool
+param enableSwiftV2Nodepools bool
 
 @description('Istio Ingress Gateway Public IP Address resource name')
 param istioIngressGatewayIPAddressName string = ''
@@ -208,7 +209,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     location: location
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: enableSwiftV2
+    enableSwift: enableSwiftV2Vnet
     deploymentMsiId: deploymentMsiId
   }
   dependsOn: [
@@ -298,7 +299,7 @@ resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssign
 
 module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' = if (deployIstio) {
   name: istioIngressGatewayIPAddressName
-  scope: resourceGroup(regionalResourceGroup)
+  scope: resourceGroup(ipResourceGroup)
   params: {
     name: istioIngressGatewayIPAddressName
     ipTags: istioIngressGatewayIPAddressIPTagsArray
@@ -316,7 +317,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
 var aksClusterOutboundIPAddressName = '${aksClusterName}-outbound-ip'
 module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = {
   name: aksClusterOutboundIPAddressName
-  scope: resourceGroup(regionalResourceGroup)
+  scope: resourceGroup(ipResourceGroup)
   params: {
     name: aksClusterOutboundIPAddressName
     ipTags: aksClusterOutboundIPAddressIPTagsArray
@@ -468,11 +469,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         outboundIPs: {
           publicIPs: [
             {
-              id: resourceId(
-                regionalResourceGroup,
-                'Microsoft.Network/publicIPAddresses',
-                aksClusterOutboundIPAddressName
-              )
+              id: resourceId(ipResourceGroup, 'Microsoft.Network/publicIPAddresses', aksClusterOutboundIPAddressName)
             }
           ]
         }
@@ -575,7 +572,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       nodeLabels: {
         'aro-hcp.azure.com/role': 'worker'
       }
-      tags: enableSwiftV2
+      tags: enableSwiftV2Nodepools
         ? {
             'aks-nic-enable-multi-tenancy': 'true'
           }

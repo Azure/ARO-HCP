@@ -18,3 +18,11 @@ param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
 
 param globalNSPName = '{{ .global.nsp.name }}'
 param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'
+
+// Azure Front Door
+param oidcSubdomain = '{{ .oidc.frontdoor.subdomain }}'
+param azureFrontDoorProfileName = '{{ .oidc.frontdoor.name }}'
+param azureFrontDoorSkuName = '{{ .oidc.frontdoor.sku }}'
+param azureFrontDoorkeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
+param keyVaultAdminPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
+param oidcMsiName = '{{ .oidc.frontdoor.msiName }}'

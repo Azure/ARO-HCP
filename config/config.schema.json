@@ -228,7 +228,10 @@
         "clusterOutboundIPAddressIPTags": {
           "$ref": "#/definitions/keyColonValueCSV"
         },
-        "enableSwiftV2": {
+        "enableSwiftV2Vnet": {
+          "type": "boolean"
+        },
+        "enableSwiftV2Nodepools": {
           "type": "boolean"
         }
       },
@@ -336,6 +339,50 @@
           }
         }
       }
+    },
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "deploy": {
+          "type": "boolean"
+        },
+        "name": {
+          "$ref": "#/definitions/postgresName"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "serverStorageSizeGB": {
+          "type": "integer"
+        },
+        "serverVersion": {
+          "type": "string"
+        },
+        "minTLSVersion": {
+          "type": "string",
+          "enum": [
+            "TLSV1.2",
+            "TLSV1.3"
+          ]
+        },
+        "databaseName": {
+          "type": "string"
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "deploy",
+        "name",
+        "private",
+        "serverStorageSizeGB",
+        "serverVersion",
+        "minTLSVersion",
+        "databaseName",
+        "zoneRedundantMode"
+      ]
     }
   },
   "properties": {
@@ -465,36 +512,7 @@
           ]
         },
         "postgres": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
-            "name": {
-              "$ref": "#/definitions/postgresName"
-            },
-            "private": {
-              "type": "boolean"
-            },
-            "minTLSVersion": {
-              "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            }
-          },
-          "required": [
-            "deploy",
-            "name",
-            "private",
-            "minTLSVersion",
-            "zoneRedundantMode"
-          ]
+          "$ref": "#/definitions/postgres"
         },
         "azureOperatorsManagedIdentities": {
           "type": "object",
@@ -1159,48 +1177,7 @@
           "$ref": "#/definitions/containerImage"
         },
         "postgres": {
-          "type": "object",
-          "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
-            "name": {
-              "$ref": "#/definitions/postgresName"
-            },
-            "private": {
-              "type": "boolean"
-            },
-            "serverStorageSizeGB": {
-              "type": "integer"
-            },
-            "serverVersion": {
-              "type": "string"
-            },
-            "minTLSVersion": {
-              "type": "string",
-              "enum": [
-                "TLSV1.2",
-                "TLSV1.3"
-              ]
-            },
-            "databaseName": {
-              "type": "string"
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "deploy",
-            "name",
-            "private",
-            "serverStorageSizeGB",
-            "serverVersion",
-            "minTLSVersion",
-            "databaseName",
-            "zoneRedundantMode"
-          ]
+          "$ref": "#/definitions/postgres"
         },
         "restrictIstioIngress": {
           "type": "boolean"
@@ -1391,19 +1368,68 @@
     "msiKeyVault": {
       "$ref": "#/definitions/keyVault"
     },
-    "oidcStorageAccountName": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 24,
-      "pattern": "^[a-z0-9]+$",
-      "description": "The field can contain only lowercase letters and numbers. Name must be between 3 and 24 characters."
-    },
-    "oidcZoneRedundantMode": {
-      "$ref": "#/definitions/zoneRedundantMode"
-    },
-    "oidcEnableAFD": {
-      "type": "boolean",
-      "description": "Enable Azure Front Door for OIDC"
+    "oidc": {
+      "type": "object",
+      "properties": {
+        "storageAccount": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "zoneRedundantMode": {
+              "$ref": "#/definitions/zoneRedundantMode"
+            },
+            "public": {
+              "type": "boolean",
+              "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "zoneRedundantMode",
+            "public"
+          ]
+        },
+        "frontdoor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "sku": {
+              "type": "string",
+              "enum": [
+                "Premium_AzureFrontDoor",
+                "Standard_AzureFrontDoor"
+              ]
+            },
+            "subdomain": {
+              "type": "string"
+            },
+            "keyVaultName": {
+              "type": "string"
+            },
+            "msiName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "subdomain",
+            "sku",
+            "keyVaultName",
+            "msiName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "storageAccount",
+        "frontdoor"
+      ]
     },
     "region": {
       "type": "string"
@@ -1564,9 +1590,7 @@
     "mgmtKeyVault",
     "monitoring",
     "msiKeyVault",
-    "oidcStorageAccountName",
-    "oidcZoneRedundantMode",
-    "oidcEnableAFD",
+    "oidc",
     "region",
     "regionRG",
     "serviceKeyVault",

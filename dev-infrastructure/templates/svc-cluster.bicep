@@ -4,6 +4,7 @@ import {
   determineZoneRedundancyForRegion
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
+import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -141,8 +142,17 @@ param csPostgresZoneRedundantMode string
 @maxLength(60)
 param csPostgresServerName string
 
+@description('The name of the CS Postgres database')
+param csPostgresDatabaseName string
+
 @description('The minimum TLS version for the Postgres server for CS')
 param csPostgresServerMinTLSVersion string
+
+@description('The version of the Postgres server for CS')
+param csPostgresServerVersion string
+
+@description('The size of the Postgres server for CS')
+param csPostgresServerStorageSizeGB int
 
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
@@ -193,11 +203,23 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
+@description('Whether the OIDC storage account is public or private. If private, it can only be accessed via Azure Front Door')
+param oidcStorageAccountPublic bool
+
 @description('The zone redundant mode of the OIDC storage account')
 param oidcZoneRedundantMode string
 
-@description('Enable or diasble Azure Front Door for OIDC storage account')
-param enableAFD bool
+@description('The name of the global Azure Front Door profile fronting the OIDC storage account')
+param azureFrontDoorResourceId string
+
+@description('The name of the global Azure Front Door parent DNS zone')
+param azureFrontDoorParentDnsZoneName string
+
+@description('The regional subdomain for the Azure Front Door')
+param azureFrontDoorRegionalSubdomain string
+
+@description('The name of the Azure Front Door global Key Vault')
+param azureFrontDoorKeyVaultName string
 
 @description('MSI that will be used to run the deploymentScript')
 param aroDevopsMsiId string
@@ -309,7 +331,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   params: {
     location: location
     locationAvailabilityZones: locationAvailabilityZoneList
-    regionalResourceGroup: regionalResourceGroup
+    ipResourceGroup: regionalResourceGroup
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
@@ -386,7 +408,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: aroDevopsMsiId
-    enableSwiftV2: false
+    enableSwiftV2Vnet: false
+    enableSwiftV2Nodepools: false
   }
 }
 
@@ -533,6 +556,9 @@ module cs '../modules/cluster-service.bicep' = {
   params: {
     postgresServerName: csPostgresServerName
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
+    postgresServerVersion: csPostgresServerVersion
+    postgresServerStorageSizeGB: csPostgresServerStorageSizeGB
+    csDatabaseName: csPostgresDatabaseName
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     privateEndpointResourceGroup: resourceGroup().name
@@ -555,25 +581,35 @@ module cs '../modules/cluster-service.bicep' = {
   ]
 }
 
-// O I D C
+//
+//   O I D C
+//
 
-module oidc '../modules/oidc/main.bicep' = {
-  name: '${deployment().name}-oidc'
+var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
+module oidc '../modules/oidc/region/main.bicep' = {
+  name: 'oidc-storage'
+  scope: resourceGroup(regionalResourceGroup)
   params: {
+    gblRgName: frontDoorRef.resourceGroup.name
+    gblSubscription: frontDoorRef.resourceGroup.subscriptionId
     location: location
-    regionalResourceGroup: regionalResourceGroup
+    zoneName: azureFrontDoorParentDnsZoneName
+    frontDoorProfileName: frontDoorRef.name
     storageAccountName: oidcStorageAccountName
-    rpMsiName: csMIName
+    customDomainName: azureFrontDoorRegionalSubdomain
+    routeName: azureFrontDoorRegionalSubdomain
+    originGroupName: azureFrontDoorRegionalSubdomain
+    originName: azureFrontDoorRegionalSubdomain
+    privateLinkLocation: location
+    storageAccountAccessPrincipalId: csManagedIdentityPrincipalId
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'
       : 'Standard_LRS'
-    msiId: aroDevopsMsiId
+    keyVaultName: azureFrontDoorKeyVaultName
+    aroDevopsMsiId: aroDevopsMsiId
     deploymentScriptLocation: location
-    enabledAFD: enableAFD
+    storageAccountBlobPublicAccess: oidcStorageAccountPublic
   }
-  dependsOn: [
-    svcCluster
-  ]
 }
 
 //

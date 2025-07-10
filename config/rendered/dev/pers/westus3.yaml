@@ -61,10 +61,13 @@ clustersService:
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
+    databaseName: clusters-service
     deploy: false
     minTLSVersion: TLSV1.2
     name: arohcp-pers-dbcs-usw3test
     private: false
+    serverStorageSizeGB: 128
+    serverVersion: "12"
     zoneRedundantMode: Auto
   tracing:
     address: http://ingest.observability:4318
@@ -219,7 +222,8 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2: false
+    enableSwiftV2Nodepools: false
+    enableSwiftV2Vnet: false
     etcd:
       kvName: ah-pers-me-usw3test-1
       kvSoftDelete: false
@@ -315,9 +319,17 @@ msiKeyVault:
   name: ah-pers-mi-usw3test-1
   private: false
   softDelete: false
-oidcEnableAFD: false
-oidcStorageAccountName: arohcppersoidcusw3test
-oidcZoneRedundantMode: Auto
+oidc:
+  frontdoor:
+    keyVaultName: ""
+    msiName: arohcp-afd
+    name: arohcpdev
+    sku: Premium_AzureFrontDoor
+    subdomain: oic
+  storageAccount:
+    name: arohcppersoidcusw3test
+    public: true
+    zoneRedundantMode: Auto
 pko:
   imageManager:
     digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f

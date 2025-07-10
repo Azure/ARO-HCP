@@ -35,13 +35,14 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"             visibility:"read"`
-	Version           VersionProfile        `json:"version,omitempty"`
-	DNS               DNSProfile            `json:"dns,omitempty"`
-	Network           NetworkProfile        `json:"network,omitempty"                       visibility:"read create"`
-	Console           ConsoleProfile        `json:"console,omitempty"                       visibility:"read"`
-	API               APIProfile            `json:"api,omitempty"`
-	Platform          PlatformProfile       `json:"platform,omitempty"                      visibility:"read create"`
+	ProvisioningState arm.ProvisioningState     `json:"provisioningState,omitempty"             visibility:"read"`
+	Version           VersionProfile            `json:"version,omitempty"`
+	DNS               DNSProfile                `json:"dns,omitempty"`
+	Network           NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
+	Console           ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
+	API               APIProfile                `json:"api,omitempty"`
+	Platform          PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
+	Autoscaling       ClusterAutoscalingProfile `json:"autoscaling,omitempty"                   visibility:"read create update"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -89,6 +90,16 @@ type PlatformProfile struct {
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
 
+// Cluster autoscaling configuration
+// ClusterAutoscaling specifies auto-scaling behavior that
+// applies to all NodePools associated with a control plane.
+type ClusterAutoscalingProfile struct {
+	MaxNodesTotal               int32 `json:"maxNodesTotal,omitempty"`
+	MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
+	MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
+	PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
+}
+
 // OperatorsAuthenticationProfile represents authentication configuration for
 // OpenShift operators.
 // Visibility for the entire struct is "read create".
@@ -127,6 +138,11 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			},
 			Platform: PlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
+			},
+			Autoscaling: ClusterAutoscalingProfile{
+				MaxPodGracePeriodSeconds:    600,
+				MaxNodeProvisionTimeSeconds: 900,
+				PodPriorityThreshold:        -10,
 			},
 		},
 	}

@@ -56,6 +56,9 @@ param csPostgresDeploy = {{ .clustersService.postgres.deploy }}
 param csPostgresZoneRedundantMode = '{{ .clustersService.postgres.zoneRedundantMode }}'
 param csPostgresServerName = '{{ .clustersService.postgres.name }}'
 param csPostgresServerMinTLSVersion = '{{ .clustersService.postgres.minTLSVersion }}'
+param csPostgresServerVersion = '{{ .clustersService.postgres.serverVersion }}'
+param csPostgresServerStorageSizeGB = {{ .clustersService.postgres.serverStorageSizeGB }}
+param csPostgresDatabaseName = '{{ .clustersService.postgres.databaseName }}'
 param clusterServicePostgresPrivate = {{ .clustersService.postgres.private }}
 param csMIName = '{{ .clustersService.managedIdentityName }}'
 param csNamespace = '{{ .clustersService.k8s.namespace }}'
@@ -69,9 +72,13 @@ param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
 
 // OIDC
-param oidcStorageAccountName = '{{ .oidcStorageAccountName }}'
-param oidcZoneRedundantMode = '{{ .oidcZoneRedundantMode }}'
-param enableAFD = {{ .oidcEnableAFD }}
+param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
+param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
+param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
+param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
+param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.cxParentZoneName }}'
+param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
 
 param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
 
