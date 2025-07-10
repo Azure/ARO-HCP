@@ -75,8 +75,9 @@ type ConsoleProfile struct {
 
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
-	URL        string     `json:"url,omitempty"        visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"omitempty,enum_visibility"`
+	URL             string     `json:"url,omitempty"             visibility:"read"`
+	Visibility      Visibility `json:"visibility,omitempty"    visibility:"read create" validate:"omitempty,enum_visibility"`
+	AuthorizedCidrs []string   `json:"authorizedCidrs,omitempty" visibility:"read create update" validate:"max=500,dive,cidrv4"`
 }
 
 // PlatformProfile represents the Azure platform configuration.

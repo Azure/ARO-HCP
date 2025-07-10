@@ -81,6 +81,14 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	return
 }
 
+// convertAuthorizedCidrs extracts authorized CIDRs from CS cluster API object
+func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
+	if cidrs := clusterAPI.AllowedCIDRBlocks(); cidrs != nil {
+		return cidrs
+	}
+	return nil
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -132,8 +140,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				URL: cluster.Console().URL(),
 			},
 			API: api.APIProfile{
-				URL:        cluster.API().URL(),
-				Visibility: convertListeningToVisibility(cluster.API().Listening()),
+				URL:             cluster.API().URL(),
+				Visibility:      convertListeningToVisibility(cluster.API().Listening()),
+				AuthorizedCidrs: convertAuthorizedCidrs(cluster.API()),
 			},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
@@ -250,7 +259,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility)))
+			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility)).
+			AllowedCIDRBlocks(hcpCluster.Properties.API.AuthorizedCidrs))
 
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
