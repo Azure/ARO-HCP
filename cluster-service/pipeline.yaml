@@ -32,7 +32,7 @@ resourceGroups:
   steps:
   - name: mgmt-output
     action: ARM
-    template: templates/out
+    template: ../dev-infrastructure/templates/output-mgmt.bicep
     parameters: ../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
