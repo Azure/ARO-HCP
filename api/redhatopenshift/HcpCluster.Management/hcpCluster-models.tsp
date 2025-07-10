@@ -220,9 +220,9 @@ model ApiProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = Visibility.Public;
 
-  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries. */
+  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @maxItems(5000)
+  @maxItems(500)
   authorizedCidrs?: string[];
 }
 
