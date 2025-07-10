@@ -231,7 +231,7 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = {
   name: 'azureFrontDoor'
   params: {
     subdomain: oidcSubdomain
-    parentZoneName: cxParentZoneName
+    parentZoneName: svcParentZoneName
     frontDoorProfileName: azureFrontDoorProfileName
     frontDoorEndpointName: azureFrontDoorProfileName
     frontDoorSkuName: azureFrontDoorSkuName
