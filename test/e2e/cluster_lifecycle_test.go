@@ -70,6 +70,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		serviceCidr := "172.30.0.0/16"
 		machineCidr := "10.0.0.0/16"
 		hostPrefix := int32(23)
+		visibility := api.VisibilityPublic
 		identityType := api.ManagedServiceIdentityTypeUserAssigned
 
 		clusterResource := api.HcpOpenShiftCluster{
@@ -83,7 +84,8 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 					},
 				},
 				API: &api.APIProfile{
-					Visibility: func(v api.Visibility) *api.Visibility { return &v }("Public"), // api.Visibility returns 'public' for some reason which the RP does not accept.
+					//Visibility: func(v api.Visibility) *api.Visibility { return &v }("Public"), // api.Visibility returns 'public' for some reason which the RP does not accept.
+					Visibility: &visibility,
 				},
 				Version: &api.VersionProfile{
 					ID:           &versionID,
