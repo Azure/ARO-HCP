@@ -13,10 +13,11 @@ import (
 	context "context"
 	reflect "reflect"
 
-	ocm "github.com/Azure/ARO-HCP/internal/ocm"
 	v1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	v1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	gomock "go.uber.org/mock/gomock"
+
+	ocm "github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // MockClusterServiceClientSpec is a mock of ClusterServiceClientSpec interface.
