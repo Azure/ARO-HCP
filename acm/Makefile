@@ -34,7 +34,7 @@ ifneq ($(DRY_RUN),true)
 	echo "Waiting for MCE multiclusterengine to reach Paused status..."; \
 	kubectl wait --for=jsonpath='{.status.phase}'=Paused mce multiclusterengine -n ${MCE_NS} --timeout=600s; \
 	echo "Phase is Paused, scaling down all deployments to 0..."; \
-	kubectl -n ${MCE_NS} scale multicluster-engine-operator --replicas=0; \
+	kubectl -n ${MCE_NS} scale deployment/multicluster-engine-operator --replicas=0; \
 	echo "All deployments scaled down to 0 replicas"
 endif
 
