@@ -80,6 +80,8 @@ resourceGroups:
       configRef: armHelperCertName
     - name: CX_PARENT_DNS_ZONE_NAME
       configRef: dns.cxParentZoneName
+    - name: SVC_PARENT_DNS_ZONE_NAME
+      configRef: dns.svcParentZoneName
     - name: REGIONAL_DNS_SUBDOMAIN
       configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
