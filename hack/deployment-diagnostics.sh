@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-if [[ -z "${__zz_injected_EV2__:-}" ]]; then
+if [[ -z "${zz_injected_EV2:-}" ]]; then
    # this script only executes in EV2
    # executing this in other environments with less restricted access to CD logs
    # can lead to leaking sensitive information
