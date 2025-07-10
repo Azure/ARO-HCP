@@ -170,7 +170,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				StatusCode: http.StatusInternalServerError,
 				CloudErrorBody: &arm.CloudErrorBody{
 					Code:    arm.CloudErrorCodeInternalServerError,
-					Message: "Internal server error.  Origin: \"unhandled subscription state\"",
+					Message: "Internal server error.  Origin: \"unhandled state\"",
 				},
 			},
 		},
