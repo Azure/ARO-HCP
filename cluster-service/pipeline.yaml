@@ -27,6 +27,15 @@ resourceGroups:
     parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription  }}'
+  steps:
+  - name: mgmt-output
+    action: ARM
+    template: templates/out
+    parameters: ../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
@@ -42,6 +51,10 @@ resourceGroups:
     - mirror-image
     - global-output
     variables:
+    - name: CX_SECRETS_KV_MI_CLIENT_ID
+      input:
+        step: mgmt-output
+        name: azureKeyvaultSecretsProviderIdentityClientId
     - name: REGION
       configRef: region
     - name: RESOURCEGROUP
