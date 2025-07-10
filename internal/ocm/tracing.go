@@ -255,7 +255,7 @@ func (csc *clusterServiceClientWithTracing) ListBreakGlassCredentials(clusterInt
 	return csc.csc.ListBreakGlassCredentials(clusterInternalID, searchExpression)
 }
 
-func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, versionName string) (*cmv1.Version, error) {
+func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 	return csc.csc.GetVersion(ctx, versionName)
 }
 

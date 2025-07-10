@@ -29,7 +29,7 @@ type ClusterListIterator struct {
 }
 
 type VersionsListIterator struct {
-	request *cmv1.VersionsListRequest
+	request *arohcpv1alpha1.VersionsListRequest
 	err     error
 }
 
@@ -192,8 +192,8 @@ func (iter BreakGlassCredentialListIterator) GetError() error {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter VersionsListIterator) Items(ctx context.Context) iter.Seq[*cmv1.Version] {
-	return func(yield func(*cmv1.Version) bool) {
+func (iter VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Version] {
+	return func(yield func(*arohcpv1alpha1.Version) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
 			var page = 0

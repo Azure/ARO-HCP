@@ -409,7 +409,7 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 	}
 }
 
-func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *cmv1.Version) *api.HCPOpenShiftVersion {
+func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
 	return &api.HCPOpenShiftVersion{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{

@@ -85,7 +85,7 @@ type ClusterServiceClientSpec interface {
 	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
 
 	// GetVersion sends a GET request to fetch cluster version
-	GetVersion(ctx context.Context, versionName string) (*cmv1.Version, error)
+	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
 
 	// ListVersions prepares a GET request with the given search expression. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
@@ -392,8 +392,8 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }
 
-func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*cmv1.Version, error) {
-	client := cmv1.NewVersionClient(csc.conn, versionName)
+func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
+	client := arohcpv1alpha1.NewVersionClient(csc.conn, versionName)
 
 	resp, err := client.Get().SendContext(ctx)
 	if err != nil {
@@ -407,7 +407,7 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 }
 
 func (csc *clusterServiceClient) ListVersions(searchExpression string) VersionsListIterator {
-	versionsListRequest := csc.conn.ClustersMgmt().V1().Versions().List()
+	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	if searchExpression != "" {
 		versionsListRequest.Search(searchExpression)
 	}
