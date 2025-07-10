@@ -28,8 +28,6 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	CX_SECRETS_KV_MI_CLIENT_ID=$(shell az aks show -n ${MGMT_AKS_NAME} -g ${MGMT_RESOURCEGROUP} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv) && \
-	if [ -z "$${CX_SECRETS_KV_MI_CLIENT_ID}" ]; then echo "Failed to get CX_SECRETS_KV_MI_CLIENT_ID - make sure to provision a MGMT cluster first" >&2; exit 1; fi && \
 	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
@@ -51,7 +49,7 @@ deploy:
 	  --set shard.zoneResourceId="$${ZONE_RESOURCE_ID}" \
 	  --set shard.cxSecretsKeyVaultUrl="$${CX_SECRETS_KV_URL}" \
 	  --set shard.cxMiKeyVaultUrl="$${CX_MI_KV_URL}" \
-	  --set shard.cxSecretsKeyVaultMiClientId="$${CX_SECRETS_KV_MI_CLIENT_ID}" \
+	  --set shard.cxSecretsKeyVaultMiClientId="${CX_SECRETS_KV_MI_CLIENT_ID}" \
 	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
 	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
 	  --set databaseHost=$${DB_HOST} \
