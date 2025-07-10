@@ -430,18 +430,18 @@ func (c *MockClusterServiceClientSpecGetNodePoolStatusCall) DoAndReturn(f func(c
 }
 
 // GetVersion mocks base method.
-func (m *MockClusterServiceClientSpec) GetVersion(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.Version, error) {
+func (m *MockClusterServiceClientSpec) GetVersion(ctx context.Context, versionName string) (*v1.Version, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVersion", ctx, internalID)
-	ret0, _ := ret[0].(*v1alpha1.Version)
+	ret := m.ctrl.Call(m, "GetVersion", ctx, versionName)
+	ret0, _ := ret[0].(*v1.Version)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVersion indicates an expected call of GetVersion.
-func (mr *MockClusterServiceClientSpecMockRecorder) GetVersion(ctx, internalID any) *MockClusterServiceClientSpecGetVersionCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) GetVersion(ctx, versionName any) *MockClusterServiceClientSpecGetVersionCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetVersion), ctx, internalID)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetVersion), ctx, versionName)
 	return &MockClusterServiceClientSpecGetVersionCall{Call: call}
 }
 
@@ -451,19 +451,19 @@ type MockClusterServiceClientSpecGetVersionCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecGetVersionCall) Return(arg0 *v1alpha1.Version, arg1 error) *MockClusterServiceClientSpecGetVersionCall {
+func (c *MockClusterServiceClientSpecGetVersionCall) Return(arg0 *v1.Version, arg1 error) *MockClusterServiceClientSpecGetVersionCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecGetVersionCall) Do(f func(context.Context, ocm.InternalID) (*v1alpha1.Version, error)) *MockClusterServiceClientSpecGetVersionCall {
+func (c *MockClusterServiceClientSpecGetVersionCall) Do(f func(context.Context, string) (*v1.Version, error)) *MockClusterServiceClientSpecGetVersionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecGetVersionCall) DoAndReturn(f func(context.Context, ocm.InternalID) (*v1alpha1.Version, error)) *MockClusterServiceClientSpecGetVersionCall {
+func (c *MockClusterServiceClientSpecGetVersionCall) DoAndReturn(f func(context.Context, string) (*v1.Version, error)) *MockClusterServiceClientSpecGetVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
