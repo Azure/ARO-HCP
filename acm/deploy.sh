@@ -25,17 +25,13 @@ if kubectl get mce multiclusterengine -n ${MCE_NS} >/dev/null 2>&1; then
         echo "MCE_PAUSE_RECONCILIATION is false, checking for scaled-down deployments..."
         
         # Check for deployments with 0 replicas and scale them up
-        scaled_down_deployments=$(kubectl -n ${MCE_NS} get deployments -o json | jq -r '.items[] | select(.spec.replicas == 0) | .metadata.name')
+        mceo_replicas=$(kubectl -n ${MCE_NS} get deployment/multicluster-engine-operator -o json | jq -r '.spec.replicas')
         
-        if [ -n "$scaled_down_deployments" ]; then
-            echo "Found scaled-down deployments, scaling them back up..."
-            for deployment in $scaled_down_deployments; do
-                echo "Scaling up deployment: $deployment"
-                if [ "${DRY_RUN}" != "true" ]; then
-                    kubectl -n ${MCE_NS} scale deployment/$deployment --replicas=2
-                fi
-            done
-            echo "All deployments scaled back up to 2 replicas"
+        if [ "$mceo_replicas" = 0 ]; then
+            echo "Found scaled-down mce operator, scaling back up..."
+            if [ "${DRY_RUN}" != "true" ]; then
+                kubectl -n ${MCE_NS} scale deployment/multicluster-engine-operator --replicas=2
+            fi
         else
             echo "No scaled-down deployments found, all deployments are running normally"
         fi
