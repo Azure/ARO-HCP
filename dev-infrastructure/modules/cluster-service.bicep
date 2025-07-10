@@ -8,13 +8,32 @@ param clusterServiceManagedIdentityPrincipalId string
 param deployPostgres bool
 
 @description('The name of the database to create for CS')
-param csDatabaseName string = 'clusters-service'
+param csDatabaseName string
 
 @description('The name of the Postgres server for CS')
 param postgresServerName string
 
 @description('The minimum TLS version for the Postgres server')
 param postgresServerMinTLSVersion string
+
+@description('The version of the Postgres server for CS')
+param postgresServerVersion string
+
+@description('The size of the Postgres server storage for CS')
+@allowed([
+  32
+  64
+  128
+  256
+  512
+  1024
+  2048
+  4096
+  8192
+  16384
+  32768
+])
+param postgresServerStorageSizeGB int
 
 @description('Defines if the Postgres server is private')
 param postgresServerPrivate bool
@@ -70,7 +89,7 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
         principalType: 'ServicePrincipal'
       }
     ]
-    version: '12'
+    version: postgresServerVersion
     minTLSVersion: postgresServerMinTLSVersion
     configurations: [
       // some configs taked over from the CS RDS instance
@@ -97,7 +116,7 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
       startHour: 1
       startMinute: 12
     }
-    storageSizeGB: 128
+    storageSizeGB: postgresServerStorageSizeGB
     private: postgresServerPrivate
     subnetId: privateEndpointSubnetId
     vnetId: privateEndpointVnetId

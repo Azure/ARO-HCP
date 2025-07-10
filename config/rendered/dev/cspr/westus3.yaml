@@ -61,10 +61,13 @@ clustersService:
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
+    databaseName: clusters-service
     deploy: true
     minTLSVersion: TLSV1.2
     name: arohcp-cspr-dbcs-usw3
     private: false
+    serverStorageSizeGB: 128
+    serverVersion: "12"
     zoneRedundantMode: Auto
   tracing:
     address: ""
