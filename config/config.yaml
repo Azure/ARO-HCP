@@ -53,6 +53,19 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/msi-acrpull
+  # Arobit
+  arobit:
+    forwarder:
+      image:
+        registry: mcr.microsoft.com
+        repository: oss/fluent/fluent-bit
+        digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+    mdsd:
+      enabled: false
+      image:
+        registry: linuxgeneva-microsoft.azurecr.io
+        repository: genevamdsd
+        digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
   # Secret Sync Controller
   secretSyncController:
     image:

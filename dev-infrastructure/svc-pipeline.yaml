@@ -215,3 +215,30 @@ resourceGroups:
     - svc
     shellIdentity:
       configRef: aroDevopsMsiId
+  - name: arobit
+    aksCluster: '{{ .svc.aks.name  }}'
+    action: Shell
+    command: make -C ../arobit deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: AROBIT_FORWARDER_DIGEST
+      configRef: arobit.forwarder.image.digest
+    - name: AROBIT_FORWARDER_REPOSITORY
+      configRef: arobit.forwarder.image.repository
+    - name: AROBIT_FORWARDER_REGISTRY
+      configRef: arobit.forwarder.image.registry
+    - name: AROBIT_MDSD_DIGEST
+      configRef: arobit.mdsd.image.digest
+    - name: AROBIT_MDSD_REPOSITORY
+      configRef: arobit.mdsd.image.repository
+    - name: AROBIT_MDSD_REGISTRY
+      configRef: arobit.mdsd.image.registry
+    - name: AROBIT_MDSD_ENABLED
+      configRef: arobit.mdsd.enabled
+    dependsOn:
+    - svc
+    shellIdentity:
+      configRef: aroDevopsMsiId

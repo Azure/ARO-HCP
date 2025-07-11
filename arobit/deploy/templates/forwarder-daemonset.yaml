@@ -35,7 +35,7 @@ spec:
     spec:
       serviceAccountName: {{ template "arobit.forwarder.serviceAccountName" . }}
       priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
-      {{- if .Values.imagePullSecrets }}
+      {{- if .Values.imqePullSecrets }}
       imagePullSecrets:  {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       {{- if .Values.forwarder.affinity }}
@@ -53,7 +53,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: fluentbit
-          image: {{ .Values.forwarder.fluentbit.image.repository }}:{{ .Values.forwarder.fluentbit.image.tag }}
+          image: {{ .Values.forwarder.fluentbit.image.registry }}/{{ .Values.forwarder.fluentbit.image.repository }}@{{ .Values.forwarder.fluentbit.image.digest }}
           imagePullPolicy: {{ .Values.forwarder.fluentbit.image.pullPolicy }}
           command:
             - /fluent-bit/bin/fluent-bit
@@ -101,34 +101,34 @@ spec:
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-        {{- if .Values.forwarder.mdsd }}
+        {{- if .Values.forwarder.mdsd.enabled }}
         - name: mdsd
-          image: {{ .Values.aggregator.mdsd.image.repository }}:{{ .Values.aggregator.mdsd.image.tag }}
-          imagePullPolicy: {{ .Values.aggregator.mdsd.image.pullPolicy }}
-          command: {{- toYaml .Values.aggregator.mdsd.command | nindent 12 }}
-          args: {{- toYaml .Values.aggregator.mdsd.args | nindent 12 }}
+          image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
+          imagePullPolicy: {{ .Values.forwarder.mdsd.image.pullPolicy }}
+          command: {{- toYaml .Values.forwarder.mdsd.command | nindent 12 }}
+          args: {{- toYaml .Values.forwarder.mdsd.args | nindent 12 }}
           ports:
-            {{- if .Values.aggregator.mdsd.containerPorts }}
-            {{- toYaml .Values.aggregator.mdsd.containerPorts | nindent 12 }}
+            {{- if .Values.forwarder.mdsd.containerPorts }}
+            {{- toYaml .Values.forwarder.mdsd.containerPorts | nindent 12 }}
             {{- end }}
           env:
-            {{- range $key,$value := .Values.aggregator.mdsd.env }}
+            {{- range $key,$value := .Values.forwarder.mdsd.env }}
             - name: {{ $key | upper | quote }}
               value: {{ $value | quote }}
             {{- end }}
-          {{- if .Values.aggregator.mdsd.lifecycle }}
-          lifecycle: {{- toYaml .Values.aggregator.mdsd.lifecycle | nindent 12 }}
+          {{- if .Values.forwarder.mdsd.lifecycle }}
+          lifecycle: {{- toYaml .Values.forwarder.mdsd.lifecycle | nindent 12 }}
           {{- end }}
-          {{- if .Values.aggregator.mdsd.resources }}
-          resources: {{- toYaml .Values.aggregator.mdsd.resources | nindent 12 }}
+          {{- if .Values.forwarder.mdsd.resources }}
+          resources: {{- toYaml .Values.forwarder.mdsd.resources | nindent 12 }}
           {{- end }}
-          {{- if .Values.aggregator.mdsd.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.aggregator.mdsd.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- if .Values.forwarder.mdsd.containerSecurityContext.enabled }}
+          securityContext: {{- omit .Values.forwarder.mdsd.containerSecurityContext "enabled" | toYaml | nindent 12 }}
           {{ end }}
           volumeMounts:
             - name: mdsd-run
               mountPath: /var/run/mdsd/
-            {{- if ne .Values.aggregator.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
+            {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
             - name: mdsd-logs
               mountPath: /geneva/geneva_logs/
             {{- end }}
@@ -155,22 +155,23 @@ spec:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
         - name: geneva-certs
-          {{- if .Values.aggregator.secretProvider.enabled }}
+          {{- if .Values.forwarder.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "arobit.name" . }}-aggregator-secretprovider
-            {{- if .Values.aggregator.secretProvider.useNodePublishSecret }}
+              # TODO: needs to be coordinated with MSFT to get the actual secret provider class name
+              secretProviderClass: {{ include "arobit.name" . }}-forwarder-secretprovider
+            {{- if .Values.forwarder.secretProvider.useNodePublishSecret }}
             nodePublishSecretRef:
-              name: {{ include "arobit.name" . }}-aggregator-kv-creds
+              name: {{ include "arobit.name" . }}-forwarder-kv-creds
             {{- end }}
           secret:
-            secretName: {{ include "arobit.name" . }}-aggregator
+            secretName: {{ include "arobit.name" . }}-forwarder
           {{- end }}
         - name: mdsd-run
           emptyDir: {}
-        {{- if ne .Values.aggregator.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
+        {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
         - name: mdsd-logs
           emptyDir: {}
         {{- end }}
