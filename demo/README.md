@@ -85,7 +85,7 @@ kubectl logs deployment/aro-hcp-backend -c aro-hcp-backend -n aro-hcp -f
 ### Check CS pod logs
 
 ```bash
-kubectl logs deployment/clusters-service -c service -f
+kubectl logs deployment/clusters-service -c service -n clusters-service -f
 ```
 
 ### Check cluster state in CS
