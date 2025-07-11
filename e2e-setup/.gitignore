@@ -1,0 +1,7 @@
+.*.swp
+*~
+env.*
+*uamis.json
+*e2e-setup.json
+*cluster.json
+*nodepool.json
