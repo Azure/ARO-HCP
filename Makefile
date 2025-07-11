@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 SHELL = /bin/bash
+PATH := $(GOBIN):$(PATH)
 
 # This build tag is currently leveraged by tooling/image-sync
 # https://github.com/containers/image?tab=readme-ov-file#building
