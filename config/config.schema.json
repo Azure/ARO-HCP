@@ -917,6 +917,18 @@
         "tenantId"
       ]
     },
+    "msiRp": {
+      "type": "object",
+      "properties": {
+        "dataPlaneAudienceResource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "dataPlaneAudienceResource"
+      ]
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,

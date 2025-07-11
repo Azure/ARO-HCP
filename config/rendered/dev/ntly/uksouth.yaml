@@ -317,6 +317,8 @@ msiKeyVault:
   name: ah-ntly-mi-ln-1
   private: false
   softDelete: false
+msiRp:
+  dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
     keyVaultName: ""

@@ -63,6 +63,7 @@ deploy:
 	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
+	  --set managedIdentitiesDataPlaneAudienceResource=${MI_DATAPLANE_AUDIENCE_RESOURCE} \
 	  --set tracing.address=${TRACING_ADDRESS} \
 	  "$${OP_HELM_SET_FLAGS[@]}"
 
