@@ -42,7 +42,7 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 	})
 
 	Context("Positive", func() {
-		It("Confirms cluster has been created successfully", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+		It("Confirms cluster has been created successfully", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
 			By("Checking Provisioning state with RP")
 			out, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterInfo.Name, nil)
 			Expect(err).To(BeNil())
@@ -51,7 +51,7 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 	})
 
 	Context("Negative", func() {
-		It("Fails to get a nonexistent cluster with a Not Found error", labels.Medium, labels.Negative, func(ctx context.Context) {
+		It("Fails to get a nonexistent cluster with a Not Found error", labels.RequireHappyPathInfra, labels.Medium, labels.Negative, func(ctx context.Context) {
 			clusterName := "non-existing-cluster"
 			By("Sending a GET request for the nonexistent cluster")
 			_, err := clustersClient.Get(ctx, customerEnv.CustomerRGName, clusterName, nil)

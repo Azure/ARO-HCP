@@ -15,21 +15,23 @@
 package labels
 
 import (
-	ginkgo "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 )
+
+// TODO makes these ginkgo.Labels produced by ginkgo.Label (notice the plural return) into strings and refactor the test usage.
 
 // Positivity of test cases
 var (
-	Positive = ginkgo.Label("Positive")
-	Negative = ginkgo.Label("Negative")
+	Positive = ginkgo.Label("Positivity:Positive")
+	Negative = ginkgo.Label("Positivity:Negative")
 )
 
 // Importance of test cases
 var (
-	Low      = ginkgo.Label("Low")
-	Medium   = ginkgo.Label("Medium")
-	High     = ginkgo.Label("High")
-	Critical = ginkgo.Label("Critical")
+	Low      = ginkgo.Label("Importance:Low")
+	Medium   = ginkgo.Label("Importance:Medium")
+	High     = ginkgo.Label("Importance:High")
+	Critical = ginkgo.Label("Importance:Critical")
 )
 
 // Usage of test cases
@@ -38,4 +40,10 @@ var (
 	CreateCluster      = ginkgo.Label("Create-Cluster")
 	SetupValidation    = ginkgo.Label("Setup-Validation")
 	TeardownValidation = ginkgo.Label("Teardown-Validation")
+)
+
+// Environments this test can be used in.
+var (
+	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")
+	RequireHappyPathInfra = ginkgo.Label("PreLaunchSetup:HappyPathInfra")
 )

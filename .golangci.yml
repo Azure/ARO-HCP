@@ -29,6 +29,13 @@ linters:
         alias: azcorearm
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
+    staticcheck:
+      # https://staticcheck.dev/docs/configuration/options/#dot_import_whitelist
+      # Default: ["github.com/mmcloughlin/avo/build", "github.com/mmcloughlin/avo/operand", "github.com/mmcloughlin/avo/reg"]
+      dot-import-whitelist:
+      - "github.com/onsi/ginkgo"
+      - "github.com/onsi/ginkgo/v2"
+      - "github.com/onsi/gomega"
 formatters:
   enable:
   - goimports
