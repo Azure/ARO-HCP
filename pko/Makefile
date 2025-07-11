@@ -14,8 +14,7 @@ deploy:
 			-g ${RESOURCEGROUP} \
 			-n image-puller \
 			--query tenantId -o tsv) && \
-	../hack/helm.sh package-operator ./deploy \
-	--namespace ${NAMESPACE} \
+	../hack/helm.sh package-operator ./deploy ${NAMESPACE} \
 	--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
