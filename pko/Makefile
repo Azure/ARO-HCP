@@ -6,6 +6,9 @@ ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_IMAGE_REPOSITORY ?= package-operator/package-operator-package
 
 deploy:
+	@echo "---envs start---"
+	@env
+	@echo "---envs end---"
 	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
