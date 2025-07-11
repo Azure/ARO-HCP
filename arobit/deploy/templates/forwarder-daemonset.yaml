@@ -35,7 +35,7 @@ spec:
     spec:
       serviceAccountName: {{ template "arobit.forwarder.serviceAccountName" . }}
       priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
-      {{- if .Values.imqePullSecrets }}
+      {{- if .Values.imagePullSecrets }}
       imagePullSecrets:  {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       {{- if .Values.forwarder.affinity }}
