@@ -56,3 +56,19 @@ const (
 	// EffectPreferNoSchedule - PreferNoSchedule taint effect
 	EffectPreferNoSchedule Effect = "PreferNoSchedule"
 )
+
+type CustomerManagedEncryptionType string
+
+const (
+	// CustomerManagedEncryptionTypeKMS - KMS encryption type.
+	CustomerManagedEncryptionTypeKMS CustomerManagedEncryptionType = "KMS"
+)
+
+type EtcdDataEncryptionKeyManagementModeType string
+
+const (
+	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
+	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
+	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
+	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
+)
