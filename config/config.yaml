@@ -290,6 +290,9 @@ defaults:
     image:
       repository: ""
       digest: ""
+  # MSI RP
+  msiRp:
+    dataPlaneAudienceResource: https://dummy.org
   # Maestro
   maestro:
     server:

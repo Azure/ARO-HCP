@@ -317,6 +317,8 @@ msiKeyVault:
   name: ah-perf-mi-usw3ptest-1
   private: false
   softDelete: false
+msiRp:
+  dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
     keyVaultName: ""

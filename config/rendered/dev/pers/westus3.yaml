@@ -319,6 +319,8 @@ msiKeyVault:
   name: ah-pers-mi-usw3test-1
   private: false
   softDelete: false
+msiRp:
+  dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
     keyVaultName: ""
