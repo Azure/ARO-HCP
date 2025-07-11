@@ -5,7 +5,7 @@ header() {
 }
 
 authorization_header() {
-    if [ ! -v ACCESS_TOKEN ]; then
+    if [ -z "${ACCESS_TOKEN:-}" ]; then
         ACCESS_TOKEN=$(az account get-access-token --query accessToken --output tsv)
     fi
     header Authorization "Bearer ${ACCESS_TOKEN}"

@@ -54,7 +54,7 @@ resourceGroups:
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .mgmt.subscription  }}'
   steps:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name  }}'
