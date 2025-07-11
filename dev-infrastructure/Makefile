@@ -224,7 +224,7 @@ svc.what-if:
 svc.dev-role-assignments:
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
-		--resource-group "${SVC_RESOURCEGROUP}" \
+		--resource-group "${REGIONAL_RESOURCEGROUP}" \
 		--template-file templates/dev-roleassignments.bicep \
 		--parameters configurations/dev-role-assignments.bicepparam \
 		--parameters principalID=${PRINCIPAL_ID}
