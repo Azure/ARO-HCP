@@ -254,3 +254,11 @@ func (csc *clusterServiceClientWithTracing) DeleteBreakGlassCredentials(ctx cont
 func (csc *clusterServiceClientWithTracing) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
 	return csc.csc.ListBreakGlassCredentials(clusterInternalID, searchExpression)
 }
+
+func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
+	return csc.csc.GetVersion(ctx, versionName)
+}
+
+func (csc *clusterServiceClientWithTracing) ListVersions(searchExpression string) VersionsListIterator {
+	return csc.csc.ListVersions(searchExpression)
+}
