@@ -43,8 +43,8 @@ func main() {
 		Name: "integration/parallel",
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Integration[0]),
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Any[0]),
+			// TODO we will need per-env markers eventually, but it's ok to start here
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireNothing[0]),
 		},
 		Parallelism: 15,
 	})
@@ -53,8 +53,8 @@ func main() {
 		Name: "stage/parallel",
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Stage[0]),
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Any[0]),
+			// TODO we will need per-env markers eventually, but it's ok to start here
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireNothing[0]),
 		},
 		Parallelism: 15,
 	})

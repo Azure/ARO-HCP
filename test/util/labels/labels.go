@@ -22,16 +22,16 @@ import (
 
 // Positivity of test cases
 var (
-	Positive = ginkgo.Label("Positive")
-	Negative = ginkgo.Label("Negative")
+	Positive = ginkgo.Label("Positivity:Positive")
+	Negative = ginkgo.Label("Positivity:Negative")
 )
 
 // Importance of test cases
 var (
-	Low      = ginkgo.Label("Low")
-	Medium   = ginkgo.Label("Medium")
-	High     = ginkgo.Label("High")
-	Critical = ginkgo.Label("Critical")
+	Low      = ginkgo.Label("Importance:Low")
+	Medium   = ginkgo.Label("Importance:Medium")
+	High     = ginkgo.Label("Importance:High")
+	Critical = ginkgo.Label("Importance:Critical")
 )
 
 // Usage of test cases
@@ -44,8 +44,6 @@ var (
 
 // Environments this test can be used in.
 var (
-	Any         = ginkgo.Label("Any")
-	Integration = ginkgo.Label("Integration")
-	Stage       = ginkgo.Label("Stage")
-	Production  = ginkgo.Label("Production")
+	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")
+	RequireHappyPathInfra = ginkgo.Label("PreLaunchSetup:HappyPathInfra")
 )
