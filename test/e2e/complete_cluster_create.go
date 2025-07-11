@@ -32,7 +32,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	It("should be able to create an HCP cluster using bicep templates",
-		labels.Any,
+		labels.RequireNothing,
 		labels.Critical,
 		labels.Negative,
 		func(ctx context.Context) {
