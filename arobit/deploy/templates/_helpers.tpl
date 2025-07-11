@@ -49,17 +49,6 @@ Create the name of the forwarder service account to use
 {{- end -}}
 
 {{/*
-Create the name of the aggregator service account to use
-*/}}
-{{- define "arobit.aggregator.serviceAccountName" -}}
-{{- if .Values.aggregator.serviceAccount.create -}}
-    {{ default (printf "%s-aggregator" (include "arobit.name" .)) .Values.aggregator.serviceAccount.name }}
-{{- else -}}
-    {{ default "default" .Values.aggregator.serviceAccount.name }}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Renders a value that contains template.
 Usage:
 {{ include "arobit.tplValue" (dict "value" .Values.path.to.the.Value "context" $) }}

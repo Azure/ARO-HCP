@@ -15,7 +15,7 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
-{{- if .Values.forwarder.mdsd -}}
+{{- if .Values.forwarder.mdsd.enabled -}}
     @INCLUDE /forwarder/etc/output-mdsd.conf
 {{- else }}
     @INCLUDE /forwarder/etc/output.conf

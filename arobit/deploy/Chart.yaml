@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Fluent bit forwarder for Geneva as used by ARO HCP
+name: arobit
+type: application
+version: 0.0.1
