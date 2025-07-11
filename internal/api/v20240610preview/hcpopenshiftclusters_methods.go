@@ -96,7 +96,7 @@ func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) *generate
 }
 func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
 	return &generated.CustomerManagedEncryptionProfile{
-		Kms:            newKmsEncryptionProfile(&from.Kms),
+		Kms:            newKmsEncryptionProfile(from.Kms),
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
 }
