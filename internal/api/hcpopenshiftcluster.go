@@ -117,7 +117,7 @@ type EtcdDataEncryptionProfile struct {
 // CustomerManagedEncryptionProfile - Customer managed encryption key profile.
 type CustomerManagedEncryptionProfile struct {
 	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" visibility:"read create"`
-	Kms            KmsEncryptionProfile          `json:"kms,omitempty" visibility:"read create"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty" visibility:"read create" validate:"omitempty"`
 }
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key.
@@ -176,7 +176,12 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				MaxNodeProvisionTimeSeconds: 900,
 				PodPriorityThreshold:        -10,
 			},
-			Etcd: EtcdProfile{DataEncryption: EtcdDataEncryptionProfile{KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged}},
+			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
+			Etcd: EtcdProfile{
+				DataEncryption: EtcdDataEncryptionProfile{
+					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				},
+			},
 		},
 	}
 }

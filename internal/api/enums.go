@@ -60,8 +60,8 @@ const (
 type CustomerManagedEncryptionType string
 
 const (
-	// CustomerManagedEncryptionTypeKms - KMS encryption type.
-	CustomerManagedEncryptionTypeKms CustomerManagedEncryptionType = "KMS"
+	// CustomerManagedEncryptionTypeKMS - KMS encryption type.
+	CustomerManagedEncryptionTypeKMS CustomerManagedEncryptionType = "KMS"
 )
 
 type EtcdDataEncryptionKeyManagementModeType string
