@@ -24,18 +24,6 @@ interface HcpOpenShiftClusters {
   delete is ArmResourceDeleteWithoutOkAsync<HcpOpenShiftCluster>;
   listByResourceGroup is ArmResourceListByParent<HcpOpenShiftCluster>;
   listBySubscription is ArmListBySubscription<HcpOpenShiftCluster>;
-
-  /** Request a temporary admin kubeconfig for the cluster */
-  requestAdminCredential is ArmResourceActionAsync<
-    HcpOpenShiftCluster,
-    void,
-    HcpOpenShiftClusterAdminCredential
-  >;
-  /** Revoke all credentials issued by requestAdminCredential */
-  revokeCredentials is ArmResourceActionNoResponseContentAsync<
-    HcpOpenShiftCluster,
-    void
-  >;
 }
 
 /** HCP cluster node pools */

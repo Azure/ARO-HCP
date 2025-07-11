@@ -117,7 +117,7 @@
             ]
           }
         },
-        "id": "byotdicevqfphtrwmyipsigim",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "cabt",
         "type": "x",
         "systemData": {

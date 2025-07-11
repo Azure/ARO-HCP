@@ -9,13 +9,6 @@
     "externalAuthName": "my-cool-auth",
     "resource": {
       "properties": {
-        "condition": {
-          "type": "Available",
-          "status": "True",
-          "lastTransitionTime": "2025-07-03T17:28:03.180Z",
-          "reason": "A good reason",
-          "message": "An even better message."
-        },
         "issuer": {
           "url": "https://microsoft.com/a",
           "audiences": [
@@ -124,7 +117,7 @@
             ]
           }
         },
-        "id": "byotdicevqfphtrwmyipsigim",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "cabt",
         "type": "x",
         "systemData": {
@@ -198,7 +191,7 @@
             ]
           }
         },
-        "id": "byotdicevqfphtrwmyipsigim",
+        "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/resourceType/resourceName",
         "name": "cabt",
         "type": "x",
         "systemData": {
