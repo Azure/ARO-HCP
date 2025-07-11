@@ -21,7 +21,7 @@
           "osDisk": {
             "sizeGiB": 10,
             "diskStorageAccountType": "Premium_LRS",
-            "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+            "encryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
           }
         },
         "replicas": 18,
@@ -43,7 +43,7 @@
             "effect": "NoSchedule"
           }
         ],
-        "nodeDrainTimeoutMinutesMinutes": 20
+        "nodeDrainTimeoutMinutes": 20
       },
       "tags": {
         "key": "value"
@@ -68,7 +68,7 @@
             "osDisk": {
               "sizeGiB": 10,
               "diskStorageAccountType": "Premium_LRS",
-              "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+              "encryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
             }
           },
           "replicas": 18,
@@ -114,7 +114,7 @@
             "osDisk": {
               "sizeGiB": 10,
               "diskStorageAccountType": "Premium_LRS",
-              "diskEncryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
+              "encryptionSetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Compute/diskEncryptionSets/hcp-disk-encryption-set-example"
             }
           },
           "replicas": 18,
