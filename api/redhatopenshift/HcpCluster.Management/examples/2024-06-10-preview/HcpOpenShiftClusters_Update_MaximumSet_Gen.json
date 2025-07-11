@@ -69,11 +69,6 @@
             "maxNodeProvisionTimeSeconds": 0,
             "podPriorityThreshold": 1
           },
-          "capabilities": {
-            "disabled": [
-              "ImageRegistry"
-            ]
-          },
           "etcd": {
             "dataEncryption": {
               "keyManagementMode": "CustomerManaged",

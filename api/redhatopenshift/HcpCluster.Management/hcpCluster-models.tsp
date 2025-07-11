@@ -270,7 +270,7 @@ model PlatformProfile {
  *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
   /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
-   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number. */
+   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. */
   @minValue(0)
   maxNodesTotal?: int32;
 
@@ -928,8 +928,29 @@ model UsernameClaimProfile {
    */
   prefix?: string;
 
-  /** Prefix policy
-   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
+  /** Prefix policy is an optional field that configures how a prefix should be
+   * applied to the value of the JWT claim specified in the 'claim' field.
+   *
+   * Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+   *
+   * When set to 'Prefix', the value specified in the prefix field will be
+   * prepended to the value of the JWT claim.
+   * The prefix field must be set when prefixPolicy is 'Prefix'.
+   *
+   * When set to 'NoPrefix', no prefix will be prepended to the value
+   * of the JWT claim.
+   *
+   * When omitted, this means no opinion and the platform is left to choose
+   * any prefixes that are applied which is subject to change over time.
+   * Currently, the platform prepends `{issuerURL}#` to the value of the JWT claim
+   * when the claim is not 'email'.
+   * As an example, consider the following scenario:
+   *    `prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,
+   *    the JWT claims include "username":"userA" and "email":"userA@myoidc.tld",
+   *    and `claim` is set to:
+   *    - "username": the mapped value will be "https://myoidc.tld#userA"
+   *    - "email": the mapped value will be "userA@myoidc.tld"
+   */
   prefixPolicy?: string;
 }
 

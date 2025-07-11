@@ -49,11 +49,6 @@
           "maxNodeProvisionTimeSeconds": 0,
           "podPriorityThreshold": 1
         },
-        "capabilities": {
-          "disabled": [
-            "ImageRegistry"
-          ]
-        },
         "etcd": {
           "dataEncryption": {
             "keyManagementMode": "CustomerManaged",
@@ -133,11 +128,6 @@
             "maxPodGracePeriodSeconds": 0,
             "maxNodeProvisionTimeSeconds": 0,
             "podPriorityThreshold": 1
-          },
-          "capabilities": {
-            "disabled": [
-              "ImageRegistry"
-            ]
           },
           "etcd": {
             "dataEncryption": {
@@ -235,11 +225,6 @@
             "maxPodGracePeriodSeconds": 0,
             "maxNodeProvisionTimeSeconds": 0,
             "podPriorityThreshold": 1
-          },
-          "capabilities": {
-            "disabled": [
-              "ImageRegistry"
-            ]
           },
           "etcd": {
             "dataEncryption": {

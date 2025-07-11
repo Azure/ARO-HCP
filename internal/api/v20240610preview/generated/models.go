@@ -56,7 +56,7 @@ type ClusterAutoscalingProfile struct {
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
 	// not grow the cluster beyond this number. If omitted, the autoscaler will not
-	// have a maximum limit. number.
+	// have a maximum limit.
 	MaxNodesTotal *int32
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
@@ -1108,7 +1108,17 @@ type UsernameClaimProfile struct {
 	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
 	Prefix *string
 
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
+	// in the 'claim' field.
+	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+	// field must be set when prefixPolicy is 'Prefix'.
+	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+	// change over time. Currently, the platform prepends {issuerURL}# to the value of
+	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+	// "email":"userA
 	PrefixPolicy *string
 }
 
@@ -1121,7 +1131,17 @@ type UsernameClaimProfileUpdate struct {
 	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
 	Prefix *string
 
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
+	// in the 'claim' field.
+	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+	// field must be set when prefixPolicy is 'Prefix'.
+	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+	// change over time. Currently, the platform prepends {issuerURL}# to the value of
+	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+	// "email":"userA
 	PrefixPolicy *string
 }
 
