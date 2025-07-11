@@ -17,6 +17,18 @@ armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 aroDevopsMsiId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/global-rollout-identity
+arobit:
+  forwarder:
+    image:
+      digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+      registry: mcr.microsoft.com
+      repository: oss/fluent/fluent-bit
+  mdsd:
+    enabled: false
+    image:
+      digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+      registry: linuxgeneva-microsoft.azurecr.io
+      repository: genevamdsd
 backend:
   image:
     digest: ""
