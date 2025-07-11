@@ -998,7 +998,7 @@ func convertNodePoolStatus(op operation, nodePoolStatus *arohcpv1alpha1.NodePool
 		//     operations so "Internal Server Error" is all we can do for now.
 		//     https://issues.redhat.com/browse/ARO-14969
 		opStatus = arm.ProvisioningStateFailed
-		opError = arm.NewInternalServerError().CloudErrorBody
+		opError = arm.NewInternalServerError("converting node pool status").CloudErrorBody
 	default:
 		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
 	}

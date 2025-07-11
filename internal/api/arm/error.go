@@ -141,17 +141,28 @@ func WriteCloudError(w http.ResponseWriter, err *CloudError) {
 	_, _ = WriteJSONResponse(w, err.StatusCode, err)
 }
 
-// NewInternalServerError creates a CloudError for an internal server error
-func NewInternalServerError() *CloudError {
+// NewInternalServerError creates a CloudError for an internal server error.
+// locationHint is a means to find which internal error was encountered.  It must be a constant or known pattern string.
+// This is critical for us to avoid accidentally reporting things like internal IP addresses, internal user identities, or
+// other internal service knowledge via the API.
+// We aren't worried about obfuscating strings here because since it's an open source project, the actions we're taking
+// here are not secrets.  We must avoid exposing the environmental secrets that do exist, but the lines of code themselves,
+// the fact that cluster-service is in the path, the sub-steps for an action: none of those are secret.
+// In light of this, we will optimize the strings for human developer time, not obfuscation that doesn't actually hide
+// any internals.
+func NewInternalServerError(locationHint string) *CloudError {
 	return NewCloudError(
 		http.StatusInternalServerError,
 		CloudErrorCodeInternalServerError, "",
-		"Internal server error.")
+		"Internal server error.  Origin: %q", locationHint)
 }
 
 // WriteInternalServerError writes an internal server error to the given ResponseWriter
-func WriteInternalServerError(w http.ResponseWriter) {
-	WriteCloudError(w, NewInternalServerError())
+// locationHint is a means to find which internal error was encountered.  It must be a constant or known pattern string.
+// This is critical for us to avoid accidentally reporting things like internal IP addresses, internal user identities, or
+// other internal service knowledge via the API.
+func WriteInternalServerError(w http.ResponseWriter, locationHint string) {
+	WriteCloudError(w, NewInternalServerError(locationHint))
 }
 
 // NewConflictError creates a CloudError for a conflict error
