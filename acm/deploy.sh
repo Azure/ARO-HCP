@@ -31,6 +31,7 @@ if kubectl get mce multiclusterengine -n ${MCE_NS} >/dev/null 2>&1; then
             echo "Found scaled-down mce operator, scaling back up..."
             if [ "${DRY_RUN}" != "true" ]; then
                 kubectl -n ${MCE_NS} scale deployment/multicluster-engine-operator --replicas=2
+                kubectl wait --for=condition=available --timeout=600s deployment/multicluster-engine-operator -n ${MCE_NS}
             fi
         else
             echo "No scaled-down deployments found, all deployments are running normally"
@@ -40,10 +41,6 @@ else
     echo "MCE resource does not exist yet, proceeding with normal deployment"
 fi
 
-if [ "${DRY_RUN}" != "true" ]; then
-    echo "Waiting for multicluster-engine-operator deployment to be available..."
-    kubectl wait --for=condition=available --timeout=600s deployment/multicluster-engine-operator -n ${MCE_NS}
-fi
 
 ${HELM_CMD} \
     mce ${MCE_CHART_DIR} \
