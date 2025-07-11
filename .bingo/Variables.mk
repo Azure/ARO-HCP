@@ -47,15 +47,18 @@ $(MOCKGEN): $(BINGO_DIR)/mockgen.mod
 	@echo "(re)installing $(GOBIN)/mockgen-v0.5.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=mockgen.mod -o=$(GOBIN)/mockgen-v0.5.0 "go.uber.org/mock/mockgen"
 
-ORAS := $(GOBIN)/oras-v1.2.3
-$(ORAS): $(BINGO_DIR)/oras.mod
+ORAS_BIN := $(GOBIN)/oras-v1.2.3
+$(ORAS_BIN): $(BINGO_DIR)/oras.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/oras-v1.2.3"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=oras.mod -o=$(GOBIN)/oras-v1.2.3 "oras.land/oras/cmd/oras"
+	@echo "(re)installing $(ORAS_BIN)"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=oras.mod -o=$(ORAS_BIN) "oras.land/oras/cmd/oras"
+
+ORAS := $(GOBIN)/oras
+$(ORAS): $(ORAS_BIN)
+	@ln -sf $(ORAS_BIN) $(ORAS)
 
 YAMLFMT := $(GOBIN)/yamlfmt-v0.16.0
 $(YAMLFMT): $(BINGO_DIR)/yamlfmt.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/yamlfmt-v0.16.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yamlfmt.mod -o=$(GOBIN)/yamlfmt-v0.16.0 "github.com/google/yamlfmt/cmd/yamlfmt"
-
