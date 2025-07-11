@@ -43,6 +43,7 @@ const (
 
 	azureNodePoolEncryptionAtHostDisabled string = "disabled"
 	azureNodePoolEncryptionAtHostEnabled  string = "enabled"
+	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -91,6 +92,15 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 	}
 
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
+}
+
+func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
+	if nodeDrainGracePeriod, ok := in.GetNodeDrainGracePeriod(); ok {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+			return int32(nodeDrainGracePeriod.Value())
+		}
+	}
+	return 0
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
@@ -142,6 +152,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
+			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 		},
 	}
 
@@ -219,6 +230,11 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
 	}
+
+	clusterBuilder = clusterBuilder.
+		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
@@ -355,6 +371,12 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	}
 	nodePool.Properties.Taints = taints
 
+	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+			nodePool.Properties.NodeDrainTimeoutMinutes = api.Ptr(int32(nodeDrainGracePeriod.Value()))
+		}
+	}
+
 	return nodePool
 }
 
@@ -396,6 +418,12 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			Effect(string(t.Effect)).
 			Key(t.Key).
 			Value(t.Value))
+	}
+
+	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
+		npBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
 
 	return npBuilder.Build()

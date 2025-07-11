@@ -84,6 +84,19 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			cluster: arohcpv1alpha1.NewCluster(),
 			want:    clusterResource(),
 		},
+		{
+			name: "converts nodeDrainGracePeriod to nodeDrainTimeoutMinutes",
+			cluster: arohcpv1alpha1.NewCluster().
+				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+					Unit(azureNodePoolNodeDrainGracePeriodUnit).
+					Value(42),
+				),
+			want: clusterResource(
+				func(hsc *api.HCPOpenShiftCluster) {
+					hsc.Properties.NodeDrainTimeoutMinutes = 42
+				},
+			),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

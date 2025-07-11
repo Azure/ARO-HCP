@@ -116,14 +116,15 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
 			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Version:           newVersionProfile(&from.Properties.Version),
-				DNS:               newDNSProfile(&from.Properties.DNS),
-				Network:           newNetworkProfile(&from.Properties.Network),
-				Console:           newConsoleProfile(&from.Properties.Console),
-				API:               newAPIProfile(&from.Properties.API),
-				Platform:          newPlatformProfile(&from.Properties.Platform),
-				Autoscaling:       newClusterAutoscalingProfile(&from.Properties.Autoscaling),
+				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Version:                 newVersionProfile(&from.Properties.Version),
+				DNS:                     newDNSProfile(&from.Properties.DNS),
+				Network:                 newNetworkProfile(&from.Properties.Network),
+				Console:                 newConsoleProfile(&from.Properties.Console),
+				API:                     newAPIProfile(&from.Properties.API),
+				Platform:                newPlatformProfile(&from.Properties.Platform),
+				Autoscaling:             newClusterAutoscalingProfile(&from.Properties.Autoscaling),
+				NodeDrainTimeoutMinutes: api.PtrOrNil(from.Properties.NodeDrainTimeoutMinutes),
 			},
 		},
 	}
@@ -223,6 +224,9 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Autoscaling != nil {
 				normalizeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
+			}
+			if c.Properties.NodeDrainTimeoutMinutes != nil {
+				out.Properties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
 			}
 		}
 	}
