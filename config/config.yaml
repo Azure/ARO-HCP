@@ -626,8 +626,8 @@ clouds:
             azCount: 1
           etcd:
             kvSoftDelete: false
-          enableSwiftV2Vnet: false
-          enableSwiftV2Nodepools: false
+          enableSwiftV2Vnet: true
+          enableSwiftV2Nodepools: true
         nsp:
           accessMode: 'Learning'
         prometheus:
@@ -819,6 +819,14 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                maxCount: 4
+                vmSize: 'Standard_E8s_v3'
+                osDiskSizeGB: 128
+              userAgentPool:
+                maxCount: 3
+                vmSize: 'Standard_D16s_v3'
+                osDiskSizeGB: 128
             jaeger:
               deploy: false
             applyKubeletFixes: false
