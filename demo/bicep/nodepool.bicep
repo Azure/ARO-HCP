@@ -23,7 +23,7 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
       osDisk: {
         sizeGiB: 64
         diskStorageAccountType: 'StandardSSD_LRS'
-      } 
+      }
     }
     replicas: 2
   }
