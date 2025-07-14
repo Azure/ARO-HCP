@@ -98,6 +98,10 @@ forwarder:
         port: 4318
         targetPort: otlp-http
         protocol: TCP
+      forward:
+        port: 24224
+        targetPort: forward
+        protocol: TCP
     ## Provide any additional annotations which may be required
     ##
     annotations: {}
@@ -117,6 +121,9 @@ forwarder:
       protocol: TCP
     - name: otlp-http
       containerPort: 4318
+      protocol: TCP
+    - name: forward
+      containerPort: 24224
       protocol: TCP
     ## K8s Security Context for fluent bit container
     ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
