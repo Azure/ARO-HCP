@@ -28,4 +28,4 @@ tracing:
   address: ""
   exporter: ""
 audit:
-  tcpAddr: ""
+  tcpAddress: ""

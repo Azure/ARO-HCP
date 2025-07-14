@@ -49,8 +49,8 @@ spec:
           value: "{{ .Values.tracing.address }}"
         - name: OTEL_TRACES_EXPORTER
           value: "{{ .Values.tracing.exporter }}"
-        - name: AUDIT_TCP_ADDR
-          value: "{{ .Values.audit.tcpAddr }}"
+        - name: AUDIT_TCP_ADDRESS
+          value: "{{ .Values.audit.tcpAddress }}"
         ports:
         - containerPort: 8443
           protocol: TCP
