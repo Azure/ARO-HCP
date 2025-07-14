@@ -31,6 +31,7 @@ const (
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
+	VersionResourceTypeName         = "hcpOpenShiftVersions"
 )
 
 var (
