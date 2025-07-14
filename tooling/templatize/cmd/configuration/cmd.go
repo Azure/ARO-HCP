@@ -35,7 +35,9 @@ func NewCommand() (*cobra.Command, error) {
 
 	commands := []func() (*cobra.Command, error){
 		render.NewCommand,
-		validate.NewCommand,
+		func() (*cobra.Command, error) {
+			return validate.NewCommand("https://github.com/Azure/ARO-HCP.git")
+		},
 	}
 	for _, newCmd := range commands {
 		c, err := newCmd()
