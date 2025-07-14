@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools v0.0.0-20250714204933-3a6cb6c5e950 h1:11pswVf6jSPRdhxLrEf9kep5Z+OksVmh+AFGQxOtjoA=
-github.com/Azure/ARO-Tools v0.0.0-20250714204933-3a6cb6c5e950/go.mod h1:HW+K0ZlLC+yid7PWmByzhzPjUVF05COzyvGL8RtsO6w=
+github.com/Azure/ARO-Tools v0.0.0-20250714215639-a75ba780ab81 h1:o8qXDAF10JV14VENQdMaE0yXA+Tw/cAift59yaOTbdc=
+github.com/Azure/ARO-Tools v0.0.0-20250714215639-a75ba780ab81/go.mod h1:HW+K0ZlLC+yid7PWmByzhzPjUVF05COzyvGL8RtsO6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/dusted-go/logging v1.3.0 h1:SL/EH1Rp27oJQIte+LjWvWACSnYDTqNx5gZULin0XRY=
