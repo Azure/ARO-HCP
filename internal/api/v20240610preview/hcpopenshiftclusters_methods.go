@@ -101,6 +101,11 @@ func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProf
 	}
 }
 func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) *generated.KmsEncryptionProfile {
+	if from == nil {
+		return &generated.KmsEncryptionProfile{
+			ActiveKey: nil,
+		}
+	}
 	return &generated.KmsEncryptionProfile{
 		ActiveKey: newKmsKey(&from.ActiveKey),
 	}
