@@ -219,6 +219,22 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 
 	logger := LoggerFromContext(ctx)
 
+	if strings.EqualFold(resourceID.ResourceType.Type, api.ClusterVersionTypeName) {
+		versionName := resourceID.Name
+		version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, CSErrorToCloudError(err, resourceID)
+		}
+		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+
+		return responseBody, nil
+	}
+
 	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())

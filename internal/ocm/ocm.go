@@ -83,6 +83,14 @@ type ClusterServiceClientSpec interface {
 	// Items() on the returned iterator in a for/range loop to execute the request and paginate
 	// over results, then call GetError() to check for an iteration error.
 	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
+
+	// GetVersion sends a GET request to fetch cluster version
+	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
+
+	// ListVersions prepares a GET request with the given search expression. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListVersions(searchExpression string) VersionsListIterator
 }
 
 type clusterServiceClient struct {
@@ -382,4 +390,26 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 		breakGlassCredentialsListRequest.Search(searchExpression)
 	}
 	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
+}
+
+func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
+	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
+
+	resp, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	version, ok := resp.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return version, nil
+}
+
+func (csc *clusterServiceClient) ListVersions(searchExpression string) VersionsListIterator {
+	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
+	if searchExpression != "" {
+		versionsListRequest.Search(searchExpression)
+	}
+	return VersionsListIterator{request: versionsListRequest}
 }
