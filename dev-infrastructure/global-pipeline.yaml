@@ -10,6 +10,12 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: make
+  args:
+  - "-C"
+  - "../tooling/secret-sync"
+  - "secret-sync"
 resourceGroups:
 - name: '{{ .global.rg  }}'
   subscription: '{{ .global.subscription  }}'
