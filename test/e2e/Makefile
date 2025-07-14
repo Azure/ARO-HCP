@@ -17,16 +17,21 @@ e2etest:
 image:
 	podman build --rm \
 	--build-context ARO-HCP=$(REPOSITORY) \
-	--env SETUP_FILEPATH=e2e-setup.json \
 	-f ../Containerfile.e2e \
 	-t $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA)
 .PHONY: image
 
-e2etest-run:
+e2etest-run: volume
 	podman run --rm \
+	-v $(PWD)/data:/data:U,Z \
 	-e CUSTOMER_SUBSCRIPTION=$(CUSTOMER_SUBSCRIPTION) \
 	-e AZURE_TENANT_ID=$(AZURE_TENANT_ID) \
 	-e AZURE_CLIENT_ID=$(AZURE_CLIENT_ID) \
 	-e AZURE_CLIENT_SECRET=$(AZURE_CLIENT_SECRET) \
 	$(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) --ginkgo.label-filter=$(LABEL_FILTER)
 .PHONY: e2etest-run
+
+volume:
+	mkdir -p $(PWD)/data
+	cp $(SETUP_FILEPATH) $(PWD)/data/e2e-setup.json
+.PHONY: volume
