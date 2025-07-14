@@ -98,7 +98,9 @@ dns:
 ev2:
   assistedId:
     applicationId: ""
-    certificate: ""
+    certificate:
+      keyVault: empty-sentinel
+      name: ""
 firstPartyAppCertificate:
   issuer: Self
   manage: false
@@ -333,7 +335,7 @@ msiRp:
   dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
-    keyVaultName: ""
+    keyVaultName: empty-sentinel
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor

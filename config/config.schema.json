@@ -707,12 +707,28 @@
           "additionalProperties": false,
           "properties": {
             "certificate": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "keyVault": {
+                  "$ref": "#/definitions/keyVaultName"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "keyVault",
+                "name"
+              ]
             },
             "applicationId": {
               "type": "string"
             }
-          }
+          },
+          "required": [
+            "certificate",
+            "applicationId"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1459,7 +1475,7 @@
               "type": "string"
             },
             "keyVaultName": {
-              "type": "string"
+              "$ref": "#/definitions/keyVaultName"
             },
             "msiName": {
               "type": "string"
