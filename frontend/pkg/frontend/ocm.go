@@ -36,7 +36,6 @@ const (
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
-	csMultiAzEnabled   bool   = true
 	csCCSEnabled       bool   = true
 
 	// The OCM SDK does not provide these constants.
@@ -254,7 +253,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(csHypershifEnabled)).
-		MultiAZ(csMultiAzEnabled).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
 			ID(hcpCluster.Properties.Version.ID).
