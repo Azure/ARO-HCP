@@ -79,7 +79,9 @@ defaults:
   tenantId: ""
   ev2:
     assistedId:
-      certificate: ""
+      certificate:
+        keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
+        name: ""
       applicationId: ""
   geneva:
     principalId: ""
@@ -416,7 +418,7 @@ defaults:
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
-      keyVaultName: "" # intentionally left empty as we don't need one in public cloud
+      keyVaultName: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
       msiName: arohcp-afd
   # Service Key Vault
   serviceKeyVault:
