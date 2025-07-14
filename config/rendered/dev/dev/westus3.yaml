@@ -129,11 +129,15 @@ geneva:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
     cluster:
-      accountCert: ""
+      accountCert:
+        keyVault: empty-sentinel
+        name: ""
       accountName: AROClusterLogs
     environment: Test
     rp:
-      accountCert: ""
+      accountCert:
+        keyVault: empty-sentinel
+        name: ""
       accountName: ARORPLogs
     typeName: ""
   metrics:

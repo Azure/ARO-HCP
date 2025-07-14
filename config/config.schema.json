@@ -29,6 +29,21 @@
         "roleNames"
       ]
     },
+    "certificateRef": {
+      "type": "object",
+      "properties": {
+        "keyVault": {
+          "$ref": "#/definitions/keyVaultName"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "keyVault",
+        "name"
+      ]
+    },
     "tracing": {
       "type": "object",
       "additionalProperties": false,
@@ -260,8 +275,8 @@
           "type": "string"
         },
         "digest": {
-            "type": "string",
-            "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
+          "type": "string",
+          "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
         }
       },
       "required": [
@@ -308,7 +323,7 @@
             },
             "version": {
               "type": "string"
-            }          
+            }
           }
         },
         "prometheusSpec": {
@@ -333,7 +348,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "image" :{
+            "image": {
               "$ref": "#/definitions/containerImage"
             }
           }
@@ -707,19 +722,7 @@
           "additionalProperties": false,
           "properties": {
             "certificate": {
-              "type": "object",
-              "properties": {
-                "keyVault": {
-                  "$ref": "#/definitions/keyVaultName"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "keyVault",
-                "name"
-              ]
+              "$ref": "#/definitions/certificateRef"
             },
             "applicationId": {
               "type": "string"
@@ -829,7 +832,7 @@
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
                 },
                 "accountCert": {
-                  "type": "string"
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
@@ -848,7 +851,7 @@
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
                 },
                 "accountCert": {
-                  "type": "string"
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
@@ -1035,7 +1038,6 @@
           "required": [
             "pullSecretName"
           ]
-
         },
         "ocMirror": {
           "type": "object",
@@ -1095,7 +1097,6 @@
             "image"
           ]
         }
-
       },
       "additionalProperties": false,
       "required": [
@@ -1221,9 +1222,15 @@
               "pattern": "^[a-zA-Z0-9-]+$",
               "not": {
                 "anyOf": [
-                  { "pattern": "^Microsoft-" },
-                  { "pattern": "^EventGrid-" },
-                  { "pattern": "^System-" }
+                  {
+                    "pattern": "^Microsoft-"
+                  },
+                  {
+                    "pattern": "^EventGrid-"
+                  },
+                  {
+                    "pattern": "^System-"
+                  }
                 ]
               },
               "description": "Name length should be between 3 and 50 characters in length but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts. Only alphanumeric letters, digits and the '-' character are allowed in the topic name. Also, the name shouldn't start with the following reserved words: Microsoft-, EventGrid-, System-"
@@ -1521,8 +1528,8 @@
         "softDelete": {
           "type": "boolean"
         },
-        "assignNSP":{
-          "type":"boolean"
+        "assignNSP": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
