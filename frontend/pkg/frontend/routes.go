@@ -44,6 +44,7 @@ const (
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
 	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
 	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternClusterVersions   = api.VersionResourceTypeName + "/" + WildcardResourceName
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -139,6 +140,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternLocations, PatternClusterVersions),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(
