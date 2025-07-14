@@ -157,6 +157,12 @@ The resourcegroup (`resourceGroups.name`) is pre-created before step execution s
 
 If an `resourceGroups.aksCluster` is specified, the `KUBECONFIG` environment variable is set and allows cluster admin interaction withe the AKS cluster. This is mostly relevant for `Shell` steps.
 
+#### Environment variables
+
+All the variables defined in the `variables` section of a step are set as environment variables before executing the step. This allows steps to access configuration values or other necessary parameters.
+
+In addition, an environment variable `zz_injected_EV2=1` is set when the step is executed within EV2. This environment variable is missing otherwise.
+
 ## Pipeline Deployment Scope
 
 A pipeline is the smallest unit of deployment in ARO HCP. This means that all steps within a pipeline are executed from start to finish—there is no concept of executing a single step in only.
