@@ -198,7 +198,6 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				ID("osd-4")).
 			Hypershift(arohcpv1alpha1.NewHypershift().
 				Enabled(true)).
-			MultiAZ(true).
 			Name("").
 			Network(arohcpv1alpha1.NewNetwork().
 				HostPrefix(0).
