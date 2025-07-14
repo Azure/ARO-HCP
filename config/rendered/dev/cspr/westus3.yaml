@@ -65,7 +65,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   environment: arohcpdev
   image:
-    digest: sha256:5176c82cd45bbd104dc5e60e059f6c57c940a7937b00ef041cd7ba1a5e114880
+    digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
