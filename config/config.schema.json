@@ -1049,6 +1049,44 @@
         "ocMirror"
       ]
     },
+    "arobit": {
+      "type": "object",
+      "properties": {
+        "forwarder": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image"
+          ]
+        },
+        "mdsd": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image"
+          ]
+        }
+
+      },
+      "additionalProperties": false,
+      "required": [
+        "forwarder",
+        "mdsd"
+      ]
+    },
     "acrPull": {
       "type": "object",
       "properties": {
