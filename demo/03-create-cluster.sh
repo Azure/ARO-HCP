@@ -136,7 +136,7 @@ main() {
   # when running the script.
   : OPERATORS_UAMIS_SUFFIX=${OPERATORS_UAMIS_SUFFIX:=$(openssl rand -hex 3)}
 
-  # control plane operator names required for OCP 4.18.
+  # control plane operator names required for OCP 4.19.
   # TODO in the future the information of the required
   # identities for a given OCP version will be provided
   # via API.
@@ -151,7 +151,7 @@ main() {
     "cloud-network-config"
   )
 
-  # data plane operator names required for OCP 4.18.
+  # data plane operator names required for OCP 4.19.
   # TODO in the future the information of the required
   # identities for a given OCP version will be provided
   # via API.
