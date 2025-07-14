@@ -393,7 +393,7 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 }
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
-	client := arohcpv1alpha1.NewVersionClient(csc.conn, versionName)
+	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
 	resp, err := client.Get().SendContext(ctx)
 	if err != nil {
