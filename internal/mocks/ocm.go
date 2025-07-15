@@ -584,17 +584,17 @@ func (c *MockClusterServiceClientSpecListNodePoolsCall) DoAndReturn(f func(ocm.I
 }
 
 // ListVersions mocks base method.
-func (m *MockClusterServiceClientSpec) ListVersions(searchExpression string) ocm.VersionsListIterator {
+func (m *MockClusterServiceClientSpec) ListVersions() ocm.VersionsListIterator {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListVersions", searchExpression)
+	ret := m.ctrl.Call(m, "ListVersions")
 	ret0, _ := ret[0].(ocm.VersionsListIterator)
 	return ret0
 }
 
 // ListVersions indicates an expected call of ListVersions.
-func (mr *MockClusterServiceClientSpecMockRecorder) ListVersions(searchExpression any) *MockClusterServiceClientSpecListVersionsCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) ListVersions() *MockClusterServiceClientSpecListVersionsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVersions", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListVersions), searchExpression)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVersions", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListVersions))
 	return &MockClusterServiceClientSpecListVersionsCall{Call: call}
 }
 
@@ -610,13 +610,13 @@ func (c *MockClusterServiceClientSpecListVersionsCall) Return(arg0 ocm.VersionsL
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecListVersionsCall) Do(f func(string) ocm.VersionsListIterator) *MockClusterServiceClientSpecListVersionsCall {
+func (c *MockClusterServiceClientSpecListVersionsCall) Do(f func() ocm.VersionsListIterator) *MockClusterServiceClientSpecListVersionsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecListVersionsCall) DoAndReturn(f func(string) ocm.VersionsListIterator) *MockClusterServiceClientSpecListVersionsCall {
+func (c *MockClusterServiceClientSpecListVersionsCall) DoAndReturn(f func() ocm.VersionsListIterator) *MockClusterServiceClientSpecListVersionsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
