@@ -245,8 +245,8 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: true
-    enableSwiftV2Vnet: true
+    enableSwiftV2Nodepools: false
+    enableSwiftV2Vnet: false
     etcd:
       kvName: ah-ntly-me-ln-1
       kvSoftDelete: false
@@ -266,8 +266,8 @@ mgmt:
       azCount: 1
       maxCount: 4
       minCount: 1
-      osDiskSizeGB: 32
-      vmSize: Standard_D2s_v3
+      osDiskSizeGB: 128
+      vmSize: Standard_E8s_v3
     userAgentPool:
       azCount: 3
       maxCount: 6

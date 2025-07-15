@@ -245,8 +245,8 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: true
-    enableSwiftV2Vnet: true
+    enableSwiftV2Nodepools: false
+    enableSwiftV2Vnet: false
     etcd:
       kvName: ah-dev-me-usw3-1
       kvSoftDelete: false

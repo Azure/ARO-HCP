@@ -75,9 +75,9 @@ clustersService:
   managedIdentityName: clusters-service
   postgres:
     databaseName: clusters-service
-    deploy: true
+    deploy: false
     minTLSVersion: TLSV1.2
-    name: arohcp-perf-dbcs-usw3ptest
+    name: arohcp-swft-dbcs-lnstest
     private: false
     serverStorageSizeGB: 128
     serverVersion: "12"
@@ -86,7 +86,7 @@ clustersService:
     address: ""
     exporter: ""
 cxKeyVault:
-  name: ah-perf-cx-usw3ptest-1
+  name: ah-swft-cx-lnstest-1
   private: false
   softDelete: false
 dns:
@@ -94,7 +94,7 @@ dns:
   cxParentZoneDelegation: false
   cxParentZoneName: hcp.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: usw3ptest
+  regionalSubdomain: lnstest
   svcParentZoneName: hcpsvc.osadev.cloud
 ev2:
   assistedId:
@@ -112,13 +112,13 @@ frontend:
     tcpAddress: ""
   cert:
     issuer: Self
-    name: frontend-cert-perf-usw3ptest
+    name: frontend-cert-swft-lnstest
   cosmosDB:
     deploy: true
     disableLocalAuth: true
-    name: arohcpperf-rp-usw3ptest
-    private: true
-    zoneRedundantMode: Auto
+    name: arohcpswft-rp-lnstest
+    private: false
+    zoneRedundantMode: Disabled
   image:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
@@ -166,7 +166,7 @@ global:
   safeDnsIntAppObjectId: ""
   secretsToSyncDir: dev/arohcpdev-global
   subscription:
-    displayName: ARO HCP - perf - Global
+    displayName: ARO HCP - swft - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
 hypershift:
   additionalInstallArg: ""
@@ -205,7 +205,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-usw3ptest-mgmt-1
+    consumerName: hcp-underlay-lnstest-mgmt-1
     loglevel: 4
     sidecar:
       image:
@@ -216,7 +216,7 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-perf-maestro-usw3ptest
+    name: arohcp-swft-maestro-lnstest
     private: false
   image:
     digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
@@ -224,9 +224,9 @@ maestro:
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
     databaseName: maestro
-    deploy: true
+    deploy: false
     minTLSVersion: TLSV1.2
-    name: arohcp-perf-dbmaestro-usw3ptest
+    name: arohcp-swft-dbmaestro-lnstest
     private: false
     serverStorageSizeGB: 32
     serverVersion: "15"
@@ -238,17 +238,17 @@ maestro:
       serviceAccountName: maestro
     loglevel: 4
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-usw3ptest
+    mqttClientName: maestro-server-lnstest
     tracing:
       address: ""
       exporter: ""
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: false
-    enableSwiftV2Vnet: false
+    enableSwiftV2Nodepools: true
+    enableSwiftV2Vnet: true
     etcd:
-      kvName: ah-perf-me-usw3ptest-1
+      kvName: ah-swft-me-lnstest-1
       kvSoftDelete: false
     infraAgentPool:
       azCount: 1
@@ -257,7 +257,7 @@ mgmt:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     kubernetesVersion: 1.32.4
-    name: perf-usw3ptest-mgmt-1
+    name: swft-lnstest-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -275,14 +275,16 @@ mgmt:
       osDiskSizeGB: 128
       vmSize: Standard_D16s_v3
     vnetAddressPrefix: 10.128.0.0/14
-  applyKubeletFixes: true
+  applyKubeletFixes: false
+  jaeger:
+    deploy: false
   logs:
     configVersion: "1"
     namespace: HCPCustomerLogs
     san: ""
   nsp:
     accessMode: Learning
-    name: nsp-usw3ptest-mgmt-1
+    name: nsp-lnstest-mgmt-1
   prometheus:
     namespace: prometheus
     namespaceLabel: network.openshift.io/policy-group=monitoring
@@ -305,7 +307,7 @@ mgmt:
       replicas: 2
       shards: 1
       version: v2.55.1-3
-  rg: hcp-underlay-perf-usw3ptest-mgmt-1
+  rg: hcp-underlay-swft-lnstest-mgmt-1
   subscription:
     afecFlags:
     - Microsoft.Network/AllowBringYourOwnPublicIpAddress
@@ -314,10 +316,10 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - perf - svc - westus3
+    displayName: ARO HCP - swft - svc - uksouth
     key: ARO Hosted Control Planes (EA Subscription 1)
 mgmtKeyVault:
-  name: ah-perf-mg-usw3ptest-1
+  name: ah-swft-mg-lnstest-1
   private: false
   softDelete: false
 miMockCertName: msiMockCert2
@@ -339,14 +341,14 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: hcps-usw3ptest
+  hcpWorkspaceName: hcps-lnstest
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: services-usw3ptest
+  svcWorkspaceName: services-lnstest
 msiKeyVault:
-  name: ah-perf-mi-usw3ptest-1
+  name: ah-swft-mi-lnstest-1
   private: false
   softDelete: false
 msiRp:
@@ -359,7 +361,7 @@ oidc:
     sku: Premium_AzureFrontDoor
     subdomain: oic
   storageAccount:
-    name: arohcpperfoidcusw3ptest
+    name: arohcpswftoidclnstest
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -375,8 +377,8 @@ pko:
     digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
     registry: quay.io
     repository: package-operator/remote-phase-manager
-region: westus3
-regionRG: hcp-underlay-perf-usw3ptest
+region: uksouth
+regionRG: hcp-underlay-swft-lnstest
 secretSyncController:
   image:
     digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
@@ -394,7 +396,7 @@ svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      kvName: ah-perf-se-usw3ptest-1
+      kvName: ah-swft-se-lnstest-1
       kvSoftDelete: false
     infraAgentPool:
       azCount: 1
@@ -403,7 +405,7 @@ svc:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     kubernetesVersion: 1.32.4
-    name: perf-usw3ptest-svc
+    name: swft-lnstest-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -434,7 +436,7 @@ svc:
     san: ""
   nsp:
     accessMode: Learning
-    name: nsp-usw3ptest-svc
+    name: nsp-lnstest-svc
   prometheus:
     namespace: prometheus
     namespaceLabel: ""
@@ -457,7 +459,7 @@ svc:
       replicas: 2
       shards: 1
       version: ""
-  rg: hcp-underlay-perf-usw3ptest-svc
+  rg: hcp-underlay-swft-lnstest-svc
   subscription:
     afecFlags:
     - Microsoft.Network/AllowBringYourOwnPublicIpAddress
@@ -465,6 +467,6 @@ svc:
     - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - perf - svc - westus3
+    displayName: ARO HCP - swft - svc - uksouth
     key: ARO Hosted Control Planes (EA Subscription 1)
 tenantId: ""
