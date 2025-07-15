@@ -339,7 +339,7 @@ msiRp:
   dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
-    keyVaultName: empty-sentinel
+    keyVaultName: ""
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor
