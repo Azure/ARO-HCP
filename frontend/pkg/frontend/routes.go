@@ -30,6 +30,7 @@ const (
 	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
 	WildcardLocation          = "{" + PathSegmentLocation + "}"
 	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
+	WildcardExternalAuthName  = "{" + PathSegmentExternalAuthName + "}"
 	WildcardOperationID       = "{" + PathSegmentOperationID + "}"
 	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
 	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
@@ -41,6 +42,7 @@ const (
 	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
 	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
 	PatternVersions          = api.ClusterVersionTypeName + "/" + WildcardResourceName
+	PatternExternalAuth      = api.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
 	PatternDeployments       = "deployments/" + WildcardDeploymentName
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
 	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
@@ -148,6 +150,20 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+
+	// External Auth
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+	mux.Handle(
+		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
+		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
+	mux.Handle(
+		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
+		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
+	mux.Handle(
+		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 
 	// Operation endpoints
