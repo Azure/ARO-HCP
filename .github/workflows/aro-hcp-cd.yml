@@ -9,6 +9,10 @@ env:
   PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
 on:
   workflow_dispatch:
+    inputs:
+      push:
+        type: boolean
+        description: Enable push to registry for services built in this workflow
   pull_request:
     branches:
     - main
@@ -98,7 +102,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/services-ci.yml
     with:
-      push: ${{ github.event.pull_request.merged == true }}
+      push: ${{ inputs.push || github.event.pull_request.merged == true }}
   deploy_dev_environment_infra:
     name: 'Deploy integrated DEV infrastructure'
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
