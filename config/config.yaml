@@ -26,6 +26,8 @@ defaults:
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
+  administration:
+    readerGroupIds: []
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty

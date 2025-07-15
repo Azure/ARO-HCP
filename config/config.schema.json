@@ -1679,10 +1679,26 @@
         "name",
         "id"
       ]
+    },
+    "administration": {
+      "type": "object",
+      "properties": {
+        "readerGroupIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "readerGroupIds"
+      ]
     }
   },
   "additionalProperties": false,
   "required": [
+    "administration",
     "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
