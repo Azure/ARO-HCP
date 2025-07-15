@@ -3,6 +3,29 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "rfc1123String": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "description": "A valid RFC1123 DNS label. Must start and end with a lowercase letter or number, and can contain hyphens in between."
+    },
+    "k8sServiceAccount": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/rfc1123String"
+        },
+        "serviceAccountName": {
+          "$ref": "#/definitions/rfc1123String"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "serviceAccountName"
+      ]
+    },
     "postgresName": {
       "type": "string",
       "minLength": 3,
@@ -587,20 +610,7 @@
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
         "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
+          "$ref": "#/definitions/k8sServiceAccount"
         },
         "postgres": {
           "$ref": "#/definitions/postgres"
@@ -1035,20 +1045,7 @@
           "description": "The name of the MSI that will be used by the refresher"
         },
         "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
+          "$ref": "#/definitions/k8sServiceAccount"
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -1271,20 +1268,7 @@
               "$ref": "#/definitions/tracing"
             },
             "k8s": {
-              "type": "object",
-              "properties": {
-                "namespace": {
-                  "type": "string"
-                },
-                "serviceAccountName": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "namespace",
-                "serviceAccountName"
-              ]
+              "$ref": "#/definitions/k8sServiceAccount"
             }
           },
           "additionalProperties": false,
