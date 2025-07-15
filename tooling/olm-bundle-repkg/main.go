@@ -18,46 +18,64 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/mcerepkg/internal/customize"
-	"github.com/Azure/ARO-HCP/tooling/mcerepkg/internal/olm"
+	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/customize"
+	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/olm"
+	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/rukpak/convert"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	yaml "sigs.k8s.io/yaml"
 )
 
 var (
 	cmd = &cobra.Command{
-		Use:   "mce-repkg",
-		Short: "mce-repkg",
-		Long:  "mce-repkg",
+		Use:   "olm-bundle-repkg",
+		Short: "olm-bundle-repkg",
+		Long:  "olm-bundle-repkg",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return buildChart(
-				outputDir, mceBundle, sourceLink, scaffoldDir,
+				outputDir, olmBundle, sourceLink, scaffoldDir,
+				configFile, chartName, chartDescription,
 			)
 		},
 	}
-	mceBundle   string
-	outputDir   string
-	scaffoldDir string
-	sourceLink  string
+	olmBundle        string
+	outputDir        string
+	scaffoldDir      string
+	sourceLink       string
+	configFile       string
+	chartName        string
+	chartDescription string
 )
 
 func main() {
-	cmd.Flags().StringVarP(&mceBundle, "mce-bundle", "b", "", "MCE OLM bundle image tgz")
+	// Original flags
+	cmd.Flags().StringVarP(&olmBundle, "olm-bundle", "b", "", "OLM bundle image tgz or manifests directory")
 	cmd.Flags().StringVarP(&scaffoldDir, "scaffold-dir", "s", "", "Directory containing additional templates to be added to the generated Helm Chart")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Chart")
 	cmd.Flags().StringVarP(&sourceLink, "source-link", "l", "", "Link to the Bundle image that is repackaged")
-	err := cmd.MarkFlagRequired("mce-bundle")
+
+	// Configuration flags
+	cmd.Flags().StringVarP(&configFile, "config", "c", "", "Path to configuration file (YAML)")
+	cmd.Flags().StringVar(&chartName, "chart-name", "", "Override chart name")
+	cmd.Flags().StringVar(&chartDescription, "chart-description", "", "Override chart description")
+
+	err := cmd.MarkFlagRequired("olm-bundle")
 	if err != nil {
 		log.Fatalf("failed to mark flag as required: %v", err)
 	}
 	err = cmd.MarkFlagRequired("output-dir")
+	if err != nil {
+		log.Fatalf("failed to mark flag as required: %v", err)
+	}
+	err = cmd.MarkFlagRequired("config")
 	if err != nil {
 		log.Fatalf("failed to mark flag as required: %v", err)
 	}
@@ -68,21 +86,58 @@ func main() {
 	}
 }
 
-func buildChart(outputDir, mceOlmBundle, sourceLink, scaffoldDir string) error {
+func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chartName, chartDescription string) error {
 	ctx := context.Background()
 
-	// load OLM bundle manifests
-	img, err := crane.Load(mceOlmBundle)
+	// Load bundle configuration
+	config, err := customize.LoadFromFile(configFile)
 	if err != nil {
-		return fmt.Errorf("failed to load OLM bundle image: %v", err)
+		return fmt.Errorf("failed to load configuration: %v", err)
 	}
-	olmManifests, reg, err := olm.ExtractOLMBundleImage(ctx, img)
+
+	// Apply CLI overrides
+	if chartName != "" {
+		config.ChartName = chartName
+	}
+	if chartDescription != "" {
+		config.ChartDescription = chartDescription
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	// Detect input type and load OLM bundle manifests
+	var olmManifests []unstructured.Unstructured
+	var reg convert.RegistryV1
+
+	// Check if olmBundle is a file or directory
+	fileInfo, err := os.Stat(olmBundle)
 	if err != nil {
-		return fmt.Errorf("failed to extract OLM bundle image: %v", err)
+		return fmt.Errorf("failed to access OLM bundle input: %v", err)
+	}
+
+	if fileInfo.IsDir() {
+		// Load manifests from directory
+		olmManifests, reg, err = olm.ExtractOLMManifestsDirectory(ctx, olmBundle)
+		if err != nil {
+			return fmt.Errorf("failed to extract OLM manifests from directory: %v", err)
+		}
+	} else {
+		// Load manifests from bundle image
+		img, err := crane.Load(olmBundle)
+		if err != nil {
+			return fmt.Errorf("failed to load OLM bundle image: %v", err)
+		}
+		olmManifests, reg, err = olm.ExtractOLMBundleImage(ctx, img)
+		if err != nil {
+			return fmt.Errorf("failed to extract OLM bundle image: %v", err)
+		}
 	}
 
 	// sanity check manifests
-	err = customize.SanityCheck(olmManifests)
+	err = customize.SanityCheck(olmManifests, config)
 	if err != nil {
 		return fmt.Errorf("failed sanity checks on manifests: %v", err)
 	}
@@ -94,17 +149,17 @@ func buildChart(outputDir, mceOlmBundle, sourceLink, scaffoldDir string) error {
 	}
 
 	// customize manifests
-	customizedManifests, values, err := customize.CustomizeManifests(append(olmManifests, scaffoldManifests...))
+	customizedManifests, values, err := customize.CustomizeManifests(append(olmManifests, scaffoldManifests...), config)
 	if err != nil {
 		return fmt.Errorf("failed to customize manifests: %v", err)
 	}
 
 	// build chart
-	mceChart := &chart.Chart{
+	operatorChart := &chart.Chart{
 		Metadata: &chart.Metadata{
 			APIVersion:  "v2",
-			Name:        "multicluster-engine",
-			Description: "A Helm chart for multicluster-engine",
+			Name:        config.ChartName,
+			Description: config.ChartDescription,
 			Version:     reg.CSV.Spec.Version.String(),
 			AppVersion:  reg.CSV.Spec.Version.String(),
 			Type:        "application",
@@ -142,10 +197,10 @@ func buildChart(outputDir, mceOlmBundle, sourceLink, scaffoldDir string) error {
 			Data: yamlData,
 		})
 	}
-	mceChart.Templates = chartFiles
+	operatorChart.Templates = chartFiles
 
 	// store chart
-	err = chartutil.SaveDir(mceChart, outputDir)
+	err = chartutil.SaveDir(operatorChart, outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to save chart to directory: %v", err)
 	}

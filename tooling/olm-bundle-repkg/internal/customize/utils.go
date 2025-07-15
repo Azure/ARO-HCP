@@ -68,18 +68,38 @@ func makeNestedMap(flatMap map[string]string) map[string]interface{} {
 }
 
 var (
-	deploymentGVK             = appsv1.SchemeGroupVersion.WithKind("Deployment")
-	roleBindingGVK            = rbacv1.SchemeGroupVersion.WithKind("RoleBinding")
-	clusterRoleBindingGVK     = rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding")
-	mceOperatorDeploymentName = "multicluster-engine-operator"
+	deploymentGVK         = appsv1.SchemeGroupVersion.WithKind("Deployment")
+	roleBindingGVK        = rbacv1.SchemeGroupVersion.WithKind("RoleBinding")
+	clusterRoleBindingGVK = rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding")
 )
 
 func isDeployment(obj unstructured.Unstructured) bool {
 	return obj.GroupVersionKind() == deploymentGVK
 }
 
-func isOperatorDeployment(obj unstructured.Unstructured) bool {
-	return isDeployment(obj) && obj.GetName() == mceOperatorDeploymentName
+func isOperatorDeployment(obj unstructured.Unstructured, config *BundleConfig) bool {
+	if !isDeployment(obj) {
+		return false
+	}
+
+	// Check by explicit names
+	for _, name := range config.OperatorDeploymentNames {
+		if strings.Contains(obj.GetName(), name) {
+			return true
+		}
+	}
+
+	// Check by label selectors
+	labels := obj.GetLabels()
+	if labels != nil {
+		for key, value := range config.OperatorDeploymentSelector {
+			if labels[key] == value {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func isRoleBinding(obj unstructured.Unstructured) bool {

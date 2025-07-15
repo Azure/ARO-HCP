@@ -137,36 +137,24 @@ func buildDeployment(name, image string, envs []v1.EnvVar) *appsv1.Deployment {
 	}
 }
 
-func buildMulticlusterEngineDeployment() *appsv1.Deployment {
-	return buildDeployment(
-		mceOperatorDeploymentName, "registry.io/test-image:abcdef",
-		[]v1.EnvVar{
-			{
-				Name:  fmt.Sprintf("%s1", operandImageEnvVarPrefix),
-				Value: "registry.io/operand-image-1:abcdef",
-			},
-			{
-				Name:  fmt.Sprintf("%s2", operandImageEnvVarPrefix),
-				Value: "registry.io/operand-image-2:abcdef",
-			},
-			{
-				Name:  "some-other-env",
-				Value: "value",
-			},
-		},
-	)
-}
-
 func TestParameterizeOperandsImageRegistry(t *testing.T) {
-	deployment := buildMulticlusterEngineDeployment()
+	deployment := buildDeployment("controller-manager", "image", []v1.EnvVar{
+		{Name: "OPERAND_IMAGE_1", Value: "registry.io/operand-image-1:abcdef"},
+		{Name: "OPERAND_IMAGE_2", Value: "registry.io/operand-image-2:abcdef"},
+		{Name: "some-other-env", Value: "value"},
+	})
 	obj, err := convertToUnstructured(deployment)
 	assert.Nil(t, err)
+	config := &BundleConfig{
+		OperatorDeploymentNames: []string{"controller-manager"},
+		OperandImageEnvPrefixes: []string{"OPERAND_IMAGE_"},
+		ImageRegistryParam:      "imageRegistry",
+	}
 
-	modifiedObj, params, err := parameterizeOperandsImageRegistries(obj)
+	modifiedObj, params, err := createParameterizeOperandsImageRegistries(config)(obj)
 	assert.Nil(t, err)
 	assert.NotNil(t, params)
-	_, imageRegistryParamExists := params[imageRegistryParamName]
-	assert.True(t, imageRegistryParamExists)
+	assert.True(t, func() bool { _, ok := params[config.ImageRegistryParam]; return ok }())
 
 	modifiedDeployment := &appsv1.Deployment{}
 	err = convertFromUnstructured(modifiedObj, modifiedDeployment)
@@ -175,11 +163,11 @@ func TestParameterizeOperandsImageRegistry(t *testing.T) {
 	// verify all operand env vars have been modified
 	expectedEnvVars := []v1.EnvVar{
 		{
-			Name:  fmt.Sprintf("%s1", operandImageEnvVarPrefix),
+			Name:  "OPERAND_IMAGE_1",
 			Value: "{{ .Values.imageRegistry }}/operand-image-1:abcdef",
 		},
 		{
-			Name:  fmt.Sprintf("%s2", operandImageEnvVarPrefix),
+			Name:  "OPERAND_IMAGE_2",
 			Value: "{{ .Values.imageRegistry }}/operand-image-2:abcdef",
 		},
 		{
@@ -203,16 +191,18 @@ func TestParameterizeOperandsImageRegistry(t *testing.T) {
 	}
 }
 
-func TestParameterizeDeploymentImage(t *testing.T) {
+func TestParameterizeDeployment(t *testing.T) {
 	deployment := buildDeployment("test-deployment", "registry.io/test-image:abcdef", nil)
 	obj, err := convertToUnstructured(deployment)
 	assert.Nil(t, err)
+	config := &BundleConfig{
+		ImageRegistryParam: "imageRegistry",
+	}
 
-	modifiedObj, params, err := parameterizeDeployment(obj)
+	modifiedObj, params, err := createParameterizeDeployment(config)(obj)
 	assert.Nil(t, err)
 	assert.NotNil(t, params)
-	_, imageRegistryParamExists := params[imageRegistryParamName]
-	assert.True(t, imageRegistryParamExists)
+	assert.True(t, func() bool { _, ok := params[config.ImageRegistryParam]; return ok }())
 
 	modifiedDeployment := &appsv1.Deployment{}
 	err = convertFromUnstructured(modifiedObj, modifiedDeployment)
@@ -228,6 +218,7 @@ func TestAnnotationCleaner(t *testing.T) {
 	for _, testCase := range []struct {
 		name        string
 		annotations map[string]string
+		config      *BundleConfig
 		expected    map[string]string
 	}{
 		{
@@ -239,6 +230,11 @@ func TestAnnotationCleaner(t *testing.T) {
 				"alm-examples/some-annotation":         "value",
 				"some-other-annotation":                "value",
 			},
+			config: &BundleConfig{
+				AnnotationPrefixesToRemove: []string{
+					"openshift", "olm", "operatorframework", "alm-examples",
+				},
+			},
 			expected: map[string]string{
 				"some-other-annotation": "value",
 			},
@@ -248,13 +244,18 @@ func TestAnnotationCleaner(t *testing.T) {
 			annotations: map[string]string{
 				"openshift.io/some-annotation": "value",
 			},
+			config: &BundleConfig{
+				AnnotationPrefixesToRemove: []string{
+					"openshift", "olm", "operatorframework", "alm-examples",
+				},
+			},
 			expected: nil,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			obj := unstructured.Unstructured{}
 			obj.SetAnnotations(testCase.annotations)
-			modifiedObj, param, err := annotationCleaner(obj)
+			modifiedObj, param, err := createAnnotationCleaner(testCase.config)(obj)
 			assert.Nil(t, err)
 			assert.Nil(t, param)
 			assert.Equal(t, testCase.expected, modifiedObj.GetAnnotations())
