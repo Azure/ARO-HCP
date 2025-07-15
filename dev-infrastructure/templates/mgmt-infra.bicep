@@ -151,13 +151,9 @@ module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourc
   name: 'cs-msi-kv-access'
   params: {
     managedIdentityResourceId: clusterServiceMIResourceId
-    cxKeyVaultName: cxKeyVaultName
-    msiKeyVaultName: msiKeyVaultName
+    cxKeyVaultName: cxKeyVault.outputs.kvName
+    msiKeyVaultName: msiKeyVault.outputs.kvName
   }
-  dependsOn: [
-    cxKeyVault
-    msiKeyVault
-  ]
 }
 
 //
@@ -169,10 +165,6 @@ module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.is
   params: {
     managedIdentityResourceId: msiRefresherMIResourceId
     cxKeyVaultName: ''
-    msiKeyVaultName: msiKeyVaultName
+    msiKeyVaultName: msiKeyVault.outputs.kvName
   }
-  dependsOn: [
-    cxKeyVault
-    msiKeyVault
-  ]
 }
