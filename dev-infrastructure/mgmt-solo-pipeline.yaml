@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra.Solo
 rolloutName: Management Cluster Rollout
 resourceGroups:
 - name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+  subscription: '{{ .global.subscription.key  }}'
   steps:
   - name: global-output
     action: ARM
@@ -12,7 +12,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: region-output
     action: ARM
@@ -21,7 +21,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+  subscription: '{{ .mgmt.subscription.key  }}'
   steps:
   - name: mgmt-infra
     action: ARM

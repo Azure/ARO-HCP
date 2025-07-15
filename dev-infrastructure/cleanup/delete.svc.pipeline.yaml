@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
 rolloutName: Delete Service Resource Group
 resourceGroups:
 - name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: rg-ownership
     action: ARM

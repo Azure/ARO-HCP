@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.ACM
 rolloutName: ACM Rollout
 resourceGroups:
 - name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+  subscription: '{{ .mgmt.subscription.key  }}'
   steps:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name  }}'

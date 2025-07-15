@@ -162,7 +162,9 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   secretsToSyncDir: dev/arohcpdev-global
-  subscription: ARO Hosted Control Planes (EA Subscription 1)
+  subscription:
+    displayName: ARO HCP - ntly - Global
+    key: ARO Hosted Control Planes (EA Subscription 1)
 hypershift:
   additionalInstallArg: ""
   image:
@@ -301,7 +303,16 @@ mgmt:
       shards: 1
       version: v2.55.1-3
   rg: hcp-underlay-ntly-uksouth-mgmt-1
-  subscription: ARO HCP nightly management (EA Subscription)
+  subscription:
+    afecFlags:
+    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
+    - Microsoft.Compute/EncryptionAtHost
+    - Microsoft.ContainerService/IstioNativeSidecarModePreview
+    certificateDomains:
+    - '*.hcp.osadev.cloud'
+    - '*.hcpsvc.osadev.cloud'
+    displayName: ARO HCP - ntly - svc - uksouth
+    key: ARO HCP nightly management (EA Subscription)
 mgmtKeyVault:
   name: ah-ntly-mg-ln-1
   private: false
@@ -444,5 +455,13 @@ svc:
       shards: 1
       version: ""
   rg: hcp-underlay-ntly-uksouth-svc
-  subscription: ARO HCP nightly service (EA Subscription)
+  subscription:
+    afecFlags:
+    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
+    - Microsoft.Compute/EncryptionAtHost
+    - Microsoft.ContainerService/IstioNativeSidecarModePreview
+    certificateDomains:
+    - '*.hcpsvc.osadev.cloud'
+    displayName: ARO HCP - ntly - svc - uksouth
+    key: ARO HCP nightly service (EA Subscription)
 tenantId: ""

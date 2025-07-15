@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
 rolloutName: Delete Regional Resource Group
 resourceGroups:
 - name: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-rg-ownership
     action: ARM
@@ -11,7 +11,7 @@ resourceGroups:
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: Subscription
 - name: '{{ .regionRG }}'
-  subscription: '{{ .svc.subscription }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: rg-ownership
     action: ARM

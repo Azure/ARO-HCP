@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
 rolloutName: RP Backend Rollout
 resourceGroups:
 - name: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: mirror-image
     action: ImageMirror
@@ -22,7 +22,7 @@ resourceGroups:
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: deploy
     aksCluster: '{{ .svc.aks.name  }}'
