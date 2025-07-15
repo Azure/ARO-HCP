@@ -1373,6 +1373,47 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 	return featureMap
 }
 
+func (f *Frontend) GetVersionResource(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionName := request.PathValue(PathSegmentResourceName)
+
+	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	location := request.PathValue(PathSegmentLocation)
+	stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace + "/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + versionName
+
+	resourceID, err := azcorearm.ParseResourceID(stringResource)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	body, err := marshalCSVersion(*resourceID, version, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, _ = arm.WriteJSONResponse(writer, http.StatusOK, body)
+}
+
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
 	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
 	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
