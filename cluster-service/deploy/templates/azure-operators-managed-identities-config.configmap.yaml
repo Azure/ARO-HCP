@@ -7,7 +7,7 @@ data:
   azure-operators-managed-identities-config.yaml: |
     controlPlaneOperatorsIdentities:
       cluster-api-azure:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.clusterApiAzure.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -15,7 +15,7 @@ data:
         {{- end }}
         optional: false
       control-plane:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.controlPlane.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -23,7 +23,7 @@ data:
         {{- end }}
         optional: false
       cloud-controller-manager:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.cloudControllerManager.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -31,7 +31,7 @@ data:
         {{- end }}
         optional: false
       ingress:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.ingress.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -39,7 +39,7 @@ data:
         {{- end }}
         optional: false
       disk-csi-driver:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.diskCsiDriver.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -47,7 +47,7 @@ data:
         {{- end }}
         optional: false
       file-csi-driver:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.fileCsiDriver.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -55,7 +55,7 @@ data:
         {{- end }}
         optional: false
       image-registry:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.imageRegistry.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -63,7 +63,7 @@ data:
         {{- end }}
         optional: false
       cloud-network-config:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.cloudNetworkConfig.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -71,7 +71,7 @@ data:
         {{- end }}
         optional: false
       kms:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.kms.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -80,7 +80,7 @@ data:
         optional: true
     dataPlaneOperatorsIdentities:
       disk-csi-driver:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.diskCsiDriver.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -93,7 +93,7 @@ data:
             namespace: 'openshift-cluster-csi-drivers'
         optional: false
       image-registry:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.imageRegistry.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
@@ -106,7 +106,7 @@ data:
             namespace: 'openshift-image-registry'
         optional: false
       file-csi-driver:
-        minOpenShiftVersion: 4.18
+        minOpenShiftVersion: 4.19
         roleDefinitions:
         {{- range .Values.azureOperatorsMI.fileCsiDriver.roleDefinitions }}
           - resourceId: '/providers/Microsoft.Authorization/roleDefinitions/{{ .id }}'
