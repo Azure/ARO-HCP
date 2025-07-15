@@ -97,7 +97,7 @@ The execution context for any service deployment is a pipeline file, that brings
 ...
 resourceGroups:
 - name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription }}
+  subscription: {{ .svc.subscription.key }}
   aksCluster: {{ .svc.aks.name }}                       (1)
   steps:
   - name: deploy

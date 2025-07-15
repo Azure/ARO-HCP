@@ -405,6 +405,38 @@
         "databaseName",
         "zoneRedundantMode"
       ]
+    },
+    "subscriptionMetadata": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "airsRegisteredUserPrincipalId": {
+          "type": "string"
+        },
+        "certificateDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "afecFlags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(([A-Z][a-z]+)+.?)+/[A-Za-z]+"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "displayName"
+      ]
     }
   },
   "properties": {
@@ -966,7 +998,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "region": {
           "type": "string"
@@ -1290,7 +1322,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "jaeger": {
           "deploy": "boolean"
@@ -1558,7 +1590,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "nsp": {
           "$ref": "#/definitions/nsp"
@@ -1647,10 +1679,26 @@
         "name",
         "id"
       ]
+    },
+    "administration": {
+      "type": "object",
+      "properties": {
+        "readerGroupIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "readerGroupIds"
+      ]
     }
   },
   "additionalProperties": false,
   "required": [
+    "administration",
     "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",

@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backplane
 rolloutName: RP Backplane API Rollout
 resourceGroups:
 - name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: deploy
     aksCluster: '{{ .svc.aks.name  }}'

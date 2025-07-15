@@ -15,7 +15,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Region     (1)
 rolloutName: Region Rollout                      (2)
 resourceGroups:                                  (3)
 - name: {{ .global.rg }}                         (4)
-  subscription: {{ .global.subscription }}       (5)
+  subscription: {{ .global.subscription.key }}   (5)
   aksCluster: {{ .global.aksCluster }}           (6)
   steps: []                                      (7)
 ```

@@ -59,7 +59,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
 - name: {{ .regionRG }}                                        (1)
-  subscription: {{ .svc.subscription }}                        (2)
+  subscription: {{ .svc.subscription.key }}                        (2)
   steps:
   - name: region                                               (3)
     action: ARM                                                (4)
@@ -124,7 +124,7 @@ With this in place we can hook up both bicep templates in a pipeline file.
 ...
 resourceGroups:
 - name: {{ .global.rg }}                                         (3)
-  subscription: {{ .global.subscription }}
+  subscription: {{ .global.subscription.key }}
   steps:
   - name: global-output
     action: ARM
@@ -132,7 +132,7 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     outputOnly: true                                             (4)
 - name: {{ .regionRG }}                                          (5)
-  subscription: {{ .svc.subscription }}
+  subscription: {{ .svc.subscription.key }}
   steps:
   - name: region
     action: ARM
@@ -157,7 +157,7 @@ resourceGroups:
 > [!NOTE]
 > Why can't we pass in subscription and resourcegroup information to bicepparam files similar to how we do it in steps (3) and (4) as they are apparently part of our [configuration](configuration.md)?
 >
-> This might work in simple environments, where all subscriptions are known upfront, e.g. in [config.yaml](../config/config.yaml) `global.subscription` is a concrete value pointing to our RH DEV subscription. For more complex scenarios in MSFTs environments (see [sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml)), such subscription configuration does not hold actual subscription names or IDs, but symbolic subscription references that make sense for MSFTs deployment orchestration solution EV2. The real subscription IDs are only known during deployment time, when a Bicep template runs within an actual subscription.
+> This might work in simple environments, where all subscriptions are known upfront, e.g. in [config.yaml](../config/config.yaml) .global.subscription.key` is a concrete value pointing to our RH DEV subscription. For more complex scenarios in MSFTs environments (see [sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml)), such subscription configuration does not hold actual subscription names or IDs, but symbolic subscription references that make sense for MSFTs deployment orchestration solution EV2. The real subscription IDs are only known during deployment time, when a Bicep template runs within an actual subscription.
 
 ## Dry-runs
 

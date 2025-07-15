@@ -10,7 +10,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
 - name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: region-output
     action: ARM

@@ -18,7 +18,7 @@ $schema: config.schema.json
 # - {{ .ctx.environment }} length: 1-4 / starts with a character, may end with a digit
 # - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
 # - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
-# - {{ .ctx.stamp }} used for for uniqueness for MGMT stamps within a region / digits only
+# - {{ .ctx.stamp }} used for uniqueness for MGMT stamps within a region / digits only
 defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
@@ -26,11 +26,15 @@ defaults:
   region: "{{ .ctx.region  }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
+  administration:
+    readerGroupIds: []
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
     secretsToSyncDir: "none"
-    subscription: hcp-global
+    subscription:
+      key: hcp-global
+      displayName: "ARO HCP - {{ .ctx.environment }} - Global"
     rg: global-shared-resources
     globalMSIName: global-ev2-identity
     nsp:
@@ -148,7 +152,13 @@ defaults:
     sev4ActionGroupIDs: ""
   # SVC cluster specifics
   svc:
-    subscription: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
+    subscription:
+      key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
+      displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
+      afecFlags:
+      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
+      - Microsoft.Compute/EncryptionAtHost
+      - Microsoft.ContainerService/IstioNativeSidecarModePreview
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
@@ -215,7 +225,13 @@ defaults:
           digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
   # MGMT cluster specifics
   mgmt:
-    subscription: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
+    subscription:
+      key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
+      displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
+      afecFlags:
+      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
+      - Microsoft.Compute/EncryptionAtHost
+      - Microsoft.ContainerService/IstioNativeSidecarModePreview
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
@@ -452,7 +468,8 @@ clouds:
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
-        subscription: ARO Hosted Control Planes (EA Subscription 1)
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
         region: westus3
         globalMSIName: global-rollout-identity
         secretsToSyncDir: "dev/arohcpdev-global"
@@ -562,7 +579,10 @@ clouds:
         softDelete: true
       # disable soft delete on etcd KVs in DEV
       svc:
-        subscription: ARO Hosted Control Planes (EA Subscription 1)
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
+          certificateDomains:
+          - '*.hcpsvc.osadev.cloud'
         nsp:
           accessMode: 'Learning'
         istio:
@@ -584,7 +604,11 @@ clouds:
               digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
             shards: 1
       mgmt:
-        subscription: ARO Hosted Control Planes (EA Subscription 1)
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
+          certificateDomains:
+          - '*.hcp.osadev.cloud'
+          - '*.hcpsvc.osadev.cloud'
         aks:
           # MGMTM AKS nodepools - big enough for 2 HCPs
           systemAgentPool:
@@ -742,10 +766,12 @@ clouds:
               zoneRedundantMode: 'Disabled'
           # MC
           mgmt:
-            subscription: ARO HCP nightly management (EA Subscription)
+            subscription:
+              key: ARO HCP nightly management (EA Subscription)
             applyKubeletFixes: false
           svc:
-            subscription: ARO HCP nightly service (EA Subscription)
+            subscription:
+              key: ARO HCP nightly service (EA Subscription)
       pers:
         # this is the personal DEV environment
         defaults:

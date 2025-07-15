@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Management.Prometheus
 rolloutName: Management Cluster Prometheus Rollout
 resourceGroups:
 - name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+  subscription: '{{ .mgmt.subscription.key  }}'
   steps:
   - name: deploy
     action: Shell

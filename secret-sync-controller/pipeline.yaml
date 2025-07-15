@@ -3,7 +3,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
 rolloutName: Secret Sync Controller Rollout
 resourceGroups:
 - name: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: mirror-image
     action: ImageMirror
@@ -22,7 +22,7 @@ resourceGroups:
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+  subscription: '{{ .mgmt.subscription.key  }}'
   steps:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name  }}'

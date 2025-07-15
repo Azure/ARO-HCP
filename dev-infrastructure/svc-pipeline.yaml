@@ -18,7 +18,7 @@ rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+  subscription: '{{ .global.subscription.key  }}'
   steps:
   - name: global-output
     action: ARM
@@ -28,7 +28,7 @@ resourceGroups:
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
 - name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: region-output
     action: ARM
@@ -37,7 +37,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   # Create SVC KV
   - name: svc-infra

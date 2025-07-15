@@ -12,7 +12,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
 - name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+  subscription: '{{ .global.subscription.key  }}'
   steps:
   # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
   - name: global-output
@@ -22,7 +22,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+  subscription: '{{ .svc.subscription.key  }}'
   steps:
   - name: rpRegistration
     action: ResourceProviderRegistration
@@ -67,7 +67,7 @@ resourceGroups:
     dependsOn:
     - region
 - name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+  subscription: '{{ .global.subscription.key  }}'
   steps:
   - name: add-svc-grafana-datasource
     action: Shell
@@ -90,7 +90,7 @@ resourceGroups:
     shellIdentity:
       configRef: aroDevopsMsiId
 - name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+  subscription: '{{ .global.subscription.key  }}'
   steps:
   - name: add-hcp-grafana-datasource
     action: Shell
