@@ -4,14 +4,6 @@ rolloutName: Cluster Service Rollout
 resourceGroups:
 - name: '{{ .global.rg  }}'
   subscription: '{{ .global.subscription.key  }}'
-  subscriptionProvisioning:
-    displayName:
-      configRef: svc.subscription.displayName
-    airsRegisteredUserPrincipalId:
-      configRef: svc.subscription.airsRegisteredUserPrincipalId
-    certificateDomains:
-      configRef: svc.subscription.certificateDomains
-    roleAssignment: bootstrap.bicepparam
   steps:
   - name: mirror-image
     action: ImageMirror
