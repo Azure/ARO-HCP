@@ -26,6 +26,7 @@ const (
 	PathSegmentDeploymentName    = "deploymentname"
 	PathSegmentLocation          = "location"
 	PathSegmentNodePoolName      = "nodepoolname"
+	PathSegmentExternalAuthName  = "externalauthname"
 	PathSegmentOperationID       = "operationid"
 	PathSegmentResourceGroupName = "resourcegroupname"
 	PathSegmentResourceName      = "resourcename"
