@@ -85,6 +85,9 @@ jobs:
     - name: 'Deploy Maestro'
       run: |
         make maestro.server.deploy_pipeline
+    - name: 'Deploy Observability/Tracing'
+      run: |
+        make observability.tracing.deploy_pipeline
       # - name: 'Deploy Backplane API'
       #  run: |
       #     make backplane-api.deploy_pipeline
@@ -139,3 +142,6 @@ jobs:
     - name: 'Deploy Secret Sync Controller'
       run: |
         make secret-sync-controller.deploy_pipeline
+    - name: 'Deploy Observability/Tracing'
+      run: |
+        make observability.tracing.deploy_pipeline
