@@ -28,6 +28,7 @@ const (
 	ProviderNamespaceDisplay        = "Azure Red Hat OpenShift"
 	ClusterResourceTypeName         = "hcpOpenShiftClusters"
 	NodePoolResourceTypeName        = "nodePools"
+	ExternalAuthResourceTypeName    = "externalAuths"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
