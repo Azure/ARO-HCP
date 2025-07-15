@@ -157,6 +157,15 @@ param csPostgresServerStorageSizeGB int
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
 
+@description('The name of the managed identity for the MSI Credentials Refresher')
+param msiRefresherMIName string
+
+@description('The namespace of the MSI Credentials Refresher managed identity')
+param msiRefresherNamespace string
+
+@description('The service account name of the MSI Credentials Refresher managed identity')
+param msiRefresherServiceAccountName string
+
 @description('Deploy ARO HCP Maestro Postgres if true')
 param deployMaestroPostgres bool = true
 
@@ -402,6 +411,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         uamiName: 'prometheus'
         namespace: 'prometheus'
         serviceAccountName: 'prometheus'
+      }
+      msi_credential_refresher_wi: {
+        uamiName: msiRefresherMIName
+        namespace: msiRefresherNamespace
+        serviceAccountName: msiRefresherServiceAccountName
       }
     })
     aksKeyVaultName: aksKeyVaultName
