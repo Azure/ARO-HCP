@@ -30,3 +30,15 @@ render:
 	rm -rf ./rendered
 	$(MAKE) validate UPDATE="--update"
 .PHONY: render
+
+rebase-and-materialize: render
+	@remote=$$(git remote -v | grep "git@github.com:Azure/ARO-HCP.git (fetch)" | tr -s ' ' | cut -f 1 | head -1); \
+	if [ -z "$$remote" ]; then \
+		echo "Error: No remote found for github.com/Azure/ARO-HCP"; \
+		echo "Available remotes:"; \
+		git remote -v; \
+		exit 1; \
+	fi; \
+	git fetch $$remote main:main && \
+	git rebase main
+.PHONY: rebase-and-materialize
