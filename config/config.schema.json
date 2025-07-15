@@ -1027,6 +1027,40 @@
         "dataPlaneAudienceResource"
       ]
     },
+    "msiCredentialsRefresher": {
+      "type": "object",
+      "properties": {
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the refresher"
+        },
+        "k8s": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "serviceAccountName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "serviceAccountName"
+          ]
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "managedIdentityName",
+        "k8s",
+        "image"
+      ]
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
@@ -1761,6 +1795,8 @@
     "region",
     "regionRG",
     "serviceKeyVault",
-    "svc"
+    "svc",
+    "msiRp",
+    "msiCredentialsRefresher"
   ]
 }

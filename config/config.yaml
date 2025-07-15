@@ -375,6 +375,16 @@ defaults:
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
+  # MSI Credentials Refresher
+  msiCredentialsRefresher:
+    managedIdentityName: msi-credential-refresher
+    k8s:
+      namespace: msi-credential-refresher
+      serviceAccountName: msi-credential-refresher
+    image:
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
+      digest: ""
   # Maestro
   maestro:
     server:
