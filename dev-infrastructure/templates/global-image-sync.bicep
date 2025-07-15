@@ -302,10 +302,10 @@ var ocpMirrorDefinitions = [
     major: '4.19'
     channels: [
       {
-        name: 'candidate-4.19'
+        name: 'stable-4.19'
         type: 'ocp'
         full: true
-        minVersion: '4.19.0-rc.2'
+        minVersion: '4.19.0'
       }
     ]
   }
