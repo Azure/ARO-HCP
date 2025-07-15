@@ -2,13 +2,11 @@
 # This configuration covers common patterns for most operators
 chartName: generic-operator
 chartDescription: A Helm chart for generic-operator
-
 # Operator deployment identification
 # Most operators have "operator" or "controller" in their deployment name
 operatorDeploymentNames:
-  - operator
-  - controller
-
+- operator
+- controller
 # Alternative: use label selectors for operator identification
 # operatorDeploymentSelector:
 #   app.kubernetes.io/component: controller
@@ -16,28 +14,24 @@ operatorDeploymentNames:
 # Image environment variable patterns
 # Many operators use these common prefixes
 operandImageEnvPrefixes:
-  - OPERAND_IMAGE_
-  - RELATED_IMAGE_
-  - IMAGE_
-
+- OPERAND_IMAGE_
+- RELATED_IMAGE_
+- IMAGE_
 # Image registry parameterization
 imageRegistryParam: imageRegistry
-
 # Validation requirements
 requiredEnvVarPrefixes:
-  - OPERAND_IMAGE_
-  - RELATED_IMAGE_
-
+- OPERAND_IMAGE_
+- RELATED_IMAGE_
 requiredResources:
-  - Deployment
-  - ServiceAccount
-
+- Deployment
+- ServiceAccount
 # Annotation cleanup patterns
 # Remove OLM and OpenShift specific annotations
 annotationPrefixesToRemove:
-  - openshift.io
-  - operatorframework.io
-  - olm
-  - alm-examples
-  - createdAt
-  - operators.coreos.com
+- openshift.io
+- operatorframework.io
+- olm
+- alm-examples
+- createdAt
+- operators.coreos.com
