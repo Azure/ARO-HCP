@@ -300,6 +300,8 @@ defaults:
       exporter: ""
   # Frontend
   frontend:
+    audit:
+      tcpAddress: ""
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
