@@ -87,10 +87,10 @@ type ClusterServiceClientSpec interface {
 	// GetVersion sends a GET request to fetch cluster version
 	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
 
-	// ListVersions prepares a GET request with the given search expression. Call Items() on
+	// ListVersions prepares a GET request. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
-	ListVersions(searchExpression string) VersionsListIterator
+	ListVersions() VersionsListIterator
 }
 
 type clusterServiceClient struct {
@@ -406,10 +406,7 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 	return version, nil
 }
 
-func (csc *clusterServiceClient) ListVersions(searchExpression string) VersionsListIterator {
+func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
-	if searchExpression != "" {
-		versionsListRequest.Search(searchExpression)
-	}
 	return VersionsListIterator{request: versionsListRequest}
 }

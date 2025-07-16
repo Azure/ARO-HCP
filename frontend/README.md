@@ -58,7 +58,13 @@ curl -X GET "localhost:8443/providers/Microsoft.RedHatOpenShift/operations?api-v
 List HcpOpenShiftVersions Resources by Location
 
 ```bash
-curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/locations/YOUR_LOCATION/providers/Microsoft.RedHatOpenShift/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions?api-version=2024-06-10-preview"
+```
+
+Get HcpOpenshiftVersion Resource
+
+```bash
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions/openshift-v4.19.0?api-version=2024-06-10-preview"
 ```
 
 List HcpOpenShiftClusterResource Resources by Subscription ID

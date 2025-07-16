@@ -225,7 +225,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 
 	logger := LoggerFromContext(ctx)
 
-	if strings.EqualFold(resourceID.ResourceType.Type, api.ClusterVersionTypeName) {
+	if strings.EqualFold(resourceID.ResourceType.String(), api.VersionResourceType.String()) {
 		versionName := resourceID.Name
 		version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
 		if err != nil {

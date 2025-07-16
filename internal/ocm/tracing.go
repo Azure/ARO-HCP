@@ -259,6 +259,6 @@ func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, vers
 	return csc.csc.GetVersion(ctx, versionName)
 }
 
-func (csc *clusterServiceClientWithTracing) ListVersions(searchExpression string) VersionsListIterator {
-	return csc.csc.ListVersions(searchExpression)
+func (csc *clusterServiceClientWithTracing) ListVersions() VersionsListIterator {
+	return csc.csc.ListVersions()
 }

@@ -38,6 +38,7 @@ var (
 	ClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
 	NodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	PreflightResourceType = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType   = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {

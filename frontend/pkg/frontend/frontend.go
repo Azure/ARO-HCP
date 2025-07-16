@@ -219,6 +219,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
 	resourceName := request.PathValue(PathSegmentResourceName)
 	resourceTypeName := path.Base(request.URL.Path)
+	location := request.PathValue(PathSegmentLocation)
 
 	// Even though the bulk of the list content comes from Cluster Service,
 	// we start by querying Cosmos DB because its continuation token meets
@@ -320,10 +321,17 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		err = csIterator.GetError()
 
 	case strings.ToLower(api.ClusterVersionTypeName):
-		csIterator := f.clusterServiceClient.ListVersions(query)
+		csIterator := f.clusterServiceClient.ListVersions()
 
 		for csVersion := range csIterator.Items(ctx) {
-			value, err := marshalCSVersion(*prefix, csVersion, versionedInterface)
+			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace + "/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + csVersion.ID()
+			resourceID, err := azcorearm.ParseResourceID(stringResource)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
