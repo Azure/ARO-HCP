@@ -38,25 +38,47 @@ func (t *testClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Sen
 }
 
 func TestMiddlewareAudit(t *testing.T) {
-	ctx := context.Background()
-	tc := testClient{messages: []msgs.Msg{}}
-
-	ctx = ContextWithLogger(ctx, slog.Default())
-	ctx = ContextWithAuditClient(ctx, &tc)
-
-	writer := httptest.NewRecorder()
-	request, err := http.NewRequest("GET", "", bytes.NewReader([]byte{}))
-	request.RemoteAddr = "10.1.2.3:18586"
-	require.NoError(t, err)
-	request = request.WithContext(ctx)
-
-	next := func(w http.ResponseWriter, r *http.Request) {
-		request = r // capture modified request
-		w.WriteHeader(http.StatusOK)
+	testCases := []struct {
+		name           string
+		statusCode     int
+		expectedResult msgs.OperationResult
+	}{
+		{
+			name:           "success",
+			statusCode:     http.StatusOK,
+			expectedResult: msgs.Success,
+		},
+		{
+			name:           "failure",
+			statusCode:     http.StatusBadRequest,
+			expectedResult: msgs.Failure,
+		},
 	}
 
-	MiddlewareAudit(writer, request, next)
-	assert.Equal(t, http.StatusOK, writer.Result().StatusCode)
-	assert.Len(t, tc.messages, 1)
-	assert.Equal(t, tc.messages[0].Record.CallerIpAddress.String(), "10.1.2.3")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			testClient := testClient{messages: []msgs.Msg{}}
+
+			ctx = ContextWithLogger(ctx, slog.Default())
+			ctx = ContextWithAuditClient(ctx, &testClient)
+
+			writer := httptest.NewRecorder()
+			request, err := http.NewRequest("GET", "", bytes.NewReader([]byte{}))
+			request.RemoteAddr = "10.1.2.3:18586"
+			require.NoError(t, err)
+			request = request.WithContext(ctx)
+
+			next := func(w http.ResponseWriter, r *http.Request) {
+				request = r // capture modified request
+				w.WriteHeader(tc.statusCode)
+			}
+
+			MiddlewareAudit(writer, request, next)
+			assert.Equal(t, tc.statusCode, writer.Result().StatusCode)
+			assert.Len(t, testClient.messages, 1)
+			assert.Equal(t, testClient.messages[0].Record.CallerIpAddress.String(), "10.1.2.3")
+			assert.Equal(t, testClient.messages[0].Record.OperationResult, tc.expectedResult)
+		})
+	}
 }
