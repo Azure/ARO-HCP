@@ -46,11 +46,16 @@ resourceGroups:
     parameters: configurations/svc-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: logAnalyticsWorkspaceId
       input:
         step: region-output
         name: logAnalyticsWorkspaceId
     dependsOn:
+    - global-output
     - region-output
   # Configure certificate issuers for the SVC KV
   - name: svc-oncert-private-kv-issuer
@@ -92,6 +97,10 @@ resourceGroups:
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: ocpAcrResourceId
       input:
         step: global-output
@@ -159,9 +168,12 @@ resourceGroups:
       configRef: svc.aks.name
     dependsOn:
     - svc
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # configure istio
+      input:
+        step: global-output
+        name: globalMSIId
+        # configure istio
   - name: istio-config
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -175,10 +187,13 @@ resourceGroups:
       configRef: svc.istio.versions
     dependsOn:
     - prometheus
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # - updates workload to use istio on version svc.istio.targetVersion
-      # - configures istio IP tag usage
+      input:
+        step: global-output
+        name: globalMSIId
+        # - updates workload to use istio on version svc.istio.targetVersion
+        # - configures istio IP tag usage
   - name: istio-upgrade
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -196,9 +211,12 @@ resourceGroups:
       configRef: regionRG
     dependsOn:
     - istio-config
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # Install ACRpull
+      input:
+        step: global-output
+        name: globalMSIId
+        # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -217,8 +235,11 @@ resourceGroups:
     dependsOn:
     - prometheus
     - svc
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
   - name: arobit
     aksCluster: '{{ .svc.aks.name  }}'
     action: Shell
@@ -244,5 +265,8 @@ resourceGroups:
       configRef: arobit.mdsd.enabled
     dependsOn:
     - svc
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

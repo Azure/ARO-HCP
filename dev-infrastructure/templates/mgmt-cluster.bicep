@@ -120,7 +120,7 @@ param msiKeyVaultName string
 param mgmtKeyVaultName string
 
 @description('MSI that will be used to run deploymentScripts')
-param aroDevopsMsiId string
+param globalMSIId string
 
 @description('The Azure resource ID of the Azure Monitor Workspace (stores prometheus metrics for services/aks level metrics)')
 param azureMonitoringWorkspaceId string
@@ -235,7 +235,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     userOsDiskSizeGB: aksUserOsDiskSizeGB
-    deploymentMsiId: aroDevopsMsiId
+    deploymentMsiId: globalMSIId
     enableSwiftV2Vnet: aksEnableSwiftVnet
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
   }
@@ -335,7 +335,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+    keyVaultOfficerManagedIdentityName: globalMSIId
     maestroCertificateDomain: effectiveMaestroCertDomain
     maestroCertificateIssuer: maestroCertIssuer
   }

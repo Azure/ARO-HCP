@@ -10,7 +10,7 @@ resourceGroups:
     action: Shell
     command: make deploy
     shellIdentity:
-      configRef: aroDevopsMsiId
+      configRef: globalMSIId
     variables:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
@@ -19,7 +19,7 @@ resourceGroups:
     action: Shell
     command: make deploy
     shellIdentity:
-      configRef: aroDevopsMsiId
+      configRef: globalMSIId
     dryRun:
       variables:
       - name: DRY_RUN

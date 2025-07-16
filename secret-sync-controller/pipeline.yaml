@@ -5,6 +5,12 @@ resourceGroups:
 - name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: mirror-image
     action: ImageMirror
     targetACR:
@@ -20,7 +26,11 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription.key  }}'
   steps:
@@ -34,6 +44,7 @@ resourceGroups:
         value: "true"
     dependsOn:
     - mirror-image
+    - global-output
     variables:
     - name: ACR_NAME
       configRef: acr.svc.name
@@ -44,4 +55,6 @@ resourceGroups:
     - name: PROVIDER_IMAGE
       configRef: secretSyncController.providerImage
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

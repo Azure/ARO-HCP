@@ -35,6 +35,10 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: ocpAcrResourceId
       input:
         step: global-output
@@ -87,8 +91,11 @@ resourceGroups:
         name: azureMonitoringWorkspaceId
     dependsOn:
     - region-output
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
 - name: '{{ .global.rg  }}'
   subscription: '{{ .global.subscription.key  }}'
   steps:
@@ -110,5 +117,8 @@ resourceGroups:
         name: hcpAzureMonitoringWorkspaceId
     dependsOn:
     - add-svc-grafana-datasource
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
