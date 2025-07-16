@@ -102,6 +102,11 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
+func convertEtcdCSToRP(in *arohcpv1alpha1.Cluster) api.EtcdProfile {
+
+	return api.EtcdProfile{}
+}
+
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
@@ -152,6 +157,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
+			Etcd:                    convertEtcdCSToRP(cluster),
 		},
 	}
 
@@ -234,6 +240,8 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(azureNodePoolNodeDrainGracePeriodUnit).
 			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
+
+	// ETCD encryption
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
