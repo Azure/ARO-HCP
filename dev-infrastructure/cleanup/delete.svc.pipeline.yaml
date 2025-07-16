@@ -2,6 +2,15 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
 rolloutName: Delete Service Resource Group
 resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription.key  }}'
   steps:
@@ -21,6 +30,9 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: svc.rg
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
+    - global-output
     - rg-ownership

@@ -43,7 +43,7 @@ module svcAcr '../modules/acr/acr.bicep' = {
   }
 }
 
-module globalMsiSvcAcrAccess '../modules/acr/acr-permissions.bicep' = {
+module globalMSISvcAcrAccess '../modules/acr/acr-permissions.bicep' = {
   name: '${globalMSIName}-svc-acr-access'
   params: {
     principalId: globalMSI.properties.principalId

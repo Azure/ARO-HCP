@@ -2,6 +2,15 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Prometheus
 rolloutName: Management Cluster Prometheus Rollout
 resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .mgmt.rg  }}'
   subscription: '{{ .mgmt.subscription.key  }}'
   steps:
@@ -47,4 +56,8 @@ resourceGroups:
     - name: CS_ENVIRONMENT
       configRef: clustersService.environment
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output

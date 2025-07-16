@@ -222,7 +222,7 @@ param azureFrontDoorRegionalSubdomain string
 param azureFrontDoorKeyVaultName string
 
 @description('MSI that will be used to run the deploymentScript')
-param aroDevopsMsiId string
+param globalMSIId string
 
 @description('The parent SVC DNS zone name')
 param svcDNSZoneName string
@@ -407,7 +407,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
-    deploymentMsiId: aroDevopsMsiId
+    deploymentMsiId: globalMSIId
     enableSwiftV2Vnet: false
     enableSwiftV2Nodepools: false
   }
@@ -488,7 +488,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     mqttClientName: maestroServerMqttClientName
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
-    keyVaultOfficerManagedIdentityName: aroDevopsMsiId
+    keyVaultOfficerManagedIdentityName: globalMSIId
     maestroCertificateDomain: effectiveMaestroCertDomain
     maestroCertificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
@@ -504,7 +504,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     privateEndpointResourceGroup: resourceGroup().name
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
-    postgresAdministrationManagedIdentityId: aroDevopsMsiId
+    postgresAdministrationManagedIdentityId: globalMSIId
     maestroServerManagedIdentityPrincipalId: filter(
       svcCluster.outputs.userAssignedIdentities,
       id => id.uamiName == maestroMIName
@@ -574,7 +574,7 @@ module cs '../modules/cluster-service.bicep' = {
     regionalCXDNSZoneName: regionalCXDNSZoneName
     regionalResourceGroup: regionalResourceGroup
     ocpAcrResourceId: ocpAcrResourceId
-    postgresAdministrationManagedIdentityId: aroDevopsMsiId
+    postgresAdministrationManagedIdentityId: globalMSIId
   }
   dependsOn: [
     maestroServer
@@ -606,7 +606,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
       ? 'Standard_ZRS'
       : 'Standard_LRS'
     keyVaultName: azureFrontDoorKeyVaultName
-    aroDevopsMsiId: aroDevopsMsiId
+    globalMSIId: globalMSIId
     deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
   }
@@ -648,7 +648,7 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${frontendDnsFQDN}'
     certName: frontendIngressCertName
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMSIId
     dnsNames: [
       frontendDnsFQDN
     ]
@@ -691,7 +691,7 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
     keyVaultName: serviceKeyVaultName
     subjectName: 'CN=${fpaCertificateSNI}'
     certName: fpaCertificateName
-    keyVaultManagedIdentityId: aroDevopsMsiId
+    keyVaultManagedIdentityId: globalMSIId
     dnsNames: [
       fpaCertificateSNI
     ]

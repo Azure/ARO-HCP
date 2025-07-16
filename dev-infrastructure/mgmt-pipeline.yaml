@@ -59,7 +59,12 @@ resourceGroups:
       input:
         step: region-output
         name: logAnalyticsWorkspaceId
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
+    - global-output
     - region-output
     - svc-output
     - rpRegistration
@@ -127,6 +132,10 @@ resourceGroups:
       input:
         step: global-output
         name: svcAcrResourceId
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: azureMonitoringWorkspaceId
       input:
         step: region-output
@@ -206,8 +215,10 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # Install ACRpull
+      input:
+        step: global-output
+        name: globalMSIId
+        # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
@@ -226,8 +237,10 @@ resourceGroups:
     dependsOn:
     - prometheus
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # Install cluster patches
+      input:
+        step: global-output
+        name: globalMSIId
+        # Install cluster patches
   - name: mgmt-fixes
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
@@ -242,7 +255,9 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
   - name: arobit
     aksCluster: '{{ .mgmt.aks.name  }}'
     action: Shell
@@ -269,4 +284,6 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

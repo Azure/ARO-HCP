@@ -452,9 +452,6 @@
     }
   },
   "properties": {
-    "aroDevopsMsiId": {
-      "type": "string"
-    },
     "tenantId": {
       "type": "string"
     },
@@ -1714,7 +1711,6 @@
   "additionalProperties": false,
   "required": [
     "administration",
-    "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

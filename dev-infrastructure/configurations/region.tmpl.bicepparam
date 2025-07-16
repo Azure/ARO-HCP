@@ -20,7 +20,7 @@ param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}
 param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
 // MI for resource access during pipeline runs
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMSIId = '__globalMSIId__'
 
 // Log Analytics
 param enableLogAnalytics = {{ .logs.loganalytics.enable }}

@@ -19,7 +19,7 @@ defaults:
   availabilityZoneCount: '{{ .ev2.availabilityZoneCount  }}'
   provider: Self
   enableOptionalStep: false
-  aroDevopsMsiId: whatever
+  globalMSIId: whatever
 clouds:
   fairfax:
     defaults:

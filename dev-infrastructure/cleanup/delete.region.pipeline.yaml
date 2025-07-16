@@ -10,6 +10,12 @@ resourceGroups:
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: Subscription
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
@@ -29,7 +35,10 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: regionRG
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
+    - global-output
     - global-rg-ownership
     - rg-ownership

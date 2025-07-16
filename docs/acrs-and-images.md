@@ -66,7 +66,9 @@ clustersService:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+          step: global-output
+          name: globalMSIId
 ```
 
 ## Building ARO HCP Images

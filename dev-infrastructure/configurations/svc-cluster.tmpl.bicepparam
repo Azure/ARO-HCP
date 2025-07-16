@@ -80,7 +80,7 @@ param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns
 param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
 param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
 
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMSIId = '__globalMSIId__'
 
 param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'

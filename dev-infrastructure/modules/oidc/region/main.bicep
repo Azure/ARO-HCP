@@ -13,7 +13,7 @@ param skuName string
 param keyVaultName string
 param deploymentScriptLocation string
 param storageAccountBlobPublicAccess bool
-param aroDevopsMsiId string
+param globalMSIId string
 param storageAccountAccessPrincipalId string
 
 var certificateName = 'afd-oic-${location}'
@@ -29,7 +29,7 @@ module storageAccount 'storage.bicep' = {
     location: location
     principalId: storageAccountAccessPrincipalId
     skuName: skuName
-    deploymentMsiId: aroDevopsMsiId
+    deploymentMsiId: globalMSIId
     deploymentScriptLocation: deploymentScriptLocation
     allowBlobPublicAccess: storageAccountBlobPublicAccess
   }
