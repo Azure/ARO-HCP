@@ -146,6 +146,12 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	logger := LoggerFromContext(ctx)
 
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		return "", arm.NewInternalServerError()
+	}
+
 	switch resourceDoc.InternalID.Kind() {
 	case arohcpv1alpha1.ClusterKind:
 		err = f.clusterServiceClient.DeleteCluster(ctx, resourceDoc.InternalID)
@@ -181,7 +187,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		return "", arm.NewInternalServerError()
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -196,7 +202,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		// Its purpose is to cause the backend to delete the resource
 		// document once resource deletion completes.
 
-		childOperationDoc := database.NewOperationDocument(operationRequest, childResourceDoc.ResourceID, childResourceDoc.InternalID)
+		childOperationDoc := database.NewOperationDocument(operationRequest, childResourceDoc.ResourceID, childResourceDoc.InternalID, correlationData)
 		childOperationID := transaction.CreateOperationDoc(childOperationDoc, nil)
 
 		var patchOperations database.ResourceDocumentPatchOperations

@@ -99,7 +99,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID)
+			operationDoc := database.NewOperationDocument(database.OperationRequestDelete, resourceID, internalID, nil)
 			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.operationStatus
@@ -261,7 +261,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 				newTimestamp:       func() time.Time { return time.Now().UTC() },
 			}
 
-			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID)
+			operationDoc := database.NewOperationDocument(database.OperationRequestCreate, resourceID, internalID, nil)
 			operationDoc.OperationID = operationID
 			operationDoc.NotificationURI = server.URL
 			operationDoc.Status = tt.currentOperationStatus
