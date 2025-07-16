@@ -440,6 +440,18 @@
     }
   },
   "properties": {
+    "audit": {
+      "type": "object",
+      "properties": {
+        "tcpAddress": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tcpAddress"
+      ]
+    },
     "aroDevopsMsiId": {
       "type": "string"
     },
@@ -1699,6 +1711,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "audit",
     "aroDevopsMsiId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
