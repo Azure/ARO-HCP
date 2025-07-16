@@ -1,0 +1,206 @@
+clouds:
+  public:
+    defaults:
+    environments:
+      int:
+        # this is the MSFT INT environment
+        defaults:
+          # Cluster Service
+          clustersService:
+            image:
+              digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+          # ACR Pull
+          acrPull:
+            image:
+              digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+          # Secret Sync Controller
+          secretSyncController:
+            image:
+              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+            providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+          # Backplane API
+          backplaneAPI:
+            image:
+              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+          # PKO
+          pko:
+            imagePackage:
+              digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+            imageManager:
+              digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+            remotePhaseManager:
+              digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+          # SVC cluster settings
+          svc:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # MC cluster settings
+          mgmt:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # RP Frontend
+          frontend:
+            image:
+              digest: sha256:e7e6dce5ccb9a5a469a30a4461c8e4d037aa1d4f9a5cfe22ad61ff07859692fa
+          # RP Backend
+          backend:
+            image:
+              digest: sha256:12a240a5f635dc58087196cc2febf516bb782602e4394f978d471f204dd961bc
+          # Hypershift
+          hypershift:
+            image:
+              digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+          # Maestro
+          maestro:
+            image:
+              digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+          # OCP image sync
+          imageSync:
+            ocMirror:
+              image:
+                digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+        outboundServiceTags: "FirstPartyUsage:/Unprivileged"
+      stg:
+        # this is the MSFT STAGE environment
+        defaults:
+          # Cluster Service
+          clustersService:
+            image:
+              digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+          # ACR Pull
+          acrPull:
+            image:
+              digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+          # Secret Sync Controller
+          secretSyncController:
+            image:
+              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+            providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+          # Backplane API
+          backplaneAPI:
+            image:
+              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+          # PKO
+          pko:
+            imagePackage:
+              digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+            imageManager:
+              digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+            remotePhaseManager:
+              digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+          # SVC cluster settings
+          svc:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # MC cluster settings
+          mgmt:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # RP Frontend
+          frontend:
+            image:
+              digest: sha256:e7e6dce5ccb9a5a469a30a4461c8e4d037aa1d4f9a5cfe22ad61ff07859692fa
+          # RP Backend
+          backend:
+            image:
+              digest: sha256:12a240a5f635dc58087196cc2febf516bb782602e4394f978d471f204dd961bc
+          # Hypershift
+          hypershift:
+            image:
+              digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+          # Maestro
+          maestro:
+            image:
+              digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+          # OCP image sync
+          imageSync:
+            ocMirror:
+              image:
+                digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+      prod:
+        # this is the MSFT PRODUCTION environment
+        defaults:
+          # Cluster Service
+          clustersService:
+            image:
+              digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+          # ACR Pull
+          acrPull:
+            image:
+              digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+          # Secret Sync Controller
+          secretSyncController:
+            image:
+              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+            providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+          # Backplane API
+          backplaneAPI:
+            image:
+              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+          # PKO
+          pko:
+            imagePackage:
+              digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+            imageManager:
+              digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+            remotePhaseManager:
+              digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+          # SVC cluster settings
+          svc:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # MC cluster settings
+          mgmt:
+            prometheus:
+              prometheusOperator:
+                image:
+                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              prometheusSpec:
+                image:
+                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          # RP Frontend
+          frontend:
+            image:
+              digest: sha256:e7e6dce5ccb9a5a469a30a4461c8e4d037aa1d4f9a5cfe22ad61ff07859692fa
+          # RP Backend
+          backend:
+            image:
+              digest: sha256:12a240a5f635dc58087196cc2febf516bb782602e4394f978d471f204dd961bc
+          # Hypershift
+          hypershift:
+            image:
+              digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+          # Maestro
+          maestro:
+            image:
+              digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+          # OCP image sync
+          imageSync:
+            ocMirror:
+              image:
+                digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
