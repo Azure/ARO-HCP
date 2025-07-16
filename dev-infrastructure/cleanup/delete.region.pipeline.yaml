@@ -24,6 +24,13 @@ resourceGroups:
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
   - name: delete-region
     action: Shell
     command: ./delete.sh
