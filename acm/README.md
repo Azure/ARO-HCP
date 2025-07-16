@@ -14,14 +14,18 @@ To update MCE, change the `MCE_OPERATOR_BUNDLE_IMAGE` variable in the Makefile. 
 
 ### multicluster-engine-config
 
-This helm chart configures MCE and installs the `policy` component on top of it. The subchart for `policy` is imported into this repo by running `make helm-chart`. It can be found [in the ACM upstream Github org](https://github.com/stolostron/mce-install-kube) and is maintained by the ACM team.
-
-Updating `policy` needs to be done with care for now, since the content of the helm chart repo is not tagged. We are working on it.
+This helm chart configures MCE and installs the `policy` component on top of it. The subchart for `policy` is updated by running `make policy-helm-chart`.
+The manifests can be found [in the ACM upstream Github org](https://github.com/stolostron/multiclusterhub-operator) and is maintained by the ACM team.
+The image digest of `policy` is from the `ACM_OPERATOR_BUNDLE_IMAGE` image, the released image is `registry.redhat.io/rhacm2/acm-operator-bundle:xxx`, and the pre-release image is `quay.io/acm-d/acm-operator-bundle:xxx`.
 
 ## Updating charts
 
 To update the `multicluster-engine` chart, lookup the desired install MCE OLM bundle on [https://catalog.redhat.com](https://catalog.redhat.com/software/containers/multicluster-engine/mce-operator-bundle/6160406290fb938ecf6009c6) and update the `MCE_OPERATOR_BUNDLE_IMAGE` variable in `Makefile`.
 
-To update the `multicluster-engine-config/policy` subchart, update the `POLICY_HELM_REPO_BRANCH` variable in the `Makefile` for the desired release.
+To update the `multicluster-engine-config/policy` subchart, change the `ACM_VERSION` and `ACM_OPERATOR_BUNDLE_IMAGE` variables in the `Makefile` for the desired release.
+
+The RHACM version and MCE version have strict alignment, so we need set the values of the `ACM_VERSION`, `ACM_OPERATOR_BUNDLE_IMAGE` and `MCE_OPERATOR_BUNDLE_IMAGE` variables carefully.
+For example, the `ACM_VERSION` is `2.13.1`, and the `ACM_OPERATOR_BUNDLE_IMAGE` should be `registry.redhat.io/rhacm2/acm-operator-bundle:v2.13.1-2`,
+the `MCE_OPERATOR_BUNDLE_IMAGE` should be `registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.8.1-12`
 
 Run `make helm-chart` to update all charts. Review and commit all changes to the `deploy/helm` directory.
