@@ -1390,7 +1390,7 @@ func (f *Frontend) GetVersionResource(writer http.ResponseWriter, request *http.
 	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
 		return
 	}
 
@@ -1401,11 +1401,7 @@ func (f *Frontend) GetVersionResource(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	location := request.PathValue(PathSegmentLocation)
-	stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace + "/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + versionName
-
-	resourceID, err := azcorearm.ParseResourceID(stringResource)
+	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
