@@ -14,7 +14,7 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
   location: resourceGroup().location
   properties: {
     version: {
-      id: 'openshift-v4.18.1'
+      id: 'openshift-v4.19.0'
       channelGroup: 'stable'
     }
     platform: {
