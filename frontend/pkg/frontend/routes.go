@@ -142,7 +142,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternClusterVersions),
-		postMuxMiddleware.HandlerFunc(f.GetVersionResource))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(
