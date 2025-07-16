@@ -31,8 +31,6 @@ arobit:
       digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
       registry: linuxgeneva-microsoft.azurecr.io
       repository: genevamdsd
-audit:
-  tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
 backend:
   image:
     digest: ""
@@ -111,6 +109,8 @@ firstPartyAppCertificate:
   name: firstPartyCert2
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
 frontend:
+  audit:
+    tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
   cert:
     issuer: Self
     name: frontend-cert-dev-usw3

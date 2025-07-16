@@ -82,6 +82,6 @@ resourceGroups:
     - name: TRACING_EXPORTER
       configRef: frontend.tracing.exporter
     - name: AUDIT_TCP_ADDRESS
-      configRef: audit.tcpAddress
+      configRef: frontend.audit.tcpAddress
     shellIdentity:
       configRef: aroDevopsMsiId
