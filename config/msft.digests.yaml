@@ -1,9 +1,0 @@
-clouds:
-  public:
-    environments:
-      int:
-        regions:
-          uksouth: b88ead680d7afc005b70af12b48e7e138571c655e24eb658772b31d787e10861
-      stg:
-        regions:
-          uksouth: 7ce649fce82ab4e65ecc7e8edff55736f315cd3169dc3df7ec2da35523791715
