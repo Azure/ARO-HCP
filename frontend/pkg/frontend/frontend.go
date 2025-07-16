@@ -430,6 +430,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
@@ -556,7 +563,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -708,6 +715,13 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
@@ -765,7 +779,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -796,6 +810,13 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// Parent resource is the hcpOpenShiftCluster.
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -859,7 +880,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)

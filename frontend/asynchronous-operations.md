@@ -149,17 +149,19 @@ Asynchronous operation documents automatically expire after 7 days, by way of th
 The "payload" section of an asynchronous operation document includes all the information needed to respond to status requests from ARM on the endpoint returned through the `Azure-AsyncOperation` response header. The response body format for these status requests is described in the [Resource Provider Contract](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md#azure-asyncoperation-resource-format)<sup>(RPC)</sup>. The "payload" section does not follow the response body format exactly. Instead, it has the following fields:
 ```
 {
-    "tenantId":           <Azure tenant ID>                    (1)
-    "clientId":           <Azure client ID>                    (2)
-    "request":            "Create"|"Update"|"Delete"           (3)
-    "externalId":         <Azure resource ID>                  (4)
-    "internalId":         <OpenShift Cluster Manager API path> (5)
-    "operationId":        <operation status endpoint, if any>  (6)
-    "notificationUri":    <async operation callback URI>       (7)
-    "startTime":          <RFC 3339 timestamp>                 (8)
-    "lastTransitionTime": <RFC 3339 timestamp>                 (9)
-    "status":             <provisioning state>                 (10)
-    "error":              <OData error, if any>                (11)
+    "tenantId":             <Azure tenant ID>                    (1)
+    "clientId":             <Azure client ID>                    (2)
+    "request":              "Create"|"Update"|"Delete"           (3)
+    "externalId":           <Azure resource ID>                  (4)
+    "internalId":           <OpenShift Cluster Manager API path> (5)
+    "operationId":          <operation status endpoint, if any>  (6)
+    "clientRequestId":      <client request ID>                  (7)
+    "correlationRequestID": <correlation request ID>             (8)
+    "notificationUri":      <async operation callback URI>       (9)
+    "startTime":            <RFC 3339 timestamp>                 (10)
+    "lastTransitionTime":   <RFC 3339 timestamp>                 (11)
+    "status":               <provisioning state>                 (12)
+    "error":                <OData error, if any>                (13)
 }
 ```
 
@@ -179,25 +181,29 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 3. The `request` field captures the nature of the operation. Valid values are "Create", "Update", "Delete", "RequestCredential", and "RevokeCredentials".
 
-4. The `externalID` field is the same as the [`resourceID` field](#resource-document-resourceid-field) in hosted control plane cluster and node pool documents.
+4. The `externalId` field is the same as the [`resourceId` field](#resource-document-resourceid-field) in hosted control plane cluster and node pool documents.
 
-5. The `internalID` field is the same as the [`internalID` field](#resource-document-internalid-field) in hosted control plane cluster and node pool documents.
+5. The `internalId` field is the same as the [`internalId` field](#resource-document-internalid-field) in hosted control plane cluster and node pool documents.
 
 <a name="operation-document-operationid-field"></a>
 
-6. The `operationID` field is the status endpoint returned to ARM in the `Azure-AsyncOperation` response header.
+6. The `operationId` field is the status endpoint returned to ARM in the `Azure-AsyncOperation` response header.
 
    The field is only set for explicitly requested asynchronous operations. See "[Explicit vs Implicit Operations](#explicit-vs-implicit-operations)" below.
 
-7. The `notificationUri` field is for ARM's [Async Operation Callbacks](https://eng.ms/docs/products/arm/api_contracts/asyncoperationcallback) protocol. This is an opt-in ARM feature that ARO-HCP has not yet onboarded to as of this writing, but the API contract has been implemented nonetheless. The value is copied from the `Azure-AsyncNotificationUri` request header, if present.
+7. The `clientRequestId` field records the value of the `x-ms-client-request-id` request header, if present. The lead backend pod's log messages for this operation will include this value as a log attribute.
 
-8. The `startTime` field is an [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) formatted UTC timestamp marking the start of the operation.
+8. The `correlationRequestId` field records the value of the `x-ms-correlation-request-id` request header, if present. The lead backend pod's log messages for this operation will include this value as a log attribute.
 
-9. The `lastTransitionTime` field is an [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) formatted UTC timestamp marking the most recent change to the `status` field. When the operation status becomes terminal (`Succeeded`, `Failed`, or `Canceled`), the `lastTransitionTime` field effectively marks the end of the operation since there will be no further `status` changes.
+9. The `notificationUri` field is for ARM's [Async Operation Callbacks](https://eng.ms/docs/products/arm/api_contracts/asyncoperationcallback) protocol. This is an opt-in ARM feature that ARO-HCP has not yet onboarded to as of this writing, but the API contract has been implemented nonetheless. The value is copied from the `Azure-AsyncNotificationUri` request header, if present.
+
+10. The `startTime` field is an [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) formatted UTC timestamp marking the start of the operation.
+
+11. The `lastTransitionTime` field is an [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) formatted UTC timestamp marking the most recent change to the `status` field. When the operation status becomes terminal (`Succeeded`, `Failed`, or `Canceled`), the `lastTransitionTime` field effectively marks the end of the operation since there will be no further `status` changes.
 
 <a name="operation-document-status-field"></a>
 
-10. The `status` field indicates the current state of the operation.
+12. The `status` field indicates the current state of the operation.
 
     Valid values are divided into "non-terminal" and "terminal" states. A "non-terminal" state signals to ARM that the operation is still in progress, and a "terminal" state signals to ARM that the operation has completed. An operation in a "non-terminal" state can transition to another "non-terminal" state or to a "terminal" state. An operation in a "terminal" state cannot transition to any other state.
 
@@ -209,7 +215,7 @@ The "payload" section of an asynchronous operation document includes all the inf
 
 <a name="operation-document-error-field"></a>
 
-11. The `error` field contains the structured error section of the [operation resource format](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md#azure-asyncoperation-resource-format)<sup>(RPC)</sup>. This is set when the operation status becomes `Failed` or `Canceled`. See [Error Response Content](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/common-api-details.md#error-response-content)<sup>(RPC)</sup> for more details about the error structure.
+13. The `error` field contains the structured error section of the [operation resource format](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/async-api-reference.md#azure-asyncoperation-resource-format)<sup>(RPC)</sup>. This is set when the operation status becomes `Failed` or `Canceled`. See [Error Response Content](https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/common-api-details.md#error-response-content)<sup>(RPC)</sup> for more details about the error structure.
 
 #### Locks
 
@@ -521,7 +527,7 @@ sequenceDiagram
 
 2. The frontend pod then fetches the [resource document](#hosted-control-plane-clusters-and-node-pools) from Cosmos DB whose [resourceId field](#resource-document-resourceid-field) matches (case-insensitively) the URL path from the DELETE request. Now, a non-existent resource is as good as a deleted resource. So if Cosmos DB were to respond here with a "404 Not Found" status, then the frontend pod would respond to the ARM request with a "204 No Content" status, delete the lock document, and be done. But let's assume Cosmos DB returns the resource document.
 
-3. The frontend pod then issues a DELETE request to Cluster Service using the [internalID](#resource-document-internalid-field) field from the resource document. This single request will delete the actual hosted control plane cluster along with any node pools associated with the cluster. Cluster Service responds immediately with a "204 No Content" status, but the actual resource deletions happen asynchronously.
+3. The frontend pod then issues a DELETE request to Cluster Service using the [internalId](#resource-document-internalid-field) field from the resource document. This single request will delete the actual hosted control plane cluster along with any node pools associated with the cluster. Cluster Service responds immediately with a "204 No Content" status, but the actual resource deletions happen asynchronously.
 
    It's not that simple for the ARO-HCP resource provider. Because each node pool is its own individually tracked Azure resource, we must track the deletion progress of the cluster itself and each of its node pools as separate asynchronous operations.
 
