@@ -5,17 +5,24 @@ resourceGroups:
 - name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: global-rg-ownership
-    action: ARM
-    template: ../templates/rg-ownership.bicep
-    parameters: ../configurations/rg-ownership.tmpl.bicepparam
-    deploymentLevel: Subscription
   - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: global-rg-ownership
+    action: ARM
+    template: ../templates/rg-ownership.bicep
+    parameters: ../configurations/rg-ownership.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+      - name: globalMSIId
+        input:
+          step: global-output
+          name: globalMSIId
+    dependsOn:
+      - global-output
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
