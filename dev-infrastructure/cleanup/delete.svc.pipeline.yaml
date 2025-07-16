@@ -19,6 +19,13 @@ resourceGroups:
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: Subscription
+    variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
   - name: delete-svc
     action: Shell
     command: ./delete.sh
