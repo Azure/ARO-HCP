@@ -16,15 +16,19 @@ package e2e
 
 import (
 	"context"
+	"embed"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
+
+//go:embed test-artifacts
+var TestArtifactsFS embed.FS
 
 var _ = Describe("Customer", func() {
 	BeforeEach(func() {
@@ -36,20 +40,87 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Negative,
 		func(ctx context.Context) {
-			ic := framework.InvocationContext()
-			hcpClusterClient := ic.Get20240610ClientFactoryOrDie().NewHcpOpenShiftClustersClient()
-
-			clusterName := "non-existing-cluster"
-			customerRGName := "non-existing-group"
-			var (
-				clusterResource api.HcpOpenShiftCluster
-				clusterOptions  *api.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+			const (
+				customerNetworkSecurityGroupName = "customer-nsg-name"
+				customerVnetName                 = "customer-vnet-name"
+				customerVnetSubnetName           = "customer-vnet-subnet1"
+				customerClusterName              = "basic-hcp-cluster"
+				customerNodePoolName             = "np-1"
 			)
-			By("Sending put request to create HCPOpenshiftCluster")
-			_, err := hcpClusterClient.BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
-			Expect(err).ToNot(BeNil())
-			errMessage := "RESPONSE 500: 500 Internal Server Error"
-			Expect(err.Error()).To(ContainSubstring(errMessage))
+			ic := framework.InvocationContext()
+
+			By("creating a resource group")
+			resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
+			DeferCleanup(func(ctx SpecContext) {
+				err := cleanupResourceGroup(ctx)
+				Expect(err).NotTo(HaveOccurred())
+			}, NodeTimeout(45*time.Minute))
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a prereqs in the resource group")
+			infraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*resourceGroup.Name,
+				"infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
+				map[string]string{
+					"customerNsgName":        customerNetworkSecurityGroupName,
+					"customerVnetName":       customerVnetName,
+					"customerVnetSubnetName": customerVnetSubnetName,
+				},
+				30*time.Second,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the hcp cluster")
+			networkSecurityGroupID, err := framework.GetOutputValueString(infraDeploymentResult, "networkSecurityGroupId")
+			Expect(err).NotTo(HaveOccurred())
+			subnetID, err := framework.GetOutputValueString(infraDeploymentResult, "subnetId")
+			Expect(err).NotTo(HaveOccurred())
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
+				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*resourceGroup.Name,
+				"infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
+				map[string]string{
+					"networkSecurityGroupId":   networkSecurityGroupID,
+					"subnetId":                 subnetID,
+					"clusterName":              customerClusterName,
+					"managedResourceGroupName": managedResourceGroupName,
+				},
+				30*time.Second,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			// TODO list all HCP clusters in the resource group cleanup and remove them there.
+			DeferCleanup(func(ctx SpecContext) {
+				err := framework.DeleteHCPCluster(
+					ctx,
+					ic.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					*resourceGroup.Name,
+					customerClusterName,
+					30*time.Second,
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+			}, NodeTimeout(45*time.Minute))
+
+			By("creating the node pool")
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
+				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*resourceGroup.Name,
+				"infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
+				map[string]string{
+					"clusterName":  customerClusterName,
+					"nodePoolName": customerNodePoolName,
+				},
+				30*time.Second,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 		})
 })

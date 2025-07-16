@@ -1,6 +1,6 @@
 SHELL = /bin/bash
 
-build:
+build: update
 	go build github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests
 .PHONY: build
 
