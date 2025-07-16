@@ -1,8 +1,11 @@
 @description('Azure Automation Account Location')
 param location string = resourceGroup().location
 
+@description('Environment short name, defaults to <dev>')
+param environment string = 'dev'
+
 @description('Name of the Automation account to be created')
-param automationAccountName string = 'hcp-dev-automation'
+param automationAccountName string = format('hcp-{0}-automation', environment)
 
 @description('The start time for the nightly schedule')
 param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T06:00:00Z'
@@ -11,10 +14,10 @@ param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'),
 param ntlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
 module automationAccount '../modules/automation-account/account.bicep' = {
-  name: 'hcp-dev-automation'
+  name: format('hcp-{0}-automation', environment)
   params: {
     automationAccountName: automationAccountName
-    automationAccountManagedIdentity: 'hcp-dev-automation'
+    automationAccountManagedIdentity: format('hcp-{0}-automation', environment)
     location: location
     python3Packages: [
       {
@@ -64,7 +67,7 @@ module automationAccount '../modules/automation-account/account.bicep' = {
 }
 
 module permissions '../modules/automation-account/permissions.bicep' = {
-  name: 'hcp-dev-automation-permissions'
+  name: format('hcp-{0}-automation-permissions', environment)
   scope: subscription()
   params: {
     automationAccountManagedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
