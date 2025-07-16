@@ -51,6 +51,18 @@
         "name"
       ]
     },
+    "audit": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "tcpAddress": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tcpAddress"
+      ]
+    },
     "tracing": {
       "type": "object",
       "additionalProperties": false,
@@ -693,6 +705,9 @@
     "frontend": {
       "type": "object",
       "properties": {
+        "audit": {
+          "$ref": "#/definitions/audit"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },

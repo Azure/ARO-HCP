@@ -300,6 +300,8 @@ defaults:
       exporter: ""
   # Frontend
   frontend:
+    audit:
+      tcpAddress: ""
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
@@ -688,6 +690,8 @@ clouds:
                 exporter: "otlp"
           # Frontend
           frontend:
+            audit:
+              tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
@@ -804,6 +808,8 @@ clouds:
               exporter: "otlp"
           # Frontend
           frontend:
+            audit:
+              tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
