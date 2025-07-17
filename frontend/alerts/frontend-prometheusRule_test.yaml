@@ -89,10 +89,10 @@ tests:
               summary: 'High unavailability on the Frontend'
   # Test: FrontendHealthAvailability less than 300s
   - interval: 1s
-    input_series  :
+    input_series:
       - series: "frontend_health"
         values: "1x3350 0x299"  # 3350s up, 299s down
-    alert_rule_test :
+    alert_rule_test:
       - eval_time: 3600s
         alertname: FrontendHealthAvailability
         exp_alerts: []

@@ -45,4 +45,3 @@ spec:
         description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
         runbook_url: 'TBD'
         summary: 'High unavailability on the Frontend'
-        
