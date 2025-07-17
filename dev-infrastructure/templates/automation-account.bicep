@@ -5,7 +5,7 @@ param location string = resourceGroup().location
 param environment string = 'dev'
 
 @description('Name of the Automation account to be created')
-param automationAccountName string = format('hcp-{0}-automation', environment)
+param automationAccountName string = 'hcp-${environment}-automation'
 
 @description('The start time for the nightly schedule')
 param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T06:00:00Z'
@@ -14,10 +14,10 @@ param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'),
 param ntlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
 module automationAccount '../modules/automation-account/account.bicep' = {
-  name: format('hcp-{0}-automation', environment)
+  name: 'hcp-${environment}-automation'
   params: {
     automationAccountName: automationAccountName
-    automationAccountManagedIdentity: format('hcp-{0}-automation', environment)
+    automationAccountManagedIdentity: 'hcp-${environment}-automation'
     location: location
     python3Packages: [
       {
@@ -67,7 +67,7 @@ module automationAccount '../modules/automation-account/account.bicep' = {
 }
 
 module permissions '../modules/automation-account/permissions.bicep' = {
-  name: format('hcp-{0}-automation-permissions', environment)
+  name: 'hcp-${environment}-automation-permissions'
   scope: subscription()
   params: {
     automationAccountManagedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
