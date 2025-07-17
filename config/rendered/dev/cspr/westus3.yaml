@@ -256,7 +256,7 @@ mgmt:
       minCount: 1
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
-    kubernetesVersion: 1.32.4
+    kubernetesVersion: 1.32.5
     name: cspr-westus3-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
@@ -402,7 +402,7 @@ svc:
       minCount: 1
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
-    kubernetesVersion: 1.32.4
+    kubernetesVersion: 1.32.5
     name: cspr-westus3-svc-1
     networkDataplane: cilium
     networkPolicy: cilium
