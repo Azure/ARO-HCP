@@ -160,7 +160,6 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              # TODO: needs to be coordinated with MSFT to get the actual secret provider class name
               secretProviderClass: {{ include "arobit.name" . }}-forwarder-secretprovider
             {{- if .Values.forwarder.secretProvider.useNodePublishSecret }}
             nodePublishSecretRef:
