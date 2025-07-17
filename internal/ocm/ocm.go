@@ -398,7 +398,7 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
-	if !strings.Contains(versionName, api.OpenShiftVersionPrefix) {
+	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
 		versionName = api.OpenShiftVersionPrefix + versionName
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
