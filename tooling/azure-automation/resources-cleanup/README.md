@@ -4,6 +4,25 @@ The resources_cleanup.py Python script is intended to be used in [Azure Automati
 ## What does the script do?
 The flowchart folder contains a flowchart with details about what the script does. It basically iterates over all the resource groups of the subscription and deletes those that satisfy some conditions, skipping the resource groups that have a deny assignment rule.
 
+```mermaid
+---
+title: for each resource group in current subscription
+---
+flowchart LR
+    rg[Resource Group] --> persist{Contains a 'persist': 'true' tag?}
+    persist -->|Yes| skip[Skip deletion]
+    persist -->|No| managed{Is managed?}
+    managed -->|Yes| skip
+    managed -->|No| ts{Has a creation timestamp tag?}
+    ts -->|No| skip
+    ts -->|Yes| older{Is the creation date older than 2 days?}
+    older -->|No| skip
+    older -->|Yes| delete[Delete resource group]
+
+style skip fill:#5CE65C,color:#000
+style delete fill:#BB2528,color:#fff
+```
+
 ## Azure Automation
 We use the Azure Automation service which includes a range of tools to integrate different aspects of automation of tasks in Azure.
 
