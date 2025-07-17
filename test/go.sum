@@ -73,8 +73,8 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/onsi/gomega v1.36.2 h1:koNYke6TVk6ZmnyHrCXba/T/MoLBXFjeC1PtvYgw0A8=
 github.com/onsi/gomega v1.36.2/go.mod h1:DdwyADRjrc825LhMEkD76cHR5+pUnjhUN8GlHlRPHzY=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20250702172817-97309544869d h1:nlVcuw7cyXIYMtQn97y/CMq1yoovvLnc2AFqi15DgXA=
-github.com/openshift-eng/openshift-tests-extension v0.0.0-20250702172817-97309544869d/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20250711173707-dc2a20e5a5f8 h1:D+Qga9nujuIcrAjcAuKPukoUcVBl6ZDEbtgNLgKKlgY=
+github.com/openshift-eng/openshift-tests-extension v0.0.0-20250711173707-dc2a20e5a5f8/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54 h1:ehXndVZfIk/fo18YJCMJ+6b8HL8tzqjP7yWgchMnfCc=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54/go.mod h1:7Du3c42kxCUegi0IImZ1wUQzMBVecgIHjR1C+NkhLQo=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
