@@ -17,13 +17,6 @@ calculate_hash() {
     sha256sum "$file" | cut -d ' ' -f 1
 }
 
-# Function to store hash in a file
-store_hash() {
-    local hash="$1"
-    local output_file="$2"
-    echo "$hash" > "$output_file"
-}
-
 # Function to check if hash matches stored hash
 check_hash() {
     local file="$1"
@@ -42,15 +35,16 @@ convert_bicep_to_json() {
     local bicep_file="$1"
     local json_file="$2"
 
+    # check if the output is missing, if the output file has been modified, or if the input file has been modified
     if [ ! -f "${json_file}" ] || \
        ! check_hash "${json_file}" || \
        ! check_hash "${bicep_file}"; then
         az bicep build --file="${bicep_file}" --outfile="${json_file}"
 
         json_hash=$(calculate_hash "${json_file}")
-        store_hash "${json_hash}" "${json_file}.sha256"
+        echo "${json_hash}" > "${json_file}.sha256"
         bicep_hash=$(calculate_hash "${bicep_file}")
-        store_hash "${bicep_hash}" "${bicep_file}.sha256"
+        echo "${bicep_hash}" > "${bicep_file}.sha256"
     fi
 }
 
