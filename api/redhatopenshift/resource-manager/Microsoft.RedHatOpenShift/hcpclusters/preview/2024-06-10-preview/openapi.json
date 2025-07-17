@@ -1478,12 +1478,7 @@
           "type": "object",
           "description": "The identities assigned to this resource by the user.",
           "additionalProperties": {
-            "allOf": [
-              {
-                "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/UserAssignedIdentity"
-              }
-            ],
-            "type": "object",
+            "$ref": "../../../../../../common-types/resource-management/v6/managedidentity.json#/definitions/UserAssignedIdentity",
             "x-nullable": true
           }
         }
@@ -1491,6 +1486,7 @@
     },
     "Azure.ResourceManager.CommonTypes.TrackedResourceUpdate": {
       "type": "object",
+      "title": "Tracked Resource",
       "description": "The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags' and a 'location'",
       "properties": {
         "tags": {
@@ -2471,16 +2467,14 @@
           "description": "The role definitions required for the User-Assigned managed identities used\nby Control Plane operators on a cluster.",
           "items": {
             "$ref": "#/definitions/OperatorIdentityRoles"
-          },
-          "x-ms-identifiers": []
+          }
         },
         "dataPlaneOperators": {
           "type": "array",
           "description": "The role definitions required for the User-Assigned managed identities used\nby Data Plane operators on a cluster.",
           "items": {
             "$ref": "#/definitions/OperatorIdentityRoles"
-          },
-          "x-ms-identifiers": []
+          }
         }
       },
       "required": [
@@ -3007,8 +3001,7 @@
           "description": "The role definitions required to be assigned to the identity assumed by this operator",
           "items": {
             "$ref": "#/definitions/RoleDefinition"
-          },
-          "x-ms-identifiers": []
+          }
         }
       },
       "required": [
@@ -3271,7 +3264,7 @@
           {
             "type": "Microsoft.Authorization/roleDefinitions",
             "scopes": [
-              "tenant"
+              "Tenant"
             ]
           }
         ]
