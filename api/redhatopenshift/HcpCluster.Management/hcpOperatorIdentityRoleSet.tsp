@@ -72,7 +72,7 @@ scalar RoleDefinitionResourceId
   extends Azure.Core.armResourceIdentifier<[
     {
       type: "Microsoft.Authorization/roleDefinitions",
-      scopes: ["tenant"],
+      scopes: ["Tenant"],
     }
   ]>;
 
