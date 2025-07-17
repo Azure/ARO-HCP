@@ -1,0 +1,98 @@
+rule_files:
+  - frontend-prometheusRule.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Test: FrontendLatency 95th percentile exceeds 1 second
+  - interval: 1m
+    input_series:
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1"}'
+        values: '0+60x10'  # 10 req/min
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5"}'
+        values: '0+60x20'  # 20 req/min (includes 10 above 0.1)
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="1"}'
+        values: '0+60x30'  # 30 req/min (10 above 0.5)
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="5"}'
+        values: '0+60x190' # 190 req/min (so 100 of these are >1s)
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf"}'
+        values: '0+60x200' # 200 total/min
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: FrontendLatency
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+              runbook_url: 'TBD'
+              summary: 'Frontend latency is high: 95th percentile exceeds 1 second'
+  # Test: FrontendLatency Less than 5% of requests exceed 1 second
+  - interval: 1m
+    input_series:
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1"}'
+        values: '0+60x200'
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5"}'
+        values: '0+60x190'
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="1"}'
+        values: '0+60x30'
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="5"}'
+        values: '0+60x20'
+      - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf"}'
+        values: '0+60x10'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: FrontendLatency
+        exp_alerts: []
+  # Test: FrontendClusterServiceErrorRate above 5%
+  - interval: 1m
+    input_series:
+      - series: 'frontend_clusters_service_client_request_count{code="500"}'
+        values: "0 6x10" # 6 per minute → 6 / 106 ≈ 5.66%
+      - series: 'frontend_clusters_service_client_request_count{code="200"}'
+        values: "0 100x10" # 100 per minute from minute 1 to 10
+    alert_rule_test:
+      - eval_time: 10m # At this point, the condition has held for 10 minutes
+        alertname: FrontendClusterServiceErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: 5.66%.'
+              runbook_url: 'TBD'
+              summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+  # Test: FrontendClusterServiceErrorRate below 5%
+  - interval: 1m
+    input_series:
+      - series: 'frontend_clusters_service_client_request_count{code="500"}'
+        values: "0 2x10" # 2 / 102 ≈ 1.96%
+      - series: 'frontend_clusters_service_client_request_count{code="200"}'
+        values: "0 100x10" # 100 per minute from minute 1 to 10
+    alert_rule_test:
+      - eval_time: 10m # At this point, the condition has held for 10 minutes
+        alertname: FrontendClusterServiceErrorRate
+        exp_alerts: []
+  # Test: FrontendHealthAvailability greater than 300s
+  - interval: 1s
+    input_series:
+      - series: "frontend_health"
+        values: "1x3300 0x400 1x300" # 3200s up, 400s down
+    alert_rule_test:
+      - eval_time: 4000s
+        alertname: FrontendHealthAvailability
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
+              runbook_url: 'TBD'
+              summary: 'High unavailability on the Frontend'
+  # Test: FrontendHealthAvailability less than 300s
+  - interval: 1s
+    input_series  :
+      - series: "frontend_health"
+        values: "1x3350 0x299"  # 3350s up, 299s down
+    alert_rule_test :
+      - eval_time: 3600s
+        alertname: FrontendHealthAvailability
+        exp_alerts: []
