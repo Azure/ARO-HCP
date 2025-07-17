@@ -243,7 +243,9 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
-  /** The Azure resource ID of the worker subnet */
+  /** The Azure resource ID of the worker subnet
+   * Note that a subnet cannot be reused between ARO-HCP Clusters.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
@@ -251,7 +253,10 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
 
-  /** ResourceId for the network security group attached to the cluster subnet */
+  /** ResourceId for the NSG (network security group) attached to the cluster subnet
+   *
+   * Note that NSGs cannot be reused for other ARO-HCP clusters.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
@@ -487,7 +492,10 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes */
+  /** Kubernetes labels to propagate to the NodePool Nodes
+   * Note that when the labels are updated this is only applied to newly
+   * create nodes in the Nodepool, existing node labels remain unchanged.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -571,9 +579,12 @@ model NodePoolVersionProfile {
 
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The Azure resource ID of the worker subnet */
+  /** The Azure resource ID of the worker subnet
+   * Note that a subnet cannot be reused between ARO-HCP Clusters, however the
+   * same subnet can be used for NodePools of the same cluster.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  subnetId?: string;
+  subnetId?: SubnetResourceId;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
