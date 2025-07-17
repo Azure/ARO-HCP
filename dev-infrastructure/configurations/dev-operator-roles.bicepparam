@@ -163,6 +163,7 @@ param roles = [
       'Microsoft.Network/networkInterfaces/read'
       'Microsoft.Network/networkInterfaces/write'
       'Microsoft.Network/virtualNetworks/subnets/join/action'
+      'Microsoft.Compute/diskEncryptionSets/read'
     ]
     notActions: []
     dataActions: []
