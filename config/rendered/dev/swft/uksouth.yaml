@@ -77,7 +77,7 @@ clustersService:
     databaseName: clusters-service
     deploy: false
     minTLSVersion: TLSV1.2
-    name: arohcp-ntly-dbcs-ln
+    name: arohcp-swft-dbcs-lnstest
     private: false
     serverStorageSizeGB: 128
     serverVersion: "12"
@@ -86,7 +86,7 @@ clustersService:
     address: ""
     exporter: ""
 cxKeyVault:
-  name: ah-ntly-cx-ln-1
+  name: ah-swft-cx-lnstest-1
   private: false
   softDelete: false
 dns:
@@ -94,7 +94,7 @@ dns:
   cxParentZoneDelegation: false
   cxParentZoneName: hcp.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: ln-ntly
+  regionalSubdomain: lnstest
   svcParentZoneName: hcpsvc.osadev.cloud
 ev2:
   assistedId:
@@ -112,11 +112,11 @@ frontend:
     tcpAddress: ""
   cert:
     issuer: Self
-    name: frontend-cert-ntly-ln
+    name: frontend-cert-swft-lnstest
   cosmosDB:
     deploy: true
     disableLocalAuth: true
-    name: arohcpntly-rp-ln
+    name: arohcpswft-rp-lnstest
     private: false
     zoneRedundantMode: Disabled
   image:
@@ -166,7 +166,7 @@ global:
   safeDnsIntAppObjectId: ""
   secretsToSyncDir: dev/arohcpdev-global
   subscription:
-    displayName: ARO HCP - ntly - Global
+    displayName: ARO HCP - swft - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
 hypershift:
   additionalInstallArg: ""
@@ -205,7 +205,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-ln-mgmt-1
+    consumerName: hcp-underlay-lnstest-mgmt-1
     loglevel: 4
     sidecar:
       image:
@@ -216,7 +216,7 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-ntly-maestro-ln
+    name: arohcp-swft-maestro-lnstest
     private: false
   image:
     digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
@@ -226,7 +226,7 @@ maestro:
     databaseName: maestro
     deploy: false
     minTLSVersion: TLSV1.2
-    name: arohcp-ntly-dbmaestro-ln
+    name: arohcp-swft-dbmaestro-lnstest
     private: false
     serverStorageSizeGB: 32
     serverVersion: "15"
@@ -238,17 +238,17 @@ maestro:
       serviceAccountName: maestro
     loglevel: 4
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-ln
+    mqttClientName: maestro-server-lnstest
     tracing:
       address: ""
       exporter: ""
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: false
-    enableSwiftV2Vnet: false
+    enableSwiftV2Nodepools: true
+    enableSwiftV2Vnet: true
     etcd:
-      kvName: ah-ntly-me-ln-1
+      kvName: ah-swft-me-lnstest-1
       kvSoftDelete: false
     infraAgentPool:
       azCount: 1
@@ -257,7 +257,7 @@ mgmt:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     kubernetesVersion: 1.32.4
-    name: ntly-uksouth-mgmt-1
+    name: swft-lnstest-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -270,19 +270,21 @@ mgmt:
       vmSize: Standard_E8s_v3
     userAgentPool:
       azCount: 3
-      maxCount: 6
+      maxCount: 3
       minCount: 1
-      osDiskSizeGB: 100
-      vmSize: Standard_D4s_v3
+      osDiskSizeGB: 128
+      vmSize: Standard_D16s_v3
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
+  jaeger:
+    deploy: false
   logs:
     configVersion: "1"
     namespace: HCPCustomerLogs
     san: ""
   nsp:
     accessMode: Learning
-    name: nsp-ln-mgmt-1
+    name: nsp-lnstest-mgmt-1
   prometheus:
     namespace: prometheus
     namespaceLabel: network.openshift.io/policy-group=monitoring
@@ -305,7 +307,7 @@ mgmt:
       replicas: 2
       shards: 1
       version: v2.55.1-3
-  rg: hcp-underlay-ntly-uksouth-mgmt-1
+  rg: hcp-underlay-swft-lnstest-mgmt-1
   subscription:
     afecFlags:
     - Microsoft.Network/AllowBringYourOwnPublicIpAddress
@@ -314,10 +316,10 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - ntly - svc - uksouth
-    key: ARO HCP nightly management (EA Subscription)
+    displayName: ARO HCP - swft - svc - uksouth
+    key: ARO Hosted Control Planes (EA Subscription 1)
 mgmtKeyVault:
-  name: ah-ntly-mg-ln-1
+  name: ah-swft-mg-lnstest-1
   private: false
   softDelete: false
 miMockCertName: msiMockCert2
@@ -339,14 +341,14 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: aro-hcp-ntly-hcp-ln
+  hcpWorkspaceName: hcps-lnstest
   sev1ActionGroupIDs: ""
   sev2ActionGroupIDs: ""
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
-  svcWorkspaceName: aro-hcp-ntly-svc-ln
+  svcWorkspaceName: services-lnstest
 msiKeyVault:
-  name: ah-ntly-mi-ln-1
+  name: ah-swft-mi-lnstest-1
   private: false
   softDelete: false
 msiRp:
@@ -359,7 +361,7 @@ oidc:
     sku: Premium_AzureFrontDoor
     subdomain: oic
   storageAccount:
-    name: arohcpntlyoidcln
+    name: arohcpswftoidclnstest
     public: true
     zoneRedundantMode: Auto
 pko:
@@ -376,7 +378,7 @@ pko:
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: uksouth
-regionRG: uksouth-shared-resources
+regionRG: hcp-underlay-swft-lnstest
 secretSyncController:
   image:
     digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
@@ -384,17 +386,17 @@ secretSyncController:
     repository: secrets-store-sync/controller
   providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
 serviceKeyVault:
-  assignNSP: true
-  name: arohcpntly-svc-ln
+  assignNSP: false
+  name: aro-hcp-dev-svc-kv
   private: false
-  region: uksouth
-  rg: uksouth-shared-resources
-  softDelete: false
+  region: westus3
+  rg: global
+  softDelete: true
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      kvName: ah-ntly-se-ln-1
+      kvName: ah-swft-se-lnstest-1
       kvSoftDelete: false
     infraAgentPool:
       azCount: 1
@@ -403,7 +405,7 @@ svc:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     kubernetesVersion: 1.32.4
-    name: ntly-uksouth-svc-1
+    name: swft-lnstest-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -434,7 +436,7 @@ svc:
     san: ""
   nsp:
     accessMode: Learning
-    name: nsp-ln-svc
+    name: nsp-lnstest-svc
   prometheus:
     namespace: prometheus
     namespaceLabel: ""
@@ -457,7 +459,7 @@ svc:
       replicas: 2
       shards: 1
       version: ""
-  rg: hcp-underlay-ntly-uksouth-svc
+  rg: hcp-underlay-swft-lnstest-svc
   subscription:
     afecFlags:
     - Microsoft.Network/AllowBringYourOwnPublicIpAddress
@@ -465,6 +467,6 @@ svc:
     - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - ntly - svc - uksouth
-    key: ARO HCP nightly service (EA Subscription)
+    displayName: ARO HCP - swft - svc - uksouth
+    key: ARO Hosted Control Planes (EA Subscription 1)
 tenantId: ""

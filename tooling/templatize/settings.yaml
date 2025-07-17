@@ -46,3 +46,12 @@ environments:
     cloud: dev
     ev2Cloud: public
     cxStamp: 1
+- name: swft
+  description: |
+    Used for personal SWIFT development and testing.
+  defaults:
+    region: uksouth
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
+    regionShortSuffix: "s${USER:0:4}"
