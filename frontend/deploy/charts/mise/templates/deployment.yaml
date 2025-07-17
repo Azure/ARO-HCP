@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mise
-  namespace: '{{ .Values.namespace  }}'
+  namespace: '{{ .Values.namespace }}'
 spec:
   replicas: 2
   selector:
@@ -28,11 +28,11 @@ spec:
             port: 8080
         env:
         - name: AzureAd__Instance
-          value: '{{ .Values.azureAdInstance  }}'
+          value: '{{ .Values.azureAdInstance }}'
         - name: AzureAd__ClientId
-          value: '{{ .Values.firstPartyAppId  }}'
+          value: '{{ .Values.firstPartyAppId }}'
         - name: AzureAd__TenantId
-          value: '{{ .Values.tenantId  }}'
+          value: '{{ .Values.tenantId }}'
         - name: AzureAd__Audience
           value: "api://{{ .Values.firstPartyAppId }}"
         - name: AzureAd__InboundPolicies__0__Label
@@ -42,9 +42,9 @@ spec:
         - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
           value: "PoP"
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
-          value: '{{ .Values.armInstance  }}'
+          value: '{{ .Values.armInstance }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: '{{ .Values.armAppId  }}'
+          value: '{{ .Values.armAppId }}'
         - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
           value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
         - name: AllowedHosts

@@ -17,8 +17,8 @@ buildStep:
   - "../tooling/secret-sync"
   - "secret-sync"
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription.key  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   # creates global infra
   # * the parent DNS zones for the ARO HCP services

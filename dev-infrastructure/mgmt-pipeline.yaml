@@ -10,8 +10,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription.key  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-output
     action: ARM
@@ -19,8 +19,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription.key  }}'
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: svc-output
     action: ARM
@@ -28,8 +28,8 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription.key  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM
@@ -37,8 +37,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription.key  }}'
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: rpRegistration
     action: ResourceProviderRegistration
@@ -172,7 +172,7 @@ resourceGroups:
     - mgmt-cluster
     - mgmt-infra
   - name: prometheus
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
     dryRun:
@@ -220,7 +220,7 @@ resourceGroups:
         name: globalMSIId
         # Install ACRpull
   - name: acrpull
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -242,7 +242,7 @@ resourceGroups:
         name: globalMSIId
         # Install cluster patches
   - name: mgmt-fixes
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
     dryRun:
@@ -259,7 +259,7 @@ resourceGroups:
         step: global-output
         name: globalMSIId
   - name: arobit
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../arobit deploy
     dryRun:

@@ -31,11 +31,11 @@ resourceGroups:
         name: globalMSIId
     dependsOn:
     - global-output
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription.key  }}'
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:

@@ -17,8 +17,8 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription.key  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-output
     action: ARM
@@ -27,8 +27,8 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription.key  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM
@@ -36,8 +36,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription.key  }}'
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   # Create SVC KV
   - name: svc-infra
@@ -128,7 +128,7 @@ resourceGroups:
     - region-output
   # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
     dryRun:
@@ -175,7 +175,7 @@ resourceGroups:
         name: globalMSIId
         # configure istio
   - name: istio-config
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../istio deploy
     dryRun:
@@ -195,7 +195,7 @@ resourceGroups:
         # - updates workload to use istio on version svc.istio.targetVersion
         # - configures istio IP tag usage
   - name: istio-upgrade
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: scripts/istio.sh
     variables:
@@ -218,7 +218,7 @@ resourceGroups:
         name: globalMSIId
         # Install ACRpull
   - name: acrpull
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -241,7 +241,7 @@ resourceGroups:
         step: global-output
         name: globalMSIId
   - name: arobit
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../arobit deploy
     dryRun:
