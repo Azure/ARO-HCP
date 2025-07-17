@@ -51,8 +51,6 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 	mockLockClient.EXPECT().HoldLock(gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil())).Return(lockCancelCtx, stopCalledFn)
 	mockDBClient.EXPECT().GetLockClient().Return(mockLockClient)
 
-	ctx = ContextWithDBClient(ctx, mockDBClient)
-
 	request := httptest.NewRequestWithContext(ctx, "PUT", "http://example.com", nil)
 	request.SetPathValue(PathSegmentSubscriptionID, "TheSubscriptionID")
 	response := httptest.NewRecorder()
@@ -64,7 +62,7 @@ func TestMiddlewareLockSubscription(t *testing.T) {
 			}
 		}()
 
-		MiddlewareLockSubscription(response, request, panicingHandler)
+		newMiddlewareLockSubscription(mockDBClient).handleRequest(response, request, panicingHandler)
 	}()
 
 	if !stopWasCalled {

@@ -20,6 +20,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Azure/ARO-HCP/internal/database"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 )
@@ -30,18 +32,21 @@ const (
 	SubscriptionMissingMessage           = "The request is missing required parameter '%s'."
 )
 
-// MiddlewareValidateSubscriptionState validates the state of the subscription as outlined by
+type middlewareValidateSubscriptionState struct {
+	dbClient database.DBClient
+}
+
+func newMiddlewareValidateSubscriptionState(dbClient database.DBClient) *middlewareValidateSubscriptionState {
+	return &middlewareValidateSubscriptionState{
+		dbClient: dbClient,
+	}
+}
+
+// handleRequest validates the state of the subscription as outlined by
 // https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/subscription-lifecycle-api-reference.md
-func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func (h *middlewareValidateSubscriptionState) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
-
-	dbClient, err := DBClientFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
 
 	subscriptionId := r.PathValue(PathSegmentSubscriptionID)
 	if subscriptionId == "" {
@@ -55,7 +60,7 @@ func MiddlewareValidateSubscriptionState(w http.ResponseWriter, r *http.Request,
 
 	// TODO: Ideally, we don't want to have to hit the database in this middleware
 	// Currently, we are using the database to retrieve the subscription's tenantID and state
-	subscription, err := dbClient.GetSubscriptionDoc(ctx, subscriptionId)
+	subscription, err := h.dbClient.GetSubscriptionDoc(ctx, subscriptionId)
 	if err != nil {
 		arm.WriteError(
 			w, http.StatusBadRequest,

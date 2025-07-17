@@ -78,7 +78,6 @@ func NewFrontend(
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
 				ctx = ContextWithLogger(ctx, logger)
-				ctx = ContextWithDBClient(ctx, dbClient)
 				ctx = ContextWithAuditClient(ctx, auditClient)
 				return ctx
 			},
