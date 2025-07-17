@@ -683,7 +683,8 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
+	// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -712,7 +713,8 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
+	// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during

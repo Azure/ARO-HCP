@@ -2799,7 +2799,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },
@@ -2879,7 +2879,7 @@
         },
         "labels": {
           "type": "array",
-          "description": "Kubernetes labels to propagate to the NodePool Nodes",
+          "description": "Kubernetes labels to propagate to the NodePool Nodes\nNote that when the labels are updated this is only applied to newly\ncreate nodes in the Nodepool, existing node labels remain unchanged.",
           "items": {
             "$ref": "#/definitions/Label"
           },

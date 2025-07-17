@@ -492,7 +492,10 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes */
+  /** Kubernetes labels to propagate to the NodePool Nodes
+   * Note that when the labels are updated this is only applied to newly
+   * create nodes in the Nodepool, existing node labels remain unchanged.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
