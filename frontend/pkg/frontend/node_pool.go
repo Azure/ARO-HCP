@@ -50,21 +50,21 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingSystemData)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingNodePool)
 		return
 	}
 
@@ -153,7 +153,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID.Parent)
 		} else {
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingCluster)
 		}
 		return
 	}
@@ -170,7 +170,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingBody)
 		return
 	}
 	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
@@ -193,7 +193,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceNodePool)
 		return
 	}
 
@@ -210,7 +210,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingClusterAgain)
 			return
 		}
 
@@ -224,7 +224,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
 			return
 		}
 	}
@@ -266,7 +266,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -274,14 +274,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingTransactionResult)
 		return
 	}
 
 	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedMarshallingResponse)
 		return
 	}
 

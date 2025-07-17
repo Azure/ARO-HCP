@@ -34,7 +34,7 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 	dbClient, err := DBClientFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(w)
+		arm.WriteInternalServerError(w, errLocationFailedGettingDatabaseClient)
 		return
 	}
 
@@ -63,7 +63,7 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 					"/subscriptions/"+subscriptionID, "%s", message)
 			} else {
 				message += err.Error()
-				arm.WriteInternalServerError(w)
+				arm.WriteInternalServerError(w, errLocationFailedToAcquireLock)
 			}
 			logger.Error(message)
 			return

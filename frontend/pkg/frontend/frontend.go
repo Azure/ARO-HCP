@@ -174,7 +174,7 @@ func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	arm.WriteInternalServerError(writer)
+	arm.WriteInternalServerError(writer, errLocationNotReady)
 	f.healthGauge.Set(0.0)
 }
 
@@ -192,7 +192,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
@@ -240,7 +240,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	prefix, err := azcorearm.ParseResourceID(prefixString)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedParsingID)
 		return
 	}
 
@@ -259,7 +259,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	err = dbIterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedIteratingResource)
 	}
 
 	// Build a Cluster Service query that looks for
@@ -282,7 +282,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 				value, err := marshalCSCluster(csCluster, doc, versionedInterface)
 				if err != nil {
 					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
+					arm.WriteInternalServerError(writer, errLocationFailedMarshallingCluster)
 					return
 				}
 				pagedResponse.AddValue(value)
@@ -300,7 +300,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			if database.IsResponseError(err, http.StatusNotFound) {
 				arm.WriteResourceNotFoundError(writer, prefix)
 			} else {
-				arm.WriteInternalServerError(writer)
+				arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 			}
 			return
 		}
@@ -312,7 +312,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 				value, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
 				if err != nil {
 					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
+					arm.WriteInternalServerError(writer, errLocationFailedMarshallingNodePool)
 					return
 				}
 				pagedResponse.AddValue(value)
@@ -348,6 +348,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 
 	// Check for iteration error.
+	// TODO this is inconsistent.  Other iterator errors report internal errors.  This one seems likely to do so too, but without any details.
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
@@ -358,7 +359,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedSettingNextLink)
 		return
 	}
 
@@ -378,14 +379,14 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -422,21 +423,21 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingSystemData)
 		return
 	}
 
@@ -452,7 +453,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		return
 	}
 
@@ -519,7 +520,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingBody)
 		return
 	}
 	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
@@ -542,7 +543,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceCluster)
 		return
 	}
 
@@ -566,7 +567,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		resourceDoc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
 			return
 		}
 	}
@@ -617,7 +618,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -625,14 +626,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingTransactionResult)
 		return
 	}
 
 	responseBody, err := marshalCSCluster(csCluster, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedMarshallingResponse)
 		return
 	}
 
@@ -655,7 +656,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -669,7 +670,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 			writer.WriteHeader(http.StatusNoContent)
 		} else {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		}
 		return
 	}
@@ -701,7 +702,7 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -717,7 +718,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -738,7 +739,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		}
 		return
 	}
@@ -769,21 +770,21 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedIteratingActiveOperations)
 		return
 	}
 
 	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedCallingClusterService)
 		return
 	}
 
 	internalID, err := ocm.NewInternalID(csCredential.HREF())
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
 		return
 	}
 
@@ -797,7 +798,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -813,7 +814,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -834,7 +835,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		}
 		return
 	}
@@ -865,14 +866,14 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedIteratingActiveOperations)
 		return
 	}
 
 	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDeletingResource)
 		return
 	}
 
@@ -886,7 +887,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedCancelingActiveOperations)
 		return
 	}
 
@@ -898,7 +899,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -912,7 +913,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -924,7 +925,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 		if database.IsResponseError(err, http.StatusNotFound) {
 			arm.WriteResourceNotFoundError(writer, resourceID)
 		} else {
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		}
 		return
 	}
@@ -942,7 +943,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingBody)
 		return
 	}
 
@@ -968,13 +969,13 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingResource)
 			return
 		}
 		logger.Info(fmt.Sprintf("created document for subscription %s", subscriptionID))
 	} else if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingResource)
 		return
 	} else {
 		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
@@ -989,7 +990,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		})
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedUpdatingResource)
 			return
 		}
 		if updated {
@@ -1022,7 +1023,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingBody)
 		return
 	}
 
@@ -1180,7 +1181,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -1270,14 +1271,14 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
@@ -1326,7 +1327,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		// Handled below.
 	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
 		// Should never be reached?
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationProvisioningFailedOrCancelled)
 		return
 	default:
 		// Operation is still in progress.
@@ -1365,14 +1366,14 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedCallingClusterService)
 			return
 		}
 
 		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ConvertCStoAdminCredential(csBreakGlassCredential))
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedMarshallingResponse)
 			return
 		}
 	} else {
