@@ -2,8 +2,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACM
 rolloutName: ACM Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription.key  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-output
     action: ARM
@@ -11,11 +11,11 @@ resourceGroups:
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription.key  }}'
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -34,7 +34,7 @@ resourceGroups:
     dependsOn:
     - global-output
   - name: scale-down
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make scale
     dryRun:

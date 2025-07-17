@@ -23,7 +23,7 @@ defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
   #
-  region: "{{ .ctx.region  }}"
+  region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
   administration:
@@ -446,7 +446,7 @@ defaults:
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
     rg: "{{ .ctx.region }}-shared-resources"
-    region: "{{ .ctx.region  }}"
+    region: "{{ .ctx.region }}"
     softDelete: false
     private: false
     assignNSP: true

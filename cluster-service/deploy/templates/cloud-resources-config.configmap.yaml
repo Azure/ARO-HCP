@@ -2,7 +2,7 @@ apiVersion: v1
 data:
   cloud-regions.yaml: |
     cloud_regions:
-      - id: '{{ .Values.region  }}'
+      - id: '{{ .Values.region }}'
         cloud_provider_id: azure
         display_name: Azure East US
         supports_multi_az: true
@@ -4814,4 +4814,4 @@ data:
 kind: ConfigMap
 metadata:
   name: cloud-resources-config
-  namespace: '{{ .Release.Namespace  }}'
+  namespace: '{{ .Release.Namespace }}'

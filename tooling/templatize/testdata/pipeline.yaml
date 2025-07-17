@@ -2,11 +2,11 @@ $schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .serviceClusterSubscription  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .serviceClusterSubscription }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .aksName  }}'
+    aksCluster: '{{ .aksName }}'
     action: Shell
     command: make deploy
     shellIdentity:
@@ -15,7 +15,7 @@ resourceGroups:
     - name: MAESTRO_IMAGE
       configRef: maestro_image
   - name: dry-run
-    aksCluster: '{{ .aksName  }}'
+    aksCluster: '{{ .aksName }}'
     action: Shell
     command: make deploy
     shellIdentity:
