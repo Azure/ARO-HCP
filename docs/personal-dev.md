@@ -15,6 +15,7 @@ Ensure you have access to the RH Azure tenant:
 - **RH account**: You need to have a Red Hat account to access the Red Hat Azure tenant (`redhat0.onmicrosoft.com`) where personal DEV environments are created
 - **Subscription access**: You need access to the `ARO Hosted Control Planes (EA Subscription 1)` subscription in the Red Hat Azure tenant. Consult the [ARO HCP onboarding guide](https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/)
 - `az` utility >= `2.68.0`
+- `az bicep` version >= 0.36
 - `az login` with your Red Hat account
 
 The following additional tools are also required:
