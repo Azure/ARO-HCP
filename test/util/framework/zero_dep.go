@@ -52,6 +52,10 @@ var (
 	initializeOnce    sync.Once
 )
 
+const (
+	StandardPollInterval = 10 * time.Second
+)
+
 // InvocationContext requires the following env vars
 // CUSTOMER_SUBSCRIPTION
 // AZURE_TENANT_ID
@@ -72,7 +76,7 @@ func (tc *TestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix
 	suffix := rand.String(6)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 
-	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 10*time.Minute)
+	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 20*time.Minute)
 	if err != nil {
 		return nil, func(ctx context.Context) error { return nil }, fmt.Errorf("failed to create resource group: %w", err)
 	}
@@ -94,7 +98,7 @@ func (tc *TestContext) cleanupResourceGroup(ctx context.Context, resourceGroupNa
 	errs := []error{}
 
 	if hcpClientFactory, err := tc.get20240610ClientFactoryUnlocked(ctx); err == nil {
-		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
+		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 60*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed to cleanup resource group: %w", err)
 		}
@@ -103,7 +107,7 @@ func (tc *TestContext) cleanupResourceGroup(ctx context.Context, resourceGroupNa
 	}
 
 	if armClientFactory, err := tc.GetARMResourcesClientFactory(ctx); err == nil {
-		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
+		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 60*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed to cleanup resource group: %w", err)
 		}

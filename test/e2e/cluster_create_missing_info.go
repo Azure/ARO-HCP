@@ -67,7 +67,6 @@ var _ = Describe("Customer", func() {
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
 					},
-					30*time.Second,
 					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -93,7 +92,6 @@ var _ = Describe("Customer", func() {
 						"clusterName":              customerClusterName,
 						"managedResourceGroupName": managedResourceGroupName,
 					},
-					30*time.Second,
 					45*time.Minute,
 				)
 				Expect(err).To(HaveOccurred())

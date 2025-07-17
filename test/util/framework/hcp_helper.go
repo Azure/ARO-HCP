@@ -33,7 +33,6 @@ func DeleteHCPCluster(
 	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	interval time.Duration,
 	timeout time.Duration,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -45,7 +44,7 @@ func DeleteHCPCluster(
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: interval,
+		Frequency: StandardPollInterval,
 	})
 	if err != nil {
 		return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish deleting: %w", hcpClusterName, resourceGroupName, err)
@@ -66,7 +65,6 @@ func DeleteAllHCPClusters(
 	ctx context.Context,
 	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
 	resourceGroupName string,
-	interval time.Duration,
 	timeout time.Duration,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -93,7 +91,7 @@ func DeleteAllHCPClusters(
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics ot funcion.
 			utilruntime.HandleCrashWithContext(ctx)
 
-			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, interval, timeout)
+			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, timeout)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {
