@@ -42,7 +42,7 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 	})
 
 	Context("Positive", func() {
-		It("Successfully lists clusters filtered by subscription ID", labels.Medium, labels.Positive, func(ctx context.Context) {
+		It("Successfully lists clusters filtered by subscription ID", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
 			By("Preparing pager to list clusters")
 			listOptions := &api.HcpOpenShiftClustersClientListBySubscriptionOptions{}
 			pager := clustersClient.NewListBySubscriptionPager(listOptions)
@@ -58,7 +58,7 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 			}
 		})
 
-		It("Successfully lists clusters filtered by resource group name", labels.Medium, labels.Positive, func(ctx context.Context) {
+		It("Successfully lists clusters filtered by resource group name", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
 			By("Preparing pager to list clusters")
 			pager := clustersClient.NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
 			By("Accessing IDs of all fetched clusters")

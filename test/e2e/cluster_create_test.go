@@ -34,7 +34,7 @@ var _ = Describe("Put HCPOpenShiftCluster", func() {
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
 	})
 
-	It("Attempts to put HCPOpenshiftCluster with non-existant Resource Group", labels.Medium, labels.Negative, func(ctx context.Context) {
+	It("Attempts to put HCPOpenshiftCluster with non-existant Resource Group", labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
 		clusterName := "non-existing-cluster"
 		customerRGName := "non-existing-group"
 		var (

@@ -17,12 +17,12 @@ resourceGroups:
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: Subscription
     variables:
-      - name: globalMSIId
-        input:
-          step: global-output
-          name: globalMSIId
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
-      - global-output
+    - global-output
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
