@@ -1,5 +1,5 @@
-@description('Cluster user assigned identity resource id, used to grant KeyVault access')
-param clusterServiceMIResourceId string
+@description('Managed identity resource id that gets access to the specified KeyVaults.')
+param managedIdentityResourceId string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -12,11 +12,11 @@ param msiKeyVaultName string
 //
 
 import * as res from 'resource.bicep'
-var clusterServiceMIRef = res.msiRefFromId(clusterServiceMIResourceId)
+var mIRef = res.msiRefFromId(managedIdentityResourceId)
 
-resource clusterServiceMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(clusterServiceMIRef.resourceGroup.subscriptionId, clusterServiceMIRef.resourceGroup.name)
-  name: clusterServiceMIRef.name
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(mIRef.resourceGroup.subscriptionId, mIRef.resourceGroup.name)
+  name: mIRef.name
 }
 
 module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
@@ -24,12 +24,12 @@ module cxClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-acces
     'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
-  ]: {
-    name: guid(cxKeyVaultName, clusterServiceMIResourceId, role)
+  ]: if (cxKeyVaultName != '') {
+    name: guid(cxKeyVaultName, managedIdentityResourceId, role)
     params: {
       keyVaultName: cxKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
+      managedIdentityPrincipalId: managedIdentity.properties.principalId
     }
   }
 ]
@@ -39,12 +39,12 @@ module msiClusterServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-acce
     'Key Vault Secrets Officer'
     'Key Vault Certificate User'
     'Key Vault Certificates Officer'
-  ]: {
-    name: guid(msiKeyVaultName, clusterServiceMIResourceId, role)
+  ]: if (msiKeyVaultName != '') {
+    name: guid(msiKeyVaultName, managedIdentityResourceId, role)
     params: {
       keyVaultName: msiKeyVaultName
       roleName: role
-      managedIdentityPrincipalId: clusterServiceMI.properties.principalId
+      managedIdentityPrincipalId: managedIdentity.properties.principalId
     }
   }
 ]
