@@ -21,6 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/sync/errgroup"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
@@ -54,6 +56,49 @@ func DeleteHCPCluster(
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
+	}
+
+	return nil
+}
+
+// DeleteResourceGroup deletes a resource group and waits for the operation to complete
+func DeleteAllHCPClusters(
+	ctx context.Context,
+	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	interval time.Duration,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	hcpClusterNames := []string{}
+	hcpClusterPager := hcpClient.NewListByResourceGroupPager(resourceGroupName, nil)
+	for hcpClusterPager.More() {
+		page, err := hcpClusterPager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed listing hcp clusters in resourcegroup=%q: %w", resourceGroupName, err)
+		}
+		for _, sub := range page.Value {
+			hcpClusterNames = append(hcpClusterNames, *sub.Name)
+		}
+	}
+
+	// deletion takes a while, it's worth it to do this in parallel
+	waitGroup, ctx := errgroup.WithContext(ctx)
+	for _, hcpClusterName := range hcpClusterNames {
+		// https://golang.org/doc/faq#closures_and_goroutines
+		hcpClusterName := hcpClusterName
+		waitGroup.Go(func() error {
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics ot funcion.
+			utilruntime.HandleCrashWithContext(ctx)
+
+			return DeleteHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName, interval, timeout)
+		})
+	}
+	if err := waitGroup.Wait(); err != nil {
+		// remember that Wait only shows the first error, not all the errors.
+		return fmt.Errorf("at least one hcp cluster failed to delete: %w", err)
 	}
 
 	return nil

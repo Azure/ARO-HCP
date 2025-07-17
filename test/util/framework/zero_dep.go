@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -90,11 +91,27 @@ func (tc *TestContext) RecordResourceGroupToCleanup(resourceGroupName string) Cl
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
 func (tc *TestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string) error {
-	err := DeleteResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
-	if err != nil {
-		return fmt.Errorf("failed to cleanup resource group: %w", err)
+	errs := []error{}
+
+	if hcpClientFactory, err := tc.get20240610ClientFactoryUnlocked(ctx); err == nil {
+		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
 	}
-	return nil
+
+	if armClientFactory, err := tc.GetARMResourcesClientFactory(ctx); err == nil {
+		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	}
+
+	return errors.Join(errs...)
 }
 
 func (tc *TestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {

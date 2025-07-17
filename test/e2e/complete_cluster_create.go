@@ -38,7 +38,7 @@ var _ = Describe("Customer", func() {
 	It("should be able to create an HCP cluster using bicep templates",
 		labels.RequireNothing,
 		labels.Critical,
-		labels.Negative,
+		labels.Positive,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
