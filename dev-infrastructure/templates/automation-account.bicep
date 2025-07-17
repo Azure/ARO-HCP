@@ -79,6 +79,7 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'resourceCleanup'
   params: {
     automationAccountName: automationAccountName
+    identityName: automationAccountName
     runbookDescription: 'Clean up old resource groups'
     runbookName: 'resourceCleanup'
     runbookType: 'Python3'
@@ -99,6 +100,7 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'roleAssignmentsCleanup'
   params: {
     automationAccountName: automationAccountName
+    identityName: automationAccountName
     runbookDescription: 'Clean up orphaned role assignments'
     runbookName: 'roleAssignmentsCleanup'
     runbookType: 'PowerShell'
