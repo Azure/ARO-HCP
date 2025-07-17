@@ -18,9 +18,13 @@ import (
 	"context"
 	"fmt"
 
+	"strings"
+
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type ClusterServiceClientSpec interface {
@@ -393,6 +397,10 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 }
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
+
+	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
+		versionName = api.OpenShiftVersionPrefix + versionName
+	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
 	resp, err := client.Get().SendContext(ctx)

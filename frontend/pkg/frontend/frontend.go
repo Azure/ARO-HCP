@@ -324,7 +324,9 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		csIterator := f.clusterServiceClient.ListVersions()
 
 		for csVersion := range csIterator.Items(ctx) {
-			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace + "/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + csVersion.ID()
+			versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
+			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+				"/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + versionName
 			resourceID, err := azcorearm.ParseResourceID(stringResource)
 			if err != nil {
 				logger.Error(err.Error())
