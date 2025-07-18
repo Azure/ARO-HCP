@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Azure/ARO-HCP/backend/actuators/clusteractuator"
 	"github.com/go-logr/logr"
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -263,6 +264,7 @@ func Run(cmd *cobra.Command, args []string) error {
 			startedLeading    atomic.Bool
 			operationsScanner = NewOperationsScanner(argLocation, dbClient, ocmConnection)
 		)
+		clusterActuator := clusteractuator.NewClusterActuator(dbClient)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 			Lock:          leaderElectionLock,
@@ -274,6 +276,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
 					go operationsScanner.Run(ctx, logger)
+					go clusterActuator.Run(ctx, 10)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.leaderGauge.Set(0)
