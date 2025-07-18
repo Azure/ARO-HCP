@@ -1023,9 +1023,6 @@
           "type": "string",
           "description": "SafeDnsIntApplication object ID use to delegate child DNS. This is only required for MSFT INT and can be left empty for other targets"
         },
-        "secretsToSyncDir": {
-          "type": "string"
-        },
         "keyVault": {
           "$ref": "#/definitions/keyVault"
         }
@@ -1034,8 +1031,7 @@
         "rg",
         "subscription",
         "region",
-        "keyVault",
-        "secretsToSyncDir"
+        "keyVault"
       ]
     },
     "backplaneAPI": {
