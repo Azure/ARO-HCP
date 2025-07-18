@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -198,6 +199,23 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 			Message: "Channel group must be 'stable'",
 			Target:  "properties.version.channelGroup",
 		})
+	}
+
+	versionID := cluster.Properties.Version.ID
+	if versionID != "" {
+		// Check if version is in X.Y format and append ".0" to convert X.Y to X.Y.Z
+		// Add openshift-v prefix for cs to accept
+		if matched, _ := regexp.MatchString(`^\d+\.\d+$`, versionID); matched {
+			cluster.Properties.Version.ID = OpenShiftVersionPrefix + versionID + ".0"
+		} else {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeInvalidRequestContent,
+				Message: "Control Plane Version must be in X.Y",
+				Target:  "properties.version.id",
+			})
+		}
+	} else {
+		cluster.Properties.Version.ID = OpenShiftVersionPrefix + "4.19.0"
 	}
 
 	return errorDetails

@@ -387,7 +387,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
-						"id":           "4.0.0",
+						"id":           "4.0",
 						"channelGroup": "stable",
 					},
 					"api": map[string]any{
