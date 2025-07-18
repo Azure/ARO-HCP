@@ -41,6 +41,7 @@ const (
 	TestResourceGroupName        = "testResourceGroup"
 	TestClusterName              = "testCluster"
 	TestNodePoolName             = "testNodePool"
+	TestExternalAuthName         = "testExternalAuth"
 	TestDeploymentName           = "testDeployment"
 	TestNetworkSecurityGroupName = "testNetworkSecurityGroup"
 	TestVirtualNetworkName       = "testVirtualNetwork"
@@ -52,6 +53,7 @@ var (
 	TestResourceGroupResourceID        = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
 	TestClusterResourceID              = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
 	TestNodePoolResourceID             = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestExternalAuthResourceID         = path.Join(TestClusterResourceID, ExternalAuthResourceTypeName, TestExternalAuthName)
 	TestDeploymentResourceID           = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
 	TestNetworkSecurityGroupResourceID = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
 	TestVirtualNetworkResourceID       = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
@@ -119,6 +121,19 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 	nodePool := MinimumValidNodePoolTestCase()
 	require.NoError(t, mergo.Merge(nodePool, tweaks, mergo.WithOverride))
 	return nodePool
+}
+
+func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
+	resource := NewDefaultHCPOpenShiftClusterExternalAuth()
+	resource.Properties.Claim.Mappings.Groups.Claim = "my-cool-claim"
+	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-name"
+	return resource
+}
+
+func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth) *HCPOpenShiftClusterExternalAuth {
+	externalAuth := MinimumValidExternalAuthTestCase()
+	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
+	return externalAuth
 }
 
 // AssertJSONPath ensures path is valid for struct type T by following
