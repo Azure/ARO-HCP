@@ -46,14 +46,10 @@ var _ = Describe("Customer", func() {
 					customerVnetSubnetName           = "customer-vnet-subnet1"
 					customerClusterName              = "illegal-hcp-cluster"
 				)
-				ic := framework.InvocationContext()
+				ic := framework.NewInvocationContext()
 
 				By("creating a resource group")
-				resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
-				DeferCleanup(func(ctx SpecContext) {
-					err := cleanupResourceGroup(ctx)
-					Expect(err).NotTo(HaveOccurred())
-				}, NodeTimeout(45*time.Minute))
+				resourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a prereqs in the resource group")
