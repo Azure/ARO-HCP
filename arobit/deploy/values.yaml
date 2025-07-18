@@ -251,21 +251,42 @@ forwarder:
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
+
+        # Tag system namespace logs
+        [FILTER]
+            Name    modify
+            Alias   filter.tag_system
+            Match   kubernetes.var.log.containers.*
+            Condition Key_value_matches kubernetes.namespace_name ^(ocm-.*)$
+            Add     log_type system
+
+        # Tag application namespace logs (everything else)
+        [FILTER]
+            Name    modify
+            Alias   filter.tag_apps
+            Match   kubernetes.var.log.containers.*
+            Condition Key_value_does_not_match kubernetes.namespace_name ^(ocm-.*)$
+            Add     log_type application
+
+        # Re-tag OCM system logs for dedicated routing
+        [FILTER]
+            Name    rewrite_tag
+            Alias   filter.route_system_logs
+            Match   kubernetes.var.log.containers.*
+            Rule    $kubernetes['namespace_name'] ^ocm-.* system.ocm.logs false
       output.conf: |
+        # Output specifically for OCM system logs
         [OUTPUT]
             Name       opentelemetry
-            Match      *
+            Alias      output.system_logs
+            Match      system.ocm.logs
             Host       ingest.observability
             Port       4318
             Traces_uri /v1/traces
+            add_label  log_category system
+            add_label  source ocm_namespaces
 
-        [OUTPUT]
-            Name  prometheus_exporter
-            Alias exporter.fluentbit
-            Match metrics.fluentbit
-            Host  0.0.0.0
-            Port  2020
-      output-mdsd.conf: |
+      output-service-mdsd: |
         [OUTPUT]
             Name  forward
             Alias forward.mdsd
@@ -274,6 +295,16 @@ forwarder:
             Port  5001
             Tag   kubernetes
 
+      output-customers-mdsd: |
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd
+            Match kubernetes.
+            Host  127.0.0.1
+            Port  5002
+            Tag   kubernetes
+
+      output-prometheus: |
         [OUTPUT]
             Name  prometheus_exporter
             Alias exporter.fluentbit

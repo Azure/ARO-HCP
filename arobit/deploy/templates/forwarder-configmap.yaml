@@ -15,8 +15,14 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
-{{- if .Values.forwarder.mdsd.enabled -}}
-    @INCLUDE /forwarder/etc/output-mdsd.conf
+    @INCLUDE /forwarder/etc/output-prometheus.conf
+
+{{- if .Values.forwarder.mdsd.customers_enabled -}}
+    @INCLUDE /forwarder/etc/output-customers-mdsd.conf
+{{- else }}
+
+{{- if .Values.forwarder.mdsd.service_enabled -}}
+    @INCLUDE /forwarder/etc/output-service-mdsd.conf
 {{- else }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}
