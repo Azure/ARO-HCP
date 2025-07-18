@@ -99,7 +99,7 @@ type ExternalAuthProvisionState arm.ProvisioningState
 const (
 	// ProvisioningStateAwaitingSecret - A non-terminal state indicating that a client
 	// is awaiting a secret.
-	ProvisioningStateAwaitingSecret ExternalAuthProvisionState = "Awaiting_Secret"
+	ProvisioningStateAwaitingSecret ExternalAuthProvisionState = "AwaitingSecret"
 )
 
 type ExternalAuthClientType string
