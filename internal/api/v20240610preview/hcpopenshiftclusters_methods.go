@@ -397,7 +397,7 @@ func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out
 	if p.EncryptionType != nil {
 		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
 	}
-	if p.Kms.ActiveKey != nil {
+	if p.Kms != nil && p.Kms.ActiveKey != nil {
 		normalizeActiveKey(p.Kms.ActiveKey, &out.Kms.ActiveKey)
 	}
 }
