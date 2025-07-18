@@ -164,7 +164,6 @@ global:
   region: westus3
   rg: global
   safeDnsIntAppObjectId: ""
-  secretsToSyncDir: dev/arohcpdev-global
   subscription:
     displayName: ARO HCP - dev - Global
     key: ARO Hosted Control Planes (EA Subscription 1)

@@ -31,7 +31,6 @@ defaults:
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
-    secretsToSyncDir: "none"
     subscription:
       key: hcp-global
       displayName: "ARO HCP - {{ .ctx.environment }} - Global"
@@ -474,7 +473,6 @@ clouds:
           key: ARO Hosted Control Planes (EA Subscription 1)
         region: westus3
         globalMSIName: global-rollout-identity
-        secretsToSyncDir: "dev/arohcpdev-global"
         keyVault:
           name: arohcpdev-global
       # DNS

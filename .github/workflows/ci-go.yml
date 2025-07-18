@@ -50,6 +50,7 @@ jobs:
         then
           echo "there are some modified files, rerun 'make all-tidy' to update them and check the changes in"
           git status
+          git diff
           exit 1
         fi
     - name: 'Regenerate mocks'
@@ -59,6 +60,7 @@ jobs:
         then
           echo "there are some modified files, rerun 'make mocks' to update them and check the changes in"
           git status
+          git diff
           exit 1
         fi
     - name: 'Test'

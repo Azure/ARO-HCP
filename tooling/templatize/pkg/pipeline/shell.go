@@ -22,6 +22,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -93,6 +95,31 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 
 	fmt.Fprint(outputWriter, string(output))
 	return nil
+}
+
+func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *PipelineRunOptions) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	if options.DryRun {
+		logger.Info("Skipping secret sync step for dry-run.")
+		return nil
+	}
+	syncOpts := populate.RawOptions{
+		RawOptions: &cmdutils.RawOptions{
+			Cloud: options.Cloud,
+		},
+		KeyVault:         s.KeyVault,
+		KeyEncryptionKey: s.EncryptionKey,
+		ConfigFile:       filepath.Join(filepath.Dir(options.PipelineFilePath), s.ConfigurationFile),
+	}
+	validated, err := syncOpts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Populate(ctx)
 }
 
 func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]string, error) {

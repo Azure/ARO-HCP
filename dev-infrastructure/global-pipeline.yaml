@@ -84,24 +84,16 @@ resourceGroups:
     - global-infra
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
-    action: Shell
-    command: ../tooling/secret-sync/decrypt-all.sh
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: KEYVAULT
-      configRef: global.keyVault.name
-    - name: SECRETFOLDER
-      configRef: global.secretsToSyncDir
+    action: SecretSync
+    keyVault: '{{ .global.keyVault.name }}'
+    configurationFile: 'data/encryptedsecrets.yaml'
+    encryptionKey: 'secretSyncKey'
     dependsOn:
     - global-infra
     - global-output
-    shellIdentity:
-      input:
-        step: global-output
-        name: globalMSIId
+    identityFrom:
+      step: global-output
+      name: globalMSIId
   # mirror oc-mirror image
   - name: mirror-oc-mirror-image
     action: ImageMirror

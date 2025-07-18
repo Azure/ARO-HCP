@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/admin
 
-go 1.24.0
+go 1.24.3
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-20250310120012-a1f1eace1cb0
@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
