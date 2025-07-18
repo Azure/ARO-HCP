@@ -21,13 +21,10 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
 )
 
 // MiddlewareLockSubscription this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
 func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	var lockClient database.LockClientInterface
-
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -40,12 +37,8 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 
 	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
 
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
-		// These methods are read-only and don't require locking.
-	default:
-		lockClient = dbClient.GetLockClient()
-	}
+	// This may be nil when running "go test".
+	lockClient := dbClient.GetLockClient()
 
 	if lockClient == nil {
 		next(w, r)
