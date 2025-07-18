@@ -102,9 +102,16 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
-func convertEtcdCSToRP(in *arohcpv1alpha1.Cluster) api.EtcdProfile {
+func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
 
-	return api.EtcdProfile{}
+	azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+	azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+	azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType)).Kms(azureKmsEncryptionBuilder)
+
+	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(string(in.DataEncryption.KeyManagementMode)).CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
+
+	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder)
+
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
@@ -157,7 +164,21 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
-			Etcd:                    convertEtcdCSToRP(cluster),
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					CustomerManaged: api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionType(cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().EncryptionType()),
+						Kms: &api.KmsEncryptionProfile{
+							ActiveKey: api.KmsKey{
+								Name:      cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyName(),
+								VaultName: cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyVaultName(),
+								Version:   cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyVersion(),
+							},
+						},
+					},
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeType(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
+				},
+			},
 		},
 	}
 
@@ -241,8 +262,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 			Unit(azureNodePoolNodeDrainGracePeriodUnit).
 			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
 
-	// ETCD encryption
-
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
 	return clusterBuilder.Build()
@@ -282,7 +301,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 		SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-			OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)))
+			OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType))).EtcdEncryption(convertEtcdRPToCS(hcpCluster.Properties.Etcd))
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.Properties.Platform.NetworkSecurityGroupID != "" {
