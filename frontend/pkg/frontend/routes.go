@@ -66,7 +66,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareReferer,
 		metricsMiddleware.Metrics(),
 		MiddlewareCorrelationData,
-		MiddlewareAudit,
+		newMiddlewareAudit(f.auditClient).handleRequest,
 		MiddlewareTracing,
 		MiddlewareLogging,
 		// NOTE: register panic middlware twice.
@@ -88,7 +88,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		MiddlewareValidateSubscriptionState)
+		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
@@ -108,8 +108,8 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		MiddlewareLockSubscription,
-		MiddlewareValidateSubscriptionState)
+		newMiddlewareLockSubscription(f.dbClient).handleRequest,
+		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -149,21 +149,20 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
-		MiddlewareValidateSubscriptionState)
+		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationResults),
 		postMuxMiddleware.HandlerFunc(f.OperationResult))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationStatuses),
 		postMuxMiddleware.HandlerFunc(f.OperationStatus))
-
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
 
 	// Subscription management endpoints
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
-		MiddlewareLockSubscription)
+		newMiddlewareLockSubscription(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionGet))
@@ -174,7 +173,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	// Deployment preflight endpoint
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateSubscriptionState)
+		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))

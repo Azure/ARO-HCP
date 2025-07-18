@@ -35,16 +35,20 @@ func (w *AuditResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+type middlewareAudit struct {
+	auditClient audit.Client
+}
+
+func newMiddlewareAudit(auditClient audit.Client) *middlewareAudit {
+	return &middlewareAudit{
+		auditClient: auditClient,
+	}
+}
+
 // MiddlewareAudit writes audit messages upon receiving a request.
-func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func (h *middlewareAudit) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
-	auditClient, err := AuditClientFromContext(ctx)
-	if err != nil {
-		logger.Error("error getting audit client", "error", err.Error())
-		next(w, r)
-		return
-	}
 
 	msg := audit.CreateOtelAuditMsg(logger, r)
 	correlationData := arm.NewCorrelationData(r)
@@ -63,7 +67,7 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", statusCode)
 	}
 
-	if err := auditClient.Send(ctx, msg); err != nil {
+	if err := h.auditClient.Send(ctx, msg); err != nil {
 		logger.Error("error sending audit log", "error", err.Error())
 	}
 }

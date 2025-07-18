@@ -24,19 +24,22 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-// MiddlewareLockSubscription this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
-func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+type middlewareLockSubscription struct {
+	dbClient database.DBClient
+}
+
+func newMiddlewareLockSubscription(dbClient database.DBClient) *middlewareLockSubscription {
+	return &middlewareLockSubscription{
+		dbClient: dbClient,
+	}
+}
+
+// handleRequest this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
+func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	var lockClient database.LockClientInterface
 
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
-
-	dbClient, err := DBClientFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(w)
-		return
-	}
 
 	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
 
@@ -44,7 +47,7 @@ func MiddlewareLockSubscription(w http.ResponseWriter, r *http.Request, next htt
 	case http.MethodGet, http.MethodHead:
 		// These methods are read-only and don't require locking.
 	default:
-		lockClient = dbClient.GetLockClient()
+		lockClient = h.dbClient.GetLockClient()
 	}
 
 	if lockClient == nil {
