@@ -49,7 +49,7 @@ var _ = Describe("Customer", func() {
 				ic := framework.InvocationContext()
 
 				By("creating a resource group")
-				resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
+				resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", ic.Location())
 				DeferCleanup(func(ctx SpecContext) {
 					err := cleanupResourceGroup(ctx)
 					Expect(err).NotTo(HaveOccurred())
