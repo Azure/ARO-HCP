@@ -51,7 +51,6 @@ func CreateBicepTemplateAndWait(
 	deploymentName string,
 	bicepTemplateJSON []byte,
 	parameters map[string]string,
-	interval time.Duration,
 	timeout time.Duration,
 ) (*armresources.DeploymentExtended, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -90,7 +89,7 @@ func CreateBicepTemplateAndWait(
 		return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", deploymentName, resourceGroupName, err)
 	}
 	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: interval,
+		Frequency: StandardPollInterval,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", deploymentName, resourceGroupName, err)
