@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/mcerepkg
 
-go 1.24.0
+go 1.24.3
 
 require (
 	github.com/google/go-containerregistry v0.20.2

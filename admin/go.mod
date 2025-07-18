@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/admin
 
-go 1.24.0
+go 1.24.3
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-20250310120012-a1f1eace1cb0

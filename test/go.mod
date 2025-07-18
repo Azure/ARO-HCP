@@ -1,8 +1,6 @@
 module github.com/Azure/ARO-HCP/test
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.24.3
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000

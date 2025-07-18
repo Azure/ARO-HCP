@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/secret-sync
 
-go 1.24.0
+go 1.24.3
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20250718184009-027fc46bfcdf

@@ -1,6 +1,6 @@
 module github.com/Azure/ARO-HCP/tooling/pipeline-documentation
 
-go 1.24.1
+go 1.24.3
 
 require (
 	github.com/Azure/ARO-Tools v0.0.0-20250718184009-027fc46bfcdf
