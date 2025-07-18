@@ -36,3 +36,10 @@ module defaultRuleGroups 'rules/defaultRecordingRuleGroups.bicep' = {
     azureMonitoring: azureMonitoringWorkspaceId
   }
 }
+
+module clusterServiceRecordingRules 'rules/clusterServiceRecordingRules.bicep' = {
+  name: 'clusterServiceRecordingRules'
+  params: {
+    azureMonitoring: azureMonitoringWorkspaceId
+  }
+}

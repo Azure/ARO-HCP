@@ -1,0 +1,124 @@
+rule_files:
+- clusterServiceSlo-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - no errors, no alert
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200"}'
+    # 100 requests per minute, all successful
+    values: "100+100x30"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500"}'
+    # No 5xx errors
+    values: "0+0x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    # Should not fire - no errors
+
+# Test 2: Fast burn rate - high error rate for short period (5m + 1h windows)
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200"}'
+    # Start normal, then drop to 50% success rate for 10 minutes
+    values: "100+100x5 50+50x10 100+100x15"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500"}'
+    # Start normal, then 50% error rate for 10 minutes
+    values: "0+0x5 50+50x10 0+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        long: "6h"
+        severity: "critical"
+        short: "30m"
+      exp_annotations:
+        description: "API is rapidly burning its 28 day availability error budget (99% SLO)"
+        runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn"
+        summary: "Cluster Service API error budget burn rate is too high"
+
+# Test 3: Slow burn rate - moderate error rate for longer period (30m + 6h windows)
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200"}'
+    # 93% success rate (7% error rate) - should trigger slow burn
+    values: "93+93x400"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500"}'
+    # 7% error rate consistently
+    values: "7+7x400"
+  alert_rule_test:
+  - eval_time: 360m  # 6 hours
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        long: "6h"
+        severity: "critical"
+        short: "30m"
+      exp_annotations:
+        description: "API is rapidly burning its 28 day availability error budget (99% SLO)"
+        runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn"
+        summary: "Cluster Service API error budget burn rate is too high"
+
+# Test 4: Edge case - exactly at threshold (should not fire)
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200"}'
+    # 99.01% success rate (0.99% error rate) - just below 1% threshold
+    values: "9901+9901x30"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500"}'
+    # 0.99% error rate - just below threshold
+    values: "99+99x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    # Should not fire - below threshold
+
+# Test 5: Prometheus replica handling
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200", prometheus_replica="prometheus-0"}'
+    # 90% success rate from replica 0
+    values: "90+90x30"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200", prometheus_replica="prometheus-1"}'
+    # 90% success rate from replica 1 (should be deduplicated)
+    values: "90+90x30"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500", prometheus_replica="prometheus-0"}'
+    # 10% error rate from replica 0
+    values: "10+10x30"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500", prometheus_replica="prometheus-1"}'
+    # 10% error rate from replica 1 (should be deduplicated)
+    values: "10+10x30"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        long: "6h"
+        severity: "critical"
+        short: "30m"
+      exp_annotations:
+        description: "API is rapidly burning its 28 day availability error budget (99% SLO)"
+        runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn"
+        summary: "Cluster Service API error budget burn rate is too high"
+
+# Test 6: Recovery - alert should stop firing when error rate drops
+- interval: 1m
+  input_series:
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="200"}'
+    # High error rate for 10 minutes, then recovery
+    values: "50+50x10 100+100x20"
+  - series: 'api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics", code="500"}'
+    # High error rate for 10 minutes, then recovery
+    values: "50+50x10 0+0x20"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        long: "6h"
+        severity: "critical"
+        short: "30m"
+  - eval_time: 30m
+    alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
+    # Should not fire - error rate has recovered 
