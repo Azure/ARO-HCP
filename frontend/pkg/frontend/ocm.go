@@ -102,11 +102,31 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
+func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.Cluster) *api.KmsEncryptionProfile {
+
+	if kms, ok := in.Azure().EtcdEncryption().DataEncryption().CustomerManaged().GetKms(); ok {
+		if activeKey, ok := kms.GetActiveKey(); ok {
+			return &api.KmsEncryptionProfile{
+				ActiveKey: api.KmsKey{
+					Name:      activeKey.KeyName(),
+					VaultName: activeKey.KeyVaultName(),
+					Version:   activeKey.KeyVersion(),
+				},
+			}
+		}
+	}
+	return nil
+}
+
 func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
 
-	azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-	azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
-	azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType)).Kms(azureKmsEncryptionBuilder)
+	azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
+
+	if in.DataEncryption.CustomerManaged.Kms != nil {
+		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+		azureEtcdDataEncryptionCustomerManagedBuilder = azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
+	}
 
 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(string(in.DataEncryption.KeyManagementMode)).CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 
@@ -168,13 +188,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				DataEncryption: api.EtcdDataEncryptionProfile{
 					CustomerManaged: api.CustomerManagedEncryptionProfile{
 						EncryptionType: api.CustomerManagedEncryptionType(cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().EncryptionType()),
-						Kms: &api.KmsEncryptionProfile{
-							ActiveKey: api.KmsKey{
-								Name:      cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyName(),
-								VaultName: cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyVaultName(),
-								Version:   cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().Kms().ActiveKey().KeyVersion(),
-							},
-						},
+						Kms:            convertKmsEncryptionCSToRP(cluster),
 					},
 					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeType(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
 				},
@@ -301,7 +315,12 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 		SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-			OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType))).EtcdEncryption(convertEtcdRPToCS(hcpCluster.Properties.Etcd))
+			OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)))
+
+	// Only add etcd encryption if it's actually configured
+	if hcpCluster.Properties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.Properties.Etcd.DataEncryption.CustomerManaged.EncryptionType != "" || hcpCluster.Properties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		azureBuilder = azureBuilder.EtcdEncryption(convertEtcdRPToCS(hcpCluster.Properties.Etcd))
+	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.Properties.Platform.NetworkSecurityGroupID != "" {
