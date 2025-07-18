@@ -129,7 +129,20 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         export SERVICE_MANAGED_IDENTITY_UAMI=$(az identity show -n ${USER}-${CS_CLUSTER_NAME}-service-managed-identity-${OPERATORS_UAMIS_SUFFIX} -g <resource-group> | jq -r '.id')
         ```
 
+    * Create Azure key vault for storing etcd data encryption key
+        ```bash
+        RESOURCENAME=<resource-group>
+        SUBSCRIPTION_ID=<subscription-id>
+        CURRENT_USER_ID=$(az ad signed-in-user show -o json | jq -r '.id')
+        az keyvault create --name ${USER}-${CS_CLUSTER_NAME}-"kv" -g ${RESOURCENAME} --location "westus3" --enable-rbac-authorization true
+        az role assignment create --assignee "${CURRENT_USER_ID}" --role "Key Vault Crypto Officer" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCENAME}/providers/Microsoft.KeyVault/vaults/${USER}-${CS_CLUSTER_NAME}-kv"
+        az keyvault key create --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name "etcd-data-kms-encryption-key" --kty RSA --size 2048
+        
+        export etcd_key_version=$(az keyvault key list-versions --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name etcd-data-kms-encryption-key  --query "[].kid" -o tsv | cut -d'/' -f6)
+        ```
+
 1. Create the cluster. This assumes OCP 4.19 clusters will be created.
+
     > [!NOTE] See the [Cluster Service API](https://api.openshift.com/#/default/post_api_clusters_mgmt_v1_clusters) documentation
     > for further information on the properties within the payload below
 
@@ -166,6 +179,21 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         "managed_resource_group_name": "$MANAGEDRGNAME",
         "subnet_resource_id": "$SUBNETRESOURCEID",
         "network_security_group_resource_id":"$NSG",
+        "etcd_encryption": {
+          "data_encryption": {
+            "key_management_mode": "customer_managed",
+            "customer_managed": {
+              "encryption_type": "kms",
+              "kms": {
+                "active_key": {
+                  "key_vault_name": ${USER}-${CS_CLUSTER_NAME}-"kv",
+                  "key_name": "etcd-data-kms-encryption-key",
+                  "key_version": ${etcd_key_version}
+                }
+              }
+            }
+          }
+        },
         "operators_authentication": {
           "managed_identities": {
             "managed_identities_data_plane_identity_url": "https://dummyhost.identity.azure.net",
