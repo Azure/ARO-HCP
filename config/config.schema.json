@@ -1045,7 +1045,11 @@
         },
         "globalMSIName": {
           "type": "string",
-          "description": "The name of the MSI that will be used for ev2"
+          "description": "The name of the MSI that will be used for deployments."
+        },
+        "contributorRoleId": {
+          "type": "string",
+          "description": "The ID of the role assignment given to the global MSI to deploy our service."
         },
         "safeDnsIntAppObjectId": {
           "type": "string",
