@@ -28,11 +28,13 @@ const (
 	v1Pattern                     = "/api/clusters_mgmt/v1"
 	v1ClusterPattern              = v1Pattern + "/clusters/*"
 	v1NodePoolPattern             = v1ClusterPattern + "/node_pools/*"
+	v1ExternalAuthPattern         = v1ClusterPattern + "/external_auths/*"
 	v1BreakGlassCredentialPattern = v1ClusterPattern + "/break_glass_credentials/*"
 
-	aroHcpV1Alpha1Pattern         = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern  = aroHcpV1Alpha1Pattern + "/clusters/*"
-	aroHcpV1Alpha1NodePoolPattern = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
+	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern      = aroHcpV1Alpha1Pattern + "/clusters/*"
+	aroHcpV1Alpha1NodePoolPattern     = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
+	aroHcpV1Alpha1ExternalAuthPattern = aroHcpV1Alpha1ClusterPattern + "/external_auths/*"
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -41,6 +43,10 @@ func GenerateClusterHREF(clusterName string) string {
 
 func GenerateNodePoolHREF(clusterPath string, nodePoolName string) string {
 	return path.Join(clusterPath, "node_pools", nodePoolName)
+}
+
+func GenerateExternalAuthHREF(clusterPath string, externalAuthName string) string {
+	return path.Join(clusterPath, "external_auths", externalAuthName)
 }
 
 func GenerateBreakGlassCredentialHREF(clusterPath string, credentialName string) string {
@@ -72,6 +78,11 @@ func (id *InternalID) validate() error {
 		return nil
 	}
 
+	if match, _ = path.Match(v1ExternalAuthPattern, id.path); match {
+		id.kind = cmv1.ExternalAuthKind
+		return nil
+	}
+
 	if match, _ = path.Match(v1BreakGlassCredentialPattern, id.path); match {
 		id.kind = cmv1.BreakGlassCredentialKind
 		return nil
@@ -86,6 +97,12 @@ func (id *InternalID) validate() error {
 		id.kind = arohcpv1alpha1.NodePoolKind
 		return nil
 	}
+
+	// TODO: Uncomment when OCM gets bumped.
+	// if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
+	// 	id.kind = arohcpv1alpha1.ExternalAuthKind
+	// 	return nil
+	// }
 
 	return fmt.Errorf("invalid InternalID: %s", id.path)
 }
