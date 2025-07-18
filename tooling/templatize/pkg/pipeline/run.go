@@ -177,6 +177,11 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("error running secret sync Step, %v", err)
 		}
 		return nil, nil
+	case *types.ProviderFeatureRegistrationStep:
+		if err := runRegistrationStep(step, ctx, options, executionTarget); err != nil {
+			return nil, fmt.Errorf("error running secret sync Step, %v", err)
+		}
+		return nil, nil
 	case *types.ARMStep:
 		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if a == nil {
