@@ -14,6 +14,8 @@
 
 package api
 
+import "github.com/Azure/ARO-HCP/internal/api/arm"
+
 // DiskStorageAccountType represents supported Azure storage account types.
 type DiskStorageAccountType string
 
@@ -82,4 +84,51 @@ type ClusterImageRegistryProfileState string
 const (
 	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
 	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
+
+type TokenValidationRuleType string
+
+const (
+	// TokenValidationRuleTypeRequiredClaim - the Kubernetes API server will be configured to validate that the
+	// incoming JWT contains the required claim and that its value matches the required value.
+	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
+)
+
+type ExternalAuthProvisionState arm.ProvisioningState
+
+const (
+	// ProvisioningStateAwaitingSecret - A non-terminal state indicating that a client
+	// is awaiting a secret.
+	ProvisioningStateAwaitingSecret ExternalAuthProvisionState = "Awaiting_Secret"
+)
+
+type ExternalAuthClientType string
+
+const (
+	// ExternalAuthClientTypeConfidential - the client is confidential.
+	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
+	// ExternalAuthClientTypePublic - the client is public.
+	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
+)
+
+type ExternalAuthConditionType string
+
+const (
+	// ExternalAuthConditionTypeAvailable - the resource is in an available state.
+	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
+	// ExternalAuthConditionType - the resource is in a degraded state.
+	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
+	// ExternalAuthConditionTypeProgressing - the resource is in a progressing state.
+	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
+)
+
+type ConditionStatusType string
+
+const (
+	// ConditionStatusType - the condition status is true.
+	ConditionStatusTypeTrue ConditionStatusType = "True"
+	// ExternalAuthConditionTypeFalse - the condition status is false.
+	ConditionStatusTypeFalse ConditionStatusType = "False"
+	// ConditionStatusTypeUnknown - the condition status is unknown.
+	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
 )
