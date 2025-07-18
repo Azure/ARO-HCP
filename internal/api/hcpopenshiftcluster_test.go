@@ -318,6 +318,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
+						ID:           "",
 						ChannelGroup: "fast",
 					},
 				},
@@ -383,7 +384,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
-						ID:           "openshift-v4.99.0",
+						ID:           "4.99",
 						ChannelGroup: "freshmeat",
 					},
 				},

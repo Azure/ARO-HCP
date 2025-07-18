@@ -202,16 +202,17 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	}
 
 	versionID := cluster.Properties.Version.ID
-
-	// Check if version is in X.Y format and append ".0" to convert X.Y to X.Y.Z
-	if matched, _ := regexp.MatchString(`^\d+\.\d+$`, versionID); matched {
-		cluster.Properties.Version.ID = versionID + ".0"
-	} else {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: "Control Plane Version must be in X.Y format",
-			Target:  "properties.version.id",
-		})
+	if versionID != "" {
+		// Check if version is in X.Y format and append ".0" to convert X.Y to X.Y.Z
+		if matched, _ := regexp.MatchString(`^\d+\.\d+$`, versionID); matched {
+			cluster.Properties.Version.ID = versionID + ".0"
+		} else {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeInvalidRequestContent,
+				Message: "Control Plane Version must be in X.Y",
+				Target:  "properties.version.id",
+			})
+		}
 	}
 
 	return errorDetails
