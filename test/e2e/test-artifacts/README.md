@@ -1,0 +1,1 @@
+Directory for non-golang files that are embedded in the test binary and read.

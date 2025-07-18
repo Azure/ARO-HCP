@@ -68,6 +68,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
@@ -224,7 +231,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)

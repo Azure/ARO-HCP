@@ -2,9 +2,15 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ClusterService
 rolloutName: Cluster Service Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: mirror-image
     action: ImageMirror
     targetACR:
@@ -20,18 +26,25 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
-      configRef: aroDevopsMsiId
-  - name: global-output
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: mgmt-output
     action: ARM
-    template: ../dev-infrastructure/templates/output-global.bicep
-    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    template: ../dev-infrastructure/templates/output-mgmt.bicep
+    parameters: ../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -42,6 +55,10 @@ resourceGroups:
     - mirror-image
     - global-output
     variables:
+    - name: CX_SECRETS_KV_MI_CLIENT_ID
+      input:
+        step: mgmt-output
+        name: azureKeyvaultSecretsProviderIdentityClientId
     - name: REGION
       configRef: region
     - name: RESOURCEGROUP
@@ -80,6 +97,8 @@ resourceGroups:
       configRef: armHelperCertName
     - name: CX_PARENT_DNS_ZONE_NAME
       configRef: dns.cxParentZoneName
+    - name: SVC_PARENT_DNS_ZONE_NAME
+      configRef: dns.svcParentZoneName
     - name: REGIONAL_DNS_SUBDOMAIN
       configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
@@ -114,6 +133,8 @@ resourceGroups:
       configRef: clustersService.k8s.serviceAccountName
     - name: ENVIRONMENT
       configRef: clustersService.environment
+    - name: MI_DATAPLANE_AUDIENCE_RESOURCE
+      configRef: msiRp.dataPlaneAudienceResource
     - name: OCP_ACR_RESOURCE_ID
       input:
         step: global-output
@@ -139,4 +160,6 @@ resourceGroups:
     - name: TRACING_ADDRESS
       configRef: clustersService.tracing.address
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

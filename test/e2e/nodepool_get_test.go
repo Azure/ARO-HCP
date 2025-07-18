@@ -44,7 +44,7 @@ var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	})
 
 	Context("Positive", func() {
-		It("Get each nodepool from HCPOpenShiftCluster", labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+		It("Get each nodepool from HCPOpenShiftCluster", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
 			if nodePools != nil {
 				nps := *nodePools
 				for np := range nps {

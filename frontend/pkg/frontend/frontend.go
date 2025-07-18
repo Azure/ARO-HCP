@@ -219,6 +219,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
 	resourceName := request.PathValue(PathSegmentResourceName)
 	resourceTypeName := path.Base(request.URL.Path)
+	location := request.PathValue(PathSegmentLocation)
 
 	// Even though the bulk of the list content comes from Cluster Service,
 	// we start by querying Cosmos DB because its continuation token meets
@@ -319,6 +320,29 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 		err = csIterator.GetError()
 
+	case strings.ToLower(api.ClusterVersionTypeName):
+		csIterator := f.clusterServiceClient.ListVersions()
+
+		for csVersion := range csIterator.Items(ctx) {
+			versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
+			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+				"/locations/" + location + "/" + api.ClusterVersionTypeName + "/" + versionName
+			resourceID, err := azcorearm.ParseResourceID(stringResource)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+		err = csIterator.GetError()
+
 	default:
 		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
 	}
@@ -410,6 +434,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -542,7 +573,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -694,6 +725,13 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())
@@ -751,7 +789,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, internalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -782,6 +820,13 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	// Parent resource is the hcpOpenShiftCluster.
 	resourceID = resourceID.Parent
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
@@ -845,7 +890,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -1357,4 +1402,9 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 		}
 	}
 	return featureMap
+}
+
+func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
+	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
+	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
 }

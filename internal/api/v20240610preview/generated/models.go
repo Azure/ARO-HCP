@@ -14,7 +14,7 @@ type APIProfile struct {
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
-	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries.
+	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCidrs []*string
 }
 
@@ -25,7 +25,7 @@ type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
 	Type *ManagedServiceIdentityType
 
 	// The identities assigned to this resource by the user.
-	UserAssignedIdentities map[string]*Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties
+	UserAssignedIdentities map[string]*UserAssignedIdentity
 }
 
 // AzureResourceManagerCommonTypesTrackedResourceUpdate - The resource model definition for an Azure Resource Manager tracked
@@ -56,7 +56,7 @@ type ClusterAutoscalingProfile struct {
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
 	// not grow the cluster beyond this number. If omitted, the autoscaler will not
-	// have a maximum limit. number.
+	// have a maximum limit.
 	MaxNodesTotal *int32
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
@@ -76,14 +76,6 @@ type ClusterImageRegistryProfile struct {
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
 	State *ClusterImageRegistryProfileState
-}
-
-type Components19Kgb1NSchemasAzureResourcemanagerCommontypesManagedserviceidentityupdatePropertiesUserassignedidentitiesAdditionalproperties struct {
-	// READ-ONLY; The client ID of the assigned identity.
-	ClientID *string
-
-	// READ-ONLY; The principal ID of the assigned identity.
-	PrincipalID *string
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -667,7 +659,8 @@ type NodePoolPlatformProfile struct {
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
-	// The Azure resource ID of the worker subnet
+	// The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters, however the same
+	// subnet can be used for NodePools of the same cluster.
 	SubnetID *string
 }
 
@@ -682,7 +675,8 @@ type NodePoolProperties struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
+	// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -711,7 +705,8 @@ type NodePoolPropertiesUpdate struct {
 	// Representation of a autoscaling in a node pool.
 	AutoScaling *NodePoolAutoScaling
 
-	// Kubernetes labels to propagate to the NodePool Nodes
+	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
+	// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
@@ -860,13 +855,14 @@ type OsDiskProfile struct {
 
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
-	// REQUIRED; ResourceId for the network security group attached to the cluster subnet
+	// REQUIRED; ResourceId for the NSG (network security group) attached to the cluster subnet
+	// Note that NSGs cannot be reused for other ARO-HCP clusters.
 	NetworkSecurityGroupID *string
 
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfile
 
-	// REQUIRED; The Azure resource ID of the worker subnet
+	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
 	// Resource group to put cluster resources
@@ -1108,7 +1104,17 @@ type UsernameClaimProfile struct {
 	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
 	Prefix *string
 
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
+	// in the 'claim' field.
+	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+	// field must be set when prefixPolicy is 'Prefix'.
+	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+	// change over time. Currently, the platform prepends {issuerURL}# to the value of
+	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+	// "email":"userA
 	PrefixPolicy *string
 }
 
@@ -1121,7 +1127,17 @@ type UsernameClaimProfileUpdate struct {
 	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
 	Prefix *string
 
-	// Prefix policy More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633
+	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
+	// in the 'claim' field.
+	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+	// field must be set when prefixPolicy is 'Prefix'.
+	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+	// change over time. Currently, the platform prepends {issuerURL}# to the value of
+	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+	// "email":"userA
 	PrefixPolicy *string
 }
 

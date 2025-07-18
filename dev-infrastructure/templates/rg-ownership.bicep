@@ -1,6 +1,6 @@
 targetScope = 'subscription'
 
-param aroDevopsMsiId string
+param globalMSIId string
 
 var contributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -13,18 +13,18 @@ var keyVaultPurgeOperator = subscriptionResourceId(
 )
 
 resource aroDevopsMSIResourceGroupContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, aroDevopsMsiId, contributorRoleId)
+  name: guid(subscription().id, globalMSIId, contributorRoleId)
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(globalMSIId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: contributorRoleId
   }
 }
 
 resource aroDevopsMSIResourceGroupKeyVaultPurgeOperator 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, aroDevopsMsiId, keyVaultPurgeOperator)
+  name: guid(subscription().id, globalMSIId, keyVaultPurgeOperator)
   properties: {
-    principalId: reference(aroDevopsMsiId, '2023-01-31').principalId
+    principalId: reference(globalMSIId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: keyVaultPurgeOperator
   }

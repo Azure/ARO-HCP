@@ -346,6 +346,12 @@ var advancedNetworking = networkDataplane == 'cilium'
     }
   : null
 
+var swiftNodepoolTags = enableSwiftV2Nodepools
+  ? {
+      'aks-nic-enable-multi-tenancy': 'true'
+    }
+  : null
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
   name: aksClusterName
@@ -423,6 +429,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         nodeTaints: [
           'CriticalAddonsOnly=true:NoSchedule'
         ]
+        tags: swiftNodepoolTags
       }
     ]
     autoScalerProfile: {
@@ -572,11 +579,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       nodeLabels: {
         'aro-hcp.azure.com/role': 'worker'
       }
-      tags: enableSwiftV2Nodepools
-        ? {
-            'aks-nic-enable-multi-tenancy': 'true'
-          }
-        : null
+      tags: swiftNodepoolTags
     }
   }
 ]

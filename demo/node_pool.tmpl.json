@@ -2,14 +2,16 @@
   "location": "$location",
   "properties": {
     "version": {
-      "id": "openshift-v4.18.1",
+      "id": "openshift-v4.19.0",
       "channelGroup": "stable"
     },
     "platform": {
       "subnetId": "/subscriptions/$sub/resourceGroups/$customer-rg/providers/Microsoft.Network/virtualNetworks/customer-vnet/subnets/customer-subnet-1",
       "vmSize": "Standard_D8s_v3",
-      "sizeGiB": 64,
-      "diskStorageAccountType": "StandardSSD_LRS"
+      "osDisk": {
+        "sizeGiB": 64,
+        "diskStorageAccountType": "StandardSSD_LRS"
+      }
     },
     "replicas": 2
   }

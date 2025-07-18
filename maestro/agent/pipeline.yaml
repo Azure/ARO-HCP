@@ -3,8 +3,14 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
 rolloutName: Maestro Agent Rollout
 resourceGroups:
 - name: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: mirror-image
     action: ImageMirror
     targetACR:
@@ -20,9 +26,13 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
-      configRef: aroDevopsMsiId
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM
@@ -30,11 +40,11 @@ resourceGroups:
     parameters: ../../dev-infrastructure/configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -74,12 +84,14 @@ resourceGroups:
     - mirror-image
     - region-output
     shellIdentity:
-      configRef: aroDevopsMsiId
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+      input:
+        step: global-output
+        name: globalMSIId
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: register-agent-with-server
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../registration deploy
     dryRun:
@@ -94,4 +106,6 @@ resourceGroups:
     dependsOn:
     - deploy
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

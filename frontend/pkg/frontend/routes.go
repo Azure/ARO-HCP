@@ -44,6 +44,7 @@ const (
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
 	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
 	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternClusterVersions   = api.ClusterVersionTypeName + "/" + WildcardResourceName
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -97,6 +98,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.ClusterVersionTypeName),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
 	// Resource ID endpoints
 	// Request context holds an azcorearm.ResourceID
@@ -136,6 +140,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternClusterVersions),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(

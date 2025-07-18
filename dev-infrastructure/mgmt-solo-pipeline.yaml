@@ -2,8 +2,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra.Solo
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-output
     action: ARM
@@ -11,8 +11,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM
@@ -20,8 +20,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: mgmt-infra
     action: ARM
@@ -69,7 +69,7 @@ resourceGroups:
     - global-output
   # Install ACRpull
   - name: acrpull
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -87,7 +87,7 @@ resourceGroups:
     - mgmt-cluster
   # Install cluster patches
   - name: mgmt-fixes
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
     dryRun:

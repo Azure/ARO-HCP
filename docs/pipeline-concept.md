@@ -15,7 +15,7 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Region     (1)
 rolloutName: Region Rollout                      (2)
 resourceGroups:                                  (3)
 - name: {{ .global.rg }}                         (4)
-  subscription: {{ .global.subscription }}       (5)
+  subscription: {{ .global.subscription.key }}   (5)
   aksCluster: {{ .global.aksCluster }}           (6)
   steps: []                                      (7)
 ```
@@ -144,7 +144,7 @@ All steps share a common execution context:
 
 #### Azure session
 
-When executing step, an Azure session is provided for the defined subscription (`resourceGroups.subscription`) and resourcegroup (`resourceGroups.name`), allowing authenticated Azure operations. The identity used for this session is provided in the [configuration](configuration.md) as `aroDevopsMsiId`.
+When executing a shell step, an Azure session is provided for the defined subscription (`resourceGroups.subscription`) and resourcegroup (`resourceGroups.name`), allowing authenticated Azure operations. The identity used for this session is provided in the [configuration](configuration.md) as `global.globalMSIName` hosted in the `global.subscription` subscription. and `global.rg` Azure resourcegroup.
 
 > [!IMPORTANT]
 > Please note that this identity does not have access to all Azure resources in our subscriptions and resourcegroups by default. The necessary permissions need to be granted explicitly. You can observe this in various Bicep templates, where this identity is granted specific permissions, e.g. on Key Vaults or storage accounts.
@@ -156,6 +156,12 @@ The resourcegroup (`resourceGroups.name`) is pre-created before step execution s
 #### AKS cluster
 
 If an `resourceGroups.aksCluster` is specified, the `KUBECONFIG` environment variable is set and allows cluster admin interaction withe the AKS cluster. This is mostly relevant for `Shell` steps.
+
+#### Environment variables
+
+All the variables defined in the `variables` section of a step are set as environment variables before executing the step. This allows steps to access configuration values or other necessary parameters.
+
+In addition, an environment variable `zz_injected_EV2=1` is set when the step is executed within EV2. This environment variable is missing otherwise.
 
 ## Pipeline Deployment Scope
 

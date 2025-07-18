@@ -36,13 +36,13 @@ const (
 	csCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
-	csMultiAzEnabled   bool   = true
 	csCCSEnabled       bool   = true
 
 	// The OCM SDK does not provide these constants.
 
 	azureNodePoolEncryptionAtHostDisabled string = "disabled"
 	azureNodePoolEncryptionAtHostEnabled  string = "enabled"
+	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -91,6 +91,15 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 	}
 
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
+}
+
+func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
+	if nodeDrainGracePeriod, ok := in.GetNodeDrainGracePeriod(); ok {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+			return int32(nodeDrainGracePeriod.Value())
+		}
+	}
+	return 0
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
@@ -142,6 +151,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
+			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 		},
 	}
 
@@ -220,6 +230,11 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		)
 	}
 
+	clusterBuilder = clusterBuilder.
+		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
+
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
 	return clusterBuilder.Build()
@@ -238,7 +253,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(csHypershifEnabled)).
-		MultiAZ(csMultiAzEnabled).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
 			ID(hcpCluster.Properties.Version.ID).
@@ -355,6 +369,12 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	}
 	nodePool.Properties.Taints = taints
 
+	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+			nodePool.Properties.NodeDrainTimeoutMinutes = api.Ptr(int32(nodeDrainGracePeriod.Value()))
+		}
+	}
+
 	return nodePool
 }
 
@@ -398,6 +418,12 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			Value(t.Value))
 	}
 
+	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
+		npBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
+	}
+
 	return npBuilder.Build()
 }
 
@@ -406,6 +432,22 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 	return &api.HCPOpenShiftClusterAdminCredential{
 		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
 		Kubeconfig:          breakGlassCredential.Kubeconfig(),
+	}
+}
+
+func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
+	return &api.HCPOpenShiftVersion{
+		ProxyResource: arm.ProxyResource{
+			Resource: arm.Resource{
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
+			}},
+		Properties: api.HCPOpenShiftVersionProperties{
+			ChannelGroup:       version.ChannelGroup(),
+			Enabled:            version.Enabled(),
+			EndOfLifeTimestamp: version.EndOfLifeTimestamp(),
+		},
 	}
 }
 

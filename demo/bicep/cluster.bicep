@@ -80,7 +80,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   location: resourceGroup().location
   properties: {
     version: {
-      id: 'openshift-v4.18.1'
+      id: 'openshift-v4.19.0'
       channelGroup: 'stable'
     }
     dns: {}
@@ -93,12 +93,12 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     console: {}
     api: {
-      visibility: 'public'
+      visibility: 'Public'
     }
     platform: {
       managedResourceGroup: managedResourceGroupName
       subnetId: subnetId
-      outboundType: 'loadBalancer'
+      outboundType: 'LoadBalancer'
       networkSecurityGroupId: networkSecurityGroupId
       operatorsAuthentication: {
         userAssignedIdentities: {

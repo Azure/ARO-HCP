@@ -78,8 +78,10 @@ Have a look at the [sdp-pipelines/hcp/README.md](https://dev.azure.com/msazure/A
 
 Once the ADO pipeline is running, you can observe the progress in the EV2 portal. You can either
 
-* navitate to the [EV2 RA portal](https://ra.ev2portal.azure.net/) directly and find the EV2 run there
-* or follow the link shown in the logs of the ADO step `$ENV_Managed_SDP > Ev2_AgentRolloutJob > Ev2RARollout`
+* navigate to the [EV2 RA portal](https://ra.ev2portal.azure.net/) directly and find the EV2 run there
+* or follow the link shown in the logs of the ADO step `Deploy to $env > Run EV2 RA deployment > Ev2RA Managed SDP Rollout`
+
+Deployments to STAGE and PROD require an approval conducted by people from the `TM-AzureRedHatOpenshift-HCP-Leads` group, conducted on a SAW device.
 
 ## Troubleshooting
 

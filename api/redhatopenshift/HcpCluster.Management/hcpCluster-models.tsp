@@ -220,9 +220,9 @@ model ApiProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   visibility?: Visibility = Visibility.Public;
 
-  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 5000 entries. */
+  /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  @maxItems(5000)
+  @maxItems(500)
   authorizedCidrs?: string[];
 }
 
@@ -243,7 +243,9 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
-  /** The Azure resource ID of the worker subnet */
+  /** The Azure resource ID of the worker subnet
+   * Note that a subnet cannot be reused between ARO-HCP Clusters.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   subnetId: SubnetResourceId;
 
@@ -251,7 +253,10 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
 
-  /** ResourceId for the network security group attached to the cluster subnet */
+  /** ResourceId for the NSG (network security group) attached to the cluster subnet
+   *
+   * Note that NSGs cannot be reused for other ARO-HCP clusters.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   networkSecurityGroupId: NetworkSecurityGroupResourceId;
 
@@ -270,7 +275,7 @@ model PlatformProfile {
  *  applies to all NodePools associated with a control plane. */
 model ClusterAutoscalingProfile {
   /** maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational.
-   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. number. */
+   * The autoscaler will not grow the cluster beyond this number. If omitted, the autoscaler will not have a maximum limit. */
   @minValue(0)
   maxNodesTotal?: int32;
 
@@ -487,7 +492,10 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   autoScaling?: NodePoolAutoScaling;
 
-  /** Kubernetes labels to propagate to the NodePool Nodes */
+  /** Kubernetes labels to propagate to the NodePool Nodes
+   * Note that when the labels are updated this is only applied to newly
+   * create nodes in the Nodepool, existing node labels remain unchanged.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @OpenAPI.extension("x-ms-identifiers", #["key", "value"])
   labels?: Label[];
@@ -571,9 +579,12 @@ model NodePoolVersionProfile {
 
 /** Azure node pool platform configuration */
 model NodePoolPlatformProfile {
-  /** The Azure resource ID of the worker subnet */
+  /** The Azure resource ID of the worker subnet
+   * Note that a subnet cannot be reused between ARO-HCP Clusters, however the
+   * same subnet can be used for NodePools of the same cluster.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  subnetId?: string;
+  subnetId?: SubnetResourceId;
 
   /** The VM size according to the documentation:
    * - https://learn.microsoft.com/en-us/azure/virtual-machines/sizes */
@@ -928,8 +939,29 @@ model UsernameClaimProfile {
    */
   prefix?: string;
 
-  /** Prefix policy
-   * More information here: https://github.com/openshift/api/blob/f9cb766287239d10d5baae431691348286f634c1/config/v1/types_authentication.go#L633 */
+  /** Prefix policy is an optional field that configures how a prefix should be
+   * applied to the value of the JWT claim specified in the 'claim' field.
+   *
+   * Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+   *
+   * When set to 'Prefix', the value specified in the prefix field will be
+   * prepended to the value of the JWT claim.
+   * The prefix field must be set when prefixPolicy is 'Prefix'.
+   *
+   * When set to 'NoPrefix', no prefix will be prepended to the value
+   * of the JWT claim.
+   *
+   * When omitted, this means no opinion and the platform is left to choose
+   * any prefixes that are applied which is subject to change over time.
+   * Currently, the platform prepends `{issuerURL}#` to the value of the JWT claim
+   * when the claim is not 'email'.
+   * As an example, consider the following scenario:
+   *    `prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,
+   *    the JWT claims include "username":"userA" and "email":"userA@myoidc.tld",
+   *    and `claim` is set to:
+   *    - "username": the mapped value will be "https://myoidc.tld#userA"
+   *    - "email": the mapped value will be "userA@myoidc.tld"
+   */
   prefixPolicy?: string;
 }
 

@@ -10,9 +10,15 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: make
+  args:
+  - "-C"
+  - "../tooling/secret-sync"
+  - "secret-sync"
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   # creates global infra
   # * the parent DNS zones for the ARO HCP services
@@ -23,11 +29,18 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh
     dependsOn:
     - global-infra
+    - global-output
     dryRun:
       variables:
       - name: DRY_RUN
@@ -38,7 +51,9 @@ resourceGroups:
       - name: GLOBAL_RESOURCEGROUP
         configRef: global.rg
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
@@ -82,8 +97,11 @@ resourceGroups:
       configRef: global.secretsToSyncDir
     dependsOn:
     - global-infra
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
   # mirror oc-mirror image
   - name: mirror-oc-mirror-image
     action: ImageMirror
@@ -100,10 +118,13 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     dependsOn:
+    - global-output
     - global-acrs
     - decrypt-and-ingest-secrets
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
   # deploys the image mirror for the ACRs
   - name: imagemirror
     action: ARM

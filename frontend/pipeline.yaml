@@ -3,8 +3,14 @@ serviceGroup: Microsoft.Azure.ARO.HCP.RP.Frontend
 rolloutName: RP Frontend Rollout
 resourceGroups:
 - name: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: mirror-image
     action: ImageMirror
     targetACR:
@@ -20,12 +26,16 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
-      configRef: aroDevopsMsiId
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .svc.aks.name  }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -34,6 +44,7 @@ resourceGroups:
         value: "true"
     dependsOn:
     - mirror-image
+    - global-output
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
@@ -81,5 +92,9 @@ resourceGroups:
       configRef: frontend.tracing.address
     - name: TRACING_EXPORTER
       configRef: frontend.tracing.exporter
+    - name: AUDIT_TCP_ADDRESS
+      configRef: frontend.audit.tcpAddress
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

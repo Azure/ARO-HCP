@@ -227,6 +227,10 @@ type OperationDocument struct {
 	// OperationID is the Azure resource ID of the operation status (may be nil if the
 	// operation was implicit, such as deleting a child resource along with the parent)
 	OperationID *azcorearm.ResourceID `json:"operationId,omitempty"`
+	// ClientRequestID is provided by the "x-ms-client-request-id" request header
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	// CorrelationRequstID is provided by the "x-ms-correlation-request-id" request header
+	CorrelationRequestID string `json:"correlationRequestId,omitempty"`
 	// NotificationURI is provided by the Azure-AsyncNotificationUri header if the
 	// Async Operation Callbacks ARM feature is enabled
 	NotificationURI string `json:"notificationUri,omitempty"`
@@ -242,7 +246,7 @@ type OperationDocument struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID) *OperationDocument {
+func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID, correlationData *arm.CorrelationData) *OperationDocument {
 	now := time.Now().UTC()
 
 	doc := &OperationDocument{
@@ -252,6 +256,11 @@ func NewOperationDocument(request OperationRequest, externalID *azcorearm.Resour
 		StartTime:          now,
 		LastTransitionTime: now,
 		Status:             arm.ProvisioningStateAccepted,
+	}
+
+	if correlationData != nil {
+		doc.ClientRequestID = correlationData.ClientRequestID
+		doc.CorrelationRequestID = correlationData.CorrelationRequestID
 	}
 
 	// When deleting, set Status directly to ProvisioningStateDeleting

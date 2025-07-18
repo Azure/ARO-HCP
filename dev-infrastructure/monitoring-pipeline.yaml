@@ -9,8 +9,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM

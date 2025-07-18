@@ -16,6 +16,9 @@ param grafanaName string
 @description('The name of the global AFD instance')
 param azureFrontDoorProfileName string
 
+@description('The global MSI name')
+param globalMSIName string
+
 //
 //   A C R
 //
@@ -67,3 +70,13 @@ resource frontDoorProfile 'Microsoft.Cdn/profiles@2023-05-01' existing = if (!em
 }
 
 output azureFrontDoorResourceId string = empty(azureFrontDoorProfileName) ? '' : frontDoorProfile.id
+
+//
+//  G L O B A L   M S I
+//
+
+resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: globalMSIName
+}
+
+output globalMSIId string = globalMSI.id

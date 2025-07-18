@@ -440,6 +440,8 @@ func (s *OperationsScanner) processOperations(ctx context.Context, subscriptionI
 					"resource_id", operationDoc.ExternalID.String(),
 					"internal_id", operationDoc.InternalID.String(),
 					"cluster_id", operationDoc.InternalID.ClusterID(),
+					"client_request_id", operationDoc.ClientRequestID,
+					"correlation_request_id", operationDoc.CorrelationRequestID,
 				),
 			})
 	}

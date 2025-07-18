@@ -76,11 +76,11 @@ param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
 param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
 param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
 param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
-param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.cxParentZoneName }}'
+param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.svcParentZoneName }}'
 param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
 param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
 
-param aroDevopsMsiId = '{{ .aroDevopsMsiId }}'
+param globalMSIId = '__globalMSIId__'
 
 param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param regionalCXDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.cxParentZoneName }}'

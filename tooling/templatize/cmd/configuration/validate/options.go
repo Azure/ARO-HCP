@@ -37,9 +37,10 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
-func DefaultOptions(outputDir string) *RawOptions {
+func DefaultOptions(outputDir string, url string) *RawOptions {
 	return &RawOptions{
-		OutputDir: outputDir,
+		OutputDir:        outputDir,
+		CentralRemoteUrl: url,
 	}
 }
 
@@ -48,6 +49,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "Validate only the combinations present in the settings file, using public production Ev2 contexts.")
 	cmd.Flags().StringVar(&opts.DigestFile, "digest-file", opts.DigestFile, "File holding digests of previously-rendered configurations to validate with.")
 	cmd.Flags().StringVar(&opts.OutputDir, "output-dir", opts.OutputDir, "Directory to output rendered configurations to.")
+	cmd.Flags().StringVar(&opts.CentralRemoteUrl, "central-remote-url", opts.CentralRemoteUrl, "Git URL for the central remote, used to calculate merge-base.")
 	cmd.Flags().BoolVar(&opts.Update, "update", opts.Update, "Update the digest file.")
 
 	for _, flag := range []string{
@@ -69,6 +71,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 type RawOptions struct {
 	ServiceConfigFile string
 	DevSettingsFile   string
+	CentralRemoteUrl  string
 
 	DigestFile string
 	OutputDir  string
@@ -91,6 +94,7 @@ type completedOptions struct {
 	Digests       *Digests
 	DevSettings   *settings.Settings
 
+	CentralRemoteUrl  string
 	OutputDir         string
 	ServiceConfigFile string
 	DigestFile        string
@@ -111,6 +115,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
 		{flag: "digest-file", name: "digest file", value: &o.DigestFile},
 		{flag: "output-dir", name: "output directory", value: &o.OutputDir},
+		{flag: "central-remote-url", name: "central git remote URL", value: &o.OutputDir},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
@@ -149,6 +154,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			ServiceConfig:     c,
 			ServiceConfigFile: o.ServiceConfigFile,
 			DevSettings:       s,
+			CentralRemoteUrl:  o.CentralRemoteUrl,
 			Digests:           d,
 			OutputDir:         o.OutputDir,
 			DigestFile:        o.DigestFile,
@@ -227,7 +233,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 		opts.OutputDir,
 		opts.Update,
 		opts.DigestFile,
-		"https://github.com/Azure/ARO-HCP.git",
+		opts.CentralRemoteUrl,
 	)
 }
 

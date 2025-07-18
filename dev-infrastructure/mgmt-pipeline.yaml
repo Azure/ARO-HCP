@@ -10,8 +10,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: global-output
     action: ARM
@@ -19,8 +19,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .svc.rg  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: svc-output
     action: ARM
@@ -28,8 +28,8 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: region-output
     action: ARM
@@ -37,8 +37,8 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: rpRegistration
     action: ResourceProviderRegistration
@@ -59,7 +59,12 @@ resourceGroups:
       input:
         step: region-output
         name: logAnalyticsWorkspaceId
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
+    - global-output
     - region-output
     - svc-output
     - rpRegistration
@@ -68,8 +73,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
-    secretId:
-      configRef: ev2.assistedId.certificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
     applicationId:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
@@ -82,8 +89,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
-    secretId:
-      configRef: ev2.assistedId.certificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
     applicationId:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
@@ -96,8 +105,10 @@ resourceGroups:
     action: SetCertificateIssuer
     dependsOn:
     - mgmt-infra
-    secretId:
-      configRef: ev2.assistedId.certificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
     applicationId:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
@@ -121,6 +132,10 @@ resourceGroups:
       input:
         step: global-output
         name: svcAcrResourceId
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: azureMonitoringWorkspaceId
       input:
         step: region-output
@@ -157,7 +172,7 @@ resourceGroups:
     - mgmt-cluster
     - mgmt-infra
   - name: prometheus
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
     dryRun:
@@ -200,10 +215,12 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # Install ACRpull
+      input:
+        step: global-output
+        name: globalMSIId
+        # Install ACRpull
   - name: acrpull
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../acrpull deploy
     dryRun:
@@ -220,10 +237,12 @@ resourceGroups:
     dependsOn:
     - prometheus
     shellIdentity:
-      configRef: aroDevopsMsiId
-      # Install cluster patches
+      input:
+        step: global-output
+        name: globalMSIId
+        # Install cluster patches
   - name: mgmt-fixes
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
     dryRun:
@@ -236,4 +255,35 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
+  - name: arobit
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make -C ../arobit deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: AROBIT_FORWARDER_DIGEST
+      configRef: arobit.forwarder.image.digest
+    - name: AROBIT_FORWARDER_REPOSITORY
+      configRef: arobit.forwarder.image.repository
+    - name: AROBIT_FORWARDER_REGISTRY
+      configRef: arobit.forwarder.image.registry
+    - name: AROBIT_MDSD_DIGEST
+      configRef: arobit.mdsd.image.digest
+    - name: AROBIT_MDSD_REPOSITORY
+      configRef: arobit.mdsd.image.repository
+    - name: AROBIT_MDSD_REGISTRY
+      configRef: arobit.mdsd.image.registry
+    - name: AROBIT_MDSD_ENABLED
+      configRef: arobit.mdsd.enabled
+    dependsOn:
+    - mgmt-cluster
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId

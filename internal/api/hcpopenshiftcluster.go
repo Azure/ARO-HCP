@@ -35,14 +35,16 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState arm.ProvisioningState     `json:"provisioningState,omitempty"             visibility:"read"`
-	Version           VersionProfile            `json:"version,omitempty"`
-	DNS               DNSProfile                `json:"dns,omitempty"`
-	Network           NetworkProfile            `json:"network,omitempty"                       visibility:"read create"`
-	Console           ConsoleProfile            `json:"console,omitempty"                       visibility:"read"`
-	API               APIProfile                `json:"api,omitempty"`
-	Platform          PlatformProfile           `json:"platform,omitempty"                      visibility:"read create"`
-	Autoscaling       ClusterAutoscalingProfile `json:"autoscaling,omitempty"                   visibility:"read create update"`
+	ProvisioningState       arm.ProvisioningState     `json:"provisioningState,omitempty"       visibility:"read"`
+	Version                 VersionProfile            `json:"version,omitempty"`
+	DNS                     DNSProfile                `json:"dns,omitempty"`
+	Network                 NetworkProfile            `json:"network,omitempty"                 visibility:"read create"`
+	Console                 ConsoleProfile            `json:"console,omitempty"                 visibility:"read"`
+	API                     APIProfile                `json:"api,omitempty"`
+	Platform                PlatformProfile           `json:"platform,omitempty"                visibility:"read create"`
+	Autoscaling             ClusterAutoscalingProfile `json:"autoscaling,omitempty"             visibility:"read create update"`
+	NodeDrainTimeoutMinutes int32                     `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
+	Etcd                    EtcdProfile               `json:"etcd,omitempty"                   visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -100,6 +102,36 @@ type ClusterAutoscalingProfile struct {
 	PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
 }
 
+// The ETCD settings and configuration options
+// If not specified platform managed keys are used.
+type EtcdProfile struct {
+	DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty" visibility:"read create"`
+}
+
+// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+type EtcdDataEncryptionProfile struct {
+	CustomerManaged   CustomerManagedEncryptionProfile        `json:"customerManaged,omitempty" visibility:"read create"`
+	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" visibility:"read create"`
+}
+
+// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+type CustomerManagedEncryptionProfile struct {
+	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" visibility:"read create"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty" visibility:"read create" validate:"omitempty"`
+}
+
+// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key.
+type KmsEncryptionProfile struct {
+	ActiveKey KmsKey `json:"activeKey,omitempty" visibility:"read create"`
+}
+
+// KmsKey - A representation of a KeyVault Secret.
+type KmsKey struct {
+	Name      string `json:"name" validate:"required,min=1,max=255"`
+	VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
+	Version   string `json:"version" validate:"required,min=1,max=255"`
+}
+
 // OperatorsAuthenticationProfile represents authentication configuration for
 // OpenShift operators.
 // Visibility for the entire struct is "read create".
@@ -143,6 +175,12 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				MaxPodGracePeriodSeconds:    600,
 				MaxNodeProvisionTimeSeconds: 900,
 				PodPriorityThreshold:        -10,
+			},
+			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
+			Etcd: EtcdProfile{
+				DataEncryption: EtcdDataEncryptionProfile{
+					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				},
 			},
 		},
 	}

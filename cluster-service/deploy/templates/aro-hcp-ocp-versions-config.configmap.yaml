@@ -2,18 +2,18 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: aro-hcp-ocp-versions-config
-  namespace: '{{ .Release.Namespace  }}'
+  namespace: '{{ .Release.Namespace }}'
 data:
   aro-hcp-ocp-versions-config.yaml: |
     defaultVersion:
       channelGroupName: stable
-      version: 4.18.1
+      version: 4.19.0
     channelGroups:
       # the URL to cincinnati will be the same across all environments, other URLs also need to be whitelisted
       - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: stable
         # the versions must be in sync with what's defined in dev-infrastructure/templates/global-image-sync.bicep
         # this is to ensure that the enabled release images are synchronized to ACR in lockstep
-        minVersion: 4.18.0
+        minVersion: 4.19.0
         # maxVersion is exclusive, contrary to oc-mirror which defines that boundary as inclusive.
         maxVersion: 4.19.1

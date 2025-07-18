@@ -7,9 +7,6 @@ forwarder:
   ##
   enabled: true
   dynamicConfig: false
-  ## Specifies whether mdsd should enabled
-  ##
-  mdsd: false
   ## K8s Security Context for forwarder pods
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   ##
@@ -53,6 +50,22 @@ forwarder:
   podAnnotations: {}
   ## Extra labels to add to Pod
   podLabels: {}
+  # mode: createSecretProvider - Creates csi secret provider if enabled is set to true
+  secretProvider:
+    enabled: false
+    usePodIdentity: false
+    useMsi: false
+    labels: {}
+    useNodePublishSecret: true
+    useWorkloadIdentity: false
+    # clientSecret: ""
+    # cloudEnvFileName: ""
+    # cloudName: ""
+    # gcsCertSecret: ""
+    # keyVault: ""
+    # tenantId: ""
+    # msiClientId: ""
+  ## ref: https://github.com/Hexadite/acs-keyvault-agent
   ## Pods Service Account
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
   serviceAccount:
@@ -85,6 +98,10 @@ forwarder:
         port: 4318
         targetPort: otlp-http
         protocol: TCP
+      forward:
+        port: 24224
+        targetPort: forward
+        protocol: TCP
     ## Provide any additional annotations which may be required
     ##
     annotations: {}
@@ -92,8 +109,9 @@ forwarder:
     ## Fluent Bit image version
     ##
     image:
-      repository: mcr.microsoft.com/oss/fluent/fluent-bit
-      tag: 2.1.8
+      registry: mcr.microsoft.com
+      repository: /oss/fluent/fluent-bit
+      digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
       pullPolicy: IfNotPresent
     ## forwarder fluentbit container ports
     ##
@@ -103,6 +121,9 @@ forwarder:
       protocol: TCP
     - name: otlp-http
       containerPort: 4318
+      protocol: TCP
+    - name: forward
+      containerPort: 24224
       protocol: TCP
     ## K8s Security Context for fluent bit container
     ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
@@ -300,213 +321,31 @@ forwarder:
       # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
       limits: {}
       requests: {}
-  exporter:
-    ## storage exporter image version
-    ##
-    image:
-      repository: quay.io/prometheuscommunity/json-exporter
-      tag: v0.6.0
-      pullPolicy: IfNotPresent
-    ## exporter container ports
-    ##
-    containerPorts:
-    - name: exporter
-      containerPort: 7979
-      protocol: TCP
-    ## The exporter configuration
-    ## ref: https://github.com/prometheus-community/json_exporter
-    ##
-    configMap:
-      config.yml: |
-        modules:
-          default:
-            metrics:
-              - name: fluentbit_storage_layer
-                type: object
-                path: '{.storage_layer}'
-                help: The total number of chunks in the filesystem storage
-                values:
-                  fs_chunks_up: '{.chunks.fs_chunks_up}'
-                  fs_chunks_down: '{.chunks.fs_chunks_down}'
-    ## resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
-aggregator:
-  ## Number of aggregator replicas
-  ##
-  replicaCount: 1
-  ## Autoscale using KEDA: https://keda.sh/
-  ## Do not enable both KEDA and HPA
-  keda:
-    enabled: false
-    # minReplicas: 3
-  # maxReplicas: 30
-  # triggers:
-  #   - type: cpu
-  #     metricType: Utilization
-  #     metadata:
-  #       value: "60"
-  #   - type: memory
-  #     metricType: Utilization
-  #     metadata:
-  #       value: "60"
-  # behavior: {}
-
-  ## K8s Security Context for aggregator pods
-  ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-  ##
-  securityContext:
-    enabled: true
-    runAsUser: 65532
-    runAsGroup: 65532
-  ## Set up update strategy.
-  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
-  ## Example:
-  # strategy:
-  #  type: RollingUpdate
-  #  rollingUpdate:
-  #    maxSurge: 25%
-  #    maxUnavailable: 25%
-  strategy:
-    type: RollingUpdate
-  ## Set the maximum time in seconds for a deployment to make progress before it is considered to be failed.
-  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#progress-deadline-seconds
-  ##
-  progressDeadlineSeconds: 600
-  ## Set the duration in seconds the pod needs to terminate gracefully
-  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
-  ##
-  # default (30s) + prehook's sleep time (60s) = 90s
-  terminationGracePeriodSeconds: 90
-  ## Set Priority Class Name to allow priority control over other pods
-  ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
-  ##
-  priorityClassName: ""
-  ## Node labels for pod assignment
-  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
-  ##
-  nodeSelector: {}
-  ## Tolerations for pod assignment
-  ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-  ##
-  tolerations: []
-  ## Affinity for pod assignment
-  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-  ##
-  affinity: {}
-  ## Annotations for the aggregator
-  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  ##
-  annotations: {}
-  ## Pod annotations
-  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  ##
-  podAnnotations: {}
-  ## Extra labels to add to Pod
-  podLabels: {}
-  ## Pods Service Account
-  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
-  serviceAccount:
-    ## Specifies whether a ServiceAccount should be created
-    ##
-    create: true
-    ## The name of the ServiceAccount to use.
-
-    ## If not set and create is true, a name is generated using the template
-    # name:
-    ## Annotations for the Service Account (evaluated as a template)
-    ##
-    annotations: {}
-  ## Service parameters
-  ##
-  service:
-    ## Service ports
-    ##
-    ports:
-      http:
-        port: 2020
-        targetPort: http
-        protocol: TCP
-      forward:
-        port: 24224
-        targetPort: forward
-        protocol: TCP
-    ## Provide any additional annotations which may be required
-    ##
-    annotations: {}
-  # mode: createSecretProvider - Creates csi secret provider if enabled is set to true
-  secretProvider:
-    enabled: false
-    usePodIdentity: false
-    useMsi: false
-    labels: {}
-    useNodePublishSecret: true
-    useWorkloadIdentity: false
-    # clientSecret: ""
-    # cloudEnvFileName: ""
-    # cloudName: ""
-    # gcsCertSecret: ""
-    # keyVault: ""
-    # tenantId: ""
-    # msiClientId: ""
-  ## ref: https://github.com/Hexadite/acs-keyvault-agent
-  ##
-  fluentbit:
-    ## Fluent Bit image version
-    ##
-    image:
-      repository: mcr.microsoft.com/oss/fluent/fluent-bit
-      tag: 2.1.8
-      pullPolicy: IfNotPresent
-    ## aggregator fluenbit container ports
-    ##
-    containerPorts:
-    - name: http
-      containerPort: 2020
-      protocol: TCP
-    - name: forward
-      containerPort: 24224
-      protocol: TCP
-    ## K8s Security Context for fluent-bit aggregator containers
-    ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-    containerSecurityContext:
-      enabled: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop: ['ALL']
-        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
-    # readOnlyRootFilesystem: true
   mdsd:
+    ## Specifies whether mdsd should enabled
+    enabled: false
     ## mdsd image version
     ##
     image:
-      repository: linuxgeneva-microsoft.azurecr.io/genevamdsd
-      tag: recommended
+      registry: linuxgeneva-microsoft.azurecr.io
+      repository: genevamdsd
+      digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
       pullPolicy: IfNotPresent
     ## TODO: when using distroless image, use args instead of command
     command:
     - /start_mdsd.sh
     args: []
     #   - "-p"
-
     #   - "$(MDSD_PORT)"
     #   - "-f"
     #   - "$(FLUENTD_PORT)"
     #   - "$(MDSD_LOG_OPTIONS)"
     #   - "$(GCS_AUTOMATIC_CONFIG_RUNTIME)"
     #   - "$(MDSD_DEBUG_LOG_FLAGS)"
-    ## aggregator mdsd container ports
+    ## forwarder mdsd container ports
     ##
     containerPorts: []
-    ## K8s Security Context for fluent-bit aggregator containers
+    ## K8s Security Context for fluent-bit forwarder containers
     ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
     containerSecurityContext:
       enabled: true
@@ -598,34 +437,35 @@ aggregator:
       # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
       limits: {}
       requests: {}
-  test:
-    enabled: false
-    ## Fluentd image version
-
+  exporter:
+    ## storage exporter image version
     ##
     image:
-      repository: linuxgeneva-microsoft.azurecr.io/genevafluentd_td-agent
-      tag: recommended
+      repository: quay.io/prometheuscommunity/json-exporter
+      tag: v0.6.0
       pullPolicy: IfNotPresent
-    ## The configMap that contains the configuration files for fluentd
-    ## Some of these codes are inspired (taken) from https://knplabs.com/en/blog/how2tips-how-to-test-fluentd-config
+    ## exporter container ports
+    ##
+    containerPorts:
+    - name: exporter
+      containerPort: 7979
+      protocol: TCP
+    ## The exporter configuration
+    ## ref: https://github.com/prometheus-community/json_exporter
     ##
     configMap:
-      start: |
-        #!/opt/td-agent/bin/ruby
-        require './tests'
-      helper.rb: "require 'json'\nmodule Helper\n  private\n  def run_case(emitted, expected)\n    emit_log(emitted)\n    wait = wait_for_output(5)\n    if wait == false && expected != nil\n      raise \"Nothing has been written to the log file.\"\n    elsif wait == false && expected == nil\n      return\n    end\n    actual = fetch_output().pop\n    actual = yield actual if block_given?\n    actual[\"record\"] = actual[\"record\"].select {|key, value| expected[\"record\"].include?(key) }\n    assert_equal(expected, actual)\n  end\n  def emit_log(emitted)\n    tag = if emitted.key?(\"tag\") then emitted[\"tag\"] else \"docker.CONTAINER-NAME\" end\n    formatted = if emitted.key?(\"record\") then JSON.generate(emitted[\"record\"]).gsub(\"'\", \"\\\\\\\\'\") else \"empty\" end\n    `echo '#{formatted}' | /opt/td-agent/bin/fluent-cat #{tag}`\n  end\n  def fetch_output()\n    @outfile.readlines.map do |line|\n      parse_line(line)\n    end\n  end\n  def parse_line(line)\n    tag, time, text = line.match(/(^.+):\\s+\\[(\\d+\\.\\d+),\\s+(.+)\\]/).captures\n    return {\"tag\" => tag, \"record\" => JSON.parse(text)}\n  end            \n  def wait_for_output(delay)\n    i = 0\n    while i < delay do\n      sleep 1\n      i += 1\n      return true unless outfile_empty?\n    end\n    return false\n  end\n  def outfile_empty?()\n    File.stat(@outpath).size == 0\n  end\n  def cleanup_record(record, fields)\n    fields.each { |field| record.delete(field) }\n    return record\n  end\nend\n"
-      tests.rb: "require 'test/unit'\nrequire './helper'\nclass TestCase < Test::Unit::TestCase\n  include Helper\n  def setup\n    @outpath = \"/test/var/test-output.log\"\n    @outfile = File::open(@outpath, File::RDWR|File::TRUNC|File::CREAT)\n    File.chmod(0666, @outpath)\n  end     \n  def teardown\n    @outfile.close\n  end      \n  def test_sample_plain_stdout\n    emitted = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => \"hello world\"}\n    }\n    expected = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => \"hello world\"}\n    }\n    run_case(emitted, expected)\n  end\n  def test_sample_json_stdout\n    emitted = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"log\" => JSON.generate({\"foo\" => \"bar\"})}\n    }\n    expected = {\n      \"tag\" => \"kubernetes.my_ns\",\n      \"record\" => {\"foo\" => \"bar\"}\n    }\n    run_case(emitted, expected)\n  end\nend\n"
-    ## test containers' startup probe
-    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
-    ##
-    startupProbe:
-      initialDelaySeconds: 120
-      periodSeconds: 15
-      timeoutSeconds: 5
-      failureThreshold: 12
-      successThreshold: 1
-    ## test resource requests and limits
+      config.yml: |
+        modules:
+          default:
+            metrics:
+              - name: fluentbit_storage_layer
+                type: object
+                path: '{.storage_layer}'
+                help: The total number of chunks in the filesystem storage
+                values:
+                  fs_chunks_up: '{.chunks.fs_chunks_up}'
+                  fs_chunks_down: '{.chunks.fs_chunks_down}'
+    ## resource requests and limits
     ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
     ##
     resources:

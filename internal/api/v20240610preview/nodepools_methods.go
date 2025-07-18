@@ -109,6 +109,7 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 				out.Properties.Taints[i].Value = *h.Properties.Taints[i].Value
 			}
 		}
+		out.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
 	}
 }
 
@@ -233,14 +234,15 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 			Location: api.PtrOrNil(from.Location),
 			Tags:     api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
-				ProvisioningState: api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Platform:          newNodePoolPlatformProfile(&from.Properties.Platform),
-				Version:           newNodePoolVersionProfile(&from.Properties.Version),
-				AutoRepair:        api.PtrOrNil(from.Properties.AutoRepair),
-				AutoScaling:       newNodePoolAutoScaling(from.Properties.AutoScaling),
-				Labels:            []*generated.Label{},
-				Replicas:          api.PtrOrNil(from.Properties.Replicas),
-				Taints:            []*generated.Taint{},
+				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
+				Platform:                newNodePoolPlatformProfile(&from.Properties.Platform),
+				Version:                 newNodePoolVersionProfile(&from.Properties.Version),
+				AutoRepair:              api.PtrOrNil(from.Properties.AutoRepair),
+				AutoScaling:             newNodePoolAutoScaling(from.Properties.AutoScaling),
+				Labels:                  []*generated.Label{},
+				Replicas:                api.PtrOrNil(from.Properties.Replicas),
+				Taints:                  []*generated.Taint{},
+				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
 			},
 		},
 	}

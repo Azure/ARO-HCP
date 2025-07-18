@@ -2,11 +2,20 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.ACM
 rolloutName: ACM Rollout
 resourceGroups:
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make deploy
     dryRun:
@@ -19,9 +28,13 @@ resourceGroups:
     - name: MCE_PAUSE_RECONCILIATION
       configRef: acm.mce.pauseReconciliation
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
   - name: scale-down
-    aksCluster: '{{ .mgmt.aks.name  }}'
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make scale
     dryRun:
@@ -32,4 +45,8 @@ resourceGroups:
     - name: MCE_PAUSE_RECONCILIATION
       configRef: acm.mce.pauseReconciliation
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output

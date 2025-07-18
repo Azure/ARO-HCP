@@ -2,14 +2,30 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
 rolloutName: Delete Management Resource Group
 resourceGroups:
-- name: '{{ .mgmt.rg  }}'
-  subscription: '{{ .mgmt.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: rg-ownership
     action: ARM
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
     deploymentLevel: Subscription
+    variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
   - name: delete-mgmt
     action: Shell
     command: ./delete.sh
@@ -21,6 +37,9 @@ resourceGroups:
     - name: RESOURCE_GROUP
       configRef: mgmt.rg
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId
     dependsOn:
+    - global-output
     - rg-ownership

@@ -47,12 +47,12 @@ Once merged, a GitHub Actions pipeline will propagate the updated configuration 
 
 ## Bumping Image Digests in Microsoft Environments
 
-Image digests for Microsoft environments are defined in [sdp-pipelines/hcp/config.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.clouds-overlay.yaml), under the `clouds.public` section.
+Image digests for Microsoft environments are defined in [config/config.msft.clouds-overlay.yaml](../../config/config.msft.clouds-overlay.yaml).
 
 To update a digest:
 
-1. Modify the digest in the appropriate `clouds.public.environments.$env` section.
-2. Follow the [README instructions](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md) in the `sdp-pipelines/hcp` directory to create a pull request.
+1. Modify the digest in the appropriate `clouds.public.environments.$env` section, open a PR and get it merged.
+2. Follow the [README instructions](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md) in the `sdp-pipelines/hcp` directory bring in the change to the `sdp-pipelines` ADO repository via a pull request.
 
 > [!IMPORTANT]
-> Changes to MSFT environment configurations are not applied automatically. You must manually trigger the relevant infrastructure or service component deployment pipeline via ADO. Refer to the [EV2 deployment documentation](../ev2-deployment.md#execute-an-ado-pipeline) for instructions.
+> Changes to MSFT environment configurations are not applied automatically to the respective environments. You have to trigger the relevant infrastructure or service component deployment pipelines manually via ADO after the `sdp-pipelines` PR is merged. You can find all ARP HCP pipelines in [ADO](https://msazure.visualstudio.com/AzureRedHatOpenShift/_build?definitionScope=%5COneBranch%5Csdp-pipelines%5Chcp). Refer to the [EV2 deployment documentation](../ev2-deployment.md#execute-an-ado-pipeline) for mores instructions.

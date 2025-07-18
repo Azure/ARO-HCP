@@ -17,6 +17,13 @@
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
       "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
     },
+    "optionalKeyVaultName": {
+      "anyOf": [
+      { "$ref": "#/definitions/keyVaultName" },
+      { "type": "string", "pattern": "^$" }
+      ],
+      "description": "A key vault name or an empty string"
+    },
     "operatorConfig": {
       "type": "object",
       "properties": {
@@ -27,6 +34,33 @@
       "additionalProperties": false,
       "required": [
         "roleNames"
+      ]
+    },
+    "certificateRef": {
+      "type": "object",
+      "properties": {
+        "keyVault": {
+          "$ref": "#/definitions/keyVaultName"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "keyVault",
+        "name"
+      ]
+    },
+    "audit": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "tcpAddress": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tcpAddress"
       ]
     },
     "tracing": {
@@ -260,8 +294,8 @@
           "type": "string"
         },
         "digest": {
-            "type": "string",
-            "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
+          "type": "string",
+          "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
         }
       },
       "required": [
@@ -308,7 +342,7 @@
             },
             "version": {
               "type": "string"
-            }          
+            }
           }
         },
         "prometheusSpec": {
@@ -333,7 +367,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "image" :{
+            "image": {
               "$ref": "#/definitions/containerImage"
             }
           }
@@ -383,12 +417,41 @@
         "databaseName",
         "zoneRedundantMode"
       ]
+    },
+    "subscriptionMetadata": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "airsRegisteredUserPrincipalId": {
+          "type": "string"
+        },
+        "certificateDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "afecFlags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(([A-Z][a-z]+)+.?)+/[A-Za-z]+"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "displayName"
+      ]
     }
   },
   "properties": {
-    "aroDevopsMsiId": {
-      "type": "string"
-    },
     "tenantId": {
       "type": "string"
     },
@@ -639,6 +702,9 @@
     "frontend": {
       "type": "object",
       "properties": {
+        "audit": {
+          "$ref": "#/definitions/audit"
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -707,12 +773,16 @@
           "additionalProperties": false,
           "properties": {
             "certificate": {
-              "type": "string"
+              "$ref": "#/definitions/certificateRef"
             },
             "applicationId": {
               "type": "string"
             }
-          }
+          },
+          "required": [
+            "certificate",
+            "applicationId"
+          ]
         }
       },
       "additionalProperties": false,
@@ -813,7 +883,7 @@
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
                 },
                 "accountCert": {
-                  "type": "string"
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
@@ -832,7 +902,7 @@
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
                 },
                 "accountCert": {
-                  "type": "string"
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
@@ -917,6 +987,18 @@
         "tenantId"
       ]
     },
+    "msiRp": {
+      "type": "object",
+      "properties": {
+        "dataPlaneAudienceResource": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "dataPlaneAudienceResource"
+      ]
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
@@ -928,7 +1010,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "region": {
           "type": "string"
@@ -1007,7 +1089,6 @@
           "required": [
             "pullSecretName"
           ]
-
         },
         "ocMirror": {
           "type": "object",
@@ -1035,6 +1116,43 @@
         "environmentName",
         "outboundServiceTags",
         "ocMirror"
+      ]
+    },
+    "arobit": {
+      "type": "object",
+      "properties": {
+        "forwarder": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image"
+          ]
+        },
+        "mdsd": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "image"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "forwarder",
+        "mdsd"
       ]
     },
     "acrPull": {
@@ -1155,9 +1273,15 @@
               "pattern": "^[a-zA-Z0-9-]+$",
               "not": {
                 "anyOf": [
-                  { "pattern": "^Microsoft-" },
-                  { "pattern": "^EventGrid-" },
-                  { "pattern": "^System-" }
+                  {
+                    "pattern": "^Microsoft-"
+                  },
+                  {
+                    "pattern": "^EventGrid-"
+                  },
+                  {
+                    "pattern": "^System-"
+                  }
                 ]
               },
               "description": "Name length should be between 3 and 50 characters in length but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts. Only alphanumeric letters, digits and the '-' character are allowed in the topic name. Also, the name shouldn't start with the following reserved words: Microsoft-, EventGrid-, System-"
@@ -1210,7 +1334,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "jaeger": {
           "deploy": "boolean"
@@ -1409,7 +1533,7 @@
               "type": "string"
             },
             "keyVaultName": {
-              "type": "string"
+              "$ref": "#/definitions/optionalKeyVaultName"
             },
             "msiName": {
               "type": "string"
@@ -1455,8 +1579,8 @@
         "softDelete": {
           "type": "boolean"
         },
-        "assignNSP":{
-          "type":"boolean"
+        "assignNSP": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -1478,7 +1602,7 @@
           "$ref": "#/definitions/resourceGroupName"
         },
         "subscription": {
-          "type": "string"
+          "$ref": "#/definitions/subscriptionMetadata"
         },
         "nsp": {
           "$ref": "#/definitions/nsp"
@@ -1567,11 +1691,26 @@
         "name",
         "id"
       ]
+    },
+    "administration": {
+      "type": "object",
+      "properties": {
+        "readerGroupIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "readerGroupIds"
+      ]
     }
   },
   "additionalProperties": false,
   "required": [
-    "aroDevopsMsiId",
+    "administration",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

@@ -18,9 +18,13 @@ import (
 	"context"
 	"fmt"
 
+	"strings"
+
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type ClusterServiceClientSpec interface {
@@ -83,6 +87,14 @@ type ClusterServiceClientSpec interface {
 	// Items() on the returned iterator in a for/range loop to execute the request and paginate
 	// over results, then call GetError() to check for an iteration error.
 	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
+
+	// GetVersion sends a GET request to fetch cluster version
+	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
+
+	// ListVersions prepares a GET request. Call Items() on
+	// the returned iterator in a for/range loop to execute the request and paginate over results,
+	// then call GetError() to check for an iteration error.
+	ListVersions() VersionsListIterator
 }
 
 type clusterServiceClient struct {
@@ -382,4 +394,27 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 		breakGlassCredentialsListRequest.Search(searchExpression)
 	}
 	return BreakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
+}
+
+func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
+
+	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
+		versionName = api.OpenShiftVersionPrefix + versionName
+	}
+	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
+
+	resp, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	version, ok := resp.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return version, nil
+}
+
+func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
+	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
+	return VersionsListIterator{request: versionsListRequest}
 }

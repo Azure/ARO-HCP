@@ -11,8 +11,8 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   # Query parameters from global deployment, e.g. DNS hzone and ACR resource IDs
   - name: global-output
@@ -21,8 +21,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .regionRG  }}'
-  subscription: '{{ .svc.subscription  }}'
+- name: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: rpRegistration
     action: ResourceProviderRegistration
@@ -35,6 +35,10 @@ resourceGroups:
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
+    - name: globalMSIId
+      input:
+        step: global-output
+        name: globalMSIId
     - name: ocpAcrResourceId
       input:
         step: global-output
@@ -66,8 +70,8 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - region
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: add-svc-grafana-datasource
     action: Shell
@@ -87,10 +91,13 @@ resourceGroups:
         name: azureMonitoringWorkspaceId
     dependsOn:
     - region-output
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
-- name: '{{ .global.rg  }}'
-  subscription: '{{ .global.subscription  }}'
+      input:
+        step: global-output
+        name: globalMSIId
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: add-hcp-grafana-datasource
     action: Shell
@@ -110,5 +117,8 @@ resourceGroups:
         name: hcpAzureMonitoringWorkspaceId
     dependsOn:
     - add-svc-grafana-datasource
+    - global-output
     shellIdentity:
-      configRef: aroDevopsMsiId
+      input:
+        step: global-output
+        name: globalMSIId

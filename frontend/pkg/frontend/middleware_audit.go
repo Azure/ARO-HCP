@@ -29,6 +29,12 @@ type AuditResponseWriter struct {
 	statusCode int
 }
 
+// WriteHeader captures the status code and delegates to the underlying ResponseWriter
+func (w *AuditResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
 // MiddlewareAudit writes audit messages upon receiving a request.
 func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
@@ -44,12 +50,17 @@ func MiddlewareAudit(w http.ResponseWriter, r *http.Request, next http.HandlerFu
 	correlationData := arm.NewCorrelationData(r)
 	msg.Record.CallerIdentities = getCallerIdentitesMap(correlationData)
 
-	next(w, r)
+	// Wrap the response writer to capture status code
+	auditWriter := &AuditResponseWriter{
+		ResponseWriter: w,
+	}
 
-	responseWriter, ok := w.(*AuditResponseWriter)
-	if ok && responseWriter.statusCode >= http.StatusBadRequest {
+	next(auditWriter, r)
+
+	statusCode := auditWriter.statusCode
+	if statusCode >= http.StatusBadRequest {
 		msg.Record.OperationResult = msgs.Failure
-		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", responseWriter.statusCode)
+		msg.Record.OperationResultDescription = fmt.Sprintf("Status code: %d", statusCode)
 	}
 
 	if err := auditClient.Send(ctx, msg); err != nil {

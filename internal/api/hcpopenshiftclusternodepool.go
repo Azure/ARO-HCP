@@ -35,14 +35,15 @@ type HCPOpenShiftClusterNodePool struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState arm.ProvisioningState   `json:"provisioningState,omitempty" visibility:"read"`
-	Version           NodePoolVersionProfile  `json:"version,omitempty"`
-	Platform          NodePoolPlatformProfile `json:"platform,omitempty"          visibility:"read create"`
-	Replicas          int32                   `json:"replicas,omitempty"          visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
-	AutoRepair        bool                    `json:"autoRepair,omitempty"        visibility:"read create"`
-	AutoScaling       *NodePoolAutoScaling    `json:"autoScaling,omitempty"       visibility:"read create update"`
-	Labels            map[string]string       `json:"labels,omitempty"            visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
-	Taints            []Taint                 `json:"taints,omitempty"            visibility:"read create update" validate:"dive"`
+	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"       visibility:"read"`
+	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
+	Platform                NodePoolPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
+	Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
+	AutoRepair              bool                    `json:"autoRepair,omitempty"              visibility:"read create"`
+	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"             visibility:"read create update"`
+	Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
+	Taints                  []Taint                 `json:"taints,omitempty"                  visibility:"read create update" validate:"dive"`
+	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

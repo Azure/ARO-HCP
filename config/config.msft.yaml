@@ -1,7 +1,0 @@
-#
-# The configuration for MSFT environments has been moved to https://msazure.visualstudio.com/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp
-#
-# * If you want to bump a component version, follow these instructions: https://github.com/Azure/ARO-HCP/blob/main/docs/ops/bump-image-digests.md
-# * If you want to bump infrastructure, helm charts or any used scripts, follow these instructions: https://msazure.visualstudio.com/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md
-#
-should_i_edit_this_file: "no"
