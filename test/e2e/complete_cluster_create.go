@@ -47,14 +47,10 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
 			)
-			ic := framework.InvocationContext()
+			ic := framework.NewInvocationContext()
 
 			By("creating a resource group")
-			resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", ic.Location())
-			DeferCleanup(func(ctx SpecContext) {
-				err := cleanupResourceGroup(ctx)
-				Expect(err).NotTo(HaveOccurred())
-			}, NodeTimeout(45*time.Minute))
+			resourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a prereqs in the resource group")
@@ -92,17 +88,6 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			// TODO list all HCP clusters in the resource group cleanup and remove them there.
-			DeferCleanup(func(ctx SpecContext) {
-				err := framework.DeleteHCPCluster(
-					ctx,
-					ic.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					45*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
-			}, NodeTimeout(45*time.Minute))
 
 			By("creating the node pool")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
