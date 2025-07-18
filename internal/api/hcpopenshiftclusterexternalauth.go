@@ -107,7 +107,7 @@ type TokenClaimMappingsProfile struct {
  * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
  */
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"                 visibility:"read create update"      validate:"required,min=1,max=256"`
+	Claim  string `json:"claim"                 visibility:"read create update"      validate:"required,max=256"`
 	Prefix string `json:"prefix,omitempty"      visibility:"read create update"`
 }
 
@@ -116,7 +116,7 @@ type GroupClaimProfile struct {
  * from the claims in a JWT token issued by the identity provider.
  */
 type UsernameClaimProfile struct {
-	Claim        string `json:"claim"                       visibility:"read create update"      validate:"required,min=1,max=256"`
+	Claim        string `json:"claim"                       visibility:"read create update"      validate:"required,max=256"`
 	Prefix       string `json:"prefix,omitempty"            visibility:"read create update"`
 	PrefixPolicy string `json:"prefixPolicy,omitempty"      visibility:"read create update"`
 }
@@ -129,8 +129,8 @@ type TokenClaimValidationRule struct {
 
 /** Token required claim validation rule. */
 type TokenRequiredClaim struct {
-	Claim         string `json:"claim"             visibility:"read create update"      validate:"min=1"`
-	RequiredValue string `json:"requiredValue"     visibility:"read create update"      validate:"min=1"`
+	Claim         string `json:"claim"             visibility:"read create update"      validate:"required"`
+	RequiredValue string `json:"requiredValue"     visibility:"read create update"      validate:"required"`
 }
 
 func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAuth {
@@ -150,6 +150,8 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 			var uniqueKey = elem.generateUniqueIdentifier()
 			if clientIds, ok := clientIdsMap[uniqueKey]; ok {
 				clientIdsMap[uniqueKey] = append(clientIds, elem.ClientId)
+			} else {
+				clientIdsMap[uniqueKey] = []string{elem.ClientId}
 			}
 		}
 		for uniqueKey, clientIds := range clientIdsMap {
@@ -157,7 +159,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						("External Auth Clients must have a unique combination of component.Name & component.Namespace " +
+						("External Auth Clients must have a unique combination of component.Name & component.Namespace. " +
 							"The following clientIds share the same unique combination '%s' and are invalid: \n '%s' "),
 						uniqueKey,
 						clientIds),
