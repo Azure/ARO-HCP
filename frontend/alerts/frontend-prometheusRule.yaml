@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: frontend-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: frontend
+    rules:
+    - alert: FrontendLatency
+      expr: |
+        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+        runbook_url: 'TBD'
+        summary: 'Frontend latency is high: 95th percentile exceeds 1 second'
+    - alert: FrontendClusterServiceErrorRate
+      expr: |
+        (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))
+        /
+        (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h]))))
+        > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+    - alert: FrontendHealthAvailability
+      expr: |
+        (1 - (sum_over_time(frontend_health[1h]) / 3600)) >= (300 / 3600)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
+        runbook_url: 'TBD'
+        summary: 'High unavailability on the Frontend'
