@@ -69,7 +69,6 @@ clouds:
             ocMirror:
               image:
                 digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
-        outboundServiceTags: "FirstPartyUsage:/Unprivileged"
       stg:
         # this is the MSFT STAGE environment
         defaults:
