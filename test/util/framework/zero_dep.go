@@ -36,6 +36,7 @@ type TestContext struct {
 	subscriptionName string
 	tenantID         string
 	testUserClientID string
+	location         string
 
 	contextLock                   sync.RWMutex
 	subscriptionID                string
@@ -67,6 +68,7 @@ func InvocationContext() *TestContext {
 			subscriptionName: subscriptionName(),
 			tenantID:         tenantID(),
 			testUserClientID: testUserClientID(),
+			location:         location(),
 		}
 	})
 	return invocationContext
@@ -265,10 +267,20 @@ func (tc *TestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, e
 	return tc.subscriptionID, nil
 }
 
+func (tc *TestContext) Location() string {
+	return tc.location
+}
+
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
 func subscriptionName() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("CUSTOMER_SUBSCRIPTION")
+}
+
+// location returns the Azure location to use, like "uksouth"
+func location() string {
+	// can't use gomega in this method since it is used outside of It()
+	return os.Getenv("LOCATION")
 }
 
 // testUserClientID returns the value of AZURE_CLIENT_ID environment variable
