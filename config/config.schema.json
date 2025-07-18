@@ -51,6 +51,38 @@
         "name"
       ]
     },
+    "registrationConfig": {
+      "additionalProperties": false,
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": "object",
+          "properties": {
+            "poll": {
+              "type": "boolean"
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "poll": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "audit": {
       "additionalProperties": false,
       "type": "object",
@@ -436,12 +468,8 @@
             "type": "string"
           }
         },
-        "afecFlags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(([A-Z][a-z]+)+.?)+/[A-Za-z]+"
-          }
+        "providers": {
+          "$ref": "#/definitions/registrationConfig"
         }
       },
       "additionalProperties": false,

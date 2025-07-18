@@ -25,10 +25,13 @@ resourceGroups:
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: rpRegistration
-    action: ResourceProviderRegistration
-    resourceProviderNamespaces:
-      value:
-      - Microsoft.Dashboard
+    action: ProviderFeatureRegistration
+    providerConfigRef: svc.subscription.providers
+    identityFrom:
+      step: global-output
+      name: globalMSIId
+    dependsOn:
+    - global-output
   - name: region
     action: ARM
     template: templates/region.bicep

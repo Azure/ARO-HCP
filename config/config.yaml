@@ -34,6 +34,24 @@ defaults:
     subscription:
       key: hcp-global
       displayName: "ARO HCP - {{ .ctx.environment }} - Global"
+      providers:
+        'Microsoft.Dashboard':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: global-shared-resources
     globalMSIName: global-ev2-identity
     nsp:
@@ -154,10 +172,24 @@ defaults:
     subscription:
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
       displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
-      afecFlags:
-      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-      - Microsoft.Compute/EncryptionAtHost
-      - Microsoft.ContainerService/IstioNativeSidecarModePreview
+      providers:
+        'Microsoft.Dashboard':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
@@ -227,10 +259,24 @@ defaults:
     subscription:
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
       displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
-      afecFlags:
-      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-      - Microsoft.Compute/EncryptionAtHost
-      - Microsoft.ContainerService/IstioNativeSidecarModePreview
+      providers:
+        'Microsoft.Storage':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:

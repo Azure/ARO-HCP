@@ -401,6 +401,28 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 						variable: specificStep.ConfigVersion,
 						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].configVersion", i, j),
 					})
+				case "ProviderFeatureRegistration":
+					specificStep, ok := step.(*types.ProviderFeatureRegistrationStep)
+					if !ok {
+						return fmt.Errorf("%s: resourceGroups[%d].steps[%d]: have action %q, expected *types.ProviderFeatureRegistrationStep, but got %T", service.ServiceGroup, i, j, step.ActionType(), step)
+					}
+					variables = append(variables, variableRef{
+						variable: types.Value{ConfigRef: specificStep.ProviderConfigRef},
+						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].providerConfigRef", i, j),
+					})
+					variables = append(variables, variableRef{
+						variable: types.Value{Input: &specificStep.IdentityFrom},
+						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].identityFrom", i, j),
+					})
+				case "SecretSync":
+					specificStep, ok := step.(*types.SecretSyncStep)
+					if !ok {
+						return fmt.Errorf("%s: resourceGroups[%d].steps[%d]: have action %q, expected *types.SecretSyncStep, but got %T", service.ServiceGroup, i, j, step.ActionType(), step)
+					}
+					variables = append(variables, variableRef{
+						variable: types.Value{Input: &specificStep.IdentityFrom},
+						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].identityFrom", i, j),
+					})
 				}
 			}
 		}

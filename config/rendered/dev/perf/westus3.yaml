@@ -167,6 +167,24 @@ global:
   subscription:
     displayName: ARO HCP - perf - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Dashboard:
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
 hypershift:
   additionalInstallArg: ""
   image:
@@ -306,15 +324,29 @@ mgmt:
       version: v2.55.1-3
   rg: hcp-underlay-perf-usw3ptest-mgmt-1
   subscription:
-    afecFlags:
-    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-    - Microsoft.Compute/EncryptionAtHost
-    - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
     displayName: ARO HCP - perf - svc - westus3
     key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
+      Microsoft.Storage:
+        poll: true
 mgmtKeyVault:
   name: ah-perf-mg-usw3ptest-1
   private: false
@@ -458,12 +490,26 @@ svc:
       version: ""
   rg: hcp-underlay-perf-usw3ptest-svc
   subscription:
-    afecFlags:
-    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-    - Microsoft.Compute/EncryptionAtHost
-    - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
     displayName: ARO HCP - perf - svc - westus3
     key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Dashboard:
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
 tenantId: ""
