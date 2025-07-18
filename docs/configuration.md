@@ -98,6 +98,10 @@ Certain configuration fields require unique values within a deployment environme
 
 To prevent repetitive declarations of such values, templating can be used within the configuration. Templating is supported via Go templates in property values, allowing dynamic value substitution based on contextual variables:
 
+- **`ctx.cloud`**: The identifier we use in configuration to refer to the cloud, under `clouds` in the `config.yaml`.
+  - Common values are 'dev', 'public', and 'ff'.
+- **`ctx.environment`**: The identifier we use in configuration to refer to the environment, under `environments` in the `config.yaml`.
+  - Common values are 'int', 'stg', 'prod'.
 - **`ctx.region`**: The full Azure region name.
   - Length: up to 20 characters long.
   - Consists of letters and digits. Starts with a letter.
