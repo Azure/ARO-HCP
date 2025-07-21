@@ -175,7 +175,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 }
 
 // Certificate Authrotiy string must be PEM encoded
-func (externalAuth *HCPOpenShiftClusterExternalAuth) validateIssuerCAIsPEMEncoded() []arm.CloudErrorBody {
+func (externalAuth *HCPOpenShiftClusterExternalAuth) validateIssuerCAsPEMEncoded() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 	if externalAuth.Properties.Issuer.Ca != "" {
 		b := []byte(externalAuth.Properties.Issuer.Ca)
@@ -208,7 +208,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	// becoming overwhelming.
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
-		errorDetails = append(errorDetails, externalAuth.validateIssuerCAIsPEMEncoded()...)
+		errorDetails = append(errorDetails, externalAuth.validateIssuerCAsPEMEncoded()...)
 	}
 
 	return errorDetails
