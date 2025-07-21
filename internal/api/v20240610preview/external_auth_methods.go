@@ -181,12 +181,12 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 	}
 }
 
-func NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) *HcpOpenShiftClusterExternalAuth {
+func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
 	if from == nil {
 		from = api.NewDefaultHCPOpenShiftClusterExternalAuth()
 	}
 
-	out := &HcpOpenShiftClusterExternalAuth{
+	out := &ExternalAuth{
 		generated.ExternalAuth{
 			ID:   api.PtrOrNil(from.ID),
 			Name: api.PtrOrNil(from.Name),
@@ -226,5 +226,5 @@ func NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAut
 }
 
 func (v version) MarshalHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) ([]byte, error) {
-	return arm.MarshalJSON(NewHCPOpenShiftClusterExternalAuth(from))
+	return arm.MarshalJSON(v.NewHCPOpenShiftClusterExternalAuth(from))
 }
