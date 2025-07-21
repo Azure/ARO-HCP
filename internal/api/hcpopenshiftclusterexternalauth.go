@@ -34,11 +34,11 @@ type HCPOpenShiftClusterExternalAuth struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState ExternalAuthProvisionState  `json:"provisioningState,omitempty"       visibility:"read"`
-	Condition         ExternalAuthCondition       `json:"condition,omitzero"               visibility:"read"`
-	Issuer            TokenIssuerProfile          `json:"issuer"                            visibility:"read create update"       validate:"required"`
-	Clients           []ExternalAuthClientProfile `json:"clients,omitempty"                 visibility:"read create update"       validate:"max=20"`
-	Claim             ExternalAuthClaimProfile    `json:"claim"                             visibility:"read create update"       validate:"required"`
+	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState,omitempty"       visibility:"read"`
+	Condition         ExternalAuthCondition             `json:"condition,omitzero"               visibility:"read"`
+	Issuer            TokenIssuerProfile                `json:"issuer"                            visibility:"read create update"       validate:"required"`
+	Clients           []ExternalAuthClientProfile       `json:"clients,omitempty"                 visibility:"read create update"       validate:"max=20"`
+	Claim             ExternalAuthClaimProfile          `json:"claim"                             visibility:"read create update"       validate:"required"`
 }
 
 /** Condition defines an observation of the external auth state. */
