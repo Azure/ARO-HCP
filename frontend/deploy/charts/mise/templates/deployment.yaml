@@ -51,9 +51,9 @@ spec:
           value: "*"
         - name: Kestrel__Endpoints__Http__Url
           value: "http://0.0.0.0:8080"
-        - name: Logging__LogLevel__Default          
-          value: "Information"        
-        - name: Logging__LogLevel__Microsoft          
+        - name: Logging__LogLevel__Default
           value: "Information"
-        - name: AzureAd__Logging__LogLevel          
+        - name: Logging__LogLevel__Microsoft
+          value: "Information"
+        - name: AzureAd__Logging__LogLevel
           value: "Information"
