@@ -36,10 +36,11 @@ const (
 )
 
 var (
-	ClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	NodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	PreflightResourceType = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType   = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
+	ClusterResourceType      = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterVersionTypeName+"/"+ExternalAuthResourceTypeName)
+	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {
@@ -63,6 +64,7 @@ type Version interface {
 	// Response Marshaling
 	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
 	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
+	MarshalHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) ([]byte, error)
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 	MarshalHCPOpenShiftVersion(*HCPOpenShiftVersion) ([]byte, error)
 }

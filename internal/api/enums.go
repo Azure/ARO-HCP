@@ -14,8 +14,6 @@
 
 package api
 
-import "github.com/Azure/ARO-HCP/internal/api/arm"
-
 // DiskStorageAccountType represents supported Azure storage account types.
 type DiskStorageAccountType string
 
@@ -92,14 +90,6 @@ const (
 	// TokenValidationRuleTypeRequiredClaim - the Kubernetes API server will be configured to validate that the
 	// incoming JWT contains the required claim and that its value matches the required value.
 	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
-)
-
-type ExternalAuthProvisionState arm.ProvisioningState
-
-const (
-	// ProvisioningStateAwaitingSecret - A non-terminal state indicating that a client
-	// is awaiting a secret.
-	ProvisioningStateAwaitingSecret ExternalAuthProvisionState = "AwaitingSecret"
 )
 
 type ExternalAuthClientType string
