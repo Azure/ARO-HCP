@@ -11,9 +11,20 @@ module customerInfra 'modules/customer-infra.bicep' = {
   }
 }
 
-module ManagedIdentities 'modules/managed-identities.bicep' = {
-  name: 'ManagedIdentities'
+module managedIdentities 'modules/managed-identities.bicep' = {
+  name: 'managedIdentities'
   params: {
     clusterName: clusterName
+  }
+}
+
+module AroHcpCluster 'modules/cluster.bicep' = {
+  name: 'cluster'
+  params: {
+    clusterName: clusterName
+    subnetId: customerInfra.outputs.subnetId
+    networkSecurityGroupId: customerInfra.outputs.networkSecurityGroupId
+    userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
+    identityValue: managedIdentities.outputs.identityValue
   }
 }
