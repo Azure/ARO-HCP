@@ -349,7 +349,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
 }
 
 module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
-  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+  name: 'geneva-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
