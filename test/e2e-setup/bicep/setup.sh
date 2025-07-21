@@ -17,5 +17,5 @@ az deployment group create \
   --resource-group "${CUSTOMER_RG_NAME}" \
   --template-file "${BICEP_FILE}" \
   --parameters \
-      persistTagValue=false
-      # clusterName="${CLUSTER_NAME}"
+      persistTagValue=false \
+      clusterName="${CLUSTER_NAME}"
