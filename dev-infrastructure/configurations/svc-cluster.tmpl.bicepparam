@@ -104,6 +104,10 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
+param manageGenevaCertificate = false //TODO
+param genevaCertificateIssuer = '' //TODO
+param genevaRPCertName = 'svcRpLog' //TODO
+
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'

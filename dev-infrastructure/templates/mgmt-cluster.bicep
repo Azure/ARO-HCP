@@ -138,6 +138,18 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+@description('Should a certificate for Geneva authentication be created')
+param manageGenevaCertificate bool = false
+
+@description('Issuer of certificate for Geneva Authentication')
+param genevaCertificateIssuer string
+
+@description('Name of the RP certificate in the keyvault')
+param genevaRPCertName string = 'mgmtRpLog'
+
+@description('Name of the ClusterLog certificate in the keyvault')
+param genevaClusterCertName string = 'mgmtClusterLog'
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -317,6 +329,36 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
 
 resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: mgmtKeyVaultName
+}
+
+//
+//   G E N E V A   C E R T I F I C A T E
+//
+
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: regionalSvcDNSZoneName
+    certificateIssuer: genevaCertificateIssuer
+    hostName: 'mgmt.rplogs'
+    keyVaultCertificateName: genevaRPCertName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
+}
+
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: regionalSvcDNSZoneName
+    certificateIssuer: genevaCertificateIssuer
+    hostName: 'mgmt.clusterlogs'
+    keyVaultCertificateName: genevaClusterCertName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
 }
 
 //
