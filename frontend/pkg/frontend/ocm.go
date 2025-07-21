@@ -29,6 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 const (
@@ -155,7 +156,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
-				ID:           cluster.Version().ID(),
+				ID:           ocm.NewOpenShiftVersionXY(cluster.Version().ID()),
 				ChannelGroup: cluster.Version().ChannelGroup(),
 			},
 			DNS: api.DNSProfile{
@@ -253,6 +254,12 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	if tenantID == "" {
 		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
+
+	versionCSformat, err := ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)
+	if err != nil {
+		return nil, err
+	}
+	hcpCluster.Properties.Version.ID = versionCSformat
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
@@ -376,7 +383,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID:           np.Version().ID(),
+				ID:           ocm.ConvertOpenshiftVersionNoPrefix(np.Version().ID()),
 				ChannelGroup: np.Version().ChannelGroup(),
 			},
 			Platform: api.NodePoolPlatformProfile{
@@ -470,6 +477,13 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
 
+	nodepoolVersion := nodePool.Properties.Version.ID
+	nodepoolCSversion, err := ocm.ConverOpenshiftVersionAddPrefix(nodepoolVersion)
+	if err != nil {
+		return nil, err
+	}
+	nodePool.Properties.Version.ID = nodepoolCSversion
+
 	return npBuilder.Build()
 }
 
@@ -486,7 +500,7 @@ func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *ar
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   resourceID.String(),
-				Name: resourceID.Name,
+				Name: ocm.NewOpenShiftVersionXY(resourceID.Name),
 				Type: resourceID.ResourceType.String(),
 			}},
 		Properties: api.HCPOpenShiftVersionProperties{

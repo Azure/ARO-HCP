@@ -398,8 +398,12 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
+	var err error
 	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
-		versionName = api.OpenShiftVersionPrefix + versionName
+		versionName, err = NewOpenShiftVersionXYZ(versionName)
+		if err != nil {
+			return nil, err
+		}
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
@@ -417,4 +421,38 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	return VersionsListIterator{request: versionsListRequest}
+}
+
+// NewOpenShiftVersionXY parses the given version, stripping off any
+// OpenShift prefix ("openshift-"), and returns a new Version X.Y.
+func NewOpenShiftVersionXY(v string) string {
+	v = strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+	parts := strings.Split(v, ".")
+	if len(parts) >= 2 {
+		v = parts[0] + "." + parts[1]
+	}
+	return v
+}
+
+// NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
+func NewOpenShiftVersionXYZ(v string) (string, error) {
+	parts := strings.Split(v, ".")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("version %q must be X.Y", v)
+	}
+	return fmt.Sprintf("%s%s.%s.0", api.OpenShiftVersionPrefix, parts[0], parts[1]), nil
+}
+
+// ConvertOpenshiftVersionNoPrefix strips off openshift-v prefix
+func ConvertOpenshiftVersionNoPrefix(v string) string {
+	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+}
+
+// ConverOpenshiftVersionAddPrefix adds openshift-v prefix
+func ConverOpenshiftVersionAddPrefix(v string) (string, error) {
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("version %q must be X.Y.Z", v)
+	}
+	return fmt.Sprintf("%s%s.%s.%s", api.OpenShiftVersionPrefix, parts[0], parts[1], parts[2]), nil
 }
