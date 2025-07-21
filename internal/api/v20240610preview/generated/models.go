@@ -559,6 +559,33 @@ type Label struct {
 	Value *string
 }
 
+// LoadBalancerProfile - A representation of the cluster's public load balancer.
+type LoadBalancerProfile struct {
+	// REQUIRED; The desired managed outbound IPs for the cluster's public load balancer
+	ManagedOutboundIPs *ManagedOutboundIPs
+
+	// READ-ONLY; The list of effective outbound IP addresses of the cluster's public load balancer
+	EffectiveOutboundIPs []*string
+}
+
+// LoadBalancerProfileUpdate - A representation of the cluster's public load balancer.
+type LoadBalancerProfileUpdate struct {
+	// The desired managed outbound IPs for the cluster's public load balancer
+	ManagedOutboundIPs *ManagedOutboundIPsUpdate
+}
+
+// ManagedOutboundIPs - Represents the desired managed outbound IPs for the cluster's public load balancer.
+type ManagedOutboundIPs struct {
+	// REQUIRED; Represents the desired number of IPv4 outbound addresses.
+	Count *int32
+}
+
+// ManagedOutboundIPsUpdate - Represents the desired managed outbound IPs for the cluster's public load balancer.
+type ManagedOutboundIPsUpdate struct {
+	// Represents the desired number of IPv4 outbound addresses.
+	Count *int32
+}
+
 // ManagedServiceIdentity - Managed service identity (system assigned and/or user assigned identities)
 type ManagedServiceIdentity struct {
 	// REQUIRED; Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).
@@ -865,6 +892,9 @@ type PlatformProfile struct {
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
+	// The cluster's load balancer configuration
+	LoadBalancer *LoadBalancerProfile
+
 	// Resource group to put cluster resources
 	ManagedResourceGroup *string
 
@@ -877,6 +907,9 @@ type PlatformProfile struct {
 
 // PlatformProfileUpdate - Azure specific configuration
 type PlatformProfileUpdate struct {
+	// The cluster's load balancer configuration
+	LoadBalancer *LoadBalancerProfileUpdate
+
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
 }
