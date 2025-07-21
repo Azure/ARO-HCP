@@ -1,0 +1,9 @@
+@description('If set to true, the cluster will not be deleted automatically after few days.')
+param persistTagValue bool = false
+
+module customerInfra 'modules/customer-infra.bicep' = {
+  name: 'customerInfra'
+  params: {
+    persistTagValue: persistTagValue
+  }
+}
