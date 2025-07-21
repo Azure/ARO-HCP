@@ -212,7 +212,7 @@ func TestComputeResourceGroupTags(t *testing.T) {
 			existingTags: map[string]*string{},
 			persist:      false,
 			expectedTags: map[string]*string{},
-			description: "Empty tags with persist=false should remain empty",
+			description:  "Empty tags with persist=false should remain empty",
 		},
 
 		// Nil existing tags (edge case)
@@ -230,7 +230,7 @@ func TestComputeResourceGroupTags(t *testing.T) {
 			existingTags: nil,
 			persist:      false,
 			expectedTags: map[string]*string{},
-			description: "Nil tags with persist=false should result in empty map",
+			description:  "Nil tags with persist=false should result in empty map",
 		},
 
 		// Existing tags with persist="true"
