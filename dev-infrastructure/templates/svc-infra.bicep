@@ -19,22 +19,8 @@ param kvCertOfficerPrincipalId string
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
-
-// Tags the resource group
-resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  scope: resourceGroup()
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-    }
-  }
-}
 
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
