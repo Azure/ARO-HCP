@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -333,9 +334,11 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 // This function is pure and easily testable - it only depends on its inputs.
 func computeResourceGroupTags(existingTags map[string]*string, persist bool) map[string]*string {
 	// Start with a copy of existing tags to avoid modifying the original
-	resultTags := make(map[string]*string)
-	for k, v := range existingTags {
-		resultTags[k] = v
+	var resultTags map[string]*string
+	if existingTags != nil {
+		resultTags = maps.Clone(existingTags)
+	} else {
+		resultTags = make(map[string]*string)
 	}
 
 	// Check current persist tag value
