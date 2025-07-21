@@ -348,10 +348,8 @@ func computeResourceGroupTags(existingTags map[string]*string, persist bool) map
 	}
 
 	// Apply persist tag rules
-	if currentPersistValue == "true" {
+	if currentPersistValue == "true" || persist {
 		// Rule 1: Always preserve existing persist=true (critical safety rule)
-		resultTags["persist"] = to.Ptr("true")
-	} else if persist {
 		// Rule 2: Set persist=true when persist is true
 		resultTags["persist"] = to.Ptr("true")
 	} else {
