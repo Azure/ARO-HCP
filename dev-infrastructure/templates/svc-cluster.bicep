@@ -713,7 +713,7 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
 //
 
 module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
-  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+  name: 'geneva-rp-certificate-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
