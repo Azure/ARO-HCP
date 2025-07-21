@@ -17,7 +17,6 @@ package frontend
 import (
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
@@ -40,13 +39,6 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -54,16 +46,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	systemData, err := SystemDataFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -71,11 +54,6 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	var updating = (resourceDoc != nil)
-	var operationRequest database.OperationRequest
-
-	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
-	var versionedRequestNodePool api.VersionedHCPOpenShiftClusterNodePool
-	var successStatusCode int
 
 	if updating {
 		f.updateExternalAuth()
