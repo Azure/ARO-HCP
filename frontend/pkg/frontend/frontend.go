@@ -52,6 +52,7 @@ type Frontend struct {
 	server               http.Server
 	metricsServer        http.Server
 	dbClient             database.DBClient
+	auditClient          audit.Client
 	ready                atomic.Value
 	done                 chan struct{}
 	location             string
@@ -67,7 +68,7 @@ func NewFrontend(
 	dbClient database.DBClient,
 	location string,
 	csClient ocm.ClusterServiceClientSpec,
-	auditClient *audit.AuditClient,
+	auditClient audit.Client,
 ) *Frontend {
 	f := &Frontend{
 		clusterServiceClient: csClient,
@@ -78,8 +79,6 @@ func NewFrontend(
 			BaseContext: func(net.Listener) context.Context {
 				ctx := context.Background()
 				ctx = ContextWithLogger(ctx, logger)
-				ctx = ContextWithDBClient(ctx, dbClient)
-				ctx = ContextWithAuditClient(ctx, auditClient)
 				return ctx
 			},
 		},
@@ -89,10 +88,11 @@ func NewFrontend(
 				return ContextWithLogger(context.Background(), logger)
 			},
 		},
-		dbClient:  dbClient,
-		done:      make(chan struct{}),
-		location:  strings.ToLower(location),
-		collector: metrics.NewSubscriptionCollector(reg, dbClient, location),
+		auditClient: auditClient,
+		dbClient:    dbClient,
+		done:        make(chan struct{}),
+		location:    strings.ToLower(location),
+		collector:   metrics.NewSubscriptionCollector(reg, dbClient, location),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,

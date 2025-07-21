@@ -61,7 +61,6 @@ func TestMiddlewareAudit(t *testing.T) {
 			testClient := testClient{messages: []msgs.Msg{}}
 
 			ctx = ContextWithLogger(ctx, slog.Default())
-			ctx = ContextWithAuditClient(ctx, &testClient)
 
 			writer := httptest.NewRecorder()
 			request, err := http.NewRequest("GET", "", bytes.NewReader([]byte{}))
@@ -74,7 +73,7 @@ func TestMiddlewareAudit(t *testing.T) {
 				w.WriteHeader(tc.statusCode)
 			}
 
-			MiddlewareAudit(writer, request, next)
+			newMiddlewareAudit(&testClient).handleRequest(writer, request, next)
 			assert.Equal(t, tc.statusCode, writer.Result().StatusCode)
 			assert.Len(t, testClient.messages, 1)
 			assert.Equal(t, testClient.messages[0].Record.CallerIpAddress.String(), "10.1.2.3")

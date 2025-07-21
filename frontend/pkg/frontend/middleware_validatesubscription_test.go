@@ -200,7 +200,6 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 			// Add a logger to the context so parsing errors will be logged.
 			ctx := request.Context()
 			ctx = ContextWithLogger(ctx, slog.Default())
-			ctx = ContextWithDBClient(ctx, mockDBClient)
 			ctx, sr := initSpanRecorder(ctx)
 			request = request.WithContext(ctx)
 
@@ -215,7 +214,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 					Return(getMockDBDoc(subscription)) // defined in frontend_test.go
 			}
 
-			MiddlewareValidateSubscriptionState(writer, request, next)
+			newMiddlewareValidateSubscriptionState(mockDBClient).handleRequest(writer, request, next)
 
 			res := writer.Result()
 			if tt.expectedError != nil {
@@ -241,6 +240,7 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 
 	t.Run("nil DB client in the context", func(t *testing.T) {
 		writer := httptest.NewRecorder()
+		writer.Code = 0 // set the zero value so we can distinguish between a written result and default
 
 		request, err := http.NewRequest(http.MethodGet, defaultRequestPath, nil)
 		assert.NoError(t, err)
@@ -250,10 +250,22 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 		ctx = ContextWithLogger(ctx, slog.Default())
 		request = request.WithContext(ctx)
 
-		next := func(w http.ResponseWriter, r *http.Request) {}
-		MiddlewareValidateSubscriptionState(writer, request, next)
+		next := func(w http.ResponseWriter, r *http.Request) {
+			t.Fatalf("should not reach this call")
+		}
 
-		res := writer.Result()
-		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		// this is a coding error (client cannot trigger this) from which the request cannot recover.  A panic appropriate.
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Println("Recovery as expected", r)
+				}
+			}()
+
+			newMiddlewareValidateSubscriptionState(nil).handleRequest(writer, request, next)
+		}()
+
+		// 0 indicates that no result was written by this handler.  In a real chain, our panic handler writes the result
+		assert.Equal(t, 0, writer.Code)
 	})
 }
