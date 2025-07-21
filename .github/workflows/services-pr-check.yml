@@ -7,6 +7,7 @@ env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   #AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
   PRINCIPAL_ID: ${{ secrets.GHA_PRINCIPAL_ID }}
+  PERSIST: true
 on:
   pull_request:
     paths:
