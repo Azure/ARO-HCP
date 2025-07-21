@@ -20,8 +20,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	validator "github.com/go-playground/validator/v10"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // HCPOpenShiftClusterExternalAuth represents the external auth config resource for ARO HCP
