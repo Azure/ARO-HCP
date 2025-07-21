@@ -10,7 +10,7 @@ param networkSecurityGroupId string
 @description('The subnet id for deploying hcp cluster resources.')
 param subnetId string
 
-var randomSuffix = toLower(uniqueString(clusterName))
+var randomSuffix = toLower(uniqueString(resourceGroup().id))
 
 // Control plane identities
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
