@@ -63,7 +63,7 @@ param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Geneva logging settings
-param manageGenevaCertificate = '{{ .geneva.cert.manageCertificates }}'
+param manageGenevaCertificate = {{ .geneva.cert.manageCertificates }}
 param genevaCertificateIssuer = '{{ .geneva.cert.certificateIssuer }}'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
