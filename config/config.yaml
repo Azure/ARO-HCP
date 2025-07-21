@@ -107,6 +107,9 @@ defaults:
   geneva:
     principalId: ""
     resourceContributor: ""
+    cert:
+      manageCertificates: false
+      certificateIssuer: "Self"
     metrics:
       cluster:
         account: AzureRedHatOpenShiftCluster

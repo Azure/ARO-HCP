@@ -127,6 +127,9 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  cert:
+    certificateIssuer: Self
+    manageCertificates: false
   logs:
     administrators:
       alias: AME\WEINONGW

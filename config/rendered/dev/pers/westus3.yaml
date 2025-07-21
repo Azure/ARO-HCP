@@ -127,6 +127,9 @@ frontend:
     address: http://ingest.observability:4318
     exporter: otlp
 geneva:
+  cert:
+    certificateIssuer: Self
+    manageCertificates: false
   logs:
     administrators:
       alias: AME\WEINONGW

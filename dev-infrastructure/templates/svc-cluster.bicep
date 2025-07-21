@@ -286,10 +286,7 @@ param serviceKeyVaultAsignNSP bool = true
 param manageGenevaCertificate bool = false
 
 @description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string
-
-@description('Name of the certificate in the keyvault')
-param genevaRPCertName string = 'svcRpLog'
+param genevaCertificateIssuer string = 'Self'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -721,7 +718,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     certDomain: svcDNSZoneName
     certificateIssuer: genevaCertificateIssuer
     hostName: 'svc.rplogs'
-    keyVaultCertificateName: genevaRPCertName
+    keyVaultCertificateName: 'svcRpLog'
     certificateAccessManagedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
   }
 }

@@ -827,6 +827,22 @@
         "resourceContributor": {
           "type": "string"
         },
+        "cert": {
+          "additionalProperties": false,
+          "type": "object",
+          "properties": {
+            "manageCertificates": {
+              "type": "boolean"
+            }, 
+            "certificateIssuer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "manageCertificates",
+            "certificateIssuer"
+          ]
+        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
