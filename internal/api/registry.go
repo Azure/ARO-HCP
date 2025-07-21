@@ -53,6 +53,10 @@ type VersionedHCPOpenShiftClusterNodePool interface {
 	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
+type VersionedHCPOpenShiftClusterExternalAuth interface {
+	Normalize(*HCPOpenShiftClusterExternalAuth)
+}
+
 type Version interface {
 	fmt.Stringer
 
@@ -60,6 +64,7 @@ type Version interface {
 	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
+	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
 
 	// Response Marshaling
 	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
