@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 	"time"
@@ -111,7 +112,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input map[string]Output) (Output, error) {
 	// Ensure resourcegroup exists
-	err := a.ensureResourceGroupExists(ctx, rgName, options.NoPersist)
+	err := a.ensureResourceGroupExists(ctx, rgName, !options.NoPersist)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
@@ -323,17 +324,47 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 	}
 }
 
-func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, rgNoPersist bool) error {
-	// Check if the resource group exists
-	// Once the persist tag is set to true, it should not be removed by automation... tooo dangerous
+// computeResourceGroupTags determines the final tags for a resource group based on existing tags and persist settings.
+//
+// Persist tag rules:
+// 1. If persist tag already exists and is "true", it must be preserved (safety: never remove protection)
+// 2. If persist is true, set persist tag to "true"
+// 3. If persist is false and persist tag doesn't exist or isn't "true", don't add it
+//
+// This function is pure and easily testable - it only depends on its inputs.
+func computeResourceGroupTags(existingTags map[string]*string, persist bool) map[string]*string {
+	// Start with a copy of existing tags to avoid modifying the original
+	var resultTags map[string]*string
+	if existingTags != nil {
+		resultTags = maps.Clone(existingTags)
+	} else {
+		resultTags = make(map[string]*string)
+	}
+
+	// Check current persist tag value
+	currentPersistValue := ""
+	if existingTags != nil && existingTags["persist"] != nil {
+		currentPersistValue = *existingTags["persist"]
+	}
+
+	// Apply persist tag rules
+	if currentPersistValue == "true" || persist {
+		// Rule 1: Always preserve existing persist=true (critical safety rule)
+		// Rule 2: Set persist=true when persist is true
+		resultTags["persist"] = to.Ptr("true")
+	} else {
+		// Rule 3: Remove persist tag when persist is false and existing persist != "true"
+		delete(resultTags, "persist")
+	}
+	return resultTags
+}
+
+func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, persist bool) error {
 	rg, err := a.resourceGroupClient.Get(ctx, rgName, nil)
 	if err != nil {
-		// Create the resource group
-		tags := map[string]*string{}
-		if !rgNoPersist {
-			// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
-			tags["persist"] = to.Ptr("true")
-		}
+		// Resource group doesn't exist - create it
+		// We don't have any existing tags, so pass an empty map instead of nil for clarity.
+		tags := computeResourceGroupTags(map[string]*string{}, persist)
 		resourceGroup := armresources.ResourceGroup{
 			Location: to.Ptr(a.Region),
 			Tags:     tags,
@@ -343,14 +374,8 @@ func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
 	} else {
-		tags := rg.Tags
-		if tags == nil {
-			tags = map[string]*string{}
-		}
-		if !rgNoPersist {
-			// if no-persist is set, don't set the persist tag, needs double negotiate, cause default should be true
-			tags["persist"] = to.Ptr("true")
-		}
+		// Resource group exists - update its tags
+		tags := computeResourceGroupTags(rg.Tags, persist)
 		patchResourceGroup := armresources.ResourceGroupPatchable{
 			Tags: tags,
 		}

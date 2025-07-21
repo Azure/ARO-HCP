@@ -1,9 +1,6 @@
 @description('Azure Region Location')
 param location string = resourceGroup().location
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
@@ -42,16 +39,6 @@ param globalMSIId string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
-
-resource resourcegroupTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  scope: resourceGroup()
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-    }
-  }
-}
 
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html

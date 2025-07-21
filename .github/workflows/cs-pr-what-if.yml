@@ -1,6 +1,7 @@
 name: CS PR Check Environment Bicep What-If
 env:
   DEPLOY_ENV: cspr
+  PERSIST: true
   DEPLOYMENT_NAME_SUFFIX: "-dev-${GITHUB_RUN_ID}"
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

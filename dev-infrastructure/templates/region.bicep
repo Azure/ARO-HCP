@@ -13,9 +13,6 @@ param maestroEventGridPrivate bool
 @description('The certificate issuer for the EventGrid Namespace')
 param maestroCertificateIssuer string
 
-@description('Set to true to prevent resources from being pruned after 48 hours')
-param persist bool = false
-
 @description('''
   This is the global parent DNS zone for ARO HCP customer cluster DNS.
   It is prefixed with regionalDNSSubdomain to form the actual regional DNS zone name
@@ -55,17 +52,6 @@ param svcMonitorName string
 param hcpMonitorName string
 
 import * as res from '../modules/resource.bicep'
-
-// Tags the resource group
-resource resourceGroupTags 'Microsoft.Resources/tags@2024-03-01' = {
-  name: 'default'
-  scope: resourceGroup()
-  properties: {
-    tags: {
-      persist: toLower(string(persist))
-    }
-  }
-}
 
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
