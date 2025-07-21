@@ -9,7 +9,7 @@
     "@typespec/openapi3": "^1.2.1",
     "@typespec/rest": "^0.72.1",
     "@typespec/versioning": "^0.72.1",
-    "oav": "^3.3.4"
+    "oav": "^3.6.3"
   },
   "scripts": {
     "format-check": "tsp format --check \"**/*.tsp\"",
