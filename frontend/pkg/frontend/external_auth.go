@@ -18,11 +18,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, request *http.Request) {
@@ -42,6 +43,13 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
@@ -108,11 +116,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	externalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
-	versionedRequestExternalAuth.Normalize(externalAuth)
+	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
+	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
 
-	externalAuth.Name = request.PathValue(PathSegmentNodePoolName)
-	csNodePool, err := f.BuildCSNodePool(ctx, externalAuth, updating)
+	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
+	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -130,14 +138,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
+		csExternalAuth, err = f.clusterServiceClient.(ctx, clusterDoc.InternalID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -171,8 +179,8 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	// so we leave any existing tags alone. If the Tags map is non-nil, even if
 	// empty, that means it was specified in the request body and should fully
 	// replace any existing tags.
-	if externalAuth.Tags != nil {
-		patchOperations.SetTags(externalAuth.Tags)
+	if hcpExternalAuth.Tags != nil {
+		patchOperations.SetTags(hcpExternalAuth.Tags)
 	}
 
 	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
@@ -194,7 +202,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSNodePool(csExternalAuth, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

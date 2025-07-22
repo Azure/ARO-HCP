@@ -69,6 +69,18 @@ type ClusterServiceClientSpec interface {
 	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
 	DeleteNodePool(ctx context.Context, internalID InternalID) error
 
+	// GetExternalAuth sends a GET request to fetch a node pool from Cluster Service.
+	GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error)
+
+	// PostExternalAuth sends a POST request to create a node pool in Cluster Service.
+	PostExternalAuth(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
+
+	// UpdateExternalAuth sends a PATCH request to update a node pool in Cluster Service.
+	UpdateExternalAuth(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
+
+	// DeleteExternalAuth sends a DELETE request to delete a node pool from Cluster Service.
+	DeleteExternalAuth(ctx context.Context, internalID InternalID) error
+
 	// ListNodePools prepares a GET request with the given search expression. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
@@ -320,6 +332,65 @@ func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 
 func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.conn)
+	if !ok {
+		return fmt.Errorf("OCM path is not an external: %s", internalID)
+	}
+	_, err := client.Delete().SendContext(ctx)
+	return err
+}
+
+func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+	client, ok := internalID.GetExternalAuthClient(csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not an external auth: %s", internalID)
+	}
+	externalAuthGetResponse, err := client.Get().SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	externalAuth, ok := externalAuthGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return externalAuth, nil
+}
+
+func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+	// client, ok := clusterInternalID.GetExternalAuthClient(csc.conn)
+	_, ok := clusterInternalID.GetExternalAuthClient(csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not an external auth: %s", clusterInternalID)
+	}
+	// nodePoolsAddResponse, err := client .Body(externalAuth).SendContext(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// externalAuth, ok = nodePoolsAddResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return externalAuth, nil
+
+}
+
+func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, internalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+	client, ok := internalID.GetExternalAuthClient(csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not an external auth: %s", internalID)
+	}
+	nodePoolUpdateResponse, err := client.Update().Body(externalAuth).SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	externalAuth, ok = nodePoolUpdateResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return externalAuth, nil
+}
+
+func (csc *clusterServiceClient) DeleteExternalAuth(ctx context.Context, internalID InternalID) error {
+	client, ok := internalID.GetExternalAuthClient(csc.conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
