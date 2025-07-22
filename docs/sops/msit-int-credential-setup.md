@@ -3,23 +3,25 @@
 This document provides instructions for setting up **first-party**, **MSI mock**, and **ARM helper** credentials for the MSIT INT environment.
 
 ## Prerequisites
-### ARO SRE Team - INT (EA Subscription 3)
-#### IAM
+### IAM required
+#### ARO SRE Team - INT (EA Subscription 3)
 - Key Vault Administrator
 - Contributor
-#### Cloud infrastructure
-- Global Resource group
-- Key Vault in global resource group
+
+#### Azure Red Hat OpenShift v4.x - HCP
+- Contributor
+- Key Vault Administrator (can only be obtained through PIM if you are in `tm-aro-engineering`)
 
 ## Overview
-
-This environment is unique because the first-party, MSI mock, and ARM helper credentials exist outside the MSIT subscription. Therefore, some manual steps are required to configure the environment.
+The MSIT INT environment is unique because the first-party, MSI mock, and ARM helper credentials exist outside the MSIT subscription. Therefore, some manual steps are required to configure the environment.
 
 1. **Authenticate and set your subscription**
 
    ```bash
    az account set -n "ARO SRE Team - INT (EA Subscription 3)"
    ```
+
+1. **ONLY PERFORM THIS STEP IF NEEDED**. Create the global resource group and keyvault in the `ARO SRE Team - INT (EA Subscription 3)`.  This is not automated so create the global rg and keyvault manually.  It will be referenced the `create-int-mock-identities` make target in `dev-infrastructure/Makefile`.
 
 1. **Create the INT mock identities**
    Execute the `create-int-mock-identities` Make target to create or update the AAD apps and service principals. This generates a certificate in the `aro-hcp-int-kv` Key Vault in the global resource group and refreshes the AAD app credentials with the newly generated certificate.
@@ -30,7 +32,7 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
    ```
 
 1. **Update configuration**
-   If new AAD apps were created, update `config.msft.yaml` with the new values. See [https://github.com/Azure/ARO-HCP/pull/1712](https://github.com/Azure/ARO-HCP/pull/1712) for an example.
+   If new AAD apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.
    ```
     firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
     firstPartyAppCertificate:
@@ -46,8 +48,7 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
     armHelperCertName: armHelperCert2
    ```
 
-1. **Move the certificate bundles to the MSIT INT Key Vault**
-
+1. **Download** the certificates from the `aro-hcp-int-kv`
    ```bash
    # List the certificates in the Key Vault
    az keyvault certificate list -o table --vault-name aro-hcp-int-kv
@@ -69,14 +70,13 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
    cat intMsiMockCert | base64 -d > intMsiMockCert.pfx
    ```
 
-1. **Log in to the MSIT tenant**
-   Use device code login and authenticate via a MSFT managed device.  Choose the `"Azure Red Hat OpenShift v4.x - HCP"` subscription.
+1. Transfer certificates to Microsoft Managed Device by using SFTP or SCP so that the certificates can be imported into the keyvault
 
-   ```bash
-   az login --use-device-code
-   ```
 1. From your MSFT managed device, open the Azure Portal and use PIM (Privileged Identity Management) > My Roles > Azure Resources to activate the `Key Vault Administrator` role in subscription `Azure Red Hat OpenShift v4.x - HCP`.
-1. **Upload certificates to the MSIT INT Key Vault**
+
+1. With the azure cli, login to **Azure Red Hat OpenShift v4.x - HCP**
+
+1. Upload certificates to the MSIT INT Key Vault, update `--file` as needed.
 
    ```bash
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intArmHelperCert --file intArmHelperCert.pfx
@@ -84,8 +84,6 @@ This environment is unique because the first-party, MSI mock, and ARM helper cre
    az keyvault certificate import --vault-name arohcpint-svc-ln --name intMsiMockCert --file intMsiMockCert.pfx
    ```
 
-1. **Deploy the cluster service**
-   Use the new configuration.
+1. Deploy cluster-service so that it picks up the new configuration.
 
-1. **Test the environment**
-   Create an HCP and a node pool to validate the setup.
+1. Test the environment create an HCP and a node pool to validate credentials are setup properly.
