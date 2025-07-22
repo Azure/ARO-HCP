@@ -49,7 +49,7 @@ helm-chart:
 	rm -rf ${MCE_CHART_DIR}
 	go run ../tooling/olm-bundle-repkg/main.go \
 		-c olm-bundle-repkg-config.yaml \
-		-b ${MCE_OPERATOR_BUNDLE_FILE} \
+		-b oci://${MCE_OPERATOR_BUNDLE_FILE} \
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}

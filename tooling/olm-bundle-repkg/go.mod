@@ -8,6 +8,7 @@ require (
 	github.com/operator-framework/api v0.27.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/text v0.27.0
 	helm.sh/helm/v3 v3.18.4
 	k8s.io/api v0.33.2
 	k8s.io/apiextensions-apiserver v0.33.2
@@ -68,7 +69,6 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/term v0.33.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

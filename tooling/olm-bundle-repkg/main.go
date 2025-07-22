@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -57,7 +56,7 @@ var (
 
 func main() {
 	// Original flags
-	cmd.Flags().StringVarP(&olmBundle, "olm-bundle", "b", "", "OLM bundle image tgz or manifests directory")
+	cmd.Flags().StringVarP(&olmBundle, "olm-bundle", "b", "", "OLM bundle input with protocol prefix: oci:// for bundle images, file:// for manifest directories")
 	cmd.Flags().StringVarP(&scaffoldDir, "scaffold-dir", "s", "", "Directory containing additional templates to be added to the generated Helm Chart")
 	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Chart")
 	cmd.Flags().StringVarP(&sourceLink, "source-link", "l", "", "Link to the Bundle image that is repackaged")
@@ -112,21 +111,12 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 	var olmManifests []unstructured.Unstructured
 	var reg convert.RegistryV1
 
-	// Check if olmBundle is a file or directory
-	fileInfo, err := os.Stat(olmBundle)
-	if err != nil {
-		return fmt.Errorf("failed to access OLM bundle input: %v", err)
-	}
-
-	if fileInfo.IsDir() {
-		// Load manifests from directory
-		olmManifests, reg, err = olm.ExtractOLMManifestsDirectory(ctx, olmBundle)
-		if err != nil {
-			return fmt.Errorf("failed to extract OLM manifests from directory: %v", err)
-		}
-	} else {
+	// Parse protocol prefix to determine input type
+	switch {
+	case strings.HasPrefix(olmBundle, "oci://"):
 		// Load manifests from bundle image
-		img, err := crane.Load(olmBundle)
+		bundlePath := strings.TrimPrefix(olmBundle, "oci://")
+		img, err := crane.Load(bundlePath)
 		if err != nil {
 			return fmt.Errorf("failed to load OLM bundle image: %v", err)
 		}
@@ -134,6 +124,15 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 		if err != nil {
 			return fmt.Errorf("failed to extract OLM bundle image: %v", err)
 		}
+	case strings.HasPrefix(olmBundle, "file://"):
+		// Load manifests from directory
+		manifestsDir := strings.TrimPrefix(olmBundle, "file://")
+		olmManifests, reg, err = olm.ExtractOLMManifestsDirectory(ctx, manifestsDir)
+		if err != nil {
+			return fmt.Errorf("failed to extract OLM manifests from directory: %v", err)
+		}
+	default:
+		return fmt.Errorf("invalid OLM bundle input: must use oci:// prefix for bundle images or file:// prefix for manifest directories")
 	}
 
 	// sanity check manifests

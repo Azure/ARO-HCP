@@ -47,7 +47,7 @@ The tool provides a configurable way to convert OLM bundles to Helm charts by:
 ```sh
 go run main.go \
   -c configs/example.yaml \
-  -b operator-bundle.tgz \
+  -b oci://operator-bundle.tgz \
   -o output-chart/
 ```
 
@@ -56,7 +56,7 @@ go run main.go \
 ```sh
 go run main.go \
   -c configs/example.yaml \
-  -b /path/to/bundle-manifests/directory \
+  -b file:///path/to/bundle-manifests/directory \
   -o output-chart/
 ```
 
@@ -71,7 +71,7 @@ Flags:
       --chart-name string          Override chart name
   -c, --config string              Path to configuration file (YAML) [REQUIRED]
   -h, --help                       help for olm-bundle-repkg
-  -b, --olm-bundle string          OLM bundle image tgz or manifests directory [REQUIRED]
+  -b, --olm-bundle string          OLM bundle input with protocol prefix: oci:// for bundle images, file:// for manifest directories [REQUIRED]
   -o, --output-dir string          Output directory for the generated Helm Chart [REQUIRED]
   -s, --scaffold-dir string        Directory containing additional templates to be added to the generated Helm Chart
   -l, --source-link string         Link to the Bundle image that is repackaged
@@ -88,7 +88,7 @@ Traditional OLM bundle images packaged as tar.gz files. These can be created by 
 ```sh
 podman pull quay.io/operator/bundle:v1.0.0
 podman save -o bundle.tgz quay.io/operator/bundle:v1.0.0
-go run main.go -c configs/example.yaml -b bundle.tgz -o helm-chart/
+go run main.go -c configs/example.yaml -b oci://bundle.tgz -o helm-chart/
 ```
 
 ### 2. Bundle Manifest Directories
@@ -111,7 +111,7 @@ manifests/
 
 Usage:
 ```sh
-go run main.go -c configs/example.yaml -b /path/to/manifests/ -o helm-chart/
+go run main.go -c configs/example.yaml -b file:///path/to/manifests/ -o helm-chart/
 ```
 
 ## Configuration System
@@ -261,7 +261,7 @@ The tool includes an example configuration in the `configs/` directory.
 
 3. **Use the tool** with appropriate configuration:
    ```sh
-   go run main.go -c configs/example.yaml -b operator-bundle.tgz -o helm-chart/
+   go run main.go -c configs/example.yaml -b oci://operator-bundle.tgz -o helm-chart/
    ```
 
 ### Option 2: Manifest Directories
@@ -272,7 +272,7 @@ The tool includes an example configuration in the `configs/` directory.
 
 3. **Use the tool** with appropriate configuration:
    ```sh
-   go run main.go -c configs/example.yaml -b /path/to/manifests/ -o helm-chart/
+   go run main.go -c configs/example.yaml -b file:///path/to/manifests/ -o helm-chart/
    ```
 
 ## Output Structure
@@ -383,14 +383,14 @@ Include scaffold templates using the `--scaffold-dir` flag:
 # With bundle image
 go run main.go \
   -c configs/my-operator.yaml \
-  -b operator-bundle.tgz \
+  -b oci://operator-bundle.tgz \
   -s scaffold/ \
   -o helm-chart/
 
 # With manifest directory
 go run main.go \
   -c configs/my-operator.yaml \
-  -b /path/to/manifests/ \
+  -b file:///path/to/manifests/ \
   -s scaffold/ \
   -o helm-chart/
 ```
