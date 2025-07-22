@@ -376,6 +376,15 @@ monitoring:
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
   svcWorkspaceName: services-usw3ptest
+msiCredentialsRefresher:
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  k8s:
+    namespace: msi-credential-refresher
+    serviceAccountName: msi-credential-refresher
+  managedIdentityName: msi-credential-refresher
 msiKeyVault:
   name: ah-perf-mi-usw3ptest-1
   private: false
