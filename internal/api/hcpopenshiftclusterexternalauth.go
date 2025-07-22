@@ -91,9 +91,6 @@ type ExternalAuthClaimProfile struct {
 /** External Auth claim mappings profile.
  * At a minimum username or groups must be defined.
  */
-//  TODO: Enforce the above.
-// 		Note: I tried the validate"required_without=Username" but I don't think it works with nested structs
-// 			https://github.com/go-playground/validator/issues/617#issuecomment-1890935994
 type TokenClaimMappingsProfile struct {
 	Username UsernameClaimProfile `json:"username"             visibility:"read create update"`
 	Groups   GroupClaimProfile    `json:"groups,omitzero"      visibility:"read create update"        validate:"omitempty"`
