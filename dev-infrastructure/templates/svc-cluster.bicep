@@ -282,15 +282,6 @@ param svcNSPAccessMode string
 @description('Access mode for this NSP')
 param serviceKeyVaultAsignNSP bool = true
 
-@description('Should a certificate for Geneva authentication be created')
-param manageGenevaCertificate bool = false
-
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
-@description('Name of certificate in Keyvault and hostname used in SAN')
-param genevaRpLogsName string
-
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -705,24 +696,6 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
       fpaCertificateSNI
     ]
     issuerName: fpaCertificateIssuer
-  }
-}
-
-//
-//   G E N E V A   C E R T I F I C A T E
-//
-
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
-  name: 'geneva-rp-certificate'
-  scope: resourceGroup(serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: svcDNSZoneName
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
   }
 }
 

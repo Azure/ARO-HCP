@@ -827,31 +827,6 @@
         "resourceContributor": {
           "type": "string"
         },
-        "cert": {
-          "additionalProperties": false,
-          "type": "object",
-          "properties": {
-            "manageCertificates": {
-              "type": "boolean"
-            }, 
-            "certificateIssuer": {
-              "type": "string"
-            },
-            "svcRpLogsName": {
-              "type": "string"
-            },
-            "mgmtRpLogsName": {
-              "type": "string"
-            },
-            "mgmtClusterLogsName": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "manageCertificates",
-            "certificateIssuer"
-          ]
-        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
@@ -934,10 +909,14 @@
                   "minLength": 6,
                   "maxLength": 32,
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+                },
+                "accountCert": {
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
-                "accountName"
+                "accountName",
+                "accountCert"
               ]
             },
             "rp": {
@@ -949,10 +928,14 @@
                   "minLength": 6,
                   "maxLength": 32,
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+                },
+                "accountCert": {
+                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
-                "accountName"
+                "accountName",
+                "accountCert"
               ]
             }
           },

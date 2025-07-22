@@ -5,7 +5,7 @@ OneCertV2 Private will be used.
 
 The specified managed identity `certificateAccessManagedIdentityPrincipalId`
 is granted access to the certificate in Key Vault. This will be leveraged
-with i.e. CSI secret store to access the certificate from the pods.
+with CSI secret store to access the certificate from the maestro pods.
 
 Execution scope: the resourcegroup of the Key Vault where the certificate will be stored
 */
@@ -19,8 +19,8 @@ param kvCertOfficerManagedIdentityResourceId string
 @description('The base domain name to be used for the certificates DNS name.')
 param certDomain string
 
-@description('The hostname that will be suffixed by the certDomain')
-param hostName string
+@description('The name of the client that will be created in the EventGrid Namespace')
+param clientName string
 
 @description('The name of the certificate in Key Vault.')
 param keyVaultCertificateName string
@@ -35,17 +35,17 @@ param certificateAccessManagedIdentityPrincipalId string
 //   C E R T I F I C A T E   C R E A T I O N
 //
 
-var fqdn = '${hostName}.${certDomain}'
+var clientAuthenticationName = '${clientName}.${certDomain}'
 
-module clientCertificate 'key-vault-cert.bicep' = {
-  name: '${hostName}-cert'
+module clientCertificate '../keyvault/key-vault-cert.bicep' = {
+  name: '${clientName}-client-cert'
   params: {
     keyVaultName: keyVaultName
-    subjectName: 'CN=${fqdn}'
+    subjectName: 'CN=${clientAuthenticationName}'
     certName: keyVaultCertificateName
     keyVaultManagedIdentityId: kvCertOfficerManagedIdentityResourceId
     dnsNames: [
-      fqdn
+      clientAuthenticationName
     ]
     issuerName: certificateIssuer
   }
@@ -82,4 +82,4 @@ resource secretAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04
 }
 
 output certificateThumbprint string = clientCertificate.outputs.Thumbprint
-output certificateSAN string = fqdn
+output certificateSAN string = clientAuthenticationName
