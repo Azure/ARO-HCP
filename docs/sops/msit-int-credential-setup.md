@@ -32,7 +32,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    ```
 
 1. **Update configuration**
-   If new AAD apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.
+   If new AAD apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can determine if the apps were created by reading the output from `make create-int-mock-identities`.
    ```
     firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
     firstPartyAppCertificate:

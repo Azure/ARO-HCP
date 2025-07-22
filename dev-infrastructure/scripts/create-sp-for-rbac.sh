@@ -20,6 +20,7 @@ then
     exit 0
 fi
 
+echo "Creating new application ${APPLICATION_NAME}"
 az ad sp create-for-rbac \
     --years 10 \
     --display-name "${APPLICATION_NAME}" \
