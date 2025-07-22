@@ -8,7 +8,8 @@ then
     az ad app credential reset \
         --id "${APP_ID}" \
         --keyvault "${KEY_VAULT_NAME}" \
-        --cert "${CERTIFICATE_NAME}"
+        --cert "${CERTIFICATE_NAME}" \
+        --append
 
     echo "Assigning role ${ROLE_DEFINITION_NAME} to appId ${APP_ID}"
     az role assignment create \
