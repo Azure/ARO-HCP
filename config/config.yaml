@@ -114,20 +114,26 @@ defaults:
         account: AzureRedHatOpenShiftRP
     logs:
       administrators:
-        alias: AME\WEINONGW
-        securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+        alias: ""
+        securityGroup: ""
       typeName: ""
       environment: "Test"
       cluster:
-        accountName: AROClusterLogs
+        accountName: "placeholder"
         accountCert:
           keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
           name: ""
+        namespace: "placeholder"
+        san: ""
+        configVersion: "1"
       rp:
-        accountName: ARORPLogs
+        accountName: "placeholder"
         accountCert:
           keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
           name: ""
+        namespace: "placeholder"
+        san: ""
+        configVersion: "1"
   kusto:
     resourceGroup: ""
     cluster: ""
@@ -228,10 +234,6 @@ defaults:
         kvName: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
         kvSoftDelete: true
       clusterOutboundIPAddressIPTags: ""
-    logs:
-      namespace: HCPServiceLogs
-      san: ""
-      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: ""
@@ -311,10 +313,6 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
-    logs:
-      namespace: HCPCustomerLogs
-      san: ""
-      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: network.openshift.io/policy-group=monitoring
