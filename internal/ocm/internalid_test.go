@@ -77,6 +77,22 @@ func TestInternalID(t *testing.T) {
 			clusterID: "abc",
 			expectErr: false,
 		},
+		{
+			name:      "parse v1 external auth",
+			path:      "/api/clusters_mgmt/v1/clusters/abc/external_auths/def",
+			kind:      cmv1.ExternalAuthKind,
+			id:        "def",
+			clusterID: "abc",
+			expectErr: false,
+		},
+		{
+			name:      "parse aro_hcp v1alpha1 externalAuth",
+			path:      "/api/aro_hcp/v1alpha1/clusters/abc/external_auths/def",
+			kind:      arohcpv1alpha1.ExternalAuthKind,
+			id:        "def",
+			clusterID: "abc",
+			expectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,6 +129,11 @@ func TestInternalID(t *testing.T) {
 
 			if kind == arohcpv1alpha1.NodePoolKind {
 				_, ok := internalID.GetNodePoolClient(transport)
+				assert.True(t, ok, "failed to get node pool client")
+			}
+
+			if kind == arohcpv1alpha1.ExternalAuthKind {
+				_, ok := internalID.GetExternalAuthClient(transport)
 				assert.True(t, ok, "failed to get node pool client")
 			}
 

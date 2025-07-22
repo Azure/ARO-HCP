@@ -98,11 +98,10 @@ func (id *InternalID) validate() error {
 		return nil
 	}
 
-	// TODO: Uncomment when OCM gets bumped.
-	// if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
-	// 	id.kind = arohcpv1alpha1.ExternalAuthKind
-	// 	return nil
-	// }
+	if match, _ = path.Match(aroHcpV1Alpha1ExternalAuthPattern, id.path); match {
+		id.kind = arohcpv1alpha1.ExternalAuthKind
+		return nil
+	}
 
 	return fmt.Errorf("invalid InternalID: %s", id.path)
 }
@@ -220,6 +219,15 @@ func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*arohcpv1a
 		return nil, false
 	}
 	return arohcpv1alpha1.NewNodePoolClient(transport, id.path), true
+}
+
+// GetExternalAuthClient returns a arohcpv1alpha1 ExternalAuthClient from the InternalID.
+// The transport is most likely to be a Connection object from the SDK.
+func (id *InternalID) GetExternalAuthClient(transport http.RoundTripper) (*arohcpv1alpha1.ExternalAuthClient, bool) {
+	if id.Kind() != arohcpv1alpha1.ExternalAuthKind {
+		return nil, false
+	}
+	return arohcpv1alpha1.NewExternalAuthClient(transport, id.path), true
 }
 
 // GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
