@@ -110,6 +110,9 @@ defaults:
     cert:
       manageCertificates: false
       certificateIssuer: "Self"
+      svcRpLogsName: svcrplog
+      mgmtRpLogsName: mgmtrplog
+      mgmtClusterLogsName: mgmtclusterlog
     metrics:
       cluster:
         account: AzureRedHatOpenShiftCluster
@@ -123,14 +126,8 @@ defaults:
       environment: "Test"
       cluster:
         accountName: AROClusterLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
       rp:
         accountName: ARORPLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
   kusto:
     resourceGroup: ""
     cluster: ""

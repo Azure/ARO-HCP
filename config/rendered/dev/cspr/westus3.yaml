@@ -130,20 +130,17 @@ geneva:
   cert:
     certificateIssuer: Self
     manageCertificates: false
+    mgmtClusterLogsName: mgmtclusterlog
+    mgmtRpLogsName: mgmtrplog
+    svcRpLogsName: svcrplog
   logs:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
     cluster:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
       accountName: AROClusterLogs
     environment: Test
     rp:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
       accountName: ARORPLogs
     typeName: ""
   metrics:

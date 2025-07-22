@@ -836,6 +836,15 @@
             }, 
             "certificateIssuer": {
               "type": "string"
+            },
+            "svcRpLogsName": {
+              "type": "string"
+            },
+            "mgmtRpLogsName": {
+              "type": "string"
+            },
+            "mgmtClusterLogsName": {
+              "type": "string"
             }
           },
           "required": [
@@ -925,14 +934,10 @@
                   "minLength": 6,
                   "maxLength": 32,
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
-                "accountName",
-                "accountCert"
+                "accountName"
               ]
             },
             "rp": {
@@ -944,14 +949,10 @@
                   "minLength": 6,
                   "maxLength": 32,
                   "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
                 }
               },
               "required": [
-                "accountName",
-                "accountCert"
+                "accountName"
               ]
             }
           },

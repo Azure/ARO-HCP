@@ -147,6 +147,12 @@ param manageGenevaCertificate bool = false
 @description('Issuer of certificate for Geneva Authentication')
 param genevaCertificateIssuer string = 'Self'
 
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaRpLogsName string
+
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaClusterLogsName string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -339,21 +345,21 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     kvCertOfficerManagedIdentityResourceId: globalMSIId
     certDomain: svcDNSZoneName
     certificateIssuer: genevaCertificateIssuer
-    hostName: 'mgmt.rplogs'
-    keyVaultCertificateName: 'mgmtRpLog'
+    hostName: genevaRpLogsName
+    keyVaultCertificateName: genevaRpLogsName
     certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
   }
 }
 
 module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
-  name: 'geneva-log-certificate'
+  name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
     certDomain: svcDNSZoneName
     certificateIssuer: genevaCertificateIssuer
-    hostName: 'mgmt.clusterlogs'
-    keyVaultCertificateName: 'mgmtClusterLog'
+    hostName: genevaClusterLogsName
+    keyVaultCertificateName: genevaClusterLogsName
     certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
   }
 }
