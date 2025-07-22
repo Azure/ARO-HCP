@@ -84,7 +84,7 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
     runbookType: 'Python3'
     runbookVersion: '1.0.0'
     location: location
-    rubookScript: {
+    runbookScript: {
       ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
       path: 'tooling/azure-automation/resources-cleanup/src/resources_cleanup.py'
     }
@@ -102,7 +102,7 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
     runbookType: 'PowerShell'
     runbookVersion: '1.0.0'
     location: location
-    rubookScript: {
+    runbookScript: {
       ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
       path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
     }

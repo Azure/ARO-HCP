@@ -7,7 +7,7 @@ param automationAccountName string
 param runbookName string
 
 @description('Object, expecting `ref` and `path` properties')
-param rubookScript object
+param runbookScript object
 
 @description('Version of this runbook')
 param runbookVersion string
@@ -37,10 +37,10 @@ resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' 
   name: automationAccountName
 }
 
-var rubookScriptUrl = format(
+var runbookScriptUrl = format(
   'https://raw.githubusercontent.com/Azure/ARO-HCP/{0}/{1}',
-  rubookScript.ref,
-  rubookScript.path
+  runbookScript.ref,
+  runbookScript.path
 )
 
 resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-08-08' = {
@@ -53,7 +53,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
     logProgress: false
     logVerbose: true
     publishContentLink: {
-      uri: rubookScriptUrl
+      uri: runbookScriptUrl
       version: runbookVersion
     }
   }
