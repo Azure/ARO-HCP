@@ -1,14 +1,16 @@
 PIPELINE = "../dev-infrastructure/mgmt-pipeline.yaml"
 PIPELINE_STEP = "mgmt-fixes"
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 deploy:
 	@if [ "$(APPLY_KUBELET_FIXES)" = "true" ]; then \
-		${HELM_CMD} mgmt-fixes deploy/; \
+		../hack/helm.sh mgmt-fixes deploy/kubelet-ds kube-system; \
 	else \
 		echo "Skipping kubelet patching"; \
 	fi
+
+	@kubectl create namespace aro-hcp-mitigations --dry-run=client -o json | kubectl apply -f - && \
+	../hack/helm.sh mitigations deploy/mitigations aro-hcp-mitigations
 .PHONY: deploy
 
 
