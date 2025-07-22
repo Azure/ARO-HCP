@@ -463,6 +463,7 @@ $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%
 	az deployment group create \
 		--name $(_aa_env)-automation-account \
 		--resource-group $(_aa_resource_group) \
+		--mode complete \
 		--subscription $(_aa_subscription_id) \
 		--template-file templates/automation-account.bicep \
 		$(PROMPT_TO_CONFIRM) \
