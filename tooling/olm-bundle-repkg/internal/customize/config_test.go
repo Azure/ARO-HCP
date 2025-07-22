@@ -113,24 +113,45 @@ func TestValidate(t *testing.T) {
 			errMsg:  "chartDescription cannot be empty",
 		},
 		{
-			name: "no operator deployment identification",
+			name: "empty operator deployment selector",
 			config: &BundleConfig{
-				ChartName:          "test",
-				ChartDescription:   "Test",
-				ImageRegistryParam: "registry",
+				ChartName:        "test",
+				ChartDescription: "Test",
 			},
 			wantErr: true,
 			errMsg:  "at least one of operatorDeploymentNames or operatorDeploymentSelector must be specified",
 		},
 		{
-			name: "empty image registry param",
+			name: "both tag and digest params configured - should fail",
 			config: &BundleConfig{
 				ChartName:               "test",
 				ChartDescription:        "Test",
 				OperatorDeploymentNames: []string{"test"},
+				ImageTagParam:           "imageTag",
+				ImageDigestParam:        "imageDigest",
 			},
 			wantErr: true,
-			errMsg:  "imageRegistryParam cannot be empty",
+			errMsg:  "imageTagParam and imageDigestParam are mutually exclusive",
+		},
+		{
+			name: "only tag param configured - should pass",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ImageTagParam:           "imageTag",
+			},
+			wantErr: false,
+		},
+		{
+			name: "only digest param configured - should pass",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ImageDigestParam:        "imageDigest",
+			},
+			wantErr: false,
 		},
 	}
 

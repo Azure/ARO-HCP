@@ -102,6 +102,8 @@ func parameterizeClusterRoleBindingSubjectsNamespace(obj unstructured.Unstructur
 
 func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer {
 	return func(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
+		allParams := make(map[string]string)
+
 		if isOperatorDeployment(obj, config) {
 			deployment := &appsv1.Deployment{}
 			err := convertFromUnstructured(obj, deployment)
@@ -111,12 +113,16 @@ func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer 
 			for c, container := range deployment.Spec.Template.Spec.Containers {
 				for e, env := range container.Env {
 					if isOperandImageEnvVar(env.Name, config) {
-						deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizeImageRegistry(env.Value, config.ImageRegistryParam)
+						parameterizedImage, params := parameterizeImageComponents(env.Value, config)
+						deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizedImage
+						for k, v := range params {
+							allParams[k] = v
+						}
 					}
 				}
 			}
 			modifiedObj, err := convertToUnstructured(deployment)
-			return modifiedObj, map[string]string{config.ImageRegistryParam: ""}, err
+			return modifiedObj, allParams, err
 		}
 		return obj, nil, nil
 	}
@@ -133,18 +139,24 @@ func isOperandImageEnvVar(envVarName string, config *BundleConfig) bool {
 
 func createParameterizeDeployment(config *BundleConfig) Customizer {
 	return func(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
+		allParams := make(map[string]string)
+
 		if isDeployment(obj) {
 			deployment := &appsv1.Deployment{}
 			err := convertFromUnstructured(obj, deployment)
 			if err != nil {
 				return unstructured.Unstructured{}, nil, fmt.Errorf("failed to convert unstructured object to Deployment: %v", err)
 			}
-			// image registry
+			// parameterize container images
 			for c, container := range deployment.Spec.Template.Spec.Containers {
-				deployment.Spec.Template.Spec.Containers[c].Image = parameterizeImageRegistry(container.Image, config.ImageRegistryParam)
+				parameterizedImage, params := parameterizeImageComponents(container.Image, config)
+				deployment.Spec.Template.Spec.Containers[c].Image = parameterizedImage
+				for k, v := range params {
+					allParams[k] = v
+				}
 			}
 			modifiedObj, err := convertToUnstructured(deployment)
-			return modifiedObj, map[string]string{config.ImageRegistryParam: ""}, err
+			return modifiedObj, allParams, err
 		}
 		return obj, nil, nil
 	}

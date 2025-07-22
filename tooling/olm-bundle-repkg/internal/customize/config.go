@@ -35,6 +35,10 @@ type BundleConfig struct {
 	// Image parameterization
 	OperandImageEnvPrefixes []string `yaml:"operandImageEnvPrefixes"` // prefixes for operand image environment variables
 	ImageRegistryParam      string   `yaml:"imageRegistryParam"`      // parameter name for image registry templating
+	ImageRepositoryParam    string   `yaml:"imageRepositoryParam"`    // parameter name for image repository templating
+	ImageNameParam          string   `yaml:"imageNameParam"`          // parameter name for image name templating
+	ImageTagParam           string   `yaml:"imageTagParam"`           // parameter name for image tag templating (mutually exclusive with ImageDigestParam)
+	ImageDigestParam        string   `yaml:"imageDigestParam"`        // parameter name for image digest templating (mutually exclusive with ImageTagParam)
 
 	// Validation rules
 	RequiredEnvVarPrefixes []string `yaml:"requiredEnvVarPrefixes"` // required environment variable prefixes
@@ -81,8 +85,10 @@ func (c *BundleConfig) Validate() error {
 	if len(c.OperatorDeploymentNames) == 0 && len(c.OperatorDeploymentSelector) == 0 {
 		return fmt.Errorf("at least one of operatorDeploymentNames or operatorDeploymentSelector must be specified")
 	}
-	if c.ImageRegistryParam == "" {
-		return fmt.Errorf("imageRegistryParam cannot be empty")
+	// ImageTagParam and ImageDigestParam are mutually exclusive
+	if c.ImageTagParam != "" && c.ImageDigestParam != "" {
+		return fmt.Errorf("imageTagParam and imageDigestParam are mutually exclusive - only one can be set")
 	}
+	// Image parameterization is optional - any of ImageRegistryParam, ImageRepositoryParam, ImageTagParam, ImageDigestParam can be unset
 	return nil
 }

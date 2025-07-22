@@ -16,6 +16,7 @@ package customize
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,11 +39,6 @@ func convertToUnstructured(from interface{}) (unstructured.Unstructured, error) 
 
 func convertMapToUnstructured(objMap map[string]interface{}) unstructured.Unstructured {
 	return unstructured.Unstructured{Object: objMap}
-}
-
-func parameterizeImageRegistry(imageRef string, registryParamName string) string {
-	registry := strings.Split(imageRef, "/")[0]
-	return fmt.Sprintf("{{ .Values.%s }}%s", registryParamName, imageRef[len(registry):])
 }
 
 func makeNestedMap(flatMap map[string]string) map[string]interface{} {
@@ -114,4 +110,105 @@ func deploymentFromUnstructured(obj unstructured.Unstructured) (*appsv1.Deployme
 	deployment := &appsv1.Deployment{}
 	err := convertFromUnstructured(obj, deployment)
 	return deployment, err
+}
+
+// imageComponents represents the parsed components of a container image reference
+type imageComponents struct {
+	registry   string
+	repository string
+	name       string
+	tag        string // mutually exclusive with digest
+	digest     string // mutually exclusive with tag
+}
+
+// imageRefRegex parses container image references
+// Pattern: [registry/][repository/]name[:tag|@sha256:digest]
+// Examples:
+//   - registry.io/repo/image:tag -> registry="registry.io", repository="repo", name="image", tag="tag", digest=""
+//   - registry.io/org/team/image:tag -> registry="registry.io", repository="org/team", name="image", tag="tag", digest=""
+//   - registry.io/image:tag -> registry="registry.io", repository="", name="image", tag="tag", digest=""
+//   - localhost:5000/repo/image:tag -> registry="localhost:5000", repository="repo", name="image", tag="tag", digest=""
+//   - myimage:tag -> registry="", repository="", name="myimage", tag="tag", digest=""
+//   - registry.io/repo/image@sha256:abc123 -> registry="registry.io", repository="repo", name="image", tag="", digest="abc123"
+var imageRefRegex = regexp.MustCompile(`^(?:([^/]+)/)?(?:(.+)/)?([^/:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$`)
+
+// parseImageReference parses a container image reference into its components
+func parseImageReference(imageRef string) (*imageComponents, error) {
+	matches := imageRefRegex.FindStringSubmatch(imageRef)
+	if matches == nil {
+		return nil, fmt.Errorf("invalid image reference format: %s", imageRef)
+	}
+
+	return &imageComponents{
+		registry:   matches[1],
+		repository: matches[2], // can be empty
+		name:       matches[3],
+		tag:        matches[4], // can be empty, mutually exclusive with digest
+		digest:     matches[5], // can be empty, mutually exclusive with tag
+	}, nil
+}
+
+// buildImageReference reconstructs an image reference from components
+func (ic *imageComponents) buildImageReference() string {
+	var result string
+
+	if ic.registry != "" {
+		result = ic.registry
+
+		if ic.repository != "" {
+			result += "/" + ic.repository
+		}
+
+		result += "/" + ic.name
+	} else {
+		// No registry, just the name (repository should also be empty in this case)
+		result = ic.name
+	}
+
+	if ic.tag != "" {
+		result += ":" + ic.tag
+	} else if ic.digest != "" {
+		result += "@sha256:" + ic.digest
+	}
+
+	return result
+}
+
+// parameterizeImageComponents applies the appropriate parameterization based on config
+func parameterizeImageComponents(imageRef string, config *BundleConfig) (string, map[string]string) {
+	params := make(map[string]string)
+
+	components, err := parseImageReference(imageRef)
+	if err != nil {
+		return imageRef, params // return original if parsing fails
+	}
+
+	if config.ImageRegistryParam != "" && components.registry != "" {
+		components.registry = fmt.Sprintf("{{ .Values.%s }}", config.ImageRegistryParam)
+		params[config.ImageRegistryParam] = ""
+	}
+
+	if config.ImageRepositoryParam != "" && components.repository != "" {
+		components.repository = fmt.Sprintf("{{ .Values.%s }}", config.ImageRepositoryParam)
+		params[config.ImageRepositoryParam] = ""
+	}
+
+	if config.ImageNameParam != "" {
+		components.name = fmt.Sprintf("{{ .Values.%s }}", config.ImageNameParam)
+		params[config.ImageNameParam] = ""
+	}
+
+	if config.ImageTagParam != "" {
+		// Force tag format - clear digest and set tag
+		components.digest = ""
+		components.tag = fmt.Sprintf("{{ .Values.%s }}", config.ImageTagParam)
+		params[config.ImageTagParam] = ""
+	} else if config.ImageDigestParam != "" {
+		// Force digest format - clear tag and set digest
+		components.tag = ""
+		components.digest = fmt.Sprintf("{{ .Values.%s }}", config.ImageDigestParam)
+		params[config.ImageDigestParam] = ""
+	}
+
+	return components.buildImageReference(), params
 }

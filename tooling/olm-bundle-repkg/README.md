@@ -14,6 +14,7 @@ This tool repackages any OLM (Operator Lifecycle Manager) bundle as a Helm chart
   - [2. Bundle Manifest Directories](#2-bundle-manifest-directories)
 - [Configuration System](#configuration-system)
   - [Configuration File Format](#configuration-file-format)
+  - [Image Reference Formats](#image-reference-formats)
   - [Example Configuration](#example-configuration)
 - [Preparing OLM Bundle Inputs](#preparing-olm-bundle-inputs)
   - [Option 1: Bundle Images](#option-1-bundle-images)
@@ -138,8 +139,12 @@ operandImageEnvPrefixes:
   - OPERAND_IMAGE_
   - RELATED_IMAGE_
 
-# Image registry parameterization
-imageRegistryParam: imageRegistry
+# Image parameterization options (all optional)
+imageRegistryParam: imageRegistry     # Parameterize registry part
+imageRepositoryParam: imageRepository # Parameterize repository part  
+imageNameParam: imageName             # Parameterize image name part
+imageTagParam: imageTag               # Parameterize tag part (mutually exclusive with imageDigestParam)
+imageDigestParam: imageDigest         # Parameterize digest part (mutually exclusive with imageTagParam)
 
 # Validation requirements
 requiredEnvVarPrefixes:
@@ -155,6 +160,37 @@ annotationPrefixesToRemove:
   - operatorframework.io
   - olm
 ```
+
+### Image Reference Formats
+
+The tool supports both tag-based and digest-based image references:
+
+**Tag-based format**: `registry.io/repo/image:v1.0.0`  
+**Digest-based format**: `registry.io/repo/image@sha256:abc123def456...`
+
+#### Image Parameterization Modes
+
+The tool can operate in two mutually exclusive modes for image parameterization:
+
+1. **Tag Mode** (`imageTagParam`): Converts all image references to use tags
+   ```yaml
+   imageTagParam: imageTag
+   # Results in: registry.io/repo/image:{{ .Values.imageTag }}
+   ```
+
+2. **Digest Mode** (`imageDigestParam`): Converts all image references to use SHA256 digests
+   ```yaml
+   imageDigestParam: imageDigest  
+   # Results in: registry.io/repo/image@sha256:{{ .Values.imageDigest }}
+   ```
+
+#### Format Conversion
+
+The configuration drives the output format regardless of the input format:
+- **Digest input + Tag config**: `registry.io/repo/image@sha256:abc123` → `registry.io/repo/image:{{ .Values.imageTag }}`
+- **Tag input + Digest config**: `registry.io/repo/image:v1.0.0` → `registry.io/repo/image@sha256:{{ .Values.imageDigest }}`
+
+This ensures consistent image reference formats in the generated Helm chart based on your deployment requirements.
 
 ### Example Configuration
 
@@ -427,6 +463,36 @@ The tool supports two extraction methods with unified output format:
 3. Collect parameters from all customizers for values.yaml generation
 4. Return customized manifests and nested parameter map
 ```
+
+#### Image Reference Processing (`internal/customize/utils.go`)
+
+The tool includes image reference processing that supports both tag and digest formats:
+
+```go
+// Image reference parsing supports multiple formats:
+- registry.io/repo/image:tag
+- registry.io/repo/image@sha256:digest
+- registry.io/image:tag (no repository)
+- image:tag (no registry/repository)
+
+// parameterizeImageComponents workflow:
+1. Parse image reference using regex: ^(?:([^/]+)/)?(?:(.+)/)?([^/:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$
+2. Extract components: registry, repository, name, tag, digest
+3. Apply parameterization based on configuration:
+   - ImageRegistryParam: Replace registry with {{ .Values.registry }}
+   - ImageRepositoryParam: Replace repository with {{ .Values.repository }}  
+   - ImageNameParam: Replace name with {{ .Values.name }}
+   - ImageTagParam: Force tag format, clear digest
+   - ImageDigestParam: Force digest format, clear tag
+4. Rebuild image reference in target format
+5. Return templated image reference and parameter map
+```
+
+**Key Features**:
+- **Format Conversion**: Configuration drives output format regardless of input format
+- **Component Templating**: Each part of image reference can be independently parameterized
+- **Mutual Exclusivity**: ImageTagParam and ImageDigestParam cannot be used together
+- **Robust Parsing**: Handles various image reference formats with comprehensive regex
 
 ### Phase 6: Chart Generation (`main.go`)
 
