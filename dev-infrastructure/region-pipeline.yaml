@@ -24,14 +24,14 @@ resourceGroups:
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  # - name: rpRegistration
-  #   action: ProviderFeatureRegistration
-  #   providerConfigRef: svc.subscription.providers
-  #   identityFrom:
-  #     step: global-output
-  #     name: globalMSIId
-  #   dependsOn:
-  #   - global-output
+  - name: rpRegistration
+    action: ProviderFeatureRegistration
+    providerConfigRef: svc.subscription.providers
+    identityFrom:
+      step: global-output
+      name: globalMSIId
+    dependsOn:
+    - global-output
   - name: region
     action: ARM
     template: templates/region.bicep
@@ -64,7 +64,7 @@ resourceGroups:
         name: grafanaResourceId
     dependsOn:
     - global-output
-    # - rpRegistration
+    - rpRegistration
   - name: region-output
     action: ARM
     template: templates/output-region.bicep
