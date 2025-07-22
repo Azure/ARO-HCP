@@ -28,3 +28,11 @@ module AroHcpCluster 'modules/cluster.bicep' = {
     identityValue: managedIdentities.outputs.identityValue
   }
 }
+
+module AroHcpNodePool 'modules/nodepool.bicep' = {
+  name: 'nodepool-1'
+  params: {
+    clusterName: clusterName
+    nodePoolName: 'nodepool-1'
+  }
+}
