@@ -141,8 +141,7 @@ operandImageEnvPrefixes:
 
 # Image parameterization options (all optional)
 imageRegistryParam: imageRegistry     # Parameterize registry part
-imageRepositoryParam: imageRepository # Parameterize repository part  
-imageNameParam: imageName             # Parameterize image name part
+imageRepositoryParam: imageRepository # Parameterize repository part (includes full path)
 imageTagParam: imageTag               # Parameterize tag part (mutually exclusive with imageDigestParam)
 imageDigestParam: imageDigest         # Parameterize digest part (mutually exclusive with imageTagParam)
 
@@ -472,16 +471,15 @@ The tool includes image reference processing that supports both tag and digest f
 // Image reference parsing supports multiple formats:
 - registry.io/repo/image:tag
 - registry.io/repo/image@sha256:digest
-- registry.io/image:tag (no repository)
-- image:tag (no registry/repository)
+- registry.io/image:tag
+- image:tag (no registry)
 
 // parameterizeImageComponents workflow:
-1. Parse image reference using regex: ^(?:([^/]+)/)?(?:(.+)/)?([^/:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$
-2. Extract components: registry, repository, name, tag, digest
+1. Parse image reference using regex: ^(?:([^/]+)/)?([^:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$
+2. Extract components: registry, repository, tag, digest
 3. Apply parameterization based on configuration:
    - ImageRegistryParam: Replace registry with {{ .Values.registry }}
-   - ImageRepositoryParam: Replace repository with {{ .Values.repository }}  
-   - ImageNameParam: Replace name with {{ .Values.name }}
+   - ImageRepositoryParam: Replace repository with {{ .Values.repository }} (includes full path)
    - ImageTagParam: Force tag format, clear digest
    - ImageDigestParam: Force digest format, clear tag
 4. Rebuild image reference in target format
@@ -490,9 +488,9 @@ The tool includes image reference processing that supports both tag and digest f
 
 **Key Features**:
 - **Format Conversion**: Configuration drives output format regardless of input format
-- **Component Templating**: Each part of image reference can be independently parameterized
+- **Component Templating**: Registry, repository, tag/digest can be independently parameterized
 - **Mutual Exclusivity**: ImageTagParam and ImageDigestParam cannot be used together
-- **Robust Parsing**: Handles various image reference formats with comprehensive regex
+- **Robust Parsing**: Handles various image reference formats with simplified 3-component structure
 
 ### Phase 6: Chart Generation (`main.go`)
 

@@ -115,22 +115,21 @@ func deploymentFromUnstructured(obj unstructured.Unstructured) (*appsv1.Deployme
 // imageComponents represents the parsed components of a container image reference
 type imageComponents struct {
 	registry   string
-	repository string
-	name       string
+	repository string // includes the full repository path (previously repository + name)
 	tag        string // mutually exclusive with digest
 	digest     string // mutually exclusive with tag
 }
 
 // imageRefRegex parses container image references
-// Pattern: [registry/][repository/]name[:tag|@sha256:digest]
+// Pattern: [registry/]repository[:tag|@sha256:digest]
 // Examples:
-//   - registry.io/repo/image:tag -> registry="registry.io", repository="repo", name="image", tag="tag", digest=""
-//   - registry.io/org/team/image:tag -> registry="registry.io", repository="org/team", name="image", tag="tag", digest=""
-//   - registry.io/image:tag -> registry="registry.io", repository="", name="image", tag="tag", digest=""
-//   - localhost:5000/repo/image:tag -> registry="localhost:5000", repository="repo", name="image", tag="tag", digest=""
-//   - myimage:tag -> registry="", repository="", name="myimage", tag="tag", digest=""
-//   - registry.io/repo/image@sha256:abc123 -> registry="registry.io", repository="repo", name="image", tag="", digest="abc123"
-var imageRefRegex = regexp.MustCompile(`^(?:([^/]+)/)?(?:(.+)/)?([^/:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$`)
+//   - registry.io/repo/image:tag -> registry="registry.io", repository="repo/image", tag="tag", digest=""
+//   - registry.io/org/team/image:tag -> registry="registry.io", repository="org/team/image", tag="tag", digest=""
+//   - registry.io/image:tag -> registry="registry.io", repository="image", tag="tag", digest=""
+//   - localhost:5000/repo/image:tag -> registry="localhost:5000", repository="repo/image", tag="tag", digest=""
+//   - myimage:tag -> registry="", repository="myimage", tag="tag", digest=""
+//   - registry.io/repo/image@sha256:abc123 -> registry="registry.io", repository="repo/image", tag="", digest="abc123"
+var imageRefRegex = regexp.MustCompile(`^(?:([^/]+)/)?([^:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$`)
 
 // parseImageReference parses a container image reference into its components
 func parseImageReference(imageRef string) (*imageComponents, error) {
@@ -140,11 +139,10 @@ func parseImageReference(imageRef string) (*imageComponents, error) {
 	}
 
 	return &imageComponents{
-		registry:   matches[1],
-		repository: matches[2], // can be empty
-		name:       matches[3],
-		tag:        matches[4], // can be empty, mutually exclusive with digest
-		digest:     matches[5], // can be empty, mutually exclusive with tag
+		registry:   matches[1], // can be empty
+		repository: matches[2], // required, includes full repository path
+		tag:        matches[3], // can be empty, mutually exclusive with digest
+		digest:     matches[4], // can be empty, mutually exclusive with tag
 	}, nil
 }
 
@@ -153,16 +151,10 @@ func (ic *imageComponents) buildImageReference() string {
 	var result string
 
 	if ic.registry != "" {
-		result = ic.registry
-
-		if ic.repository != "" {
-			result += "/" + ic.repository
-		}
-
-		result += "/" + ic.name
+		result = ic.registry + "/" + ic.repository
 	} else {
-		// No registry, just the name (repository should also be empty in this case)
-		result = ic.name
+		// No registry, just the repository
+		result = ic.repository
 	}
 
 	if ic.tag != "" {
@@ -188,14 +180,9 @@ func parameterizeImageComponents(imageRef string, config *BundleConfig) (string,
 		params[config.ImageRegistryParam] = ""
 	}
 
-	if config.ImageRepositoryParam != "" && components.repository != "" {
+	if config.ImageRepositoryParam != "" {
 		components.repository = fmt.Sprintf("{{ .Values.%s }}", config.ImageRepositoryParam)
 		params[config.ImageRepositoryParam] = ""
-	}
-
-	if config.ImageNameParam != "" {
-		components.name = fmt.Sprintf("{{ .Values.%s }}", config.ImageNameParam)
-		params[config.ImageNameParam] = ""
 	}
 
 	if config.ImageTagParam != "" {

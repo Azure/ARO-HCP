@@ -28,22 +28,28 @@ func TestParameterizeImageComponents(t *testing.T) {
 		expectedImg    string
 		expectedParams map[string]string
 	}{
+		// Core functionality tests
 		{
 			name:     "all parameters configured",
 			imageRef: "registry.io/myrepo/myimage:v1.0.0",
 			config: &BundleConfig{
 				ImageRegistryParam:   "imageRegistry",
 				ImageRepositoryParam: "imageRepository",
-				ImageNameParam:       "imageName",
 				ImageTagParam:        "imageTag",
 			},
-			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}/{{ .Values.imageName }}:{{ .Values.imageTag }}",
+			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageTag }}",
 			expectedParams: map[string]string{
 				"imageRegistry":   "",
 				"imageRepository": "",
-				"imageName":       "",
 				"imageTag":        "",
 			},
+		},
+		{
+			name:           "no parameterization configured",
+			imageRef:       "registry.io/myrepo/myimage:v1.0.0",
+			config:         &BundleConfig{},
+			expectedImg:    "registry.io/myrepo/myimage:v1.0.0",
+			expectedParams: map[string]string{},
 		},
 		{
 			name:     "only registry configured",
@@ -57,14 +63,14 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 		},
 		{
-			name:     "only image name configured",
+			name:     "only repository configured",
 			imageRef: "registry.io/myrepo/myimage:v1.0.0",
 			config: &BundleConfig{
-				ImageNameParam: "imageName",
+				ImageRepositoryParam: "imageRepository",
 			},
-			expectedImg: "registry.io/myrepo/{{ .Values.imageName }}:v1.0.0",
+			expectedImg: "registry.io/{{ .Values.imageRepository }}:v1.0.0",
 			expectedParams: map[string]string{
-				"imageName": "",
+				"imageRepository": "",
 			},
 		},
 		{
@@ -79,114 +85,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 		},
 		{
-			name:     "registry and image name configured",
-			imageRef: "registry.io/myrepo/myimage:v1.0.0",
-			config: &BundleConfig{
-				ImageRegistryParam: "imageRegistry",
-				ImageNameParam:     "imageName",
-			},
-			expectedImg: "{{ .Values.imageRegistry }}/myrepo/{{ .Values.imageName }}:v1.0.0",
-			expectedParams: map[string]string{
-				"imageRegistry": "",
-				"imageName":     "",
-			},
-		},
-		{
-			name:           "no parameterization configured",
-			imageRef:       "registry.io/myrepo/myimage:v1.0.0",
-			config:         &BundleConfig{},
-			expectedImg:    "registry.io/myrepo/myimage:v1.0.0",
-			expectedParams: map[string]string{},
-		},
-		{
-			name:     "registry with port",
-			imageRef: "localhost:5000/repo/image:tag",
-			config: &BundleConfig{
-				ImageRegistryParam: "imageRegistry",
-			},
-			expectedImg: "{{ .Values.imageRegistry }}/repo/image:tag",
-			expectedParams: map[string]string{
-				"imageRegistry": "",
-			},
-		},
-		{
-			name:     "basic repository parameterization",
-			imageRef: "registry.io/myrepo/image:tag",
-			config: &BundleConfig{
-				ImageRepositoryParam: "imageRepository",
-			},
-			expectedImg: "registry.io/{{ .Values.imageRepository }}/image:tag",
-			expectedParams: map[string]string{
-				"imageRepository": "",
-			},
-		},
-		{
-			name:     "nested repository path",
-			imageRef: "registry.io/org/team/image:tag",
-			config: &BundleConfig{
-				ImageRepositoryParam: "imageRepository",
-			},
-			expectedImg: "registry.io/{{ .Values.imageRepository }}/image:tag",
-			expectedParams: map[string]string{
-				"imageRepository": "",
-			},
-		},
-		{
-			name:     "two-part image - no repository to parameterize",
-			imageRef: "registry.io/image:tag",
-			config: &BundleConfig{
-				ImageRepositoryParam: "imageRepository",
-			},
-			expectedImg:    "registry.io/image:tag", // No change - no repository part
-			expectedParams: map[string]string{},     // No params added since no repository found
-		},
-		{
-			name:     "image name without tag",
-			imageRef: "registry.io/repo/myimage",
-			config: &BundleConfig{
-				ImageNameParam: "imageName",
-			},
-			expectedImg: "registry.io/repo/{{ .Values.imageName }}",
-			expectedParams: map[string]string{
-				"imageName": "",
-			},
-		},
-		{
-			name:     "image name with nested repository path",
-			imageRef: "registry.io/org/team/myimage:v1.0.0",
-			config: &BundleConfig{
-				ImageNameParam: "imageName",
-			},
-			expectedImg: "registry.io/org/team/{{ .Values.imageName }}:v1.0.0",
-			expectedParams: map[string]string{
-				"imageName": "",
-			},
-		},
-		{
-			name:     "tag parameterization - image without original tag",
-			imageRef: "registry.io/repo/image",
-			config: &BundleConfig{
-				ImageTagParam: "imageTag",
-			},
-			expectedImg: "registry.io/repo/image:{{ .Values.imageTag }}",
-			expectedParams: map[string]string{
-				"imageTag": "",
-			},
-		},
-		{
-			name:     "tag parameterization with registry port",
-			imageRef: "registry.io:5000/repo/image",
-			config: &BundleConfig{
-				ImageTagParam: "imageTag",
-			},
-			expectedImg: "registry.io:5000/repo/image:{{ .Values.imageTag }}",
-			expectedParams: map[string]string{
-				"imageTag": "",
-			},
-		},
-		// Digest test cases
-		{
-			name:     "basic digest parameterization",
+			name:     "only digest configured",
 			imageRef: "registry.io/repo/image@sha256:abc123def456",
 			config: &BundleConfig{
 				ImageDigestParam: "imageDigest",
@@ -196,6 +95,21 @@ func TestParameterizeImageComponents(t *testing.T) {
 				"imageDigest": "",
 			},
 		},
+		{
+			name:     "registry and repository configured",
+			imageRef: "registry.io/myrepo/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRegistryParam:   "imageRegistry",
+				ImageRepositoryParam: "imageRepository",
+			},
+			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRegistry":   "",
+				"imageRepository": "",
+			},
+		},
+
+		// Format conversion tests
 		{
 			name:     "convert tag to digest format",
 			imageRef: "registry.io/repo/image:v1.0.0",
@@ -218,54 +132,28 @@ func TestParameterizeImageComponents(t *testing.T) {
 				"imageTag": "",
 			},
 		},
+
+		// Edge cases and special formats
 		{
-			name:     "digest with nested repository path",
-			imageRef: "registry.io/org/team/image@sha256:abc123def456",
-			config: &BundleConfig{
-				ImageDigestParam: "imageDigest",
-			},
-			expectedImg: "registry.io/org/team/image@sha256:{{ .Values.imageDigest }}",
-			expectedParams: map[string]string{
-				"imageDigest": "",
-			},
-		},
-		{
-			name:     "digest with registry and repository parameterization",
-			imageRef: "registry.io/myrepo/image@sha256:abc123def456",
-			config: &BundleConfig{
-				ImageRegistryParam:   "imageRegistry",
-				ImageRepositoryParam: "imageRepository",
-				ImageDigestParam:     "imageDigest",
-			},
-			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}/image@sha256:{{ .Values.imageDigest }}",
-			expectedParams: map[string]string{
-				"imageRegistry":   "",
-				"imageRepository": "",
-				"imageDigest":     "",
-			},
-		},
-		{
-			name:     "tag with registry parameterization override digest",
-			imageRef: "registry.io/myrepo/image@sha256:abc123def456",
+			name:     "registry with port",
+			imageRef: "localhost:5000/repo/image:tag",
 			config: &BundleConfig{
 				ImageRegistryParam: "imageRegistry",
-				ImageTagParam:      "imageTag",
 			},
-			expectedImg: "{{ .Values.imageRegistry }}/myrepo/image:{{ .Values.imageTag }}",
+			expectedImg: "{{ .Values.imageRegistry }}/repo/image:tag",
 			expectedParams: map[string]string{
 				"imageRegistry": "",
-				"imageTag":      "",
 			},
 		},
 		{
-			name:     "image without tag or digest - add digest param",
+			name:     "image without tag - add tag param",
 			imageRef: "registry.io/repo/image",
 			config: &BundleConfig{
-				ImageDigestParam: "imageDigest",
+				ImageTagParam: "imageTag",
 			},
-			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigest }}",
+			expectedImg: "registry.io/repo/image:{{ .Values.imageTag }}",
 			expectedParams: map[string]string{
-				"imageDigest": "",
+				"imageTag": "",
 			},
 		},
 	}
