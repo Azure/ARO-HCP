@@ -16,6 +16,7 @@ package customize
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -49,9 +50,7 @@ func CustomizeManifests(objects []unstructured.Unstructured, config *BundleConfi
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to apply customer function: %v", err)
 			}
-			for k, v := range newParams {
-				parameters[k] = v
-			}
+			maps.Copy(parameters, newParams)
 		}
 		customizedManifests[i] = obj
 	}
@@ -114,24 +113,23 @@ func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer 
 			}
 			for c, container := range deployment.Spec.Template.Spec.Containers {
 				for e, env := range container.Env {
-					if isOperandImageEnvVar(env.Name, config) {
-						var parameterizedImage string
-						var params map[string]string
+					var parameterizedImage string
+					var params map[string]string
+					var afix string
+
+					match := isOperandImageEnvVar(env.Name, config)
+					if match != NoMatch {
 
 						if config.PerImageCustomization {
-							// Env-var-specific parameterization - use env var name (without prefix) as suffix
-							suffix := extractEnvVarSuffix(env.Name, config)
-							parameterizedImage, params = parameterizeImageComponentsWithSuffix(env.Value, config, suffix)
-						} else {
-							// Global parameterization - use original function (default behavior)
-							parameterizedImage, params = parameterizeImageComponents(env.Value, config)
+							afix = extractEnvVarAffix(env.Name, config, match)
 						}
 
+						parameterizedImage, params = parameterizeImageComponentsWithSuffix(env.Value, config, afix)
 						deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizedImage
-						for k, v := range params {
-							allParams[k] = v
-						}
+						maps.Copy(allParams, params)
+
 					}
+
 				}
 			}
 			modifiedObj, err := convertToUnstructured(deployment)
@@ -141,26 +139,50 @@ func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer 
 	}
 }
 
-func isOperandImageEnvVar(envVarName string, config *BundleConfig) bool {
+type EnvvarMatch string
+
+const (
+	PrefixMatch EnvvarMatch = "PrefixMatch"
+	SuffixMatch EnvvarMatch = "SuffixMatch"
+	NoMatch     EnvvarMatch = "NoMatch"
+)
+
+func isOperandImageEnvVar(envVarName string, config *BundleConfig) EnvvarMatch {
 	for _, prefix := range config.OperandImageEnvPrefixes {
 		if strings.HasPrefix(envVarName, prefix) {
-			return true
+			return PrefixMatch
 		}
 	}
-	return false
+	for _, suffix := range config.OperandImageEnvSuffixes {
+		if strings.HasSuffix(envVarName, suffix) {
+			return SuffixMatch
+		}
+	}
+
+	return NoMatch
 }
 
 // extractEnvVarSuffix extracts the suffix from an environment variable name by removing the matching prefix
-func extractEnvVarSuffix(envVarName string, config *BundleConfig) string {
+func extractEnvVarAffix(envVarName string, config *BundleConfig, afixType EnvvarMatch) string {
 	caser := cases.Title(language.English)
-	for _, prefix := range config.OperandImageEnvPrefixes {
-		if strings.HasPrefix(envVarName, prefix) {
-			suffix := strings.TrimPrefix(envVarName, prefix)
-			// Convert to title case for consistency
-			return caser.String(strings.ToLower(suffix))
+	var afix string
+
+	switch afixType {
+	case PrefixMatch:
+		for _, prefix := range config.OperandImageEnvPrefixes {
+			if strings.HasPrefix(envVarName, prefix) {
+				afix = strings.TrimPrefix(envVarName, prefix)
+			}
+		}
+	case SuffixMatch:
+		for _, suffix := range config.OperandImageEnvSuffixes {
+			if strings.HasSuffix(envVarName, suffix) {
+				afix = strings.TrimSuffix(envVarName, suffix)
+			}
 		}
 	}
-	return caser.String(strings.ToLower(envVarName))
+
+	return caser.String(strings.ToLower(afix))
 }
 
 func createParameterizeDeployment(config *BundleConfig) Customizer {
@@ -189,9 +211,7 @@ func createParameterizeDeployment(config *BundleConfig) Customizer {
 				}
 
 				deployment.Spec.Template.Spec.Containers[c].Image = parameterizedImage
-				for k, v := range params {
-					allParams[k] = v
-				}
+				maps.Copy(allParams, params)
 			}
 			modifiedObj, err := convertToUnstructured(deployment)
 			return modifiedObj, allParams, err

@@ -34,6 +34,7 @@ type BundleConfig struct {
 
 	// Image parameterization
 	OperandImageEnvPrefixes []string `yaml:"operandImageEnvPrefixes"` // prefixes for operand image environment variables
+	OperandImageEnvSuffixes []string `yaml:"operandImageEnvSuffixes"` // suffixes for operand image environment variables
 	ImageRegistryParam      string   `yaml:"imageRegistryParam"`      // parameter name for image registry templating
 	ImageRepositoryParam    string   `yaml:"imageRepositoryParam"`    // parameter name for image repository templating
 	ImageTagParam           string   `yaml:"imageTagParam"`           // parameter name for image tag templating (mutually exclusive with ImageDigestParam)

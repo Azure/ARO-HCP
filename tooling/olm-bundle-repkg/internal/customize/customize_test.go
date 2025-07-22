@@ -263,46 +263,127 @@ func TestAnnotationCleaner(t *testing.T) {
 	}
 }
 
-func TestExtractEnvVarSuffix(t *testing.T) {
+func TestIsOperandImageEnvVar(t *testing.T) {
 	config := &BundleConfig{
 		OperandImageEnvPrefixes: []string{"OPERAND_IMAGE_", "RELATED_IMAGE_"},
+		OperandImageEnvSuffixes: []string{"_IMAGE", "_CONTAINER"},
 	}
 
 	testCases := []struct {
 		name     string
 		envVar   string
+		expected EnvvarMatch
+	}{
+		{
+			name:     "matches operand image prefix",
+			envVar:   "OPERAND_IMAGE_CONTROLLER",
+			expected: PrefixMatch,
+		},
+		{
+			name:     "matches related image prefix",
+			envVar:   "RELATED_IMAGE_WEBHOOK",
+			expected: PrefixMatch,
+		},
+		{
+			name:     "matches _IMAGE suffix",
+			envVar:   "CONTROLLER_IMAGE",
+			expected: SuffixMatch,
+		},
+		{
+			name:     "matches _CONTAINER suffix",
+			envVar:   "WEBHOOK_CONTAINER",
+			expected: SuffixMatch,
+		},
+		{
+			name:     "no matching pattern",
+			envVar:   "SOME_OTHER_VAR",
+			expected: NoMatch,
+		},
+		{
+			name:     "empty env var",
+			envVar:   "",
+			expected: NoMatch,
+		},
+		{
+			name:     "prefix takes precedence over suffix",
+			envVar:   "OPERAND_IMAGE_CONTROLLER_IMAGE",
+			expected: PrefixMatch,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isOperandImageEnvVar(tc.envVar, config)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestExtractEnvVarAffix(t *testing.T) {
+	config := &BundleConfig{
+		OperandImageEnvPrefixes: []string{"OPERAND_IMAGE_", "RELATED_IMAGE_"},
+		OperandImageEnvSuffixes: []string{"_IMAGE", "_CONTAINER"},
+	}
+
+	testCases := []struct {
+		name     string
+		envVar   string
+		afixType EnvvarMatch
 		expected string
 	}{
 		{
-			name:     "operand image prefix",
+			name:     "extract suffix from prefix match",
 			envVar:   "OPERAND_IMAGE_CONTROLLER",
+			afixType: PrefixMatch,
 			expected: "Controller",
 		},
 		{
-			name:     "related image prefix",
+			name:     "extract suffix from related image prefix",
 			envVar:   "RELATED_IMAGE_WEBHOOK",
+			afixType: PrefixMatch,
 			expected: "Webhook",
 		},
 		{
-			name:     "operand image with underscore",
+			name:     "extract suffix with underscore from prefix",
 			envVar:   "OPERAND_IMAGE_API_SERVER",
+			afixType: PrefixMatch,
 			expected: "Api_server",
 		},
 		{
-			name:     "no matching prefix",
-			envVar:   "SOME_OTHER_IMAGE",
-			expected: "Some_other_image",
+			name:     "extract prefix from _IMAGE suffix",
+			envVar:   "CONTROLLER_IMAGE",
+			afixType: SuffixMatch,
+			expected: "Controller",
 		},
 		{
-			name:     "empty suffix",
+			name:     "extract prefix from _CONTAINER suffix",
+			envVar:   "WEBHOOK_CONTAINER",
+			afixType: SuffixMatch,
+			expected: "Webhook",
+		},
+		{
+			name:     "extract prefix with underscore from suffix",
+			envVar:   "API_SERVER_IMAGE",
+			afixType: SuffixMatch,
+			expected: "Api_server",
+		},
+		{
+			name:     "empty suffix after prefix removal",
 			envVar:   "OPERAND_IMAGE_",
+			afixType: PrefixMatch,
+			expected: "",
+		},
+		{
+			name:     "empty prefix after suffix removal",
+			envVar:   "_IMAGE",
+			afixType: SuffixMatch,
 			expected: "",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractEnvVarSuffix(tc.envVar, config)
+			result := extractEnvVarAffix(tc.envVar, config, tc.afixType)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

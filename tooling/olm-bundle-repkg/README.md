@@ -118,6 +118,17 @@ go run main.go -c configs/example.yaml -b /path/to/manifests/ -o helm-chart/
 
 The tool uses YAML configuration files to customize the conversion process for different types of operators. A configuration file is required.
 
+#### Environment Variable Patterns
+
+The tool can identify operand image environment variables using either prefixes or suffixes (or both):
+
+- **Prefixes** (`operandImageEnvPrefixes`): Matches environment variables that start with specified patterns
+  - Example: `OPERAND_IMAGE_` matches `OPERAND_IMAGE_CONTROLLER`, `OPERAND_IMAGE_WEBHOOK`
+- **Suffixes** (`operandImageEnvSuffixes`): Matches environment variables that end with specified patterns  
+  - Example: `_IMAGE` matches `CONTROLLER_IMAGE`, `WEBHOOK_IMAGE`
+
+Both patterns can be used simultaneously, and the tool will process all matching environment variables.
+
 ### Configuration File Format
 
 ```yaml
@@ -134,10 +145,13 @@ operatorDeploymentNames:
 operatorDeploymentSelector:
   app.kubernetes.io/component: controller
 
-# Image environment variable patterns
+# Image environment variable patterns (can use prefixes, suffixes, or both)
 operandImageEnvPrefixes:
   - OPERAND_IMAGE_
   - RELATED_IMAGE_
+operandImageEnvSuffixes:
+  - _IMAGE
+  - _CONTAINER
 
 # Image parameterization options (all optional)
 imageRegistryParam: imageRegistry     # Parameterize registry part
@@ -225,7 +239,8 @@ containers:
 
 **Parameter suffix generation:**
 - **Container images**: Uses the container name (e.g., `manager` → `Manager`)
-- **Environment variable images**: Uses the env var name without prefix (e.g., `OPERAND_IMAGE_CONTROLLER` → `Controller`)
+- **Environment variable images (prefix matching)**: Uses the env var name without prefix (e.g., `OPERAND_IMAGE_CONTROLLER` → `Controller`)
+- **Environment variable images (suffix matching)**: Uses the env var name without suffix (e.g., `CONTROLLER_IMAGE` → `Controller`)
 
 ### Example Configuration
 
