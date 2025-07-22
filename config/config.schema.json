@@ -3,21 +3,28 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
-    "rfc1123String": {
+    "namespaceName": {
       "type": "string",
       "minLength": 1,
       "maxLength": 63,
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
       "description": "A valid RFC1123 DNS label. Must start and end with a lowercase letter or number, and can contain hyphens in between."
     },
+    "serviceAccountName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 243,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+      "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
+    },
     "k8sServiceAccount": {
       "type": "object",
       "properties": {
         "namespace": {
-          "$ref": "#/definitions/rfc1123String"
+          "$ref": "#/definitions/namespaceName"
         },
         "serviceAccountName": {
-          "$ref": "#/definitions/rfc1123String"
+          "$ref": "#/definitions/serviceAccountName"
         }
       },
       "additionalProperties": false,
