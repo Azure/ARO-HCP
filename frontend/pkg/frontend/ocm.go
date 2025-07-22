@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
@@ -468,6 +469,57 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(azureNodePoolNodeDrainGracePeriodUnit).
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
+	}
+
+	return npBuilder.Build()
+}
+
+// BuildCSExternalAuth creates a CS External Auth object from an HCPOpenShiftClusterExternalAuth object
+func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuth, error) {
+	npBuilder := arohcpv1alpha1.NewExternalAuth()
+
+	// These attributes cannot be updated after node pool creation.
+	if !updating {
+		npBuilder = npBuilder.ID(externalAuth.Name)
+	}
+
+	tokenClaimValidationRuleBuilder := arohcpv1alpha1.NewTokenClaimValidationRule()
+
+	for _, t := range externalAuth.Properties.Claim.ValidationRules {
+		tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
+			Claim(t.RequiredClaim.Claim).
+			RequiredValue(t.RequiredClaim.RequiredValue)
+	}
+
+	npBuilder.
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(externalAuth.Properties.Issuer.Url).
+			Audiences(externalAuth.Properties.Issuer.Audiences...).
+			CA(externalAuth.Properties.Issuer.Ca)).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
+					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
+					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
+				).
+				Groups(arohcpv1alpha1.NewGroupsClaim().
+					Claim(externalAuth.Properties.Claim.Mappings.Groups.Claim).
+					Prefix(externalAuth.Properties.Claim.Mappings.Groups.Prefix),
+				),
+			).
+			ValidationRules(tokenClaimValidationRuleBuilder),
+		)
+
+	for _, t := range externalAuth.Properties.Clients {
+		npBuilder = npBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
+			ID(t.ClientId).
+			Component(arohcpv1alpha1.NewClientComponent().
+				Name(t.Component.Name).
+				Namespace(t.Component.Namespace),
+			).
+			ExtraScopes(t.ExtraScopes...).
+			Type(v1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))
 	}
 
 	return npBuilder.Build()
