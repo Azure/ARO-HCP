@@ -24,9 +24,9 @@ REGIONAL_RG_DEPLOYMENT_NAME ?= region${DEPLOYMENT_NAME_SUFFIX}
 ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
 
 # Subscription IDs
-DEV_SUBSCRIPTION_ID = 1d3378d3-5a3f-4712-85a1-2485495dfc4b
-INT_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
-STAGE_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
+DEV_TESTING_SUBSCRIPTION_ID = 1d3378d3-5a3f-4712-85a1-2485495dfc4b
+INT_TESTING_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
+STAGE_TESTING_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
 
 # Environments where automation accounts are deployed
 AUTOMATION_ACCOUNT_ENVS = dev int stage
@@ -456,7 +456,7 @@ automation-account.what-if:
 $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%:
 	$(eval _aa_env = $(subst automation-account-,,$@))
 	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
-	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_SUBSCRIPTION_ID))
+	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
 	az group create \
 		--resource-group $(_aa_resource_group) --subscription $(_aa_subscription_id) \
 		--location eastus --tags persist=true && \
@@ -473,7 +473,7 @@ $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%
 $(addsuffix .what-if,$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))):automation-account-%.what-if:
 	$(eval _aa_env = $(subst .what-if,,$(subst automation-account-,,$@)))
 	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
-	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_SUBSCRIPTION_ID))
+	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
 	az deployment group what-if \
 		--name $(_aa_env)-automation-account \
 		--resource-group $(_aa_resource_group) \
