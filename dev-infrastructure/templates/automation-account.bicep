@@ -13,6 +13,9 @@ param dailyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'),
 @description('The start time for the nightly schedule')
 param ntlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
+@description('The commit hash of the script to use')
+param scriptVersion string = '0de69144a537d9e5a032605a5fa82e863fc45a9e'
+
 module automationAccount '../modules/automation-account/account.bicep' = {
   name: 'hcp-${environment}-automation'
   params: {
@@ -86,7 +89,7 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
     runbookVersion: '1.0.0'
     location: location
     runbookScript: {
-      ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
+      ref: scriptVersion
       path: 'tooling/azure-automation/resources-cleanup/src/resources_cleanup.py'
     }
     scheduleName: 'daily-schedule'
@@ -104,7 +107,7 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
     runbookVersion: '1.0.0'
     location: location
     runbookScript: {
-      ref: 'b89e85d56040a2ae807d92ec7e904cd5e792b3ea'
+      ref: scriptVersion
       path: 'tooling/azure-automation/resources-cleanup/src/clean-orphaned-role-assignments.ps1'
     }
     scheduleName: 'nightly-schedule'
