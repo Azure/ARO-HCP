@@ -3618,6 +3618,7 @@
           "description": "ID is the unique identifier of the version.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
