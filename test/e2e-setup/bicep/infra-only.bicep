@@ -11,9 +11,14 @@ module customerInfra 'modules/customer-infra.bicep' = {
   }
 }
 
-module ManagedIdentities 'modules/managed-identities.bicep' = {
-  name: 'ManagedIdentities'
+module managedIdentities 'modules/managed-identities.bicep' = {
+  name: 'managedIdentities'
   params: {
     clusterName: clusterName
   }
 }
+
+// passing details about managed identities via the outputs of the main
+// bicep file directly for this to be more visible
+output userAssignedIdentitiesValue object = managedIdentities.outputs.userAssignedIdentitiesValue
+output identityValue object = managedIdentities.outputs.identityValue
