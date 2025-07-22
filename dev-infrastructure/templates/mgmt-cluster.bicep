@@ -110,6 +110,9 @@ param maestroEventGridNamespaceId string
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
+@description('The parent SVC DNS zone name')
+param svcDNSZoneName string
+
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
@@ -334,7 +337,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: regionalSvcDNSZoneName
+    certDomain: svcDNSZoneName
     certificateIssuer: genevaCertificateIssuer
     hostName: 'mgmt.rplogs'
     keyVaultCertificateName: 'mgmtRpLog'
@@ -347,7 +350,7 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: regionalSvcDNSZoneName
+    certDomain: svcDNSZoneName
     certificateIssuer: genevaCertificateIssuer
     hostName: 'mgmt.clusterlogs'
     keyVaultCertificateName: 'mgmtClusterLog'
