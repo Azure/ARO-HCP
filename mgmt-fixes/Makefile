@@ -4,7 +4,7 @@ PIPELINE_STEP = "mgmt-fixes"
 
 deploy:
 	@if [ "$(APPLY_KUBELET_FIXES)" = "true" ]; then \
-		../hack/helm.sh mgmt-fixes deploy/kubelet-ds kube-system; \
+		../hack/helm.sh mgmt-fixes deploy/kubelet-ds default; \
 	else \
 		echo "Skipping kubelet patching"; \
 	fi
