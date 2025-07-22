@@ -377,6 +377,10 @@ monitoring:
   sev4ActionGroupIDs: ""
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
+  certificate:
+    issuer: OneCertV2-PrivateCA
+    manage: false
+    name: msi-refresher
   image:
     digest: ""
     registry: empty-sentinel

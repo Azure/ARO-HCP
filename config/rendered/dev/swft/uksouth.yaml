@@ -379,6 +379,10 @@ monitoring:
   sev4ActionGroupIDs: ""
   svcWorkspaceName: services-lnstest
 msiCredentialsRefresher:
+  certificate:
+    issuer: OneCertV2-PrivateCA
+    manage: false
+    name: msi-refresher
   image:
     digest: ""
     registry: empty-sentinel

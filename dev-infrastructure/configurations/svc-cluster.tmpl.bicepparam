@@ -64,10 +64,6 @@ param csMIName = '{{ .clustersService.managedIdentityName }}'
 param csNamespace = '{{ .clustersService.k8s.namespace }}'
 param csServiceAccountName = '{{ .clustersService.k8s.serviceAccountName }}'
 
-param msiRefresherMIName = '{{ .msiCredentialsRefresher.managedIdentityName }}'
-param msiRefresherNamespace = '{{ .msiCredentialsRefresher.k8s.namespace }}'
-param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceAccountName }}'
-
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
@@ -99,6 +95,10 @@ param genevaActionsServiceTag = '{{ .genevaActions.serviceTag }}'
 param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
 param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
 param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
+
+param manageMsiRefresherCertificate = {{ .msiCredentialsRefresher.certificate.manage }}
+param msiRefresherCertificateName = '{{ .msiCredentialsRefresher.certificate.name }}'
+param msiRefresherCertificateIssuer = '{{ .msiCredentialsRefresher.certificate.issuer }}'
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'

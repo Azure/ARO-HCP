@@ -1056,13 +1056,34 @@
         },
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "certificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "managedIdentityName",
         "k8s",
-        "image"
+        "image",
+        "certificate"
       ]
     },
     "global": {
