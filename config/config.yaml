@@ -128,14 +128,16 @@ defaults:
         accountCert:
           keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
           name: ""
-    keyVault:
-      name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
-      private: false
-      softDelete: true
-    genevaActionCertificate:
-      name: genevaAction
-      issuer: Self
-      manage: true
+    actions:
+      serviceTag: GenevaActionsNonProd
+      keyVault:
+        name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
+        private: false
+        softDelete: true
+      certificate:
+        name: genevaAction
+        issuer: Self
+        manage: true
   kusto:
     resourceGroup: ""
     cluster: ""
@@ -556,9 +558,6 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
-      # Geneva Actions
-      genevaActions:
-        serviceTag: GenevaActionsNonProd
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com
@@ -631,6 +630,13 @@ clouds:
         rg: 'global'
         region: 'westus3'
         softDelete: true
+      # Geneva
+      geneva:
+        actions:
+          keyVault:
+            name: arohcpdev-geneva-kv # we just want one for entire DEV
+          certificate:
+            manage: false # there is no geneva in DEV so we don't need to certificate right now
       # disable soft delete on etcd KVs in DEV
       svc:
         subscription:

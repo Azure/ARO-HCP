@@ -827,28 +827,42 @@
         "resourceContributor": {
           "type": "string"
         },
-        "keyVault": {
-          "$ref": "#/definitions/keyVault"
-        },
-        "genevaActionCertificate": {
+        "actions": {
           "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "issuer": {
-              "$ref": "#/definitions/certificateIssuer"
-            },
-            "manage": {
-              "type": "boolean"
-            }
-          },
           "additionalProperties": false,
           "required": [
-            "name",
-            "issuer",
-            "manage"
-          ]
+            "serviceTag",
+            "keyVault",
+            "certificate"
+          ],
+          "properties": {
+            "serviceTag": {
+              "type": "string"
+            },
+            "keyVault": {
+              "$ref": "#/definitions/keyVault"
+            },
+            "certificate": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "issuer": {
+                  "$ref": "#/definitions/certificateIssuer"
+                },
+                "manage": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "issuer",
+                "manage"
+              ]
+            }
+          }
         },
         "metrics": {
           "type": "object",
@@ -977,8 +991,7 @@
         "resourceContributor",
         "metrics",
         "logs",
-        "keyVault",
-        "genevaActionCertificate"
+        "actions"
       ]
     },
     "kusto": {
@@ -995,18 +1008,6 @@
       "required": [
         "resourceGroup",
         "cluster"
-      ]
-    },
-    "genevaActions": {
-      "type": "object",
-      "properties": {
-        "serviceTag": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "serviceTag"
       ]
     },
     "mise": {
@@ -1771,7 +1772,6 @@
     "firstPartyAppClientId",
     "firstPartyAppCertificate",
     "frontend",
-    "genevaActions",
     "global",
     "hypershift",
     "imageSync",
