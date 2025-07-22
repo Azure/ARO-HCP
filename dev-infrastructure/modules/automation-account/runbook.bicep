@@ -33,7 +33,7 @@ param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:0
 @description('Deployment timestamp to ensure unique jobSchedule names')
 param deploymentTime string = utcNow()
 
-resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
+resource automationAccount 'Microsoft.Automation/automationAccounts@2024-10-23' existing = {
   name: automationAccountName
 }
 
@@ -43,7 +43,7 @@ var runbookScriptUrl = format(
   runbookScript.path
 )
 
-resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-08-08' = {
+resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2024-10-23' = {
   name: '${automationAccount.name}_${runbookName}'
   location: location
   parent: automationAccount

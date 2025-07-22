@@ -90,10 +90,10 @@ resource failedJobAlertRule 'Microsoft.Insights/scheduledQueryRules@2023-03-15-p
             numberOfEvaluationPeriods: 1
           }
           operator: 'GreaterThan'
-          query: '''AzureDiagnostics 
+          query: '''AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.AUTOMATION"
     and Category == "JobLogs"
-    and (ResultType == "Failed") 
+    and (ResultType == "Failed")
 | project TimeGenerated, RunbookName_s, ResultType, _ResourceId, JobId_g
 '''
           resourceIdColumn: ''
@@ -113,4 +113,24 @@ resource failedJobAlertRule 'Microsoft.Insights/scheduledQueryRules@2023-03-15-p
   }
 }
 
-output automationAccountManagedIdentityId string = uami.properties.principalId
+resource automationAccountVariable_SubscriptionId 'Microsoft.Automation/automationAccounts/variables@2024-10-23' = {
+  parent: automationAccount
+  name: 'subscription_id'
+  properties: {
+    description: 'The subscription Id of the automation account'
+    isEncrypted: false
+    value: '"${subscription().subscriptionId}"'
+  }
+}
+
+resource automationAccountVariable_ClientId 'Microsoft.Automation/automationAccounts/variables@2024-10-23' = {
+  parent: automationAccount
+  name: 'client_id'
+  properties: {
+    description: 'The subscription Id of the automation account'
+    isEncrypted: false
+    value: '"${uami.properties.clientId}"'
+  }
+}
+
+output managedIdentityPrincipalId string = uami.properties.principalId

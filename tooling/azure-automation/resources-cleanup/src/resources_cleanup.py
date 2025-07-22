@@ -11,58 +11,7 @@ from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
 
-_KEY_NAME = "Name"
-_KEY_VALUE = "Value"
-_KEY_VARIABLE = "Variable"
-_KEY_CREDENTIAL = "Credential"
-
-
-def _get_automation_asset_file():
-    if os.environ.get('AUTOMATION_ASSET_FILE') is not None:
-        return os.environ.get('AUTOMATION_ASSET_FILE')
-    return os.path.join(os.path.dirname(__file__), "localassets.json")
-
-def _get_asset_value(asset_file, asset_type, asset_name):
-    try:
-        with open(asset_file) as json_data:
-            local_assets = json.load(json_data)
-    except (FileNotFoundError, json.JSONDecodeError):
-        raise LookupError(f"Asset file not found or invalid: {asset_file}")
-
-    return_value = None
-    for asset, asset_values in local_assets.items():
-        if asset == asset_type:
-            for value in asset_values:
-                if value[_KEY_NAME] == asset_name:
-                    return_value = value
-                    break
-        if return_value is not None:
-            break
-
-    return return_value
-
-def _get_asset(asset_type, asset_name):
-    local_assets_file = _get_automation_asset_file()
-    return_value = _get_asset_value(local_assets_file, asset_type, asset_name)
-
-    if return_value is None:
-        raise LookupError(f"Asset '{asset_name}' not found")
-    return return_value
-
-def get_automation_variable(name):
-    """ Returns an automation variable """
-    variable = _get_asset(_KEY_VARIABLE, name)
-    return variable[_KEY_VALUE]
-
-def get_automation_credential(name):
-    """ Returns an automation credential as a dictionary with username and password as keys """
-    credential = _get_asset(_KEY_CREDENTIAL, name)
-
-    # Return a dictionary of the credential asset
-    credential_dictionary = {}
-    credential_dictionary['username'] = credential['Username']
-    credential_dictionary['password'] = credential['Password']
-    return credential_dictionary
+from automationassets import get_automation_variable, AutomationAssetNotFound
 
 # If DRY_RUN is TRUE, the script will print which resource groups should be deleted
 # without deleting them. If it is FALSE, the script will print which resource groups
@@ -203,7 +152,7 @@ def get_creation_time_of_resource_group(resource_group):
 def get_subscription_id():
     try:
         return get_automation_variable("subscription_id")
-    except LookupError:
+    except AutomationAssetNotFound:
         env_val = os.getenv("SUBSCRIPTION_ID")
         if env_val:
             return env_val
@@ -211,20 +160,22 @@ def get_subscription_id():
             "Subscription ID missing: not found in automation variables or SUBSCRIPTION_ID env var."
         )
 
+def get_client_id():
+    try:
+        return get_automation_variable("client_id")
+    except AutomationAssetNotFound:
+        env_val = os.getenv("CLIENT_ID")
+        if env_val:
+            return env_val
+        raise ValueError(
+            "Client ID missing: not found in automation variables or CLIENT_ID env var."
+        )
+
 def main():
-    print("All arguments:", sys.argv)
-    # Azure Automation passes parameters as raw values without their names
-    # sys.argv[0] is the script path
-    # sys.argv[1] is the subscription ID
-    # sys.argv[2] is the managed identity ID
-    subscription_id = sys.argv[1]
-    client_id = sys.argv[2]
-    if not subscription_id:
-        raise ValueError("Subscription ID not found in automation variables or environment variables")
 
     resource_client = ResourceManagementClient(
-        credential=ManagedIdentityCredential(client_id),
-        subscription_id=subscription_id,
+        credential=ManagedIdentityCredential(client_id=get_client_id()),
+        subscription_id=get_subscription_id(),
         api_version=DEFAULT_API_VERSION
     )
 
@@ -234,7 +185,7 @@ def main():
     print(f"DRY_RUN flag is {DRY_RUN}\n")
     print(f"VERBOSE flag is {VERBOSE}\n")
 
-    process_resource_groups_of_subscription(subscription_id, resource_client)
+    process_resource_groups_of_subscription(get_subscription_id(), resource_client)
     print(f"\n'{runbook_name}' finished")
 
 if __name__ == "__main__":

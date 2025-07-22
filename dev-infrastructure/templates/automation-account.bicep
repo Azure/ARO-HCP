@@ -70,8 +70,8 @@ module permissions '../modules/automation-account/permissions.bicep' = {
   name: 'hcp-${environment}-automation-permissions'
   scope: subscription()
   params: {
-    automationAccountManagedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
     automationAccountName: automationAccountName
+    principalId: automationAccount.outputs.managedIdentityPrincipalId
   }
 }
 
