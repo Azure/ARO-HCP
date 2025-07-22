@@ -79,7 +79,6 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'resourceCleanup'
   params: {
     automationAccountName: automationAccountName
-    identityName: automationAccountName
     runbookDescription: 'Clean up old resource groups'
     runbookName: 'resourceCleanup'
     runbookType: 'Python3'
@@ -91,8 +90,6 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
     }
     scheduleName: 'daily-schedule'
     startTime: dailyScheduleStartTime
-    subscriptionId: subscription().subscriptionId
-    managedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
   }
 }
 
@@ -100,7 +97,6 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'roleAssignmentsCleanup'
   params: {
     automationAccountName: automationAccountName
-    identityName: automationAccountName
     runbookDescription: 'Clean up orphaned role assignments'
     runbookName: 'roleAssignmentsCleanup'
     runbookType: 'PowerShell'
@@ -112,7 +108,5 @@ module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
     }
     scheduleName: 'nightly-schedule'
     startTime: ntlyScheduleStartTime
-    subscriptionId: subscription().subscriptionId
-    managedIdentityId: automationAccount.outputs.automationAccountManagedIdentityId
   }
 }

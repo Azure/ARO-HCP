@@ -30,14 +30,8 @@ param interval int = 1
 @description('Start time for the scheduled execution (12:00 AM the next day)')
 param startTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 0, 10)}T00:00:00Z'
 
-@description('Name of the managed identity')
-param identityName string = 'hcp-dev-automation'
-
-@description('Subscription ID to use for the runbook')
-param subscriptionId string = ''
-
-@description('Managed Identity ID to use for the runbook')
-param managedIdentityId string = ''
+@description('Deployment timestamp to ensure unique jobSchedule names')
+param deploymentTime string = utcNow()
 
 resource automationAccount 'Microsoft.Automation/automationAccounts@2022-08-08' existing = {
   name: automationAccountName
@@ -50,7 +44,7 @@ var rubookScriptUrl = format(
 )
 
 resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-08-08' = {
-  name: '${automationAccountName}_${runbookName}'
+  name: '${automationAccount.name}_${runbookName}'
   location: location
   parent: automationAccount
   properties: {
@@ -66,8 +60,8 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2022-0
 }
 
 // Create the Schedule
-resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022-08-08' = if (!empty(scheduleName)) {
-  name: '${automationAccountName}_${scheduleName}'
+resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2024-10-23' = if (!empty(scheduleName)) {
+  name: '${automationAccount.name}_${scheduleName}'
   parent: automationAccount
   properties: {
     frequency: frequency
@@ -77,28 +71,18 @@ resource runbookSchedule 'Microsoft.Automation/automationAccounts/schedules@2022
   }
 }
 
-var baseArguments = '-ResourceGroupName ${resourceGroup().name} -AutomationAccountName ${automationAccountName} -RunbookName ${accountRunbook.name} -ScheduleName ${runbookSchedule.name}'
-var arguments = (subscriptionId != '' && managedIdentityId != '')
-  ? '${baseArguments} -SubscriptionId ${subscriptionId} -ManagedIdentityId ${managedIdentityId}'
-  : baseArguments
-
-// Link Schedule to Runbook
-resource registerScheduledRunbook 'Microsoft.Resources/deploymentScripts@2023-08-01' = if (!empty(scheduleName)) {
-  name: 'registerScheduledRunbook_${uniqueString(runbookName, scheduleName)}'
-  location: resourceGroup().location
-  kind: 'AzurePowerShell'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${identityName}': {}
-    }
-  }
+resource runbookJobSchedule 'Microsoft.Automation/automationAccounts/jobSchedules@2024-10-23' = if (!empty(scheduleName)) {
+  // A nondeterministic name for the job schedule avoids redeployment conflicts,
+  // together with the Azure CLI's complete mode to remove orphaned job schedules.
+  // More information at https://red.ht/3TSWBVi
+  name: guid(accountRunbook.name, runbookSchedule.name, deploymentTime)
+  parent: automationAccount
   properties: {
-    azPowerShellVersion: '12.0.0'
-    scriptContent: loadTextContent('../../scripts/register-scheduledrunbook.ps1')
-    arguments: arguments
-    retentionInterval: 'P1D'
-    cleanupPreference: 'OnSuccess'
-    timeout: 'PT30M'
+    runbook: {
+      name: accountRunbook.name
+    }
+    schedule: {
+      name: runbookSchedule.name
+    }
   }
 }
