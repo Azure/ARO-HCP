@@ -38,6 +38,7 @@ type BundleConfig struct {
 	ImageRepositoryParam    string   `yaml:"imageRepositoryParam"`    // parameter name for image repository templating
 	ImageTagParam           string   `yaml:"imageTagParam"`           // parameter name for image tag templating (mutually exclusive with ImageDigestParam)
 	ImageDigestParam        string   `yaml:"imageDigestParam"`        // parameter name for image digest templating (mutually exclusive with ImageTagParam)
+	PerImageCustomization   bool     `yaml:"perImageCustomization"`   // if true, each image reference gets individual parameters with suffixes (default: false)
 
 	// Validation rules
 	RequiredEnvVarPrefixes []string `yaml:"requiredEnvVarPrefixes"` // required environment variable prefixes

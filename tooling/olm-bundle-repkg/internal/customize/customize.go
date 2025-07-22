@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -113,7 +115,18 @@ func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer 
 			for c, container := range deployment.Spec.Template.Spec.Containers {
 				for e, env := range container.Env {
 					if isOperandImageEnvVar(env.Name, config) {
-						parameterizedImage, params := parameterizeImageComponents(env.Value, config)
+						var parameterizedImage string
+						var params map[string]string
+
+						if config.PerImageCustomization {
+							// Env-var-specific parameterization - use env var name (without prefix) as suffix
+							suffix := extractEnvVarSuffix(env.Name, config)
+							parameterizedImage, params = parameterizeImageComponentsWithSuffix(env.Value, config, suffix)
+						} else {
+							// Global parameterization - use original function (default behavior)
+							parameterizedImage, params = parameterizeImageComponents(env.Value, config)
+						}
+
 						deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizedImage
 						for k, v := range params {
 							allParams[k] = v
@@ -137,6 +150,19 @@ func isOperandImageEnvVar(envVarName string, config *BundleConfig) bool {
 	return false
 }
 
+// extractEnvVarSuffix extracts the suffix from an environment variable name by removing the matching prefix
+func extractEnvVarSuffix(envVarName string, config *BundleConfig) string {
+	caser := cases.Title(language.English)
+	for _, prefix := range config.OperandImageEnvPrefixes {
+		if strings.HasPrefix(envVarName, prefix) {
+			suffix := strings.TrimPrefix(envVarName, prefix)
+			// Convert to title case for consistency
+			return caser.String(strings.ToLower(suffix))
+		}
+	}
+	return caser.String(strings.ToLower(envVarName))
+}
+
 func createParameterizeDeployment(config *BundleConfig) Customizer {
 	return func(obj unstructured.Unstructured) (unstructured.Unstructured, map[string]string, error) {
 		allParams := make(map[string]string)
@@ -149,7 +175,19 @@ func createParameterizeDeployment(config *BundleConfig) Customizer {
 			}
 			// parameterize container images
 			for c, container := range deployment.Spec.Template.Spec.Containers {
-				parameterizedImage, params := parameterizeImageComponents(container.Image, config)
+				var parameterizedImage string
+				var params map[string]string
+
+				if config.PerImageCustomization {
+					// Container-specific parameterization - use container name as suffix
+					caser := cases.Title(language.English)
+					suffix := caser.String(container.Name)
+					parameterizedImage, params = parameterizeImageComponentsWithSuffix(container.Image, config, suffix)
+				} else {
+					// Global parameterization - use original function (default behavior)
+					parameterizedImage, params = parameterizeImageComponents(container.Image, config)
+				}
+
 				deployment.Spec.Template.Spec.Containers[c].Image = parameterizedImage
 				for k, v := range params {
 					allParams[k] = v

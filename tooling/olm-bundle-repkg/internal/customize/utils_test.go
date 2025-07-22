@@ -166,3 +166,75 @@ func TestParameterizeImageComponents(t *testing.T) {
 		})
 	}
 }
+
+func TestParameterizeImageComponentsWithSuffix(t *testing.T) {
+	testCases := []struct {
+		name           string
+		imageRef       string
+		config         *BundleConfig
+		suffix         string
+		expectedImg    string
+		expectedParams map[string]string
+	}{
+		{
+			name:     "all parameters with suffix",
+			imageRef: "registry.io/myrepo/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRegistryParam:   "imageRegistry",
+				ImageRepositoryParam: "imageRepository",
+				ImageTagParam:        "imageTag",
+			},
+			suffix:      "Manager",
+			expectedImg: "{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}:{{ .Values.imageTagManager }}",
+			expectedParams: map[string]string{
+				"imageRegistryManager":   "",
+				"imageRepositoryManager": "",
+				"imageTagManager":        "",
+			},
+		},
+		{
+			name:     "only registry with suffix",
+			imageRef: "registry.io/myrepo/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRegistryParam: "imageRegistry",
+			},
+			suffix:      "Controller",
+			expectedImg: "{{ .Values.imageRegistryController }}/myrepo/myimage:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRegistryController": "",
+			},
+		},
+		{
+			name:     "digest with suffix",
+			imageRef: "registry.io/repo/image@sha256:abc123def456",
+			config: &BundleConfig{
+				ImageDigestParam: "imageDigest",
+			},
+			suffix:      "Worker",
+			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigestWorker }}",
+			expectedParams: map[string]string{
+				"imageDigestWorker": "",
+			},
+		},
+		{
+			name:     "empty suffix behaves like normal",
+			imageRef: "registry.io/myrepo/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRegistryParam: "imageRegistry",
+			},
+			suffix:      "",
+			expectedImg: "{{ .Values.imageRegistry }}/myrepo/myimage:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRegistry": "",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, params := parameterizeImageComponentsWithSuffix(tc.imageRef, tc.config, tc.suffix)
+			assert.Equal(t, tc.expectedImg, result)
+			assert.Equal(t, tc.expectedParams, params)
+		})
+	}
+}

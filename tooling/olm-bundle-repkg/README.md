@@ -144,6 +144,7 @@ imageRegistryParam: imageRegistry     # Parameterize registry part
 imageRepositoryParam: imageRepository # Parameterize repository part (includes full path)
 imageTagParam: imageTag               # Parameterize tag part (mutually exclusive with imageDigestParam)
 imageDigestParam: imageDigest         # Parameterize digest part (mutually exclusive with imageTagParam)
+perImageCustomization: false          # If true, each image gets individual parameters with suffixes (default: false)
 
 # Validation requirements
 requiredEnvVarPrefixes:
@@ -190,6 +191,41 @@ The configuration drives the output format regardless of the input format:
 - **Tag input + Digest config**: `registry.io/repo/image:v1.0.0` → `registry.io/repo/image@sha256:{{ .Values.imageDigest }}`
 
 This ensures consistent image reference formats in the generated Helm chart based on your deployment requirements.
+
+#### Per-Image Customization
+
+By default, all image references share the same parameter names (global parameterization). However, you can enable per-image customization to generate unique parameters for each image:
+
+```yaml
+perImageCustomization: true
+imageRegistryParam: imageRegistry
+imageTagParam: imageTag
+```
+
+**Global Parameterization (default behavior):**
+```yaml
+# All images use the same parameters
+containers:
+  - image: "{{ .Values.imageRegistry }}/controller:{{ .Values.imageTag }}"
+  - image: "{{ .Values.imageRegistry }}/webhook:{{ .Values.imageTag }}"
+```
+
+**Per-Image Customization:**
+```yaml
+# Each image gets unique parameters with suffixes
+containers:
+  - image: "{{ .Values.imageRegistryManager }}/controller:{{ .Values.imageTagManager }}"
+  - image: "{{ .Values.imageRegistryWebhook }}/webhook:{{ .Values.imageTagWebhook }}"
+```
+
+**When to use per-image customization:**
+- Different containers need different registries or tags
+- Fine-grained control over individual images is required
+- You want to override specific container images independently
+
+**Parameter suffix generation:**
+- **Container images**: Uses the container name (e.g., `manager` → `Manager`)
+- **Environment variable images**: Uses the env var name without prefix (e.g., `OPERAND_IMAGE_CONTROLLER` → `Controller`)
 
 ### Example Configuration
 

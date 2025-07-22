@@ -262,3 +262,48 @@ func TestAnnotationCleaner(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractEnvVarSuffix(t *testing.T) {
+	config := &BundleConfig{
+		OperandImageEnvPrefixes: []string{"OPERAND_IMAGE_", "RELATED_IMAGE_"},
+	}
+
+	testCases := []struct {
+		name     string
+		envVar   string
+		expected string
+	}{
+		{
+			name:     "operand image prefix",
+			envVar:   "OPERAND_IMAGE_CONTROLLER",
+			expected: "Controller",
+		},
+		{
+			name:     "related image prefix",
+			envVar:   "RELATED_IMAGE_WEBHOOK",
+			expected: "Webhook",
+		},
+		{
+			name:     "operand image with underscore",
+			envVar:   "OPERAND_IMAGE_API_SERVER",
+			expected: "Api_server",
+		},
+		{
+			name:     "no matching prefix",
+			envVar:   "SOME_OTHER_IMAGE",
+			expected: "Some_other_image",
+		},
+		{
+			name:     "empty suffix",
+			envVar:   "OPERAND_IMAGE_",
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := extractEnvVarSuffix(tc.envVar, config)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

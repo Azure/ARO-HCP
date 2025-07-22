@@ -168,6 +168,11 @@ func (ic *imageComponents) buildImageReference() string {
 
 // parameterizeImageComponents applies the appropriate parameterization based on config
 func parameterizeImageComponents(imageRef string, config *BundleConfig) (string, map[string]string) {
+	return parameterizeImageComponentsWithSuffix(imageRef, config, "")
+}
+
+// parameterizeImageComponentsWithSuffix applies the appropriate parameterization based on config with optional suffix
+func parameterizeImageComponentsWithSuffix(imageRef string, config *BundleConfig, suffix string) (string, map[string]string) {
 	params := make(map[string]string)
 
 	components, err := parseImageReference(imageRef)
@@ -176,25 +181,41 @@ func parameterizeImageComponents(imageRef string, config *BundleConfig) (string,
 	}
 
 	if config.ImageRegistryParam != "" && components.registry != "" {
-		components.registry = fmt.Sprintf("{{ .Values.%s }}", config.ImageRegistryParam)
-		params[config.ImageRegistryParam] = ""
+		paramName := config.ImageRegistryParam
+		if suffix != "" {
+			paramName = paramName + suffix
+		}
+		components.registry = fmt.Sprintf("{{ .Values.%s }}", paramName)
+		params[paramName] = ""
 	}
 
 	if config.ImageRepositoryParam != "" {
-		components.repository = fmt.Sprintf("{{ .Values.%s }}", config.ImageRepositoryParam)
-		params[config.ImageRepositoryParam] = ""
+		paramName := config.ImageRepositoryParam
+		if suffix != "" {
+			paramName = paramName + suffix
+		}
+		components.repository = fmt.Sprintf("{{ .Values.%s }}", paramName)
+		params[paramName] = ""
 	}
 
 	if config.ImageTagParam != "" {
+		paramName := config.ImageTagParam
+		if suffix != "" {
+			paramName = paramName + suffix
+		}
 		// Force tag format - clear digest and set tag
 		components.digest = ""
-		components.tag = fmt.Sprintf("{{ .Values.%s }}", config.ImageTagParam)
-		params[config.ImageTagParam] = ""
+		components.tag = fmt.Sprintf("{{ .Values.%s }}", paramName)
+		params[paramName] = ""
 	} else if config.ImageDigestParam != "" {
+		paramName := config.ImageDigestParam
+		if suffix != "" {
+			paramName = paramName + suffix
+		}
 		// Force digest format - clear tag and set digest
 		components.tag = ""
-		components.digest = fmt.Sprintf("{{ .Values.%s }}", config.ImageDigestParam)
-		params[config.ImageDigestParam] = ""
+		components.digest = fmt.Sprintf("{{ .Values.%s }}", paramName)
+		params[paramName] = ""
 	}
 
 	return components.buildImageReference(), params
