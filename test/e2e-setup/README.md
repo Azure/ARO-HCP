@@ -34,9 +34,29 @@ That said right now, Dev env. is not supported. This is a temporary limitation.
 [Bicep](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview?tabs=bicep)
 is used a primary way to describe ARO HCP cluster configurations for E2E Setup.
 
-### Cluster configurations
+A cluster configuration (to deploy via E2E setup) is defined in a single
+bicep file in `test/e2e-setup/bicep` directory. For example:
 
-TODO: explain how the cluster configurations will work
+* [`demo.bicep`](https://github.com/Azure/ARO-HCP/blob/main/test/e2e-setup/bicep/demo.bicep) is a simple configuration based on the original demo,
+* [`infra-only.bicep`](https://github.com/Azure/ARO-HCP/blob/main/test/e2e-setup/bicep/infra-only.bicep) is a setup which defines just customer deployed infra
+  (like network, managed identities ...) without creating ARO HCP cluster.
+  Details about MI are provided via bicep output values, so that one can use it
+  to create a cluster via golang SDK.
+
+#### Usage
+
+First of all define env. variables, for example:
+
+```
+export LOCATION=francecentral
+export SUBSCRIPTION="FOO Subscription"
+export BICEP_FILE=demo.bicep
+export CUSTOMER_RG_NAME=${USER}-rg
+export CLUSTER_NAME=${USER}-cluster
+```
+
+And then run `setup.sh` script. It will deploy given bicep file using the
+parameters passed via the enviroment variables.
 
 ### Other setup methods
 
