@@ -11,7 +11,7 @@ from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import GenericResourceExpanded, ResourceGroup
 
-from automationassets import get_automation_variable, AutomationAssetNotFound
+from automationassets import get_automation_variable
 
 # If DRY_RUN is TRUE, the script will print which resource groups should be deleted
 # without deleting them. If it is FALSE, the script will print which resource groups
@@ -152,7 +152,7 @@ def get_creation_time_of_resource_group(resource_group):
 def get_subscription_id():
     try:
         return get_automation_variable("subscription_id")
-    except AutomationAssetNotFound:
+    except:
         env_val = os.getenv("SUBSCRIPTION_ID")
         if env_val:
             return env_val
@@ -163,7 +163,7 @@ def get_subscription_id():
 def get_client_id():
     try:
         return get_automation_variable("client_id")
-    except AutomationAssetNotFound:
+    except:
         env_val = os.getenv("CLIENT_ID")
         if env_val:
             return env_val
