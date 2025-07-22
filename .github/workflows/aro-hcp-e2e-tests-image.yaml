@@ -1,0 +1,60 @@
+name: Build and Push E2E Test Image to ACR
+on:
+  workflow_dispatch:
+  push:
+    branches:
+    - main
+    paths:
+    - 'test/e2e/**'
+    - 'test/util/**'
+    - 'test/Containerfile.e2e'
+    - 'test/go.mod'
+    - 'test/go.sum'
+    - 'internal/api/**'
+    - '.github/workflows/aro-hcp-e2e-tests-image.yaml'
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    env:
+      REPOSITORY: ${{ github.workspace }}
+      COMMIT_SHA: ${{ github.sha }}
+      ARO_HCP_E2ETESTS_IMAGE: aro-hcp-e2e-tests
+      ARO_HCP_E2ETESTS_IMAGE_REGISTRY: e2etestsacr.azurecr.io
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - name: Podman login to ACR
+      uses: redhat-actions/podman-login@v1
+      with:
+        registry: ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }}
+        username: ${{ secrets.AZURE_CLIENT_ID }}
+        password: ${{ secrets.AZURE_CLIENT_SECRET }}
+    - name: Install Azure CLI
+      uses: Azure/ARO-HCP@main
+    - name: Az CLI login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Build e2e test image
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
+        tags: ${{ env.COMMIT_SHA }}
+        containerfiles: test/Containerfile.e2e
+        build-args: |
+          ARO-HCP=${{ env.REPOSITORY }}
+    - name: Push e2e test image to ACR
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
+        tags: ${{ env.COMMIT_SHA }} latest
+        registry: ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }}

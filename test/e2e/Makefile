@@ -5,6 +5,8 @@ COMMIT_SHA=$(shell git rev-parse HEAD)
 ARO_HCP_E2ETESTS_IMAGE="aro-hcp-e2e-tests"
 LABEL_FILTER?="Positive||Negative"
 SETUP_FILEPATH?=e2e-setup.json
+ARO_HCP_E2ETESTS_IMAGE_REGISTRY ?= $(ARO_HCP_E2ETESTS_IMAGE_ACR).azurecr.io
+ARO_HCP_E2ETESTS_IMAGE_ACR ?= $(ARO_HCP_E2ETESTS_IMAGE_REGISTRY)/$(ARO_HCP_E2ETESTS_IMAGE)
 
 run:
 	go run github.com/onsi/ginkgo/v2/ginkgo run --tags E2Etests --junit-report ./report-$(shell date +'%s').xml ./
@@ -20,6 +22,15 @@ image:
 	-f ../Containerfile.e2e \
 	-t $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA)
 .PHONY: image
+
+push:
+	@echo "Logging in to ACR with podman using service principal credentials..."
+	podman login $(ARO_HCP_E2ETESTS_IMAGE_REGISTRY) \
+	  --username $(AZURE_CLIENT_ID) \
+	  --password $(AZURE_CLIENT_SECRET)
+	podman push $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) $(ARO_HCP_E2ETESTS_IMAGE_ACR):$(COMMIT_SHA)
+	podman push $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) $(ARO_HCP_E2ETESTS_IMAGE_ACR):latest
+.PHONY: push
 
 e2etest-run: volume
 	podman run --rm \
