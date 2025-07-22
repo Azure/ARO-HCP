@@ -91,7 +91,7 @@ type ExternalAuthClaimProfile struct {
 /** External Auth claim mappings profile.
  * At a minimum username or groups must be defined.
  */
-//  TODO: Enfore the above.
+//  TODO: Enforce the above.
 // 		Note: I tried the validate"required_without=Username" but I don't think it works with nested structs
 // 			https://github.com/go-playground/validator/issues/617#issuecomment-1890935994
 type TokenClaimMappingsProfile struct {
@@ -174,7 +174,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 	return errorDetails
 }
 
-// Certificate Authrotiy string must be PEM encoded
+// Certificate Authority string must be PEM encoded
 func (externalAuth *HCPOpenShiftClusterExternalAuth) validateIssuerCAsPEMEncoded() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 	if externalAuth.Properties.Issuer.Ca != "" {
