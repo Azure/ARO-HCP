@@ -149,7 +149,7 @@ module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' 
 //   E V E N T G R I D   A C C E S S
 //
 
-module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
+module eventGridClientCert 'maestro-access-cert.bicep' = {
   name: '${deployment().name}-eg-crt-${uniqueString(mqttClientName)}'
   scope: resourceGroup(certKeyVaultResourceGroup)
   params: {
@@ -157,7 +157,7 @@ module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
     certDomain: maestroCertificateDomain
     certificateIssuer: maestroCertificateIssuer
-    hostName: mqttClientName
+    clientName: mqttClientName
     keyVaultCertificateName: mqttClientName
     certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
   }
