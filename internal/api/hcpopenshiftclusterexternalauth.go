@@ -57,9 +57,9 @@ type ExternalAuthCondition struct {
  */
 type TokenIssuerProfile struct {
 	// TODO: validate https url
-	Url string `json:"url"              visibility:"read create update"       validate:"required"`
+	Url string `json:"url" visibility:"read create update" validate:"required,url,startswith=https://"`
 	// TODO: validate at least one of the entries must match the 'aud' claim in the JWT token.
-	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,max=10"`
+	Audiences []string `json:"audiences" visibility:"read create update" validate:"required,min=1,max=10,dive,required"`
 	Ca        string   `json:"ca,omitempty"     visibility:"read create update"`
 }
 
