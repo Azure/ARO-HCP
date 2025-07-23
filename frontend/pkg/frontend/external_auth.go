@@ -19,6 +19,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -84,19 +85,39 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	var updating = (resourceDoc != nil)
 	var operationRequest database.OperationRequest
 
-	// var versionedCurrentExternalAuth api.HCPOpenShiftClusterExternalAuth
-	var versionedRequestExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var currentExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var requestExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
 	var successStatusCode int
 
 	if updating {
-		updateExternalAuth()
+		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			return
+		}
+
+		hcpExternalAuth := ConvertCStoExternalAuth(resourceID, csExternalAuth)
+		operationRequest = database.OperationRequestUpdate
+
+		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
+		switch request.Method {
+		case http.MethodPut:
+			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			successStatusCode = http.StatusOK
+		case http.MethodPatch:
+			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			successStatusCode = http.StatusAccepted
+		}
 	} else {
 		operationRequest = database.OperationRequestCreate
 
 		switch request.Method {
 		case http.MethodPut:
-			// versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
@@ -116,8 +137,15 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
+	cloudError = requestExternalAuth.ValidateStatic(currentExternalAuth, updating, request)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
 	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
-	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
+	requestExternalAuth.Normalize(hcpExternalAuth)
 
 	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
 	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
@@ -128,7 +156,13 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	if updating {
-		updateExternalAuth()
+		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuth)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			return
+		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
@@ -138,7 +172,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		csExternalAuth, err = f.clusterServiceClient.(ctx, clusterDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -174,15 +208,6 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		patchOperations.SetSystemData(systemData)
 	}
 
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if hcpExternalAuth.Tags != nil {
-		patchOperations.SetTags(hcpExternalAuth.Tags)
-	}
-
 	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
@@ -202,7 +227,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csExternalAuth, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSExternalAuth(csExternalAuth, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -215,10 +240,16 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 }
 
-func createExternalAuth(versionedInterface api.Version) {
+func updateExternalAuth() {
 	// var err error
 }
 
-func updateExternalAuth() {
-	// var err error
+// the necessary conversions for the API version of the request.
+func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
+	hcpExternalAuth := ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+	hcpExternalAuth.SystemData = doc.SystemData
+	// TODO: Use the correct state from the document.
+	hcpExternalAuth.Properties.ProvisioningState = arm.ExternalAuthProvisioningStateSucceeded
+
+	return versionedInterface.MarshalHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 }
