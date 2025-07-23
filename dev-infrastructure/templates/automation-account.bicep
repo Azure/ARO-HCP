@@ -71,7 +71,7 @@ module permissions '../modules/automation-account/permissions.bicep' = {
   name: 'hcp-${environment}-automation-permissions'
   scope: subscription()
   params: {
-    automationAccountName: automationAccountName
+    automationAccountName: automationAccount.outputs.name
     principalId: automationAccount.outputs.managedIdentityPrincipalId
   }
 }
@@ -79,7 +79,7 @@ module permissions '../modules/automation-account/permissions.bicep' = {
 module resouceCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'resourceCleanup'
   params: {
-    automationAccountName: automationAccountName
+    automationAccountName: automationAccount.outputs.name
     runbookDescription: 'Clean up old resource groups'
     runbookName: 'resourceCleanup'
     runbookType: 'Python3'
@@ -97,7 +97,7 @@ module resouceCleanup '../modules/automation-account/runbook.bicep' = {
 module roleAssignmentsCleanup '../modules/automation-account/runbook.bicep' = {
   name: 'roleAssignmentsCleanup'
   params: {
-    automationAccountName: automationAccountName
+    automationAccountName: automationAccount.outputs.name
     runbookDescription: 'Clean up orphaned role assignments'
     runbookName: 'roleAssignmentsCleanup'
     runbookType: 'PowerShell'

@@ -146,4 +146,5 @@ resource automationAccountVariable_DryRun 'Microsoft.Automation/automationAccoun
   }
 }
 
+output name string = automationAccount.name
 output managedIdentityPrincipalId string = uami.properties.principalId
