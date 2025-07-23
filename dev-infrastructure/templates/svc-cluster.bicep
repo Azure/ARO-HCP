@@ -272,6 +272,15 @@ param csNamespace string
 @description('The service account name of the CS managed identity')
 param csServiceAccountName string
 
+@description('The name of the MSI refresher managed identity')
+param msiRefresherMIName string
+
+@description('The namespace of the MSI refresher managed identity')
+param msiRefresherNamespace string
+
+@description('The service account name of the MSI refresher managed identity')
+param msiRefresherServiceAccountName string
+
 // logs
 @description('The namespace of the logs')
 param logsNamespace string
@@ -411,6 +420,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         uamiName: 'prometheus'
         namespace: 'prometheus'
         serviceAccountName: 'prometheus'
+      }
+      msi_refresher_wi: {
+        uamiName: msiRefresherMIName
+        namespace: msiRefresherNamespace
+        serviceAccountName: msiRefresherServiceAccountName
       }
     })
     aksKeyVaultName: aksKeyVaultName
