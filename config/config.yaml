@@ -110,8 +110,6 @@ defaults:
   geneva:
     principalId: ""
     resourceContributor: ""
-    cert:
-      manageCertificates: false
     metrics:
       cluster:
         account: AzureRedHatOpenShiftCluster
@@ -121,8 +119,29 @@ defaults:
       administrators:
         alias: AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      certificateIssuer: Self
       typeName: ""
       environment: "Test"
+      mgmt:
+        cluster:
+          name: mgmtcl
+          accountName: placeholder
+          namespace: ""
+          san: ""
+          configVersion: "1"
+        rp:
+          name: mgmtrp
+          accountName: placeholder
+          namespace: ""
+          san: ""
+          configVersion: "1"
+      svc:
+        rp:
+          name: svcrp
+          accountName: placeholder
+          namespace: ""
+          san: ""
+          configVersion: "1"
   kusto:
     resourceGroup: ""
     cluster: ""
