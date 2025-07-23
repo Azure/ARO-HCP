@@ -157,6 +157,51 @@ resource caaRecord 'Microsoft.Network/dnsZones/CAA@2023-07-01-preview' = {
   }
 }
 
+resource spfRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '@'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=spf1 -all'
+        ]
+      }
+    ]
+  }
+}
+
+resource dkimRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '*._domainkey'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=DKIM1; p='
+        ]
+      }
+    ]
+  }
+}
+
+resource dmarcRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '_dmarc'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=DMARC1; p=reject; pct=100; rua=mailto:rua@dmarc.microsoft; ruf=mailto:ruf@dmarc.microsoft; fo=1'
+        ]
+      }
+    ]
+  }
+}
+
 //
 //  S V C    P A R E N T   Z O N E
 //
