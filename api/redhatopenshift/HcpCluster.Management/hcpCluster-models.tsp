@@ -142,7 +142,7 @@ union ExternalAuthProvisioningState {
 
 /** Versions represents an OpenShift version. */
 model VersionProfile {
-  /** ID is the unique identifier of the version. */
+  /** ID is the unique identifier of the version. This includes the Y stream version */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   id?: string;
 

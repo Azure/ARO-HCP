@@ -1149,6 +1149,6 @@ type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	ChannelGroup *string
 
-	// ID is the unique identifier of the version.
+	// ID is the unique identifier of the version. This includes the Y stream version
 	ID *string
 }

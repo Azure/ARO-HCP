@@ -3615,7 +3615,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "ID is the unique identifier of the version.",
+          "description": "ID is the unique identifier of the version. This includes the Y stream version",
           "x-ms-mutability": [
             "read",
             "update",
