@@ -124,3 +124,8 @@ param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 param svcNSPName = '{{ .svc.nsp.name }}'
 param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
+
+// Geneva logging settings
+param manageGenevaCertificate = {{ .geneva.cert.manageCertificates }}
+param genevaCertificateIssuer = '{{ .geneva.cert.certificateIssuer }}'
+param genevaRpLogsName = '{{ .geneva.logs.svc.rp.name }}'

@@ -129,21 +129,13 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  cert:
+    manageCertificates: false
   logs:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
-    cluster:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: AROClusterLogs
     environment: Test
-    rp:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: ARORPLogs
     typeName: ""
   metrics:
     cluster:
@@ -302,10 +294,6 @@ mgmt:
   applyKubeletFixes: false
   jaeger:
     deploy: false
-  logs:
-    configVersion: "1"
-    namespace: HCPCustomerLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-lnstest-mgmt-1
@@ -497,10 +485,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-25
     versions: asm-1-25
-  logs:
-    configVersion: "1"
-    namespace: HCPServiceLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-lnstest-svc

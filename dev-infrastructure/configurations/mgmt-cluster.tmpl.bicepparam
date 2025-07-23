@@ -64,5 +64,12 @@ param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
+// Geneva logging settings
+param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
+param manageGenevaCertificate = {{ .geneva.cert.manageCertificates }}
+param genevaCertificateIssuer = '{{ .geneva.cert.certificateIssuer }}'
+param genevaRpLogsName = '{{ .geneva.logs.mgmt.rp.name }}'
+param genevaClusterLogsName = '{{ .geneva.logs.mgmt.cluster.name }}'
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
