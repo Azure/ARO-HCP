@@ -18,6 +18,9 @@ param runbookDescription string
 @description('Type of this runbook')
 param runbookType string
 
+@description('Verbose flag for this runbook')
+param verbose bool = false
+
 @description('Name of the schedule for this runbook(if empty, no schedule will be created)')
 param scheduleName string = ''
 
@@ -51,7 +54,7 @@ resource accountRunbook 'Microsoft.Automation/automationAccounts/runbooks@2024-1
     description: runbookDescription
     runbookType: runbookType
     logProgress: false
-    logVerbose: true
+    logVerbose: verbose
     publishContentLink: {
       uri: runbookScriptUrl
       version: runbookVersion
