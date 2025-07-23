@@ -10,20 +10,19 @@ package generated
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 // ExternalAuthsClient contains the methods for the ExternalAuths group.
 // Don't use this type directly, use NewExternalAuthsClient() instead.
 type ExternalAuthsClient struct {
-	internal       *arm.Client
+	internal *arm.Client
 	subscriptionID string
 }
 
@@ -38,7 +37,7 @@ func NewExternalAuthsClient(subscriptionID string, credential azcore.TokenCreden
 	}
 	client := &ExternalAuthsClient{
 		subscriptionID: subscriptionID,
-		internal:       cl,
+	internal: cl,
 	}
 	return client, nil
 }
@@ -117,8 +116,8 @@ func (client *ExternalAuthsClient) createOrUpdateCreateRequest(ctx context.Conte
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, resource); err != nil {
-		return nil, err
-	}
+	return nil, err
+}
 	return req, nil
 }
 
@@ -269,7 +268,7 @@ func (client *ExternalAuthsClient) getHandleResponse(resp *http.Response) (Exter
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
 //   - options - ExternalAuthsClientListByParentOptions contains the optional parameters for the ExternalAuthsClient.NewListByParentPager
 //     method.
-func (client *ExternalAuthsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthsClientListByParentOptions) *runtime.Pager[ExternalAuthsClientListByParentResponse] {
+func (client *ExternalAuthsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *ExternalAuthsClientListByParentOptions) (*runtime.Pager[ExternalAuthsClientListByParentResponse]) {
 	return runtime.NewPager(runtime.PagingHandler[ExternalAuthsClientListByParentResponse]{
 		More: func(page ExternalAuthsClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -286,7 +285,7 @@ func (client *ExternalAuthsClient) NewListByParentPager(resourceGroupName string
 				return ExternalAuthsClientListByParentResponse{}, err
 			}
 			return client.listByParentHandleResponse(resp)
-		},
+			},
 	})
 }
 
@@ -399,7 +398,8 @@ func (client *ExternalAuthsClient) updateCreateRequest(ctx context.Context, reso
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, properties); err != nil {
-		return nil, err
-	}
+	return nil, err
+}
 	return req, nil
 }
+
