@@ -116,6 +116,9 @@ param maestroEventGridNamespaceId string
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
+@description('The parent SVC DNS zone name')
+param svcDNSZoneName string
+
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
@@ -143,6 +146,18 @@ param logsMSI string
 
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
+
+@description('Should a certificate for Geneva authentication be created')
+param manageGenevaCertificate bool = false
+
+@description('Issuer of certificate for Geneva Authentication')
+param genevaCertificateIssuer string = 'Self'
+
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaRpLogsName string
+
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaClusterLogsName string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -325,6 +340,36 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
 
 resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: mgmtKeyVaultName
+}
+
+//
+//   G E N E V A   C E R T I F I C A T E
+//
+
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+  name: 'geneva-rp-certificate'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: svcDNSZoneName
+    certificateIssuer: genevaCertificateIssuer
+    hostName: genevaRpLogsName
+    keyVaultCertificateName: genevaRpLogsName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
+}
+
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+  name: 'geneva-cluster-log-certificate'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: svcDNSZoneName
+    certificateIssuer: genevaCertificateIssuer
+    hostName: genevaClusterLogsName
+    keyVaultCertificateName: genevaClusterLogsName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
 }
 
 //
