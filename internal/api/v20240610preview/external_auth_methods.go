@@ -15,6 +15,8 @@
 package v20240610preview
 
 import (
+	"net/http"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -75,6 +77,26 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 			normalizeExternalAuthClientProfile(h.Properties.Clients[i], &out.Properties.Clients[i])
 		}
 	}
+}
+
+func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
+	var normalized api.HCPOpenShiftClusterExternalAuth
+	var errorDetails []arm.CloudErrorBody
+
+	// Pass the embedded HcpOpenShiftCluster struct so the
+	// struct field names match the clusterStructTagMap keys.
+	errorDetails = api.ValidateVisibility(
+		c.ExternalAuth,
+		current.(*ExternalAuth).ExternalAuth,
+		clusterStructTagMap, updating)
+
+	c.Normalize(&normalized)
+
+	// Run additional validation on the "normalized" cluster model.
+	errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
