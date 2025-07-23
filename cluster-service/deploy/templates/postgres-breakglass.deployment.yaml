@@ -39,9 +39,11 @@ spec:
           fi
 
           echo "Writing access token and connect script to shared volume..."
-          echo "#!/bin/sh" > /breakglass/connect.sh
-          echo "export PGPASSWORD=$ACCESS_TOKEN" >> /breakglass/connect.sh
-          echo "exec psql" >> /breakglass/connect.sh
+          {
+            echo "#!/bin/sh"
+            echo "export PGPASSWORD=$ACCESS_TOKEN"
+            echo "exec psql"
+          } > /breakglass/connect.sh
           chmod +x /breakglass/connect.sh
 
           echo "Access token and script written successfully"
