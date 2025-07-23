@@ -141,9 +141,6 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
-@description('Should a certificate for Geneva authentication be created')
-param manageGenevaCertificate bool = false
-
 @description('Issuer of certificate for Geneva Authentication')
 param genevaCertificateIssuer string = 'Self'
 
@@ -338,7 +335,7 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   G E N E V A   C E R T I F I C A T E
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
   name: 'geneva-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
@@ -351,7 +348,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (manageGenevaCertificate) {
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName

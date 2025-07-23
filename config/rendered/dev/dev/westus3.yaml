@@ -126,13 +126,32 @@ frontend:
     address: ""
     exporter: ""
 geneva:
-  cert:
-    manageCertificates: false
   logs:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    certificateIssuer: Self
     environment: Test
+    mgmt:
+      cluster:
+        accountName: placeholder
+        configVersion: "1"
+        name: mgmtcl
+        namespace: ""
+        san: ""
+      rp:
+        accountName: placeholder
+        configVersion: "1"
+        name: mgmtrp
+        namespace: ""
+        san: ""
+    svc:
+      rp:
+        accountName: placeholder
+        configVersion: "1"
+        name: svcrp
+        namespace: ""
+        san: ""
     typeName: ""
   metrics:
     cluster:

@@ -852,18 +852,6 @@
         "resourceContributor": {
           "type": "string"
         },
-        "cert": {
-          "additionalProperties": false,
-          "type": "object",
-          "properties": {
-            "manageCertificates": {
-              "type": "boolean"
-            },
-            "certificateIssuer": {
-              "type": "string"
-            }
-          }
-        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
@@ -917,6 +905,9 @@
                 "alias",
                 "securityGroup"
               ]
+            },
+            "certificateIssuer": {
+              "type": "string"
             },
             "typeName": {
               "type": "string"
