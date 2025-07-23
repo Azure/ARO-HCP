@@ -225,13 +225,31 @@ func (o *Options) Generate() error {
 		}
 	}()
 
-	if _, err := output.Write([]byte(`#disable-next-line no-unused-params
+	// Determine if we're generating recording rules or alerting rules based on filename
+	isRecordingRulesFile := strings.Contains(o.outputBicep, "RecordingRules")
+	isAlertingRulesFile := strings.Contains(o.outputBicep, "AlertingRules")
+
+	// Validate that the filename contains the required keywords
+	if !isRecordingRulesFile && !isAlertingRulesFile {
+		return fmt.Errorf("output filename must contain either 'AlertingRules' or 'RecordingRules' to determine the rule type. Got: %s", o.outputBicep)
+	}
+
+	// Write parameters based on file type
+	if isAlertingRulesFile {
+		if _, err := output.Write([]byte(`#disable-next-line no-unused-params
 param azureMonitoring string
 
 #disable-next-line no-unused-params
 param actionGroups array
 `)); err != nil {
-		return err
+			return err
+		}
+	} else {
+		if _, err := output.Write([]byte(`
+param azureMonitoring string
+`)); err != nil {
+			return err
+		}
 	}
 
 	for _, irf := range o.ruleFiles {
@@ -266,7 +284,9 @@ param actionGroups array
 				for k, v := range rule.Annotations {
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
-				if rule.Alert != "" {
+
+				// Filter rules based on the output file type
+				if rule.Alert != "" && isAlertingRulesFile {
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
@@ -280,12 +300,31 @@ param actionGroups array
 						),
 						Severity: severityFor(labels, o.forceInfoSeverity),
 					})
+				} else if rule.Record != "" && isRecordingRulesFile {
+					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+						Record:  ptr.To(rule.Record),
+						Enabled: ptr.To(true),
+						Labels:  labels,
+						Expression: ptr.To(
+							strings.TrimSpace(
+								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
+							),
+						),
+					})
 				}
 			}
 
 			if len(armGroup.Properties.Rules) > 0 {
-				if err := writeGroups(armGroup, output); err != nil {
-					return err
+				// Use the file type to determine which function to call
+				// Groups are guaranteed to contain only one type of rule
+				if isRecordingRulesFile {
+					if err := writeRecordingGroups(armGroup, output); err != nil {
+						return err
+					}
+				} else if isAlertingRulesFile {
+					if err := writeAlertGroups(armGroup, output); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -294,7 +333,7 @@ param actionGroups array
 	return nil
 }
 
-func writeGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
+func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
 	tmpl, err := template.New("prometheusRuleGroup").Funcs(
 		map[string]any{"contains": strings.Contains},
 	).Parse(`
@@ -336,6 +375,50 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
     ]
     scopes: [
       azureMonitoring
+    ]
+  }
+}
+`)
+	if err != nil {
+		return err
+	}
+
+	return tmpl.Execute(into, map[string]any{
+		"name":   bicepName(groups.Name),
+		"groups": groups,
+	})
+}
+
+func writeRecordingGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
+	tmpl, err := template.New("prometheusRecordingRuleGroup").Parse(`
+resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: '{{.groups.Name}}'
+  location: resourceGroup().location
+  properties: {
+{{- if .groups.Properties.Description }}
+    description: '{{.groups.Properties.Description}}'
+{{- end }}
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: {{.groups.Properties.Enabled}}
+{{- if .groups.Properties.Interval }}
+    interval: '{{.groups.Properties.Interval}}'
+{{- end }}
+    rules: [
+{{- range .groups.Properties.Rules}}
+      {
+        record: '{{.Record}}'
+        expression: '{{.Expression}}'
+{{- if .Labels}}
+        labels: {
+{{- range $key, $value := .Labels}}
+          {{$key}}: '{{$value}}'
+{{- end }}
+        }
+{{- end }}
+      }
+{{- end}}
     ]
   }
 }

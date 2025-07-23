@@ -27,3 +27,10 @@ module defaultRuleGroups 'rules/defaultRecordingRuleGroups.bicep' = {
     azureMonitoring: azureMonitoringWorkspaceId
   }
 }
+
+module generatedRecordingRules 'rules/generatedRecordingRules.bicep' = {
+  name: 'generatedRecordingRules'
+  params: {
+    azureMonitoring: azureMonitoringWorkspaceId
+  }
+}

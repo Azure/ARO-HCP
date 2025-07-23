@@ -16,3 +16,8 @@ alerts: kubernetesControlPlane-prometheusRule
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-hcp
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp.yaml)
 .PHONY: alerts
+
+recording-rules:
+	make -C ../tooling/prometheus-rules run-recording-rules
+	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-recording-rules.yaml)
+.PHONY: recording-rules

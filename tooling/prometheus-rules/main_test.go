@@ -28,7 +28,7 @@ prometheusRules:
   rulesFolders:
   - ./alerts
   untestedRules: []
-  outputBicep: zzz_generated.bicep
+  outputBicep: zzz_generated_AlertingRules.bicep
 `
 
 	err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(config), 0660)
@@ -58,13 +58,13 @@ func TestPrometheusRules(t *testing.T) {
 	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
 	assert.NoError(t, err)
 
-	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated.bicep"))
+	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
 	assert.NoError(t, err)
 
 	expectedContent, err := os.ReadFile(filepath.Join("testdata", "generated.bicep"))
 	assert.NoError(t, err)
 
-	assert.Equal(t, string(generatedFile), string(expectedContent))
+	assert.Equal(t, string(expectedContent), string(generatedFile))
 }
 
 func TestPrometheusRulesMissingTest(t *testing.T) {
@@ -77,4 +77,52 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 	}
 	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
 	assert.ErrorContains(t, err, "missing testfile")
+}
+
+func TestPrometheusRulesMixedRulesNotAllowed(t *testing.T) {
+	tmpDir := t.TempDir()
+	assert.NoError(t, setupTestFiles(tmpDir))
+
+	// Create a rule file with mixed alert and recording rules in the same group
+	mixedRulesContent := `apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mixed-rules
+spec:
+  groups:
+  - name: MixedGroup
+    rules:
+    - alert: TestAlert
+      expr: up == 0
+      labels:
+        severity: critical
+    - record: test:metric:rate5m
+      expr: rate(test_metric[5m])
+`
+
+	// Create a corresponding test file (required by the generator)
+	testFileContent := `rule_files:
+- mixed-prometheusRule.yaml
+tests: []
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "alerts", "mixed-prometheusRule.yaml"), []byte(mixedRulesContent), 0644)
+	assert.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "alerts", "mixed-prometheusRule_test.yaml"), []byte(testFileContent), 0644)
+	assert.NoError(t, err)
+
+	// Run the generator - it should handle mixed rules based on file type
+	// Since we're using AlertingRules filename, it should process only alerts
+	err = runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
+	assert.NoError(t, err)
+
+	// Verify the generated file exists and contains only alert rules
+	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
+	assert.NoError(t, err)
+
+	// The generated content should contain alert-related configuration
+	assert.Contains(t, string(generatedFile), "alert: 'TestAlert'")
+	// Recording rules should be ignored when generating AlertingRules file
+	assert.NotContains(t, string(generatedFile), "record: 'test:metric:rate5m'")
 }

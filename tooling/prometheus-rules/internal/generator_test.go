@@ -288,7 +288,7 @@ func TestOptionsRunTests(t *testing.T) {
 
 func TestOptionsGenerate(t *testing.T) {
 	tmpDir := t.TempDir()
-	outputFile := filepath.Join(tmpDir, "output.bicep")
+	outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
 
 	opts := &Options{
 		outputBicep: outputFile,
@@ -362,7 +362,7 @@ func TestWriteGroups(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeGroups(group, &buf)
+	err := writeAlertGroups(group, &buf)
 	assert.NoError(t, err)
 
 	output := buf.String()
