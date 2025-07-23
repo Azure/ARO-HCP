@@ -16,7 +16,7 @@ import (
 // Don't use this type directly, use NewClientFactory instead.
 type ClientFactory struct {
 	subscriptionID string
-	internal       *arm.Client
+	internal *arm.Client
 }
 
 // NewClientFactory creates a new instance of ClientFactory with the specified values.
@@ -31,7 +31,7 @@ func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, 
 	}
 	return &ClientFactory{
 		subscriptionID: subscriptionID,
-		internal:       internal,
+		internal: internal,
 	}, nil
 }
 
@@ -39,7 +39,7 @@ func NewClientFactory(subscriptionID string, credential azcore.TokenCredential, 
 func (c *ClientFactory) NewExternalAuthsClient() *ExternalAuthsClient {
 	return &ExternalAuthsClient{
 		subscriptionID: c.subscriptionID,
-		internal:       c.internal,
+		internal: c.internal,
 	}
 }
 
@@ -47,7 +47,7 @@ func (c *ClientFactory) NewExternalAuthsClient() *ExternalAuthsClient {
 func (c *ClientFactory) NewHcpOpenShiftClustersClient() *HcpOpenShiftClustersClient {
 	return &HcpOpenShiftClustersClient{
 		subscriptionID: c.subscriptionID,
-		internal:       c.internal,
+		internal: c.internal,
 	}
 }
 
@@ -55,7 +55,7 @@ func (c *ClientFactory) NewHcpOpenShiftClustersClient() *HcpOpenShiftClustersCli
 func (c *ClientFactory) NewHcpOpenShiftVersionsClient() *HcpOpenShiftVersionsClient {
 	return &HcpOpenShiftVersionsClient{
 		subscriptionID: c.subscriptionID,
-		internal:       c.internal,
+		internal: c.internal,
 	}
 }
 
@@ -63,7 +63,7 @@ func (c *ClientFactory) NewHcpOpenShiftVersionsClient() *HcpOpenShiftVersionsCli
 func (c *ClientFactory) NewHcpOperatorIdentityRoleSetsClient() *HcpOperatorIdentityRoleSetsClient {
 	return &HcpOperatorIdentityRoleSetsClient{
 		subscriptionID: c.subscriptionID,
-		internal:       c.internal,
+		internal: c.internal,
 	}
 }
 
@@ -71,7 +71,7 @@ func (c *ClientFactory) NewHcpOperatorIdentityRoleSetsClient() *HcpOperatorIdent
 func (c *ClientFactory) NewNodePoolsClient() *NodePoolsClient {
 	return &NodePoolsClient{
 		subscriptionID: c.subscriptionID,
-		internal:       c.internal,
+		internal: c.internal,
 	}
 }
 
@@ -81,3 +81,4 @@ func (c *ClientFactory) NewOperationsClient() *OperationsClient {
 		internal: c.internal,
 	}
 }
+

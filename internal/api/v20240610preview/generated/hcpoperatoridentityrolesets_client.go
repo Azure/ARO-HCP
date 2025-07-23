@@ -10,20 +10,19 @@ package generated
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 // HcpOperatorIdentityRoleSetsClient contains the methods for the HcpOperatorIdentityRoleSets group.
 // Don't use this type directly, use NewHcpOperatorIdentityRoleSetsClient() instead.
 type HcpOperatorIdentityRoleSetsClient struct {
-	internal       *arm.Client
+	internal *arm.Client
 	subscriptionID string
 }
 
@@ -38,7 +37,7 @@ func NewHcpOperatorIdentityRoleSetsClient(subscriptionID string, credential azco
 	}
 	client := &HcpOperatorIdentityRoleSetsClient{
 		subscriptionID: subscriptionID,
-		internal:       cl,
+	internal: cl,
 	}
 	return client, nil
 }
@@ -110,7 +109,7 @@ func (client *HcpOperatorIdentityRoleSetsClient) getHandleResponse(resp *http.Re
 //   - location - The name of the Azure region.
 //   - options - HcpOperatorIdentityRoleSetsClientListOptions contains the optional parameters for the HcpOperatorIdentityRoleSetsClient.NewListPager
 //     method.
-func (client *HcpOperatorIdentityRoleSetsClient) NewListPager(location string, options *HcpOperatorIdentityRoleSetsClientListOptions) *runtime.Pager[HcpOperatorIdentityRoleSetsClientListResponse] {
+func (client *HcpOperatorIdentityRoleSetsClient) NewListPager(location string, options *HcpOperatorIdentityRoleSetsClientListOptions) (*runtime.Pager[HcpOperatorIdentityRoleSetsClientListResponse]) {
 	return runtime.NewPager(runtime.PagingHandler[HcpOperatorIdentityRoleSetsClientListResponse]{
 		More: func(page HcpOperatorIdentityRoleSetsClientListResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -127,7 +126,7 @@ func (client *HcpOperatorIdentityRoleSetsClient) NewListPager(location string, o
 				return HcpOperatorIdentityRoleSetsClientListResponse{}, err
 			}
 			return client.listHandleResponse(resp)
-		},
+			},
 	})
 }
 
@@ -161,3 +160,4 @@ func (client *HcpOperatorIdentityRoleSetsClient) listHandleResponse(resp *http.R
 	}
 	return result, nil
 }
+

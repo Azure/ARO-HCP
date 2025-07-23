@@ -54,30 +54,30 @@ type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
 // with a control plane.
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
-	// unsuccessful. The default is 900 seconds, or 15 minutes.
+// unsuccessful. The default is 900 seconds, or 15 minutes.
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
-	// not grow the cluster beyond this number. If omitted, the autoscaler will not
-	// have a maximum limit.
+// not grow the cluster beyond this number. If omitted, the autoscaler will not
+// have a maximum limit.
 	MaxNodesTotal *int32
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
-	// is 600 seconds.
+// is 600 seconds.
 	MaxPodGracePeriodSeconds *int32
 
 	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
-	// run when there are spare resources available. The default is -10. See the
-	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+// run when there are spare resources available. The default is -10. See the
+// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
 	PodPriorityThreshold *int32
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
 type ClusterImageRegistryProfile struct {
 	// state indicates the desired ImageStream-backed cluster image registry installation mode. This can only be set during cluster
-	// creation and cannot be changed after cluster creation. Enabled means the
-	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
-	// image registry will not be present in the cluster. The default is Enabled.
+// creation and cannot be changed after cluster creation. Enabled means the
+// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+// image registry will not be present in the cluster. The default is Enabled.
 	State *ClusterImageRegistryProfileState
 }
 
@@ -93,14 +93,14 @@ type CustomerManagedEncryptionProfile struct {
 	EncryptionType *CustomerManagedEncryptionType
 
 	// The Key Management Service (KMS) encryption key details.
-	// Required when encryptionType is "KMS".
+// Required when encryptionType is "KMS".
 	Kms *KmsEncryptionProfile
 }
 
 // DNSProfile - DNS contains the DNS settings of the cluster
 type DNSProfile struct {
 	// BaseDomainPrefix is the unique name of the cluster representing the OpenShift's cluster name. BaseDomainPrefix is the name
-	// that will appear in the cluster's DNS, provisioned cloud providers resources
+// that will appear in the cluster's DNS, provisioned cloud providers resources
 	BaseDomainPrefix *string
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
@@ -147,7 +147,7 @@ type EtcdDataEncryptionProfile struct {
 	CustomerManaged *CustomerManagedEncryptionProfile
 
 	// Specify the key management strategy used for the encryption key that encrypts the ETCD data. By default, "PlatformManaged"
-	// is used.
+// is used.
 	KeyManagementMode *EtcdDataEncryptionKeyManagementModeType
 }
 
@@ -196,13 +196,13 @@ type ExternalAuthClaimProfileUpdate struct {
 // ExternalAuthClientComponentProfile - External Auth component profile Must have unique namespace/name pairs.
 type ExternalAuthClientComponentProfile struct {
 	// REQUIRED; The namespace of the external Auth client This specifies the namespace in which the platform component being
-	// configured to use the identity provider as an authentication mode is running.
-	// It is used in combination with name as a unique identifier.
+// configured to use the identity provider as an authentication mode is running.
+// It is used in combination with name as a unique identifier.
 	AuthClientNamespace *string
 
 	// REQUIRED; The name of the external auth client
-	// This specifies the name of the platform component being configured to use the identity provider as an authentication mode.
-	// It is used in combination with namespace as a unique identifier.
+// This specifies the name of the platform component being configured to use the identity provider as an authentication mode.
+// It is used in combination with namespace as a unique identifier.
 	Name *string
 }
 
@@ -219,8 +219,8 @@ type ExternalAuthClientProfile struct {
 	Type *ExternalAuthClientType
 
 	// external auth client scopes
-	// This is useful if you have configured claim mappings that requires specific scopes to be requested beyond the standard
-	// OIDC scopes. When omitted, no additional scopes are requested.
+// This is useful if you have configured claim mappings that requires specific scopes to be requested beyond the standard
+// OIDC scopes. When omitted, no additional scopes are requested.
 	ExtraScopes []*string
 }
 
@@ -392,13 +392,13 @@ type HcpOpenShiftClusterProperties struct {
 	Network *NetworkProfile
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
-	// any node draining operation. After this grace period, any workloads
-	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
-	// is especially relevant to cluster upgrades.
-	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
-	// time limitation.
-	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
-	// given NodePool
+// any node draining operation. After this grace period, any workloads
+// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+// is especially relevant to cluster upgrades.
+// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
+// time limitation.
+// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
+// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
 	// Version of the control plane components
@@ -417,13 +417,13 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Autoscaling *ClusterAutoscalingProfile
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
-	// any node draining operation. After this grace period, any workloads
-	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
-	// is especially relevant to cluster upgrades.
-	// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
-	// time limitation.
-	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
-	// given NodePool
+// any node draining operation. After this grace period, any workloads
+// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+// is especially relevant to cluster upgrades.
+// Valid values are in minutes and from 0 to 10080 minutes (1 week). 0 means that the MachinePool can be drained without any
+// time limitation.
+// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
+// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
 	// Azure platform configuration
@@ -568,14 +568,14 @@ type ManagedServiceIdentity struct {
 	Type *ManagedServiceIdentityType
 
 	// The set of user assigned identities associated with the resource. The userAssignedIdentities dictionary keys will be ARM
-	// resource ids in the form:
-	// '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}.
-	// The dictionary values can be empty objects ({}) in
-	// requests.
+// resource ids in the form:
+// '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}.
+// The dictionary values can be empty objects ({}) in
+// requests.
 	UserAssignedIdentities map[string]*UserAssignedIdentity
 
 	// READ-ONLY; The service principal ID of the system assigned identity. This property will only be provided for a system assigned
-	// identity.
+// identity.
 	PrincipalID *string
 
 	// READ-ONLY; The tenant ID of the system assigned identity. This property will only be provided for a system assigned identity.
@@ -648,22 +648,22 @@ type NodePoolListResult struct {
 // NodePoolPlatformProfile - Azure node pool platform configuration
 type NodePoolPlatformProfile struct {
 	// REQUIRED; The VM size according to the documentation:
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
 	VMSize *string
 
 	// The availability zone for the node pool. Please read the documentation to see which regions support availability zones
-	// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
+// * https://learn.microsoft.com/en-us/azure/availability-zones/az-overview
 	AvailabilityZone *string
 
 	// Whether to enable host based OS and data drive encryption.
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disk-encryption#encryption-at-host---end-to-end-encryption-for-your-vm-data
 	EnableEncryptionAtHost *bool
 
 	// The settings and configuration options for OSDisk
 	OSDisk *OsDiskProfile
 
 	// The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters, however the same
-	// subnet can be used for NodePools of the same cluster.
+// subnet can be used for NodePools of the same cluster.
 	SubnetID *string
 }
 
@@ -679,15 +679,15 @@ type NodePoolProperties struct {
 	AutoScaling *NodePoolAutoScaling
 
 	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
-	// any node draining operation. After this grace period, any workloads
-	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
-	// is especially relevant to cluster upgrades.
-	// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
-	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+// any node draining operation. After this grace period, any workloads
+// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+// is especially relevant to cluster upgrades.
+// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
+// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -709,15 +709,15 @@ type NodePoolPropertiesUpdate struct {
 	AutoScaling *NodePoolAutoScaling
 
 	// Kubernetes labels to propagate to the NodePool Nodes Note that when the labels are updated this is only applied to newly
-	// create nodes in the Nodepool, existing node labels remain unchanged.
+// create nodes in the Nodepool, existing node labels remain unchanged.
 	Labels []*Label
 
 	// nodeDrainTimeoutMinutes is the grace period for how long Pod Disruption Budget-protected workloads will be respected during
-	// any node draining operation. After this grace period, any workloads
-	// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
-	// is especially relevant to cluster upgrades.
-	// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
-	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
+// any node draining operation. After this grace period, any workloads
+// protected by Pod Disruption Budgets that have not been successfully drained from a node will be forcibly evicted. This
+// is especially relevant to cluster upgrades.
+// Valid values are from 0 to 10080 minutes (1 week) . 0 means that the NodePool can be drained without any time limitation.
+// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
 	// The number of worker nodes, it cannot be used together with autoscaling
@@ -772,15 +772,15 @@ type Operation struct {
 	ActionType *ActionType
 
 	// READ-ONLY; Whether the operation applies to data-plane. This is "true" for data-plane operations and "false" for ARM/control-plane
-	// operations.
+// operations.
 	IsDataAction *bool
 
 	// READ-ONLY; The name of the operation, as per Resource-Based Access Control (RBAC). Examples: "Microsoft.Compute/virtualMachines/write",
-	// "Microsoft.Compute/virtualMachines/capture/action"
+// "Microsoft.Compute/virtualMachines/capture/action"
 	Name *string
 
 	// READ-ONLY; The intended executor of the operation; as in Resource Based Access Control (RBAC) and audit logs UX. Default
-	// value is "user,system"
+// value is "user,system"
 	Origin *Origin
 }
 
@@ -790,15 +790,15 @@ type OperationDisplay struct {
 	Description *string
 
 	// READ-ONLY; The concise, localized friendly name for the operation; suitable for dropdowns. E.g. "Create or Update Virtual
-	// Machine", "Restart Virtual Machine".
+// Machine", "Restart Virtual Machine".
 	Operation *string
 
 	// READ-ONLY; The localized friendly form of the resource provider name, e.g. "Microsoft Monitoring Insights" or "Microsoft
-	// Compute".
+// Compute".
 	Provider *string
 
 	// READ-ONLY; The localized friendly name of the resource type related to this operation. E.g. "Virtual Machines" or "Job
-	// Schedule Collections".
+// Schedule Collections".
 	Resource *string
 }
 
@@ -827,33 +827,33 @@ type OperatorIdentityRoles struct {
 // OperatorsAuthenticationProfile - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfile struct {
 	// REQUIRED; Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
-	// based on Azure User-Assigned Managed Identities
+// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfile
 }
 
 // OperatorsAuthenticationProfileUpdate - The configuration that the operators of the cluster have to authenticate to Azure.
 type OperatorsAuthenticationProfileUpdate struct {
 	// Represents the information related to Azure User-Assigned managed identities needed to perform Operators authentication
-	// based on Azure User-Assigned Managed Identities
+// based on Azure User-Assigned Managed Identities
 	UserAssignedIdentities *UserAssignedIdentitiesProfileUpdate
 }
 
 // OsDiskProfile - The settings and configuration options for OSDisk
 type OsDiskProfile struct {
 	// The type of the disk storage account
-	// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
+// * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types
 	DiskStorageAccountType *DiskStorageAccountType
 
 	// The ID of the DiskEncryptionSet resource to use to encrypt the OS disks for the VMs. This needs to exist in the same subscription
-	// id listed in the Hosted Cluster,
-	// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
-	// subscription id and the same location listed in the Hosted Cluster,
-	// HostedCluster.Spec.Platform.Azure.Location.
-	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
+// id listed in the Hosted Cluster,
+// HostedCluster.Spec.Platform.Azure.SubscriptionID. DiskEncryptionSetID should also exist in a resource group under the same
+// subscription id and the same location listed in the Hosted Cluster,
+// HostedCluster.Spec.Platform.Azure.Location.
+// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
 	// Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool. Valid values are: persistent and ephemeral.
-	// If not specified, Persistent OS Disks are used.
+// If not specified, Persistent OS Disks are used.
 	Persistence *PersistenceType
 
 	// The OS disk size in GiB
@@ -863,7 +863,7 @@ type OsDiskProfile struct {
 // PlatformProfile - Azure specific configuration
 type PlatformProfile struct {
 	// REQUIRED; ResourceId for the NSG (network security group) attached to the cluster subnet
-	// Note that NSGs cannot be reused for other ARO-HCP clusters.
+// Note that NSGs cannot be reused for other ARO-HCP clusters.
 	NetworkSecurityGroupID *string
 
 	// REQUIRED; The configuration that the operators of the cluster have to authenticate to Azure
@@ -992,19 +992,19 @@ type TokenClaimValidationRule struct {
 // tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfile struct {
 	// REQUIRED; This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At
-	// least one of the entries must match the 'aud' claim in the JWT token.
-	// audiences must contain at least one entry and must not exceed ten entries.
+// least one of the entries must match the 'aud' claim in the JWT token.
+// audiences must contain at least one entry and must not exceed ten entries.
 	Audiences []*string
 
 	// REQUIRED; This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how
-	// authentication tokens should be handled by matching the 'iss' claim in the JWT to the
-	// issuerURL of configured identity providers.
-	// issuerURL must use the 'https' scheme.
+// authentication tokens should be handled by matching the 'iss' claim in the JWT to the
+// issuerURL of configured identity providers.
+// issuerURL must use the 'https' scheme.
 	URL *string
 
 	// The issuer of the token
-	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
-	// the system trust is used.
+// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
+// the system trust is used.
 	Ca *string
 }
 
@@ -1012,19 +1012,19 @@ type TokenIssuerProfile struct {
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 type TokenIssuerProfileUpdate struct {
 	// This configures the acceptable audiences the JWT token, issued by the identity provider, must be issued to. At least one
-	// of the entries must match the 'aud' claim in the JWT token.
-	// audiences must contain at least one entry and must not exceed ten entries.
+// of the entries must match the 'aud' claim in the JWT token.
+// audiences must contain at least one entry and must not exceed ten entries.
 	Audiences []*string
 
 	// The issuer of the token
-	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
-	// the system trust is used.
+// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
+// the system trust is used.
 	Ca *string
 
 	// This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication
-	// tokens should be handled by matching the 'iss' claim in the JWT to the
-	// issuerURL of configured identity providers.
-	// issuerURL must use the 'https' scheme.
+// tokens should be handled by matching the 'iss' claim in the JWT to the
+// issuerURL of configured identity providers.
+// issuerURL must use the 'https' scheme.
 	URL *string
 }
 
@@ -1034,8 +1034,8 @@ type TokenRequiredClaim struct {
 	Claim *string
 
 	// REQUIRED; Required value requiredValue is a required field that configures the value that 'claim' must have when taken
-	// from the incoming JWT claims. If the value in the JWT claims does not match, the token will
-	// be rejected for authentication.
+// from the incoming JWT claims. If the value in the JWT claims does not match, the token will
+// be rejected for authentication.
 	RequiredValue *string
 }
 
@@ -1065,15 +1065,15 @@ type TrackedResource struct {
 // perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfile struct {
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The
-	// set of required managed identities is dependent on the Cluster's OpenShift version.
+// set of required managed identities is dependent on the Cluster's OpenShift version.
 	ControlPlaneOperators map[string]*string
 
 	// REQUIRED; The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The
-	// set of required managed identities is dependent on the Cluster's OpenShift version.
+// set of required managed identities is dependent on the Cluster's OpenShift version.
 	DataPlaneOperators map[string]*string
 
 	// REQUIRED; Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform
-	// service level actions.
+// service level actions.
 	ServiceManagedIdentity *string
 }
 
@@ -1081,15 +1081,15 @@ type UserAssignedIdentitiesProfile struct {
 // to perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfileUpdate struct {
 	// The set of Azure User-Assigned Managed Identities leveraged for the Control Plane operators of the cluster. The set of
-	// required managed identities is dependent on the Cluster's OpenShift version.
+// required managed identities is dependent on the Cluster's OpenShift version.
 	ControlPlaneOperators map[string]*string
 
 	// The set of Azure User-Assigned Managed Identities leveraged for the Data Plane operators of the cluster. The set of required
-	// managed identities is dependent on the Cluster's OpenShift version.
+// managed identities is dependent on the Cluster's OpenShift version.
 	DataPlaneOperators map[string]*string
 
 	// Represents the information associated to an Azure User-Assigned Managed Identity whose purpose is to perform service level
-	// actions.
+// actions.
 	ServiceManagedIdentity *string
 }
 
@@ -1112,16 +1112,16 @@ type UsernameClaimProfile struct {
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
-	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
-	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
-	// field must be set when prefixPolicy is 'Prefix'.
-	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
-	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
-	// change over time. Currently, the platform prepends {issuerURL}# to the value of
-	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
-	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
-	// "email":"userA
+// in the 'claim' field.
+// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+// field must be set when prefixPolicy is 'Prefix'.
+// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+// change over time. Currently, the platform prepends {issuerURL}# to the value of
+// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+// "email":"userA
 	PrefixPolicy *string
 }
 
@@ -1135,16 +1135,16 @@ type UsernameClaimProfileUpdate struct {
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
-	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
-	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
-	// field must be set when prefixPolicy is 'Prefix'.
-	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
-	// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
-	// change over time. Currently, the platform prepends {issuerURL}# to the value of
-	// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
-	// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
-	// "email":"userA
+// in the 'claim' field.
+// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
+// field must be set when prefixPolicy is 'Prefix'.
+// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
+// When omitted, this means no opinion and the platform is left to choose any prefixes that are applied which is subject to
+// change over time. Currently, the platform prepends {issuerURL}# to the value of
+// the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
+// is set to https://myoidc.tld, the JWT claims include "username":"userA" and
+// "email":"userA
 	PrefixPolicy *string
 }
 
@@ -1156,3 +1156,4 @@ type VersionProfile struct {
 	// ID is the unique identifier of the version.
 	ID *string
 }
+

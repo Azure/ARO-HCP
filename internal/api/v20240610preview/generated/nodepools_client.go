@@ -10,20 +10,19 @@ package generated
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 // NodePoolsClient contains the methods for the NodePools group.
 // Don't use this type directly, use NewNodePoolsClient() instead.
 type NodePoolsClient struct {
-	internal       *arm.Client
+	internal *arm.Client
 	subscriptionID string
 }
 
@@ -38,7 +37,7 @@ func NewNodePoolsClient(subscriptionID string, credential azcore.TokenCredential
 	}
 	client := &NodePoolsClient{
 		subscriptionID: subscriptionID,
-		internal:       cl,
+	internal: cl,
 	}
 	return client, nil
 }
@@ -117,8 +116,8 @@ func (client *NodePoolsClient) createOrUpdateCreateRequest(ctx context.Context, 
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, resource); err != nil {
-		return nil, err
-	}
+	return nil, err
+}
 	return req, nil
 }
 
@@ -268,7 +267,7 @@ func (client *NodePoolsClient) getHandleResponse(resp *http.Response) (NodePools
 //   - hcpOpenShiftClusterName - The name of the HcpOpenShiftCluster
 //   - options - NodePoolsClientListByParentOptions contains the optional parameters for the NodePoolsClient.NewListByParentPager
 //     method.
-func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) *runtime.Pager[NodePoolsClientListByParentResponse] {
+func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hcpOpenShiftClusterName string, options *NodePoolsClientListByParentOptions) (*runtime.Pager[NodePoolsClientListByParentResponse]) {
 	return runtime.NewPager(runtime.PagingHandler[NodePoolsClientListByParentResponse]{
 		More: func(page NodePoolsClientListByParentResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -285,7 +284,7 @@ func (client *NodePoolsClient) NewListByParentPager(resourceGroupName string, hc
 				return NodePoolsClientListByParentResponse{}, err
 			}
 			return client.listByParentHandleResponse(resp)
-		},
+			},
 	})
 }
 
@@ -397,7 +396,8 @@ func (client *NodePoolsClient) updateCreateRequest(ctx context.Context, resource
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, properties); err != nil {
-		return nil, err
-	}
+	return nil, err
+}
 	return req, nil
 }
+
