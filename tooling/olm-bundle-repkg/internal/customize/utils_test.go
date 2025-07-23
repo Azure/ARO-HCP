@@ -25,6 +25,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 		name           string
 		imageRef       string
 		config         *BundleConfig
+		suffix         string
 		expectedImg    string
 		expectedParams map[string]string
 	}{
@@ -156,26 +157,6 @@ func TestParameterizeImageComponents(t *testing.T) {
 				"imageTag": "",
 			},
 		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result, params := parameterizeImageComponents(tc.imageRef, tc.config)
-			assert.Equal(t, tc.expectedImg, result)
-			assert.Equal(t, tc.expectedParams, params)
-		})
-	}
-}
-
-func TestParameterizeImageComponentsWithSuffix(t *testing.T) {
-	testCases := []struct {
-		name           string
-		imageRef       string
-		config         *BundleConfig
-		suffix         string
-		expectedImg    string
-		expectedParams map[string]string
-	}{
 		{
 			name:     "all parameters with suffix",
 			imageRef: "registry.io/myrepo/myimage:v1.0.0",
@@ -232,7 +213,7 @@ func TestParameterizeImageComponentsWithSuffix(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, params := parameterizeImageComponentsWithSuffix(tc.imageRef, tc.config, tc.suffix)
+			result, params := parameterizeImageComponents(tc.imageRef, tc.config, tc.suffix)
 			assert.Equal(t, tc.expectedImg, result)
 			assert.Equal(t, tc.expectedParams, params)
 		})

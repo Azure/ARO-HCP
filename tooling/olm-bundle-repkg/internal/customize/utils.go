@@ -166,13 +166,8 @@ func (ic *imageComponents) buildImageReference() string {
 	return result
 }
 
-// parameterizeImageComponents applies the appropriate parameterization based on config
-func parameterizeImageComponents(imageRef string, config *BundleConfig) (string, map[string]string) {
-	return parameterizeImageComponentsWithSuffix(imageRef, config, "")
-}
-
-// parameterizeImageComponentsWithSuffix applies the appropriate parameterization based on config with optional suffix
-func parameterizeImageComponentsWithSuffix(imageRef string, config *BundleConfig, suffix string) (string, map[string]string) {
+// parameterizeImageComponents applies the appropriate parameterization based on config with optional suffix
+func parameterizeImageComponents(imageRef string, config *BundleConfig, suffix string) (string, map[string]string) {
 	params := make(map[string]string)
 
 	components, err := parseImageReference(imageRef)

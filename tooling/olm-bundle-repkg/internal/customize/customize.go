@@ -124,7 +124,7 @@ func createParameterizeOperandsImageRegistries(config *BundleConfig) Customizer 
 							afix = extractEnvVarAffix(env.Name, config, match)
 						}
 
-						parameterizedImage, params = parameterizeImageComponentsWithSuffix(env.Value, config, afix)
+						parameterizedImage, params = parameterizeImageComponents(env.Value, config, afix)
 						deployment.Spec.Template.Spec.Containers[c].Env[e].Value = parameterizedImage
 						maps.Copy(allParams, params)
 
@@ -204,10 +204,10 @@ func createParameterizeDeployment(config *BundleConfig) Customizer {
 					// Container-specific parameterization - use container name as suffix
 					caser := cases.Title(language.English)
 					suffix := caser.String(container.Name)
-					parameterizedImage, params = parameterizeImageComponentsWithSuffix(container.Image, config, suffix)
+					parameterizedImage, params = parameterizeImageComponents(container.Image, config, suffix)
 				} else {
 					// Global parameterization - use original function (default behavior)
-					parameterizedImage, params = parameterizeImageComponents(container.Image, config)
+					parameterizedImage, params = parameterizeImageComponents(container.Image, config, "")
 				}
 
 				deployment.Spec.Template.Spec.Containers[c].Image = parameterizedImage
