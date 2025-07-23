@@ -64,6 +64,10 @@ param csMIName = '{{ .clustersService.managedIdentityName }}'
 param csNamespace = '{{ .clustersService.k8s.namespace }}'
 param csServiceAccountName = '{{ .clustersService.k8s.serviceAccountName }}'
 
+param msiRefresherMIName = '{{ .msiCredentialsRefresher.managedIdentityName }}'
+param msiRefresherNamespace = '{{ .msiCredentialsRefresher.k8s.namespace }}'
+param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceAccountName }}'
+
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
