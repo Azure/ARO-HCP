@@ -15,6 +15,15 @@ param keyVaultPrivate bool
 @description('Defines if the keyvault should have soft delete enabled')
 param keyVaultSoftDelete bool
 
+@description('Name of the geneva keyvault where the pull secret is stored')
+param genevaKeyVaultName string
+
+@description('Resource group of the geneva keyvault')
+param genevaKeyVaultPrivate bool
+
+@description('Defines if the geneva keyvault should have soft delete enabled')
+param genevaKeyVaultSoftDelete bool
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -46,12 +55,18 @@ param globalNSPName string
 @description('Access mode for this NSP')
 param globalNSPAccessMode string
 
+
 param oidcSubdomain string
 param azureFrontDoorProfileName string
 param azureFrontDoorkeyVaultName string
 param azureFrontDoorSkuName string
 param keyVaultAdminPrincipalId string
 param oidcMsiName string
+
+param genevaCertificateName string
+param genevaCertificateIssuer string
+param genevaCertificateManage bool
+param svcDNSZoneName string
 
 //
 //  G L O B A L   M S I
@@ -99,6 +114,40 @@ module encryptionKey '../modules/keyvault/key-vault-key.bicep' = {
     keyVaultName: globalKV.outputs.kvName
     keyName: 'secretSyncKey'
   }
+}
+
+//   G E N E V A    K V
+
+module genevaKv '../modules/keyvault/keyvault.bicep' = {
+  name: 'geneva-kv'
+  params: {
+    location: location
+    keyVaultName: genevaKeyVaultName
+    private: genevaKeyVaultPrivate
+    enableSoftDelete: genevaKeyVaultSoftDelete
+    purpose: 'geneva'
+  }
+}
+
+output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
+
+var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
+
+module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
+  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
+  params: {
+    keyVaultName: genevaKeyVaultName
+    subjectName: 'CN=${genevaCertificateSNI}'
+    certName: genevaCertificateName
+    keyVaultManagedIdentityId: globalMSI.id
+    dnsNames: [
+      genevaCertificateSNI
+    ]
+    issuerName: genevaCertificateIssuer
+  }
+  dependsOn: [
+    genevaKv
+  ]
 }
 
 //

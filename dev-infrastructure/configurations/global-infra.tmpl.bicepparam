@@ -11,6 +11,16 @@ param keyVaultName = '{{ .global.keyVault.name}}'
 param keyVaultPrivate = {{ .global.keyVault.private }}
 param keyVaultSoftDelete = {{ .global.keyVault.softDelete }}
 
+param genevaKeyVaultName = '{{ .geneva.actions.keyVault.name}}'
+param genevaKeyVaultPrivate = {{ .geneva.actions.keyVault.private }}
+param genevaKeyVaultSoftDelete = {{ .geneva.actions.keyVault.softDelete }}
+
+param genevaCertificateName = '{{ .geneva.actions.certificate.name }}'
+param genevaCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
+param genevaCertificateManage = {{ .geneva.actions.certificate.manage }}
+
+param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
+
 param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'

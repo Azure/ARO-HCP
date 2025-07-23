@@ -90,7 +90,7 @@ param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
 param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
-param genevaActionsServiceTag = '{{ .genevaActions.serviceTag }}'
+param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 
 param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
 param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'

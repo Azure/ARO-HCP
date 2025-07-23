@@ -127,6 +127,16 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  actions:
+    certificate:
+      issuer: Self
+      manage: false
+      name: genevaAction
+    keyVault:
+      name: arohcpdev-geneva-kv
+      private: false
+      softDelete: true
+    serviceTag: GenevaActionsNonProd
   logs:
     administrators:
       alias: AME\WEINONGW
@@ -150,8 +160,6 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
-genevaActions:
-  serviceTag: GenevaActionsNonProd
 global:
   globalMSIName: global-rollout-identity
   keyVault:
