@@ -3,6 +3,36 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "namespaceName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "description": "A valid RFC1123 DNS label. Must start and end with a lowercase letter or number, and can contain hyphens in between."
+    },
+    "serviceAccountName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 243,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+      "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
+    },
+    "k8sServiceAccount": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/namespaceName"
+        },
+        "serviceAccountName": {
+          "$ref": "#/definitions/serviceAccountName"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "serviceAccountName"
+      ]
+    },
     "postgresName": {
       "type": "string",
       "minLength": 3,
@@ -587,20 +617,7 @@
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
         "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
+          "$ref": "#/definitions/k8sServiceAccount"
         },
         "postgres": {
           "$ref": "#/definitions/postgres"
@@ -1027,6 +1044,48 @@
         "dataPlaneAudienceResource"
       ]
     },
+    "msiCredentialsRefresher": {
+      "type": "object",
+      "properties": {
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the refresher"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sServiceAccount"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "certificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "managedIdentityName",
+        "k8s",
+        "image",
+        "certificate"
+      ]
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
@@ -1237,20 +1296,7 @@
               "$ref": "#/definitions/tracing"
             },
             "k8s": {
-              "type": "object",
-              "properties": {
-                "namespace": {
-                  "type": "string"
-                },
-                "serviceAccountName": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "namespace",
-                "serviceAccountName"
-              ]
+              "$ref": "#/definitions/k8sServiceAccount"
             }
           },
           "additionalProperties": false,
@@ -1761,6 +1807,8 @@
     "region",
     "regionRG",
     "serviceKeyVault",
-    "svc"
+    "svc",
+    "msiRp",
+    "msiCredentialsRefresher"
   ]
 }

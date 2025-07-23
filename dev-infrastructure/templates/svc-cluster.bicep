@@ -248,6 +248,15 @@ param fpaCertificateIssuer string
 @description('Whether to create the FPA certificate in the SVC keyvault')
 param manageFpaCertificate bool
 
+@description('Whether to create the MSI refresher certificate in the SVC keyvault')
+param manageMsiRefresherCertificate bool
+
+@description('The name of the MSI refresher certificate in the SVC keyvault')
+param msiRefresherCertificateName string
+
+@description('The issuer of the MSI refresher certificate')
+param msiRefresherCertificateIssuer string
+
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
@@ -631,6 +640,27 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
     serviceType: 'eventgrid'
     groupId: 'topicspace'
     vnetId: svcCluster.outputs.aksVnetId
+  }
+}
+
+//
+//   M S I   C R E D E N T I A L S   R E F R E S H E R
+//
+
+var msiRefresherCertificateSNI = '${msiRefresherCertificateName}.${svcDNSZoneName}'
+
+module msiRefresherCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageMsiRefresherCertificate) {
+  name: 'msi-refresher-certificate-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${msiRefresherCertificateSNI}'
+    certName: msiRefresherCertificateName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      msiRefresherCertificateSNI
+    ]
+    issuerName: msiRefresherCertificateIssuer
   }
 }
 

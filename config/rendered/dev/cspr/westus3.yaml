@@ -376,6 +376,19 @@ monitoring:
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
   svcWorkspaceName: services-cspr-usw3
+msiCredentialsRefresher:
+  certificate:
+    issuer: OneCertV2-PrivateCA
+    manage: false
+    name: msi-refresher
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  k8s:
+    namespace: msi-credential-refresher
+    serviceAccountName: msi-credential-refresher
+  managedIdentityName: msi-credential-refresher
 msiKeyVault:
   name: ah-cspr-mi-usw3-1
   private: false

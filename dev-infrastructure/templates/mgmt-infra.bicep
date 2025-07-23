@@ -28,8 +28,11 @@ param mgmtKeyVaultPrivate bool
 @description('Defines if the MGMT KeyVault has soft delete enabled')
 param mgmtKeyVaultSoftDelete bool
 
-@description('Cluster user assigned identity resource id, used to grant KeyVault access')
+@description('CS MI resource ID, used to grant KeyVault access')
 param clusterServiceMIResourceId string
+
+@description('MSI credentials refresher MI resource ID, used to grant KeyVault access')
+param msiRefresherMIResourceId string
 
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
@@ -144,15 +147,24 @@ output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
 
 import * as res from '../modules/resource.bicep'
 
-module csKeyVaultAccess '../modules/cluster-service-mc-kv-access.bicep' = if (res.isMsiResourceId(clusterServiceMIResourceId)) {
+module csKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(clusterServiceMIResourceId)) {
   name: 'cs-msi-kv-access'
   params: {
-    clusterServiceMIResourceId: clusterServiceMIResourceId
-    cxKeyVaultName: cxKeyVaultName
-    msiKeyVaultName: msiKeyVaultName
+    managedIdentityResourceId: clusterServiceMIResourceId
+    cxKeyVaultName: cxKeyVault.outputs.kvName
+    msiKeyVaultName: msiKeyVault.outputs.kvName
   }
-  dependsOn: [
-    cxKeyVault
-    msiKeyVault
-  ]
+}
+
+//
+//   M S I   C R E D E N T I A L S   R E F R E S H E R   K V   A C C E S S
+//
+
+module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.isMsiResourceId(msiRefresherMIResourceId)) {
+  name: 'msi-refresher-msi-kv-access'
+  params: {
+    managedIdentityResourceId: msiRefresherMIResourceId
+    cxKeyVaultName: ''
+    msiKeyVaultName: msiKeyVault.outputs.kvName
+  }
 }

@@ -375,6 +375,20 @@ defaults:
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
+  # MSI Credentials Refresher
+  msiCredentialsRefresher:
+    managedIdentityName: msi-credential-refresher
+    k8s:
+      namespace: msi-credential-refresher
+      serviceAccountName: msi-credential-refresher
+    image:
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
+      digest: ""
+    certificate:
+      name: "msi-refresher"
+      manage: true
+      issuer: OneCertV2-PrivateCA
   # Maestro
   maestro:
     server:
@@ -623,7 +637,10 @@ clouds:
         rg: 'global'
         region: 'westus3'
         softDelete: true
-      # disable soft delete on etcd KVs in DEV
+      # MSI Credentials Refresher
+      msiCredentialsRefresher:
+        certificate:
+          manage: false
       svc:
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)

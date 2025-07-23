@@ -58,6 +58,10 @@ resourceGroups:
       input:
         step: svc-output
         name: cs
+    - name: msiRefresherMIResourceId
+      input:
+        step: svc-output
+        name: msiRefresher
     - name: logAnalyticsWorkspaceId
       input:
         step: region-output
