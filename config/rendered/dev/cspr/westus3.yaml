@@ -91,7 +91,6 @@ cxKeyVault:
   softDelete: false
 dns:
   baseDnsZoneRG: global
-  cxParentZoneDelegation: false
   cxParentZoneName: hcp.osadev.cloud
   parentZoneName: osadev.cloud
   regionalSubdomain: westus3-cs
