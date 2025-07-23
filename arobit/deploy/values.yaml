@@ -251,6 +251,14 @@ forwarder:
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
+
+        [FILTER]
+            Name            rewrite_tag
+            Alias           filter.namespace_router
+            Match           kubernetes.var.log.containers.*
+            Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+            Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+            Emitter_Name    re_emitted
       output.conf: |
         [OUTPUT]
             Name       opentelemetry
@@ -266,12 +274,22 @@ forwarder:
             Host  0.0.0.0
             Port  2020
       output-mdsd.conf: |
+        # Forward OCM namespace logs (ocm-.* pattern) to specific port
         [OUTPUT]
             Name  forward
-            Alias forward.mdsd
-            Match kubernetes.*
+            Alias forward.mdsd.ocm
+            Match ocm.logs
             Host  127.0.0.1
             Port  5001
+            Tag   ocm.kubernetes
+
+        # Forward all other namespace logs to different port  
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd.other
+            Match other.logs
+            Host  127.0.0.1
+            Port  5002
             Tag   kubernetes
 
         [OUTPUT]
