@@ -124,13 +124,42 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
 }
 
 //
-//   P A R E N T   Z O N E S
+//  C X   P A R E N T   Z O N E
 //
 
 resource cxParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: cxParentZoneName
   location: 'global'
 }
+
+resource caaRecord 'Microsoft.Network/dnsZones/CAA@2023-07-01-preview' = {
+  name: '@'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    caaRecords: [
+      {
+        flags: 0
+        tag: 'issue'
+        value: 'digicert.com'
+      }
+      {
+        flags: 0
+        tag: 'issue'
+        value: 'microsoft.com'
+      }
+      {
+        flags: 0
+        tag: 'iodef'
+        value: 'mailto:caarecordaware@microsoft.com'
+      }
+    ]
+  }
+}
+
+//
+//  S V C    P A R E N T   Z O N E
+//
 
 resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: svcParentZoneName
