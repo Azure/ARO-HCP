@@ -110,9 +110,6 @@ param maestroEventGridNamespaceId string
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
-@description('The parent SVC DNS zone name')
-param svcDNSZoneName string
-
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
@@ -149,6 +146,9 @@ param genevaRpLogsName string
 
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaClusterLogsName string
+
+@description('Domain used for creation of geneva auth certificates')
+param genevaCertificateDomain string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
@@ -340,7 +340,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: svcDNSZoneName
+    certDomain: genevaCertificateDomain
     certificateIssuer: genevaCertificateIssuer
     hostName: genevaRpLogsName
     keyVaultCertificateName: genevaRpLogsName
@@ -353,7 +353,7 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: svcDNSZoneName
+    certDomain: genevaCertificateDomain
     certificateIssuer: genevaCertificateIssuer
     hostName: genevaClusterLogsName
     keyVaultCertificateName: genevaClusterLogsName

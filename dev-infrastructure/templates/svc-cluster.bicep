@@ -300,6 +300,9 @@ param svcNSPAccessMode string
 @description('Access mode for this NSP')
 param serviceKeyVaultAsignNSP bool = true
 
+@description('Domain used for creation of geneva auth certificates')
+param genevaCertificateDomain string
+
 @description('Issuer of certificate for Geneva Authentication')
 param genevaCertificateIssuer string = 'Self'
 
@@ -759,7 +762,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   params: {
     keyVaultName: serviceKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: svcDNSZoneName
+    certDomain: genevaCertificateDomain
     certificateIssuer: genevaCertificateIssuer
     hostName: genevaRpLogsName
     keyVaultCertificateName: genevaRpLogsName

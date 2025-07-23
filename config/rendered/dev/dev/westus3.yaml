@@ -130,6 +130,7 @@ geneva:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    certificateDomain: aro-hcp-dev.azure.com
     certificateIssuer: Self
     environment: Test
     mgmt:

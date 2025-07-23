@@ -63,7 +63,7 @@ param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Geneva logging settings
-param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
+param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.mgmt.rp.name }}'
 param genevaClusterLogsName = '{{ .geneva.logs.mgmt.cluster.name }}'

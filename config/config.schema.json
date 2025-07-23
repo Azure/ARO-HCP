@@ -907,6 +907,9 @@
               ]
             },
             "certificateIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "certificateDomain": {
               "type": "string"
             },
             "typeName": {
