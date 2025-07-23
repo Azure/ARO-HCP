@@ -432,6 +432,9 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 					return fmt.Errorf("%s: %s: %s: configRef %q not present in configuration: %w", context, service.ServiceGroup, variable.ref, variable.variable.ConfigRef, err)
 				}
 			}
+			if variable.variable.Value == "" && variable.variable.ConfigRef == "" && variable.variable.Input.Name == "" && variable.variable.Input.Step == "" {
+				return fmt.Errorf("%s: %s: %s: variable is empty", context, service.ServiceGroup, variable.ref)
+			}
 		}
 		logger.Info("Validated service.", "service", service.ServiceGroup)
 		return nil
