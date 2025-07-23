@@ -28,3 +28,6 @@ This guide describes how to access the Postgres database of ARO HCP service, spe
    or
    kubectl scale deployment postgres-breakglass -n maestro --replicas=0
    ```
+
+> [!IMPORTANT]
+> The pod can only be used for about 1h after creation to establish new postgres sessions. After that the temporary credentials that have been minted at startup are stale. Recycle the pod in this case. Existing postgres sessions will continue to work.
