@@ -51,14 +51,15 @@ jobs:
         username: 00000000-0000-0000-0000-000000000000
         password: ${{ steps.acr_token.outputs.refresh_token }}
     - name: Build e2e test image
+      id: build_image
       uses: redhat-actions/buildah-build@v2
       with:
         image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
-        tags: ${{ env.COMMIT_SHA }}
+        tags: latest ${{ env.COMMIT_SHA }}
         containerfiles: test/Containerfile.e2e
     - name: Push e2e test image to ACR
       uses: redhat-actions/push-to-registry@v2
       with:
         image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
-        tags: ${{ env.COMMIT_SHA }} latest
+        tags: ${{ steps.build_image.outputs.tags }}
         registry: ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }}
