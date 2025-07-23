@@ -62,7 +62,6 @@ resourceGroups:
         name: globalMSIId
     dependsOn:
     - global-output
-
 - name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
