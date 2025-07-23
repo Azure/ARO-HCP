@@ -84,16 +84,8 @@ spec:
         - name: PGPORT
           value: "5432"
         volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-        - name: var-tmp
-          mountPath: /var/tmp
         - name: breakglass
           mountPath: /breakglass
       volumes:
-      - name: tmp
-        emptyDir: {}
-      - name: var-tmp
-        emptyDir: {}
       - name: breakglass
         emptyDir: {}
