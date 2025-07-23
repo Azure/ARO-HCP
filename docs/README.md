@@ -34,7 +34,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - Mesh management
   - Upgrades
   - Traffic control
-- [Network Security](ops/network-security.md)
+- [Network Security](network-security.md)
   - Private Links
   - Network Security Perimeter
 
@@ -77,5 +77,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - How to bump service component image digests in RH and MSFT environments
 - [High Level HCP Creation Flow](ops/hcp-cluster-creation-flow.md)
   - Walkthrough of an HCP cluster creation process through all the service layers of ARO HCP
+- [Postgres Breakglass](ops/postgres-breakglass.md)
+  - How to access the Postgres database
 
 ### [Terminology](terminology.md)

@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-breakglass
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: postgres-breakglass
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: postgres-breakglass
+  template:
+    metadata:
+      labels:
+        app: postgres-breakglass
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccount: '{{ .Values.serviceAccountName }}'
+      serviceAccountName: '{{ .Values.serviceAccountName }}'
+      initContainers:
+      - name: init
+        image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "PostgreSQL breakglass init container started at $(date)"
+          echo "Logging into Azure using workload identity..."
+          az login --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID
+
+          echo "Getting PostgreSQL access token..."
+          ACCESS_TOKEN=$(az account get-access-token --resource-type oss-rdbms -o json | jq .accessToken -r)
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to get access token"
+            exit 1
+          fi
+
+          echo "Writing access token and connect script to shared volume..."
+          echo "$ACCESS_TOKEN" > /breakglass/postgres_token
+          echo "#!/bin/sh" > /breakglass/connect.sh
+          echo "export PGPASSWORD=$ACCESS_TOKEN" >> /breakglass/connect.sh
+          echo "exec psql" >> /breakglass/connect.sh
+          chmod +x /breakglass/connect.sh
+
+          echo "Access token and script written successfully"
+          echo "Init container completed at $(date)"
+        volumeMounts:
+        - name: breakglass
+          mountPath: /breakglass
+      containers:
+      - name: postgres
+        image: mcr.microsoft.com/cbl-mariner/base/postgres:14
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Create welcome message for both bash and sh users
+          {
+            echo '# PostgreSQL Breakglass Access'
+            echo 'echo ""'
+            echo 'echo "PostgreSQL Breakglass Access Ready"'
+            echo 'echo "To connect to PostgreSQL, run: connect"'
+            echo 'echo ""'
+            echo ''
+            echo '# Connection alias'
+            echo 'alias connect="/breakglass/connect.sh"'
+          } > ~/.bashrc
+
+          # Copy to .profile for /bin/sh users
+          cp ~/.bashrc ~/.profile
+
+          echo "PostgreSQL breakglass container ready at $(date)"
+          sleep infinity
+        env:
+        - name: PGUSER
+          value: "{{ .Values.databaseUser }}"
+        - name: PGDATABASE
+          value: "{{ .Values.databaseName }}"
+        - name: PGHOST
+          value: "{{ .Values.databaseHost }}"
+        - name: PGPORT
+          value: "5432"
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-tmp
+          mountPath: /var/tmp
+        - name: breakglass
+          mountPath: /breakglass
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: var-tmp
+        emptyDir: {}
+      - name: breakglass
+        emptyDir: {}
