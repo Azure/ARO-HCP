@@ -56,8 +56,6 @@ jobs:
         image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
         tags: ${{ env.COMMIT_SHA }}
         containerfiles: test/Containerfile.e2e
-        build-args: |
-          ARO-HCP=${{ env.REPOSITORY }}
     - name: Push e2e test image to ACR
       uses: redhat-actions/push-to-registry@v2
       with:
