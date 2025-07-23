@@ -10,19 +10,20 @@ package generated
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"net/http"
-	"net/url"
-	"strings"
 )
 
 // HcpOpenShiftClustersClient contains the methods for the HcpOpenShiftClusters group.
 // Don't use this type directly, use NewHcpOpenShiftClustersClient() instead.
 type HcpOpenShiftClustersClient struct {
-	internal *arm.Client
+	internal       *arm.Client
 	subscriptionID string
 }
 
@@ -37,7 +38,7 @@ func NewHcpOpenShiftClustersClient(subscriptionID string, credential azcore.Toke
 	}
 	client := &HcpOpenShiftClustersClient{
 		subscriptionID: subscriptionID,
-	internal: cl,
+		internal:       cl,
 	}
 	return client, nil
 }
@@ -111,8 +112,8 @@ func (client *HcpOpenShiftClustersClient) createOrUpdateCreateRequest(ctx contex
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, resource); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
 
@@ -253,7 +254,7 @@ func (client *HcpOpenShiftClustersClient) getHandleResponse(resp *http.Response)
 //   - resourceGroupName - The name of the resource group. The name is case insensitive.
 //   - options - HcpOpenShiftClustersClientListByResourceGroupOptions contains the optional parameters for the HcpOpenShiftClustersClient.NewListByResourceGroupPager
 //     method.
-func (client *HcpOpenShiftClustersClient) NewListByResourceGroupPager(resourceGroupName string, options *HcpOpenShiftClustersClientListByResourceGroupOptions) (*runtime.Pager[HcpOpenShiftClustersClientListByResourceGroupResponse]) {
+func (client *HcpOpenShiftClustersClient) NewListByResourceGroupPager(resourceGroupName string, options *HcpOpenShiftClustersClientListByResourceGroupOptions) *runtime.Pager[HcpOpenShiftClustersClientListByResourceGroupResponse] {
 	return runtime.NewPager(runtime.PagingHandler[HcpOpenShiftClustersClientListByResourceGroupResponse]{
 		More: func(page HcpOpenShiftClustersClientListByResourceGroupResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -270,7 +271,7 @@ func (client *HcpOpenShiftClustersClient) NewListByResourceGroupPager(resourceGr
 				return HcpOpenShiftClustersClientListByResourceGroupResponse{}, err
 			}
 			return client.listByResourceGroupHandleResponse(resp)
-			},
+		},
 	})
 }
 
@@ -310,7 +311,7 @@ func (client *HcpOpenShiftClustersClient) listByResourceGroupHandleResponse(resp
 // Generated from API version 2024-06-10-preview
 //   - options - HcpOpenShiftClustersClientListBySubscriptionOptions contains the optional parameters for the HcpOpenShiftClustersClient.NewListBySubscriptionPager
 //     method.
-func (client *HcpOpenShiftClustersClient) NewListBySubscriptionPager(options *HcpOpenShiftClustersClientListBySubscriptionOptions) (*runtime.Pager[HcpOpenShiftClustersClientListBySubscriptionResponse]) {
+func (client *HcpOpenShiftClustersClient) NewListBySubscriptionPager(options *HcpOpenShiftClustersClientListBySubscriptionOptions) *runtime.Pager[HcpOpenShiftClustersClientListBySubscriptionResponse] {
 	return runtime.NewPager(runtime.PagingHandler[HcpOpenShiftClustersClientListBySubscriptionResponse]{
 		More: func(page HcpOpenShiftClustersClientListBySubscriptionResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -327,7 +328,7 @@ func (client *HcpOpenShiftClustersClient) NewListBySubscriptionPager(options *Hc
 				return HcpOpenShiftClustersClientListBySubscriptionResponse{}, err
 			}
 			return client.listBySubscriptionHandleResponse(resp)
-			},
+		},
 	})
 }
 
@@ -567,8 +568,7 @@ func (client *HcpOpenShiftClustersClient) updateCreateRequest(ctx context.Contex
 	req.Raw().URL.RawQuery = reqQP.Encode()
 	req.Raw().Header["Accept"] = []string{"application/json"}
 	if err := runtime.MarshalAsJSON(req, properties); err != nil {
-	return nil, err
-}
+		return nil, err
+	}
 	return req, nil
 }
-

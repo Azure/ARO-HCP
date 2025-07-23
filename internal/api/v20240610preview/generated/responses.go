@@ -97,8 +97,8 @@ type HcpOpenShiftVersionsClientListResponse struct {
 // HcpOperatorIdentityRoleSetsClientGetResponse contains the response from method HcpOperatorIdentityRoleSetsClient.Get.
 type HcpOperatorIdentityRoleSetsClientGetResponse struct {
 	// HcpOperatorIdentityRoles represents a location based representation of
-// the required platform workload identities and their required roles for a given
-// OpenShift version
+	// the required platform workload identities and their required roles for a given
+	// OpenShift version
 	HcpOperatorIdentityRoleSet
 }
 
@@ -142,4 +142,3 @@ type OperationsClientListResponse struct {
 	// A list of REST API operations supported by an Azure Resource Provider. It contains an URL link to get the next set of results.
 	OperationListResult
 }
-
