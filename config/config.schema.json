@@ -91,8 +91,9 @@
           "maxLength": 32,
           "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
         },
-        "accountCert": {
-          "$ref": "#/definitions/certificateRef"
+        "name": {
+          "description": "Name of the cerificate created and hostname in cert. Must match host in SAN",
+          "type": "string"
         },
         "namespace": {
           "description": "Geneva logs account namespace",
@@ -110,7 +111,7 @@
       },
       "required": [
         "accountName",
-        "accountCert",
+        "name",
         "namespace",
         "san",
         "configVersion"
@@ -851,6 +852,18 @@
         "resourceContributor": {
           "type": "string"
         },
+        "cert": {
+          "additionalProperties": false,
+          "type": "object",
+          "properties": {
+            "manageCertificates": {
+              "type": "boolean"
+            },
+            "certificateIssuer": {
+              "type": "string"
+            }
+          }
+        },
         "metrics": {
           "type": "object",
           "additionalProperties": false,
@@ -924,19 +937,39 @@
                 "Canary"
               ]
             },
-            "cluster": {
-              "$ref": "#/definitions/genevaLogsAccount"
+            "mgmt": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cluster": {
+                  "$ref": "#/definitions/genevaLogsAccount"
+                },
+                "rp": {
+                  "$ref": "#/definitions/genevaLogsAccount"
+                }
+              },
+              "required": [
+                "cluster",
+                "rp"
+              ]
             },
-            "rp": {
-              "$ref": "#/definitions/genevaLogsAccount"
+            "svc": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rp": {
+                  "$ref": "#/definitions/genevaLogsAccount"
+                }
+              },
+              "required": [
+                "rp"
+              ]
             }
           },
           "required": [
             "administrators",
             "typeName",
-            "environment",
-            "cluster",
-            "rp"
+            "environment"
           ]
         }
       },
