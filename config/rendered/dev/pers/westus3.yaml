@@ -391,6 +391,7 @@ msiCredentialsRefresher:
     issuer: OneCertV2-PrivateCA
     manage: false
     name: msi-refresher
+  firstPartyAppClientId: ""
   image:
     digest: ""
     registry: empty-sentinel
