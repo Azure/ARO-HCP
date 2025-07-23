@@ -1,14 +1,12 @@
-Param
-(
-  [Parameter (Mandatory= $false)]
-  [System.Boolean] $dryRun = $false,
-  [Parameter (Mandatory= $false)]
-  [string] $SubscriptionId = "1d3378d3-5a3f-4712-85a1-2485495dfc4b",
-  [Parameter (Mandatory= $false)]
-  [string] $ManagedIdentityId
-)
+$dryRun = Get-AutomationVariable -Name dry_run
+$dryRun = @('true','1','yes','y','on') -contains ($dryRun.ToString().Trim().ToLower())
 
-Connect-AzAccount -Identity -SubscriptionId $SubscriptionId -AccountId "4579fe55-83eb-45a5-ba5e-ca90ffadd763"
+if ($dryRun) { Write-Output "dry-run mode enabled, deletions actions will not be executed." }
+
+$SubscriptionId = Get-AutomationVariable -Name subscription_id
+$ManagedIdentityClientId = Get-AutomationVariable -Name client_id
+
+Connect-AzAccount -Identity -SubscriptionId $SubscriptionId -AccountId $ManagedIdentityClientId
 
 Set-AzContext -SubscriptionId $SubscriptionId
 
@@ -22,8 +20,8 @@ if ($x -ne "Group" ) {
     exit 1
 }
 
-if ($dryRun -eq "dry-run") {
-    Write-Host "Running in dry-run, would delete these Role Assignments"
+if ($dryRun) {
+    Write-Output "The following orphaned role assignments would be deleted (dry-run mode, no changes will be made):"
     Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown"
 } else {
     Get-AzRoleAssignment | Where-Object ObjectType -eq "Unknown" | Remove-AzRoleAssignment
