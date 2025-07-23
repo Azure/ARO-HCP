@@ -23,3 +23,7 @@ run:
 run-hcp:
 	go run ./...  --config-file ../../observability/observability-hcp.yaml
 .PHONY: run-hcp
+
+run-recording-rules:
+	go run ./...  --config-file ../../observability/observability-recording-rules.yaml
+.PHONY: run-recording-rules
