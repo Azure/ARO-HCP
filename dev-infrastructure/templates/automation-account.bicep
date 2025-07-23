@@ -19,7 +19,7 @@ param scriptVersion string = '0de69144a537d9e5a032605a5fa82e863fc45a9e'
 module automationAccount '../modules/automation-account/account.bicep' = {
   name: 'hcp-${environment}-automation'
   params: {
-    dryRun: true
+    dryRun: false
     automationAccountName: automationAccountName
     automationAccountManagedIdentity: 'hcp-${environment}-automation'
     location: location
