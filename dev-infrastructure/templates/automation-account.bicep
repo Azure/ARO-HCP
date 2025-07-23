@@ -16,6 +16,7 @@ param ntlyScheduleStartTime string = '${substring(dateTimeAdd(utcNow(), 'P1D'), 
 module automationAccount '../modules/automation-account/account.bicep' = {
   name: 'hcp-${environment}-automation'
   params: {
+    dryRun: true
     automationAccountName: automationAccountName
     automationAccountManagedIdentity: 'hcp-${environment}-automation'
     location: location

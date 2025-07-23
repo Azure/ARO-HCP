@@ -13,11 +13,6 @@ from azure.mgmt.resource.resources.v2022_09_01.models._models_py3 import Generic
 
 from automationassets import get_automation_variable
 
-# If DRY_RUN is TRUE, the script will print which resource groups should be deleted
-# without deleting them. If it is FALSE, the script will print which resource groups
-# should be deleted and delete those that should be deleted.
-DRY_RUN = True
-
 # VERBOSE is used to control whether to print all the resources of each resource group
 # for informational purposes.
 VERBOSE = False
@@ -170,6 +165,63 @@ def get_client_id():
         raise ValueError(
             "Client ID missing: not found in automation variables or CLIENT_ID env var."
         )
+
+def get_boolean_from_string(val):
+    """
+    Convert a string representation of truth to True or False.
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1';
+    False values are 'n', 'no', 'f', 'false', 'off', and '0'.
+    Raises ValueError if 'val' is anything else.
+
+    Args:
+        val (str): The string to convert.
+
+    Returns:
+        bool: The boolean value corresponding to the string.
+
+    Raises:
+        ValueError: If the string does not represent a boolean value.
+    """
+    if not isinstance(val, str):
+        raise ValueError(f"Invalid truth value: {val!r} (type: {type(val).__name__}). Expected a string.")
+    val_stripped = val.strip().lower()
+    true_set = {'y', 'yes', 't', 'true', 'on', '1'}
+    false_set = {'n', 'no', 'f', 'false', 'off', '0'}
+    if val_stripped in true_set:
+        return True
+    if val_stripped in false_set:
+        return False
+    raise ValueError(
+        f"Invalid truth value: {val!r}. "
+        f"Expected one of {sorted(true_set | false_set)} (case-insensitive, whitespace ignored)."
+    )
+
+def get_dry_run():
+    """
+    Retrieve the dry run flag from automation variables or environment variable.
+
+    Returns:
+        bool: True if dry run is enabled, False otherwise.
+    """
+    try:
+        val = get_automation_variable("dry_run")
+        return get_boolean_from_string(val)
+    except Exception:
+        env_val = os.getenv("DRY_RUN")
+        if env_val is not None:
+            try:
+                return get_boolean_from_string(env_val)
+            except ValueError as e:
+                print(f"Warning: Invalid DRY_RUN environment variable value: {env_val!r}. Defaulting to False.")
+                return False
+        print("Info: DRY_RUN not set in automation variables or environment. Defaulting to False.")
+        return False
+
+# If DRY_RUN is TRUE, the script will print which resource groups should be deleted
+# without deleting them. If it is FALSE, the script will print which resource groups
+# should be deleted and delete those that should be deleted.
+DRY_RUN = get_dry_run()
 
 def main():
 

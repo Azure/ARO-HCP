@@ -6,6 +6,9 @@ param automationAccountName string
 @description('Name of the managed identity')
 param automationAccountManagedIdentity string = 'automation-account-identity'
 
+@description('Dry run flag for all the runbooks in the automation account')
+param dryRun bool = false
+
 param python3Packages array
 
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -130,6 +133,16 @@ resource automationAccountVariable_ClientId 'Microsoft.Automation/automationAcco
     description: 'The subscription Id of the automation account'
     isEncrypted: false
     value: '"${uami.properties.clientId}"'
+  }
+}
+
+resource automationAccountVariable_DryRun 'Microsoft.Automation/automationAccounts/variables@2024-10-23' = {
+  parent: automationAccount
+  name: 'dry_run'
+  properties: {
+    description: 'The dry run flag for the runbook'
+    isEncrypted: false
+    value: '"${dryRun}"'
   }
 }
 
