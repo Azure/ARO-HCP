@@ -1,12 +1,10 @@
 kind: ConfigMap
 apiVersion: v1
 data:
-  schema-version:
-    #string.used by agent to parse config. supported versions are {v1}. Configs with other schema versions will be rejected by the agent.
-    v1
-  config-version:
-    #string.used by customer to keep track of this config file's version in their source control/repository (max allowed 10 chars, other chars will be truncated)
-    ver1
+  schema-version: v1
+  #string.used by agent to parse config. supported versions are {v1}. Configs with other schema versions will be rejected by the agent.
+  config-version: ver1
+  #string.used by customer to keep track of this config file's version in their source control/repository (max allowed 10 chars, other chars will be truncated)
   prometheus-collector-settings: |-
     cluster_alias = ""
   default-scrape-settings-enabled: |-
