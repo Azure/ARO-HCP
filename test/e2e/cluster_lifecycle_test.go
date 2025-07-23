@@ -75,6 +75,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 				GinkgoLogr.Error(err, "failed to poll for cluster deletion during cleanup")
 			}
 			By("Cleaning up the resource group")
+			// Use the framework's test context for resource group cleanup since it doesn't need the systemData policy
 			testCtx = framework.InvocationContext()
 			armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
 			resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
@@ -88,10 +89,11 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}()
 
 		By("Create a new resource group for the cluster")
-		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
+		// Use the framework's test context for resource group operations since they don't need the systemData policy
 		testCtx = framework.InvocationContext()
 		armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
+		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
 		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, "westus3", 10*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 		By("Deploying the infrastructure only bicep template")
@@ -125,7 +127,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 			Mode:       to.Ptr(armresources.DeploymentModeIncremental),
 		}
 
-		// Create the deployment
+		// Create the deployment using the framework's client factory (no systemData policy needed for deployments)
 		deploymentsClient := armResourcesClientFactory.NewDeploymentsClient()
 		deployment := armresources.Deployment{
 			Properties: &deploymentProperties,
@@ -201,6 +203,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Sending a PUT request to create the cluster")
+		// Use the pre-configured clustersClient that has the systemData policy applied
 		createPoller, err := clustersClient.BeginCreateOrUpdate(ctx, resourceGroup, clusterName, clusterResource, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
