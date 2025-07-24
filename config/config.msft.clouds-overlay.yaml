@@ -76,7 +76,7 @@ clouds:
           clustersService:
             image:
               registry: arohcpsvcdev.azurecr.io
-              digest: sha256:64b4fd5d657f17a13a960f37fde59b25310e9d336e5c727ac121ac7ff98788f8
+              digest: sha256:328bdbc2b4a27175633004482d6774eb920fc6bdd7ef43478be5c62c68fc2530
           # ACR Pull
           acrPull:
             image:
