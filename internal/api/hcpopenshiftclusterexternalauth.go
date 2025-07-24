@@ -230,6 +230,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
 		errorDetails = append(errorDetails, externalAuth.validateIssuerCAsPEMEncoded()...)
+		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...) // New call added from above
 	}
 
 	return errorDetails
