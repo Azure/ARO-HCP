@@ -79,7 +79,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 			testCtx = framework.InvocationContext()
 			armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
 			resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
-			err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 1*time.Second, 60*time.Minute)
+			err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
 			By("Verifying the resource group is deleted")
 			_, err = resourceGroupClient.Get(ctx, resourceGroup, nil)
@@ -94,7 +94,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
 		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
-		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, "westus3", 10*time.Minute)
+		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, testCtx.Location(), 10*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 		By("Deploying the infrastructure only bicep template")
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
@@ -156,10 +156,10 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		location := "westus3" // We currently do not have location provided in the infra only json config so hard code the location for now.
+		location := testCtx.Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
-		versionID := "openshift-v4.18.1"
+		versionID := "openshift-v4.19.0"
 		channelGroup := "stable"
 		networkType := api.NetworkTypeOVNKubernetes
 		podCidr := "10.128.0.0/14"
@@ -236,7 +236,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		testCtx = framework.InvocationContext()
 		armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
-		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 1*time.Second, 60*time.Minute)
+		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
 		By("Verifying the resource group is deleted")
 		_, err = resourceGroupClient.Get(ctx, resourceGroup, nil)
