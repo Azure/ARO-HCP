@@ -176,6 +176,12 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				MaxNodeProvisionTimeSeconds: 900,
 				PodPriorityThreshold:        -10,
 			},
+			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
+			Etcd: EtcdProfile{
+				DataEncryption: EtcdDataEncryptionProfile{
+					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				},
+			},
 		},
 	}
 }

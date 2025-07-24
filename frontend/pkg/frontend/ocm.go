@@ -102,6 +102,16 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
+func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.Cluster) api.CustomerManagedEncryptionProfile {
+	if customerManaged, ok := in.Azure().EtcdEncryption().DataEncryption().GetCustomerManaged(); ok {
+		return api.CustomerManagedEncryptionProfile{
+			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
+			Kms:            convertKmsEncryptionCSToRP(in),
+		}
+	}
+	return api.CustomerManagedEncryptionProfile{}
+}
+
 func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.Cluster) *api.KmsEncryptionProfile {
 
 	if kms, ok := in.Azure().EtcdEncryption().DataEncryption().CustomerManaged().GetKms(); ok {
@@ -190,10 +200,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	if cluster.Azure().EtcdEncryption() != nil && cluster.Azure().EtcdEncryption().DataEncryption() != nil {
 		hcpcluster.Properties.Etcd = api.EtcdProfile{
 			DataEncryption: api.EtcdDataEncryptionProfile{
-				CustomerManaged: api.CustomerManagedEncryptionProfile{
-					EncryptionType: api.CustomerManagedEncryptionType(cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().EncryptionType()),
-					Kms:            convertKmsEncryptionCSToRP(cluster),
-				},
+				CustomerManaged:   convertCustomerManagedEncryptionCSToRP(cluster),
 				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeType(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
 			},
 		}
