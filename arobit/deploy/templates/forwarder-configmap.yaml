@@ -1,5 +1,5 @@
----
 {{- if .Values.forwarder.enabled -}}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -23,7 +23,7 @@ data:
     @INCLUDE /forwarder/etc/output-mdsd.conf
     {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
-    {{- end }}`
+    {{- end }}
 {{- else }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}

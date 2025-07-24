@@ -28,3 +28,7 @@ deploy:
 undeploy:
 	helm uninstall arobit --namespace mds
 .PHONY: undeploy
+
+lint:
+	helm lint deploy/
+.PHONY: lint
