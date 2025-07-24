@@ -81,6 +81,42 @@
         "name"
       ]
     },
+    "genevaLogsAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accountName": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+        },
+        "secretName": {
+          "description": "Name of the cerificate created and hostname in cert. Must match host in SAN",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Geneva logs account namespace",
+          "type": "string"
+        },
+        "san": {
+          "description": "Geneva logs account certificate SAN",
+          "type": "string"
+        },
+        "configVersion": {
+          "description": "Geneva logs account namespace configuration version",
+          "pattern": "^[0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountName",
+        "secretName",
+        "namespace",
+        "san",
+        "configVersion"
+      ]
+    },
     "registrationConfig": {
       "additionalProperties": false,
       "type": "object",
@@ -233,30 +269,6 @@
         "minCount",
         "osDiskSizeGB",
         "vmSize"
-      ]
-    },
-    "aksLogConfig": {
-      "type": "object",
-      "properties": {
-        "namespace": {
-          "description": "Geneva logs account namespace",
-          "type": "string"
-        },
-        "san": {
-          "description": "Geneva logs account certificate SAN",
-          "type": "string"
-        },
-        "configVersion": {
-          "description": "Geneva logs account namespace configuration version",
-          "pattern": "^[0-9]+$",
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "namespace",
-        "san",
-        "configVersion"
       ]
     },
     "aksConfig": {
@@ -894,6 +906,12 @@
                 "securityGroup"
               ]
             },
+            "certificateIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "certificateDomain": {
+              "type": "string"
+            },
             "typeName": {
               "type": "string"
             },
@@ -914,50 +932,16 @@
               ]
             },
             "cluster": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "accountName": {
-                  "type": "string",
-                  "minLength": 6,
-                  "maxLength": 32,
-                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
-                }
-              },
-              "required": [
-                "accountName",
-                "accountCert"
-              ]
+              "$ref": "#/definitions/genevaLogsAccount"
             },
             "rp": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "accountName": {
-                  "type": "string",
-                  "minLength": 6,
-                  "maxLength": 32,
-                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
-                }
-              },
-              "required": [
-                "accountName",
-                "accountCert"
-              ]
+              "$ref": "#/definitions/genevaLogsAccount"
             }
           },
           "required": [
             "administrators",
             "typeName",
-            "environment",
-            "cluster",
-            "rp"
+            "environment"
           ]
         }
       },
@@ -1198,6 +1182,7 @@
       "required": [
         "environmentName",
         "outboundServiceTags",
+        "ondemandSync",
         "ocMirror"
       ]
     },
@@ -1408,10 +1393,6 @@
         },
         "jaeger": {
           "deploy": "boolean"
-        },
-        "logs": {
-          "description": "MDSD / Genevabits log aggregation and shipping configuration",
-          "$ref": "#/definitions/aksLogConfig"
         },
         "prometheus": {
           "description": "Prometheus deployment configuration",
@@ -1712,10 +1693,6 @@
           "required": [
             "ingressGatewayIPAddressName"
           ]
-        },
-        "logs": {
-          "description": "MDSD / Genevabits log aggregation and shipping configuration",
-          "$ref": "#/definitions/aksLogConfig"
         },
         "prometheus": {
           "description": "Prometheus deployment configuration",

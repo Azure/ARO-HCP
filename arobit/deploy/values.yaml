@@ -3,6 +3,7 @@
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
+  clusterType: svc
   ## Enable forwarder daemonset
   ##
   enabled: true
@@ -56,8 +57,9 @@ forwarder:
     usePodIdentity: false
     useMsi: false
     labels: {}
-    useNodePublishSecret: true
-    useWorkloadIdentity: false
+    useNodePublishSecret: false
+    useWorkloadIdentity: true
+    keyVault: ""
     # clientSecret: ""
     # cloudEnvFileName: ""
     # cloudName: ""
@@ -251,6 +253,15 @@ forwarder:
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
+
+      filter-ocm.conf: |
+        [FILTER]
+            Name            rewrite_tag
+            Alias           filter.namespace_router
+            Match           kubernetes.var.log.containers.*
+            Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+            Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+            Emitter_Name    re_emitted
       output.conf: |
         [OUTPUT]
             Name       opentelemetry
@@ -266,10 +277,11 @@ forwarder:
             Host  0.0.0.0
             Port  2020
       output-mdsd.conf: |
+        # Forward logs to mdsd instance (default port)
         [OUTPUT]
             Name  forward
-            Alias forward.mdsd
-            Match kubernetes.*
+            Alias forward.mdsd.other
+            Match other.logs
             Host  127.0.0.1
             Port  5001
             Tag   kubernetes
@@ -280,6 +292,17 @@ forwarder:
             Match metrics.fluentbit
             Host  0.0.0.0
             Port  2020
+
+      output-mdsd-ocm.conf: |
+        # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd.ocm
+            Match ocm.logs
+            Host  127.0.0.1
+            Port  5002
+            Tag   ocm.kubernetes
+
       reassemble_cri.lua: |
         local reassemble_state = {}
         function reassemble_cri(tag, timestamp, record)
@@ -390,20 +413,24 @@ forwarder:
       MDSD_PORT: "0"
       MDSD_TCMALLOC_RELEASE_FREQ_SEC: "1"
       MDSD_USE_LOCAL_PERSISTENCY: "false"
-      MONITORING_CONFIG_VERSION: "3.2"
       MONITORING_GCS_CERT_CERTFILE: "/geneva/geneva_auth/gcscert.pem"
       MONITORING_GCS_CERT_KEYFILE: "/geneva/geneva_auth/gcskey.pem"
-      MONITORING_GCS_ENVIRONMENT: "Test"
-      MONITORING_GCS_ACCOUNT: "AKSGenevaSample"
-      MONITORING_GCS_REGION: "westus2"
-      MONITORING_GCS_NAMESPACE: "AKSGenevaSample"
       MONITORING_GCS_EXACT_VERSION: "false"
       MONITORING_MAX_EVENT_RATE: "100000"
+    
+    geneva:
+      configVersion: 1
+      accountName: ""
+      san: ""
+      environment: ""
+      namespace: ""
+      region: ""
     ## Secret for geneva certificate when kvagent is disabled
     ##
     secret:
       gcsKey: ""
-      gcsCert: ""
+      rpSecret: ""
+      clusterLogCert: ""
       base64Encode: true
     ## Settings for Csi Secret Provider
     # See https://eng.ms/docs/products/geneva/collect/authentication/keyvaultgetupdatedcert for more details
@@ -475,3 +502,4 @@ forwarder:
       # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
       limits: {}
       requests: {}
+
