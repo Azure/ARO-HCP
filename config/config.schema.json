@@ -84,7 +84,7 @@
           "maxLength": 32,
           "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
         },
-        "name": {
+        "secretName": {
           "description": "Name of the cerificate created and hostname in cert. Must match host in SAN",
           "type": "string"
         },
@@ -104,7 +104,7 @@
       },
       "required": [
         "accountName",
-        "name",
+        "secretName",
         "namespace",
         "san",
         "configVersion"
@@ -919,33 +919,11 @@
                 "Canary"
               ]
             },
-            "mgmt": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "cluster": {
-                  "$ref": "#/definitions/genevaLogsAccount"
-                },
-                "rp": {
-                  "$ref": "#/definitions/genevaLogsAccount"
-                }
-              },
-              "required": [
-                "cluster",
-                "rp"
-              ]
+            "cluster": {
+              "$ref": "#/definitions/genevaLogsAccount"
             },
-            "svc": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "rp": {
-                  "$ref": "#/definitions/genevaLogsAccount"
-                }
-              },
-              "required": [
-                "rp"
-              ]
+            "rp": {
+              "$ref": "#/definitions/genevaLogsAccount"
             }
           },
           "required": [
