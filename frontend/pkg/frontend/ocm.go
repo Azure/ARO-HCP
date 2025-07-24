@@ -184,18 +184,20 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
-			Etcd: api.EtcdProfile{
-				DataEncryption: api.EtcdDataEncryptionProfile{
-					CustomerManaged: api.CustomerManagedEncryptionProfile{
-						EncryptionType: api.CustomerManagedEncryptionType(cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().EncryptionType()),
-						Kms:            convertKmsEncryptionCSToRP(cluster),
-					},
-					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeType(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
-				},
-			},
 		},
 	}
-
+	// Only set etcd encryption settings if they exist in the cluster service response
+	if cluster.Azure().EtcdEncryption() != nil && cluster.Azure().EtcdEncryption().DataEncryption() != nil {
+		hcpcluster.Properties.Etcd = api.EtcdProfile{
+			DataEncryption: api.EtcdDataEncryptionProfile{
+				CustomerManaged: api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionType(cluster.Azure().EtcdEncryption().DataEncryption().CustomerManaged().EncryptionType()),
+					Kms:            convertKmsEncryptionCSToRP(cluster),
+				},
+				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeType(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
+			},
+		}
+	}
 	// Each managed identity retrieved from Cluster Service needs to be added
 	// to the HCPOpenShiftCluster in two places:
 	// - The top-level Identity.UserAssignedIdentities map will need both the
