@@ -10,6 +10,10 @@ param cxKeyVaultPrivate bool
 @description('Defines if the CX KeyVault has soft delete enabled')
 param cxKeyVaultSoftDelete bool
 
+// CX KV tagging
+param cxKeyVaultTagName string
+param cxKeyVaultTagValue string
+
 @description('The name of the MSI KeyVault')
 param msiKeyVaultName string
 
@@ -19,6 +23,10 @@ param msiKeyVaultPrivate bool
 @description('Defines if the MSI KeyVault has soft delete enabled')
 param msiKeyVaultSoftDelete bool
 
+// MSI KV tagging
+param msiKeyVaultTagName string
+param msiKeyVaultTagValue string
+
 @description('The name of the MGMT KeyVault')
 param mgmtKeyVaultName string
 
@@ -27,6 +35,10 @@ param mgmtKeyVaultPrivate bool
 
 @description('Defines if the MGMT KeyVault has soft delete enabled')
 param mgmtKeyVaultSoftDelete bool
+
+// MGMT KV tagging
+param mgmtKeyVaultTagName string
+param mgmtKeyVaultTagValue string
 
 @description('CS MI resource ID, used to grant KeyVault access')
 param clusterServiceMIResourceId string
@@ -72,7 +84,8 @@ module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: cxKeyVaultName
     private: cxKeyVaultPrivate
     enableSoftDelete: cxKeyVaultSoftDelete
-    purpose: 'cx'
+    tagKey: cxKeyVaultTagName
+    tagValue: cxKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
@@ -103,7 +116,8 @@ module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: msiKeyVaultName
     private: msiKeyVaultPrivate
     enableSoftDelete: msiKeyVaultSoftDelete
-    purpose: 'msi'
+    tagKey: msiKeyVaultTagName
+    tagValue: msiKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
@@ -117,7 +131,8 @@ module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: mgmtKeyVaultName
     private: mgmtKeyVaultPrivate
     enableSoftDelete: mgmtKeyVaultSoftDelete
-    purpose: 'mgmt'
+    tagKey: mgmtKeyVaultTagName
+    tagValue: mgmtKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
