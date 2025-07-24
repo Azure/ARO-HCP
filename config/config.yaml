@@ -120,26 +120,18 @@ defaults:
       certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
       typeName: ""
       environment: "Test"
-      mgmt:
-        cluster:
-          name: mgmtcl
-          accountName: placeholder
-          namespace: ""
-          san: ""
-          configVersion: "1"
-        rp:
-          name: mgmtrp
-          accountName: placeholder
-          namespace: ""
-          san: ""
-          configVersion: "1"
-      svc:
-        rp:
-          name: svcrp
-          accountName: placeholder
-          namespace: ""
-          san: ""
-          configVersion: "1"
+      cluster:
+        secretName: clusterlogs
+        accountName: placeholder
+        namespace: ""
+        san: ""
+        configVersion: "1"
+      rp:
+        secretName: rplogs
+        accountName: placeholder
+        namespace: ""
+        san: ""
+        configVersion: "1"
   kusto:
     resourceGroup: ""
     cluster: ""
