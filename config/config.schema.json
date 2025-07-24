@@ -47,13 +47,6 @@
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
       "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
     },
-    "optionalKeyVaultName": {
-      "anyOf": [
-      { "$ref": "#/definitions/keyVaultName" },
-      { "type": "string", "pattern": "^$" }
-      ],
-      "description": "A key vault name or an empty string"
-    },
     "operatorConfig": {
       "type": "object",
       "properties": {
@@ -1597,8 +1590,11 @@
             "subdomain": {
               "type": "string"
             },
-            "keyVaultName": {
-              "$ref": "#/definitions/optionalKeyVaultName"
+            "keyVault": {
+              "$ref": "#/definitions/keyVault"
+            },
+            "useManagedCertificates": {
+              "type": "boolean"
             },
             "msiName": {
               "type": "string"
@@ -1609,7 +1605,8 @@
             "name",
             "subdomain",
             "sku",
-            "keyVaultName",
+            "keyVault",
+            "useManagedCertificates",
             "msiName"
           ]
         }

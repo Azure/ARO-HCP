@@ -507,7 +507,13 @@ defaults:
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
-      keyVaultName: "" # we don't need one in public cloud, but we need a value to validate the field
+      keyVault:
+        name: "ah-{{ .ctx.environment }}-afd" # [globally-unique]
+        private: false
+        softDelete: true
+        tagKey: aroHCPPurpose
+        tagValue: afd
+      useManagedCertificates: true
       msiName: arohcp-afd
   # Service Key Vault
   serviceKeyVault:

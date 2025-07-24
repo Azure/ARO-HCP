@@ -84,7 +84,10 @@ param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
 param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
 param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.svcParentZoneName }}'
 param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
-param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorKeyTagKey = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorKeyTagValue = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
 
 param globalMSIId = '__globalMSIId__'
 

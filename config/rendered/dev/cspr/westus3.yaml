@@ -407,11 +407,17 @@ msiRp:
   dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
-    keyVaultName: ""
+    keyVault:
+      name: ah-cspr-afd
+      private: false
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: afd
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor
     subdomain: oic
+    useManagedCertificates: true
   storageAccount:
     name: arohcpcsproidcusw3
     public: true

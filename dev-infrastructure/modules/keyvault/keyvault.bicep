@@ -10,8 +10,10 @@ param enableSoftDelete bool
 @description('Toggle to make the keyvault private.')
 param private bool
 
-// KV tagging
+@description('Tag key for the keyvault.')
 param tagKey string
+
+@description('Tag value for the keyvault.')
 param tagValue string
 
 @description('Log Analytics Workspace ID if logging to Log Analytics')
