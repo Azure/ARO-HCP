@@ -1,0 +1,31 @@
+chartName: route-monitor-operator
+chartDescription: A Helm chart for Route Monitor Operator
+
+operatorDeploymentNames:
+  - route-monitor-operator-controller-manager
+
+# Image refs customization
+perImageCustomization: true
+operandImageEnvSuffixes:
+  - _IMAGE
+imageRegistryParam: imageRegistry
+imageRepositoryParam: imageRepository
+imageDigestParam: imageDigest
+
+# Validation requirements
+requiredEnvVarPrefixes:
+  - BLACKBOX_IMAGE
+
+requiredResources:
+  - ConfigMap
+  - ServiceMonitor
+  - RoleBinding
+  - Role
+
+# Annotation cleanup patterns
+annotationPrefixesToRemove:
+  - openshift.io
+  - operatorframework.io
+  - olm
+  - alm-examples
+  - createdAt 

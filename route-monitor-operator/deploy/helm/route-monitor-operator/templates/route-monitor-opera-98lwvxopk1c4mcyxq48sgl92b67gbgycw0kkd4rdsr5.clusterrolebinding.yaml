@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  name: route-monitor-opera-98lwvxopk1c4mcyxq48sgl92b67gbgycw0kkd4rdsr5
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: route-monitor-opera-98lwvxopk1c4mcyxq48sgl92b67gbgycw0kkd4rdsr5
+subjects:
+- kind: ServiceAccount
+  name: route-monitor-operator-system
+  namespace: '{{ .Release.Namespace }}'
