@@ -1,0 +1,29 @@
+# MCE (Multicluster Engine) Configuration
+chartName: multicluster-engine
+chartDescription: A Helm chart for multicluster-engine
+# Operator deployment identification
+operatorDeploymentNames:
+- multicluster-engine
+# Image environment variable patterns
+operandImageEnvPrefixes:
+- OPERAND_IMAGE_
+# Image registry parameterization
+imageRegistryParam: imageRegistry
+# Validation requirements
+requiredEnvVarPrefixes:
+- OPERAND_IMAGE_
+requiredResources:
+- Deployment
+- ServiceAccount
+- Role
+- RoleBinding
+- ClusterRole
+- ClusterRoleBinding
+- ConfigMap
+# Annotation cleanup patterns
+annotationPrefixesToRemove:
+- openshift.io
+- operatorframework.io
+- olm
+- alm-examples
+- createdAt
