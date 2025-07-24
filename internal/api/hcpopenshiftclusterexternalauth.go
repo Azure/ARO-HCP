@@ -56,9 +56,9 @@ type ExternalAuthCondition struct {
  * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
  */
 type TokenIssuerProfile struct {
-	// TODO: validate https url
+	// validate https url
 	Url string `json:"url" visibility:"read create update" validate:"required,url,startswith=https://"`
-	// TODO: validate at least one of the entries must match the 'aud' claim in the JWT token.
+	// validate at least one of the entries must match the 'aud' claim in the JWT token.
 	Audiences []string `json:"audiences" visibility:"read create update" validate:"required,min=1,max=10,dive,required"`
 	Ca        string   `json:"ca,omitempty"     visibility:"read create update"`
 }
@@ -68,7 +68,7 @@ type TokenIssuerProfile struct {
  */
 type ExternalAuthClientProfile struct {
 	Component ExternalAuthClientComponentProfile `json:"component"                visibility:"read create update"       validate:"required"`
-	// TODO: The clientId must appear in the audience field of the TokenIssuerProfile.
+	// The clientId must appear in the audience field of the TokenIssuerProfile.
 	ClientId                      string                 `json:"clientId"                visibility:"read create update"       validate:"required"`
 	ExtraScopes                   []string               `json:"extraScopes,omitempty"   visibility:"read create update"`
 	ExternalAuthClientProfileType ExternalAuthClientType `json:"type"                    visibility:"read create update"       validate:"required"`
