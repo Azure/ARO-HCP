@@ -135,27 +135,19 @@ geneva:
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
     certificateDomain: aro-hcp-cspr.azure.com
     certificateIssuer: Self
+    cluster:
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: clusterlogs
     environment: Test
-    mgmt:
-      cluster:
-        accountName: placeholder
-        configVersion: "1"
-        name: mgmtcl
-        namespace: ""
-        san: ""
-      rp:
-        accountName: placeholder
-        configVersion: "1"
-        name: mgmtrp
-        namespace: ""
-        san: ""
-    svc:
-      rp:
-        accountName: placeholder
-        configVersion: "1"
-        name: svcrp
-        namespace: ""
-        san: ""
+    rp:
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: rplogs
     typeName: ""
   metrics:
     cluster:

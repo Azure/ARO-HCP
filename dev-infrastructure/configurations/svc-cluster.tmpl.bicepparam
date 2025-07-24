@@ -128,4 +128,4 @@ param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 // Geneva logging settings
 param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
-param genevaRpLogsName = '{{ .geneva.logs.svc.rp.name }}'
+param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
