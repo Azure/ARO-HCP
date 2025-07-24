@@ -45,31 +45,33 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-var dummyClusterHREF = ocm.GenerateClusterHREF(api.TestClusterName)
-var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.TestNodePoolName)
+var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.TestExternalAuthName)
 
-var dummyLocation = "Spain"
-var dummyVMSize = "Big"
-var dummyVersionID = "openshift-v4.18.0"
+var dummyURL = "Spain"
+var dummyAudiences = []string{"audience1"}
+var dummyClaim = "openshift-v4.18.0"
 
 func TestCreateExternalAuth(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
 
-	externalAuthResourceID, _ := azcorearm.ParseResourceID(api.TestNodePoolResourceID)
-	externalAuthDoc := database.NewResourceDocument(nodePoolResourceID)
-	externalAuthDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
+	externalAuthResourceID, _ := azcorearm.ParseResourceID(api.TestExternalAuthResourceID)
+	externalAuthDoc := database.NewResourceDocument(externalAuthResourceID)
+	externalAuthDoc.InternalID, _ = ocm.NewInternalID(dummyExternalAuthHREF)
 
-	requestBody := generated.NodePool{
-		Location: &dummyLocation,
-		Properties: &generated.NodePoolProperties{
-			Version: &generated.NodePoolVersionProfile{
-				ID:           &dummyVersionID,
-				ChannelGroup: api.Ptr("stable"),
+	requestBody := generated.ExternalAuth{
+		Properties: &generated.ExternalAuthProperties{
+			Issuer: &generated.TokenIssuerProfile{
+				URL:       &dummyURL,
+				Audiences: api.StringSliceToStringPtrSlice(dummyAudiences),
 			},
-			Platform: &generated.NodePoolPlatformProfile{
-				VMSize: &dummyVMSize,
+			Claim: &generated.ExternalAuthClaimProfile{
+				Mappings: &generated.TokenClaimMappingsProfile{
+					Username: &generated.UsernameClaimProfile{
+						Claim: &dummyClaim,
+					},
+				},
 			},
 		},
 	}
@@ -80,19 +82,19 @@ func TestCreateExternalAuth(t *testing.T) {
 		systemData         *arm.SystemData
 		subDoc             *arm.Subscription
 		clusterDoc         *database.ResourceDocument
-		nodePoolDoc        *database.ResourceDocument
+		externalAuthDoc    *database.ResourceDocument
 		expectedStatusCode int
 	}{
 		{
-			name:    "PUT Node Pool - Create a new Node Pool",
-			urlPath: api.TestNodePoolResourceID + "?api-version=2024-06-10-preview",
+			name:    "PUT External Auth - Create a new External Auth",
+			urlPath: api.TestExternalAuthResourceID + "?api-version=2024-06-10-preview",
 			subDoc: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
 			clusterDoc:         clusterDoc,
-			nodePoolDoc:        nodePoolDoc,
+			externalAuthDoc:    externalAuthDoc,
 			expectedStatusCode: http.StatusCreated,
 		},
 	}
@@ -126,20 +128,14 @@ func TestCreateExternalAuth(t *testing.T) {
 			subs := map[string]*arm.Subscription{api.TestSubscriptionID: test.subDoc}
 			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
 
-			// CreateOrUpdateNodePool
+			// CreateOrUpdateExternalAuth
 			mockCSClient.EXPECT().
-				GetCluster(gomock.Any(), clusterDoc.InternalID).
-				Return(arohcpv1alpha1.NewCluster().
-					Version(arohcpv1alpha1.NewVersion().ChannelGroup("stable")).
-					Build())
-			// CreateOrUpdateNodePool
-			mockCSClient.EXPECT().
-				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
+				PostExternalAuth(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
 				DoAndReturn(
-					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
-						builder := arohcpv1alpha1.NewNodePool().
-							Copy(nodePool).
-							HREF(dummyNodePoolHREF)
+					func(ctx context.Context, clusterInternalID ocm.InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+						builder := arohcpv1alpha1.NewExternalAuth().
+							Copy(externalAuth).
+							HREF(dummyExternalAuthHREF)
 						return builder.Build()
 					},
 				)
@@ -152,20 +148,20 @@ func TestCreateExternalAuth(t *testing.T) {
 				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
 				Return(test.subDoc, nil).
 				Times(1)
-			// CreateOrUpdateNodePool
+			// CreateOrUpdateExternalAuth
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), equalResourceID(test.nodePoolDoc.ResourceID)).
+				GetResourceDoc(gomock.Any(), equalResourceID(test.externalAuthDoc.ResourceID)).
 				Return("", nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
-			// CheckForProvisioningStateConflict and CreateOrUpdateNodePool
+			// CheckForProvisioningStateConflict and CreateOrUpdateExternalAuth
 			mockDBClient.EXPECT().
-				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)). // defined in frontend_test.go
+				GetResourceDoc(gomock.Any(), equalResourceID(test.clusterDoc.ResourceID)).
 				Return("itemID", test.clusterDoc, nil).
-				Times(3)
-			// CreateOrUpdateNodePool
+				Times(2)
+			// CreateOrUpdateExternalAuth
 			mockDBClient.EXPECT().
 				NewTransaction(pk).
 				Return(mockDBTransaction)
-			// CreateOrUpdateNodePool
+			// CreateOrUpdateExternalAuth
 			operationID := uuid.New().String()
 			mockDBTransaction.EXPECT().
 				CreateOperationDoc(gomock.Any(), nil).
@@ -178,23 +174,23 @@ func TestCreateExternalAuth(t *testing.T) {
 			mockDBTransaction.EXPECT().
 				OnSuccess(gomock.Any())
 
-			// CreateOrUpdateNodePool
-			nodePoolItemID := uuid.New().String()
+			// CreateOrUpdateExternalAuth
+			externalAuthItemID := uuid.New().String()
 			mockDBTransaction.EXPECT().
-				CreateResourceDoc(test.nodePoolDoc, nil).
-				Return(nodePoolItemID)
-			// CreateOrUpdateNodePool
+				CreateResourceDoc(test.externalAuthDoc, nil).
+				Return(externalAuthItemID)
+			// CreateOrUpdateExternalAuth
 			mockDBTransaction.EXPECT().
-				PatchResourceDoc(nodePoolItemID, gomock.Any(), nil)
-			// CreateOrUpdateNodePool
+				PatchResourceDoc(externalAuthItemID, gomock.Any(), nil)
+			// CreateOrUpdateExternalAuth
 			mockDBTransaction.EXPECT().
 				Execute(gomock.Any(), &azcosmos.TransactionalBatchOptions{
 					EnableContentResponseOnWrite: true}).
 				Return(mockDBTransactionResult, nil)
-			// CreateOrUpdateNodePool
+			// CreateOrUpdateExternalAuth
 			mockDBTransactionResult.EXPECT().
-				GetResourceDoc(nodePoolItemID).
-				Return(test.nodePoolDoc, nil)
+				GetResourceDoc(externalAuthItemID).
+				Return(test.externalAuthDoc, nil)
 
 			req, err := http.NewRequest(http.MethodPut, ts.URL+test.urlPath, bytes.NewReader(body))
 			require.NoError(t, err)
@@ -218,130 +214,3 @@ func TestCreateExternalAuth(t *testing.T) {
 		})
 	}
 }
-
-// TODO: Fix the update logic for this test.
-
-// func TestUpdateNodePool(t *testing.T) {
-// 	clusterResourceID, _ := arm.ParseResourceID(api.TestClusterResourceID)
-// 	clusterDoc := database.NewResourceDocument(clusterResourceID)
-// 	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
-
-// 	nodePoolResourceID, _ := arm.ParseResourceID(api.TestNodePoolResourceID)
-// 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
-// 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
-
-// 	var dummyReplicas int32 = 2
-// 	requestBody := generated.NodePool{
-// 		Location: &dummyLocation,
-// 		Properties: &generated.NodePoolProperties{
-// 			Spec: &generated.NodePoolSpec{
-// 				Replicas: &dummyReplicas,
-// 				Version: &generated.VersionProfile{
-// 					ID:           &dummyVersionID,
-//					ChannelGroup: api.Ptr("stable"),
-// 				},
-// 			},
-// 		},
-// 	}
-
-// 	tests := []struct {
-// 		name               string
-// 		urlPath            string
-// 		subscription       *arm.Subscription
-// 		systemData         *arm.SystemData
-// 		subDoc             *arm.Subscription
-// 		clusterDoc         *database.ResourceDocument
-// 		nodePoolDoc        *database.ResourceDocument
-// 		expectedStatusCode int
-// 	}{
-// 		{
-// 			name:    "PUT Node Pool - Update an existing Node Pool",
-// 			urlPath: api.TestNodePoolResourceID + "?api-version=2024-06-10-preview",
-// 			subDoc: &arm.Subscription{
-// 				State:            arm.SubscriptionStateRegistered,
-// 				RegistrationDate: api.Ptr(time.Now().String()),
-// 				Properties:       nil,
-// 			},
-// 			clusterDoc:         clusterDoc,
-// 			nodePoolDoc:        nodePoolDoc,
-// 			systemData:         &arm.SystemData{},
-// 			expectedStatusCode: http.StatusAccepted,
-// 		},
-// 	}
-// 	mockCSClient := ocm.NewMockClusterServiceClient()
-
-// 	for _, test := range tests {
-// 		t.Run(test.name, func(t *testing.T) {
-// 			f := &Frontend{
-// 				dbClient:             database.NewCache(),
-// 				logger:               api.NewTestLogger(),
-// 				metrics:              NewPrometheusEmitter(),
-// 				clusterServiceClient: &mockCSClient,
-// 			}
-// 			hcpCluster := api.NewDefaultHCPOpenShiftCluster()
-// 			hcpCluster.Name = dummyCluster
-// 			csCluster, _ := f.BuildCSCluster(clusterResourceID, api.TestTenantID, hcpCluster, false)
-
-// 			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
-// 			hcpNodePool.Name = dummyNodePool
-// 			csNodePool, _ := f.BuildCSNodePool(context.TODO(), hcpNodePool, false)
-
-// 			if test.subDoc != nil {
-// 				err := f.dbClient.CreateSubscriptionDoc(context.TODO(), api.TestSubscriptionID, test.subDoc)
-// 				if err != nil {
-// 					t.Fatal(err)
-// 				}
-// 			}
-
-// 			if test.clusterDoc != nil {
-// 				err := f.dbClient.CreateResourceDoc(context.TODO(), test.clusterDoc)
-// 				if err != nil {
-// 					t.Fatal(err)
-// 				}
-// 				_, err = f.clusterServiceClient.PostCluster(context.TODO(), csCluster)
-// 				if err != nil {
-// 					t.Fatal(err)
-// 				}
-// 			}
-
-// 			if test.nodePoolDoc != nil {
-// 				err := f.dbClient.CreateResourceDoc(context.TODO(), test.nodePoolDoc)
-// 				if err != nil {
-// 					t.Fatal(err)
-// 				}
-// 				_, err = f.clusterServiceClient.PostNodePool(context.TODO(), clusterDoc.InternalID, csNodePool)
-// 				if err != nil {
-// 					t.Fatal(err)
-// 				}
-// 			}
-// 			body, _ := json.Marshal(requestBody)
-
-// 			ts := httptest.NewServer(f.routes())
-// 			ts.Config.BaseContext = func(net.Listener) context.Context {
-// 				ctx := context.Background()
-// 				ctx = ContextWithLogger(ctx, f.logger)
-// 				ctx = ContextWithDBClient(ctx, f.dbClient)
-// 				ctx = ContextWithSystemData(ctx, test.systemData)
-
-// 				return ctx
-// 			}
-
-// 			req, err := http.NewRequest(http.MethodPatch, ts.URL+test.urlPath, bytes.NewReader(body))
-// 			if err != nil {
-// 				t.Fatal(err)
-// 			}
-// 			req.Header.Set("Content-Type", "application/json")
-
-// 			rs, err := ts.Client().Do(req)
-// 			t.Log(rs)
-// 			if err != nil {
-// 				t.Log(err)
-// 				t.Fatal(err)
-// 			}
-
-// 			if rs.StatusCode != test.expectedStatusCode {
-// 				t.Errorf("expected status code %d, got %d", test.expectedStatusCode, rs.StatusCode)
-// 			}
-// 		})
-// 	}
-// }
