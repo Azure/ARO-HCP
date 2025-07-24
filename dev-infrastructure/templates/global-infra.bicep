@@ -124,13 +124,87 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
 }
 
 //
-//   P A R E N T   Z O N E S
+//  C X   P A R E N T   Z O N E
 //
 
 resource cxParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: cxParentZoneName
   location: 'global'
 }
+
+resource caaRecord 'Microsoft.Network/dnsZones/CAA@2023-07-01-preview' = {
+  name: '@'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    caaRecords: [
+      {
+        flags: 0
+        tag: 'issue'
+        value: 'digicert.com'
+      }
+      {
+        flags: 0
+        tag: 'issue'
+        value: 'microsoft.com'
+      }
+      {
+        flags: 0
+        tag: 'iodef'
+        value: 'mailto:caarecordaware@microsoft.com'
+      }
+    ]
+  }
+}
+
+resource spfRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '@'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=spf1 -all'
+        ]
+      }
+    ]
+  }
+}
+
+resource dkimRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '*._domainkey'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=DKIM1; p='
+        ]
+      }
+    ]
+  }
+}
+
+resource dmarcRecord 'Microsoft.Network/dnsZones/TXT@2023-07-01-preview' = {
+  name: '_dmarc'
+  parent: cxParentZone
+  properties: {
+    TTL: 3600
+    TXTRecords: [
+      {
+        value: [
+          'v=DMARC1; p=reject; pct=100; rua=mailto:rua@dmarc.microsoft; ruf=mailto:ruf@dmarc.microsoft; fo=1'
+        ]
+      }
+    ]
+  }
+}
+
+//
+//  S V C    P A R E N T   Z O N E
+//
 
 resource svcParentZone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: svcParentZoneName
