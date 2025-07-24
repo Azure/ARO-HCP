@@ -15,7 +15,7 @@ az deployment group create \
   --name 'aro-hcp-e2e-setup' \
   --subscription "${SUBSCRIPTION}" \
   --resource-group "${CUSTOMER_RG_NAME}" \
-  --template-file "${BICEP_FILE}" \
+  --template-file "${SETUP_FILE}" \
   --parameters \
       persistTagValue=false \
       clusterName="${CLUSTER_NAME}"

@@ -50,13 +50,19 @@ First of all define env. variables, for example:
 ```
 export LOCATION=francecentral
 export SUBSCRIPTION="FOO Subscription"
-export BICEP_FILE=demo.bicep
+export SETUP_FILE=demo.bicep
 export CUSTOMER_RG_NAME=${USER}-rg
 export CLUSTER_NAME=${USER}-cluster
 ```
 
-And then run `setup.sh` script. It will deploy given bicep file using the
-parameters passed via the enviroment variables.
+Note that the name of bicep file is specified via `SETUP_FILE` variable.
+
+With the enviroment variables defined `setup.sh` script. It will deploy given
+bicep file using the parameters passed via the enviroment variables.
+
+To remove the cluster, run `teardown.sh` using the same enviroment variables.
+It will remove the `CUSTOMER_RG_NAME` resource group and all Azure resources
+within.
 
 ### Other setup methods
 
