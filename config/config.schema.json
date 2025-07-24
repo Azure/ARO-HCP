@@ -1505,6 +1505,26 @@
         "hcpWorkspaceName"
       ]
     },
+    "routeMonitorOperator": {
+      "type": "object",
+      "properties": {
+        "operatorImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "blackboxExporterImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "bundleVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operatorImage",
+        "blackboxExporterImage",
+        "bundleVersion"
+      ]
+    },
     "logs": {
       "type": "object",
       "additionalProperties": false,
