@@ -85,7 +85,7 @@ infra.region:
 .PHONY: infra.region
 
 infra.svc:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make svc.init
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make svc
 .PHONY: infra.svc
 
 infra.svc.aks.kubeconfig:

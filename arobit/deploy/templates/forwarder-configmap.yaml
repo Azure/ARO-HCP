@@ -15,8 +15,15 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
+    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+    @INCLUDE /forwarder/etc/filter-ocm.conf
+    {{- end }}
+
 {{- if .Values.forwarder.mdsd.enabled -}}
     @INCLUDE /forwarder/etc/output-mdsd.conf
+    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+    @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
+    {{- end }}`
 {{- else }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}

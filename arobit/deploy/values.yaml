@@ -3,6 +3,7 @@
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
+  clusterType: svc
   ## Enable forwarder daemonset
   ##
   enabled: true
@@ -56,8 +57,9 @@ forwarder:
     usePodIdentity: false
     useMsi: false
     labels: {}
-    useNodePublishSecret: true
-    useWorkloadIdentity: false
+    useNodePublishSecret: false
+    useWorkloadIdentity: true
+    keyVault: ""
     # clientSecret: ""
     # cloudEnvFileName: ""
     # cloudName: ""
@@ -252,6 +254,7 @@ forwarder:
             Annotations         Off
             K8S-Logging.Exclude On
 
+      filter-ocm.conf: |
         [FILTER]
             Name            rewrite_tag
             Alias           filter.namespace_router
@@ -274,22 +277,13 @@ forwarder:
             Host  0.0.0.0
             Port  2020
       output-mdsd.conf: |
-        # Forward OCM namespace logs (ocm-.* pattern) to specific port
-        [OUTPUT]
-            Name  forward
-            Alias forward.mdsd.ocm
-            Match ocm.logs
-            Host  127.0.0.1
-            Port  5001
-            Tag   ocm.kubernetes
-
-        # Forward all other namespace logs to different port  
+        # Forward logs to mdsd instance (default port)
         [OUTPUT]
             Name  forward
             Alias forward.mdsd.other
             Match other.logs
             Host  127.0.0.1
-            Port  5002
+            Port  5001
             Tag   kubernetes
 
         [OUTPUT]
@@ -298,6 +292,17 @@ forwarder:
             Match metrics.fluentbit
             Host  0.0.0.0
             Port  2020
+
+      output-mdsd-ocm.conf: |
+        # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd.ocm
+            Match ocm.logs
+            Host  127.0.0.1
+            Port  5002
+            Tag   ocm.kubernetes
+
       reassemble_cri.lua: |
         local reassemble_state = {}
         function reassemble_cri(tag, timestamp, record)
@@ -424,7 +429,8 @@ forwarder:
     ##
     secret:
       gcsKey: ""
-      gcsCert: ""
+      rpSecret: ""
+      clusterLogCert: ""
       base64Encode: true
     ## Settings for Csi Secret Provider
     # See https://eng.ms/docs/products/geneva/collect/authentication/keyvaultgetupdatedcert for more details
