@@ -112,6 +112,20 @@ spec:
             {{- toYaml .Values.forwarder.mdsd.containerPorts | nindent 12 }}
             {{- end }}
           env:
+          - name: MONITORING_CONFIG_VERSION
+            value: {{ .Values.forwarder.mdsd.geneva.configVersion }}
+          - name: MONITORING_GCS_ACCOUNT
+            value: {{ .Values.forwarder.mdsd.geneva.accountName }}
+          - name: MONITORING_GCS_AUTH_ID
+            value: {{ .Values.forwarder.mdsd.geneva.san }}
+          - name: MONITORING_GCS_AUTH_ID_TYPE
+            value: AuthKeyVault
+          - name: MONITORING_GCS_ENVIRONMENT
+            value: {{ .Values.forwarder.mdsd.geneva.environment }}
+          - name: MONITORING_GCS_NAMESPACE
+            value: {{ .Values.forwarder.mdsd.geneva.namespace }}
+          - name: MONITORING_GCS_REGION
+            value: {{ .Values.forwarder.mdsd.geneva.region }}
             {{- range $key,$value := .Values.forwarder.mdsd.env }}
             - name: {{ $key | upper | quote }}
               value: {{ $value | quote }}

@@ -12,7 +12,12 @@ deploy:
 		--set forwarder.mdsd.image.registry=${AROBIT_MDSD_REGISTRY} \
 		--set forwarder.mdsd.image.repository=${AROBIT_MDSD_REPOSITORY} \
 		--set forwarder.mdsd.image.digest=${AROBIT_MDSD_DIGEST} \
-		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED}
+		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED} \
+		--set forwarder.mdsd.geneva.accountName=${AROBIT_MDSD_GENEVA_ACCOUNT_NAME} \
+		--set forwarder.mdsd.geneva.san=${AROBIT_MDSD_GENEVA_SAN} \
+		--set forwarder.mdsd.geneva.environment=${AROBIT_MDSD_GENEVA_ENVIRONMENT} \
+		--set forwarder.mdsd.geneva.namespace=${AROBIT_MDSD_GENEVA_NAMESPACE} \
+		--set forwarder.mdsd.geneva.region=${AROBIT_MDSD_GENEVA_REGION}
 .PHONY: deploy
 
 undeploy:

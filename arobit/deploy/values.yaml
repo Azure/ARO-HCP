@@ -408,15 +408,18 @@ forwarder:
       MDSD_PORT: "0"
       MDSD_TCMALLOC_RELEASE_FREQ_SEC: "1"
       MDSD_USE_LOCAL_PERSISTENCY: "false"
-      MONITORING_CONFIG_VERSION: "3.2"
       MONITORING_GCS_CERT_CERTFILE: "/geneva/geneva_auth/gcscert.pem"
       MONITORING_GCS_CERT_KEYFILE: "/geneva/geneva_auth/gcskey.pem"
-      MONITORING_GCS_ENVIRONMENT: "Test"
-      MONITORING_GCS_ACCOUNT: "AKSGenevaSample"
-      MONITORING_GCS_REGION: "westus2"
-      MONITORING_GCS_NAMESPACE: "AKSGenevaSample"
       MONITORING_GCS_EXACT_VERSION: "false"
       MONITORING_MAX_EVENT_RATE: "100000"
+    
+    geneva:
+      configVersion: 1
+      accountName: ""
+      san: ""
+      environment: ""
+      namespace: ""
+      region: ""
     ## Secret for geneva certificate when kvagent is disabled
     ##
     secret:
@@ -493,3 +496,4 @@ forwarder:
       # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
       limits: {}
       requests: {}
+
