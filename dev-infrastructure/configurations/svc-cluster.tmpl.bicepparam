@@ -10,8 +10,10 @@ param podSubnetPrefix = '{{ .svc.aks.podSubnetPrefix }}'
 param istioIngressGatewayIPAddressName = '{{ .svc.istio.ingressGatewayIPAddressName }}'
 param istioIngressGatewayIPAddressIPTags = '{{ .svc.istio.ingressGatewayIPAddressIPTags }}'
 param aksClusterName = '{{ .svc.aks.name }}'
-param aksKeyVaultName = '{{ .svc.aks.etcd.kvName }}'
-param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.kvSoftDelete }}
+param aksKeyVaultName = '{{ .svc.aks.etcd.name }}'
+param aksKeyVaultTagName = '{{ .svc.aks.etcd.tagKey }}'
+param aksKeyVaultTagValue = '{{ .svc.aks.etcd.tagValue }}'
+param aksEtcdKVEnableSoftDelete = {{ .svc.aks.etcd.softDelete }}
 param systemAgentMinCount = {{ .svc.aks.systemAgentPool.minCount}}
 param systemAgentMaxCount = {{ .svc.aks.systemAgentPool.maxCount }}
 param systemAgentVMSize = '{{ .svc.aks.systemAgentPool.vmSize }}'
@@ -82,7 +84,10 @@ param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
 param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'
 param azureFrontDoorParentDnsZoneName = '{{ .oidc.frontdoor.subdomain }}.{{ .dns.svcParentZoneName }}'
 param azureFrontDoorRegionalSubdomain = '{{ .dns.regionalSubdomain }}'
-param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorKeyTagKey = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorKeyTagValue = '{{ .oidc.frontdoor.keyVault.name }}'
+param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
 
 param globalMSIId = '__globalMSIId__'
 

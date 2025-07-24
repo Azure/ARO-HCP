@@ -1,6 +1,12 @@
 @description('Specifies the name of the key vault.')
 param keyVaultName string
 
+@description('The tag key for the Key Vault')
+param keyVaultTagKey string
+
+@description('The tag value for the Key Vault')
+param keyVaultTagValue string
+
 @description('The Frontdoor Principal ID that is granted KV Certificates Officer permissions')
 param frontDoorPrincipalId string
 
@@ -14,7 +20,8 @@ module keyVault '../../keyvault/keyvault.bicep' = {
     location: resourceGroup().location
     enableSoftDelete: false
     private: false
-    purpose: 'Azure Front Door Key Vault'
+    tagKey: keyVaultTagKey
+    tagValue: keyVaultTagValue
   }
 }
 

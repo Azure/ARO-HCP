@@ -41,7 +41,8 @@ param keyVaultName string
 @description('The name of the Key Vault secret that contains the custom domain\'s certificate.')
 param certificateName string
 
-var useManagedCertificates = empty(keyVaultName)
+@description('Whether to use managed certificates for the Azure Front Door')
+param useManagedCertificates bool
 
 resource zone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
   name: zoneName

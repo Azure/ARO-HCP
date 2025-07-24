@@ -11,6 +11,7 @@ param originName string
 param privateLinkLocation string
 param skuName string
 param keyVaultName string
+param useManagedCertificates bool
 param deploymentScriptLocation string
 param storageAccountBlobPublicAccess bool
 param globalMSIId string
@@ -53,6 +54,7 @@ module configureFrontDoor 'customDomain-route-origin.bicep' = {
     storageSubscription: subscription().subscriptionId
     requestMessage: requestMessage
     keyVaultName: keyVaultName
+    useManagedCertificates: useManagedCertificates
     certificateName: certificateName
   }
 }

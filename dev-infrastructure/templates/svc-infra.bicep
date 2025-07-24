@@ -13,6 +13,10 @@ param serviceKeyVaultSoftDelete bool = true
 @description('If true, make the service keyvault private and only accessible by the svc cluster via private link.')
 param serviceKeyVaultPrivate bool = true
 
+// KV tagging
+param serviceKeyVaultTagName string
+param serviceKeyVaultTagValue string
+
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
 
@@ -58,7 +62,8 @@ module serviceKeyVault '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: serviceKeyVaultName
     private: serviceKeyVaultPrivate
     enableSoftDelete: serviceKeyVaultSoftDelete
-    purpose: 'service'
+    tagKey: serviceKeyVaultTagName
+    tagValue: serviceKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
