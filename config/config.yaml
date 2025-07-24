@@ -372,6 +372,9 @@ defaults:
     image:
       repository: ""
       digest: ""
+    tracing:
+      address: ""
+      exporter: ""
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
