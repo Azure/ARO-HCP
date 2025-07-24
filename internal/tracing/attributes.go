@@ -116,6 +116,14 @@ const (
 	// The key needs to be kept in sync with the key used by the Clusters Service.
 	NodePoolStateKey = attribute.Key("cs.nodepool.state")
 
+	// ExternalAuthIDKey is the span's attribute Key reporting the internal external auth identifier.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	ExternalAuthIDKey = attribute.Key("cs.externalauth.id")
+
+	// ExternalAuthStateKey is the span's attribute Key reporting the internal cluster state.
+	// The key needs to be kept in sync with the key used by the Clusters Service.
+	ExternalAuthStateKey = attribute.Key("cs.externalauth.state")
+
 	// BreakGlassCredentialIDKey is the attribute key for the break-glass credential ID.
 	BreakGlassCredentialIDKey attribute.Key = "cs.break_glass_credential.id"
 
@@ -160,6 +168,12 @@ func SetNodePoolAttributes(span trace.Span, nodePool *arohcpv1alpha1.NodePool) {
 func SetNodePoolStatusAttributes(span trace.Span, nodePoolStatus *arohcpv1alpha1.NodePoolStatus) {
 	addAttributeIfPresent(span, NodePoolIDKey, nodePoolStatus.GetID)
 	addAttributeIfPresent(span, NodePoolStateKey, nodePoolStatus.State().GetNodePoolStateValue)
+}
+
+// SetExternalAuthAttributes sets attributes on the span to identify the external auth.
+func SetExternalAuthAttributes(span trace.Span, externalAuth *arohcpv1alpha1.ExternalAuth) {
+	addAttributeIfPresent(span, ExternalAuthIDKey, externalAuth.GetID)
+	// addAttributeIfPresent(span, ExternalAuthStateKey, externalAuth.Status().State().)
 }
 
 // SetBreakGlassCredentialAttributes sets attributes on the span to identify the break-glass credential
