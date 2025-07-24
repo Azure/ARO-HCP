@@ -1,0 +1,5 @@
+apiVersion: v2
+name: ARO HCP MC Mitigations
+description: Any mitigation deployments we need on an ARO HCP management clusters
+version: 0.1.0
+appVersion: "0.1.0"

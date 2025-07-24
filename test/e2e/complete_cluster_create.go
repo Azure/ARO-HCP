@@ -38,7 +38,7 @@ var _ = Describe("Customer", func() {
 	It("should be able to create an HCP cluster using bicep templates",
 		labels.RequireNothing,
 		labels.Critical,
-		labels.Negative,
+		labels.Positive,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
@@ -50,7 +50,7 @@ var _ = Describe("Customer", func() {
 			ic := framework.InvocationContext()
 
 			By("creating a resource group")
-			resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
+			resourceGroup, cleanupResourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", ic.Location())
 			DeferCleanup(func(ctx SpecContext) {
 				err := cleanupResourceGroup(ctx)
 				Expect(err).NotTo(HaveOccurred())
@@ -68,7 +68,6 @@ var _ = Describe("Customer", func() {
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
-				30*time.Second,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -90,7 +89,6 @@ var _ = Describe("Customer", func() {
 					"clusterName":              customerClusterName,
 					"managedResourceGroupName": managedResourceGroupName,
 				},
-				30*time.Second,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -101,7 +99,6 @@ var _ = Describe("Customer", func() {
 					ic.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
-					30*time.Second,
 					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -117,7 +114,6 @@ var _ = Describe("Customer", func() {
 					"clusterName":  customerClusterName,
 					"nodePoolName": customerNodePoolName,
 				},
-				30*time.Second,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())

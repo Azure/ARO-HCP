@@ -13,6 +13,15 @@ All changes to the infrastructure definitions, configuration and service manifes
 > [!NOTE]
 > Since the this environment is the target for PR checks with infrastructure [bicep what-if](bicep.md#dry-runs) and [service deployment dry-runs](service-deployment-concept.md#deployment-via-pipelines), an unhealthy environment will potentially lead to partial failures of PR checks.
 
+## Jenkins Kubeconfig for CSPR
+
+To create a kubeconfig for the CS PR environment for Jenkins usage, follow these steps:
+
+* make sure your KUBECONFIG targets the CSPR service cluster (see [Access the CS PR environment](#access-the-cs-pr-environment)
+* run `make -C cluster-service cspr-jenkins-kubeconfig`
+* test the resulting kubeconfig with `kubectl auth whoami`
+* store the kubeconfig in the AppSRE Vault under `sd-uhc/show/azure_sandbox`
+
 ## Access the CS PR environment
 
 The infrastructure resources for this environment can be found in the Azure portal under the following resource groups:

@@ -8,7 +8,7 @@ use (
 	./frontend
 	./internal
 	./test
-	./tooling/mcerepkg
+	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
 	./tooling/secret-sync

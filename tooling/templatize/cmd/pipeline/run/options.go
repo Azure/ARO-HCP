@@ -105,6 +105,7 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
 	_, err := pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
+		Cloud:                    o.PipelineOptions.RolloutOptions.Cloud,
 		Configuration:            o.PipelineOptions.RolloutOptions.Config,
 		Region:                   o.PipelineOptions.RolloutOptions.Region,
 		Step:                     o.PipelineOptions.Step,

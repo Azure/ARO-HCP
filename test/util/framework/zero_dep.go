@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -35,6 +36,7 @@ type TestContext struct {
 	subscriptionName string
 	tenantID         string
 	testUserClientID string
+	location         string
 
 	contextLock                   sync.RWMutex
 	subscriptionID                string
@@ -51,6 +53,10 @@ var (
 	initializeOnce    sync.Once
 )
 
+const (
+	StandardPollInterval = 10 * time.Second
+)
+
 // InvocationContext requires the following env vars
 // CUSTOMER_SUBSCRIPTION
 // AZURE_TENANT_ID
@@ -62,6 +68,7 @@ func InvocationContext() *TestContext {
 			subscriptionName: subscriptionName(),
 			tenantID:         tenantID(),
 			testUserClientID: testUserClientID(),
+			location:         location(),
 		}
 	})
 	return invocationContext
@@ -71,7 +78,7 @@ func (tc *TestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix
 	suffix := rand.String(6)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 
-	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 10*time.Minute)
+	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 20*time.Minute)
 	if err != nil {
 		return nil, func(ctx context.Context) error { return nil }, fmt.Errorf("failed to create resource group: %w", err)
 	}
@@ -90,11 +97,27 @@ func (tc *TestContext) RecordResourceGroupToCleanup(resourceGroupName string) Cl
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
 func (tc *TestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string) error {
-	err := DeleteResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, 1*time.Second, 60*time.Minute)
-	if err != nil {
-		return fmt.Errorf("failed to cleanup resource group: %w", err)
+	errs := []error{}
+
+	if hcpClientFactory, err := tc.get20240610ClientFactoryUnlocked(ctx); err == nil {
+		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
 	}
-	return nil
+
+	if armClientFactory, err := tc.GetARMResourcesClientFactory(ctx); err == nil {
+		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	}
+
+	return errors.Join(errs...)
 }
 
 func (tc *TestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
@@ -244,10 +267,20 @@ func (tc *TestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, e
 	return tc.subscriptionID, nil
 }
 
+func (tc *TestContext) Location() string {
+	return tc.location
+}
+
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
 func subscriptionName() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("CUSTOMER_SUBSCRIPTION")
+}
+
+// location returns the Azure location to use, like "uksouth"
+func location() string {
+	// can't use gomega in this method since it is used outside of It()
+	return os.Getenv("LOCATION")
 }
 
 // testUserClientID returns the value of AZURE_CLIENT_ID environment variable

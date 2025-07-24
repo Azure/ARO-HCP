@@ -66,7 +66,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   environment: arohcpdev
   image:
-    digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+    digest: sha256:41c6ff66219ca049036bcfb98e0c134a9315fc8a7b21d20e598f494f94a54649
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -91,7 +91,6 @@ cxKeyVault:
   softDelete: false
 dns:
   baseDnsZoneRG: global
-  cxParentZoneDelegation: false
   cxParentZoneName: hcp.osadev.cloud
   parentZoneName: osadev.cloud
   regionalSubdomain: ln-ntly
@@ -164,10 +163,27 @@ global:
   region: westus3
   rg: global
   safeDnsIntAppObjectId: ""
-  secretsToSyncDir: dev/arohcpdev-global
   subscription:
     displayName: ARO HCP - ntly - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Dashboard:
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
 hypershift:
   additionalInstallArg: ""
   image:
@@ -307,15 +323,29 @@ mgmt:
       version: v2.55.1-3
   rg: hcp-underlay-ntly-uksouth-mgmt-1
   subscription:
-    afecFlags:
-    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-    - Microsoft.Compute/EncryptionAtHost
-    - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
     displayName: ARO HCP - ntly - svc - uksouth
     key: ARO HCP nightly management (EA Subscription)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
+      Microsoft.Storage:
+        poll: true
 mgmtKeyVault:
   name: ah-ntly-mg-ln-1
   private: false
@@ -345,6 +375,19 @@ monitoring:
   sev3ActionGroupIDs: ""
   sev4ActionGroupIDs: ""
   svcWorkspaceName: aro-hcp-ntly-svc-ln
+msiCredentialsRefresher:
+  certificate:
+    issuer: OneCertV2-PrivateCA
+    manage: false
+    name: msi-refresher
+  image:
+    digest: ""
+    registry: empty-sentinel
+    repository: empty-sentinel
+  k8s:
+    namespace: msi-credential-refresher
+    serviceAccountName: msi-credential-refresher
+  managedIdentityName: msi-credential-refresher
 msiKeyVault:
   name: ah-ntly-mi-ln-1
   private: false
@@ -459,12 +502,26 @@ svc:
       version: ""
   rg: hcp-underlay-ntly-uksouth-svc
   subscription:
-    afecFlags:
-    - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-    - Microsoft.Compute/EncryptionAtHost
-    - Microsoft.ContainerService/IstioNativeSidecarModePreview
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
     displayName: ARO HCP - ntly - svc - uksouth
     key: ARO HCP nightly service (EA Subscription)
+    providers:
+      Microsoft.Compute:
+        features:
+        - name: EncryptionAtHost
+          poll: true
+        poll: true
+      Microsoft.ContainerService:
+        features:
+        - name: IstioNativeSidecarModePreview
+          poll: true
+        poll: true
+      Microsoft.Dashboard:
+        poll: true
+      Microsoft.Network:
+        features:
+        - name: AllowBringYourOwnPublicIpAddress
+          poll: true
+        poll: true
 tenantId: ""

@@ -22,7 +22,14 @@ MGMG_RG_DEPLOYMENT_NAME ?= mgmt${DEPLOYMENT_NAME_SUFFIX}
 SVC_RG_DEPLOYMENT_NAME ?= svc${DEPLOYMENT_NAME_SUFFIX}
 REGIONAL_RG_DEPLOYMENT_NAME ?= region${DEPLOYMENT_NAME_SUFFIX}
 ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
-AUTOMATION_ACCOUNT_RG = "hcp-dev-automation-account"
+
+# Subscription IDs
+DEV_TESTING_SUBSCRIPTION_ID = 1d3378d3-5a3f-4712-85a1-2485495dfc4b
+INT_TESTING_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
+STAGE_TESTING_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
+
+# Environments where automation accounts are deployed
+AUTOMATION_ACCOUNT_ENVS = dev stage #int pending some permission updates
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -435,21 +442,44 @@ local-cs-permissions: svc.dev.permissions mgmt.dev.permissions
 # Automation Account creation
 #
 automation-account:
-	az group create -g ${AUTOMATION_ACCOUNT_RG} -l eastus --tags persist=true && \
-	az deployment group create \
-		--name dev-automation-account \
-		--resource-group $(AUTOMATION_ACCOUNT_RG) \
-		--template-file templates/dev-automation-account.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/dev-automation-account.bicepparam
+	@for env in $(AUTOMATION_ACCOUNT_ENVS); do \
+		$(MAKE) automation-account-$$env; \
+	done
 .PHONY: automation-account
 
 automation-account.what-if:
-	az deployment group what-if \
-		--name dev-automation-account \
-		--resource-group $(AUTOMATION_ACCOUNT_RG) \
-		--template-file templates/dev-automation-account.bicep \
-		--parameters \
-			configurations/dev-automation-account.bicepparam
+	@for env in $(AUTOMATION_ACCOUNT_ENVS); do \
+		$(MAKE) automation-account-$$env.what-if; \
+	done
 .PHONY: automation-account.what-if
+
+$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%:
+	$(eval _aa_env = $(subst automation-account-,,$@))
+	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
+	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
+	az group create \
+		--resource-group $(_aa_resource_group) --subscription $(_aa_subscription_id) \
+		--location eastus --tags persist=true && \
+	az deployment group create \
+		--name $(_aa_env)-automation-account \
+		--resource-group $(_aa_resource_group) \
+		--mode complete \
+		--subscription $(_aa_subscription_id) \
+		--template-file templates/automation-account.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/automation-account.bicepparam \
+		--parameters environment=$(_aa_env)
+.PHONY: $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))
+
+$(addsuffix .what-if,$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))):automation-account-%.what-if:
+	$(eval _aa_env = $(subst .what-if,,$(subst automation-account-,,$@)))
+	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
+	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
+	az deployment group what-if \
+		--name $(_aa_env)-automation-account \
+		--resource-group $(_aa_resource_group) \
+		--subscription $(_aa_subscription_id) \
+		--template-file templates/automation-account.bicep \
+		--parameters configurations/automation-account.bicepparam \
+		--parameters environment=$(_aa_env)
+.PHONY: $(addsuffix .what-if,$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)))

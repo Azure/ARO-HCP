@@ -31,10 +31,27 @@ defaults:
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
-    secretsToSyncDir: "none"
     subscription:
       key: hcp-global
       displayName: "ARO HCP - {{ .ctx.environment }} - Global"
+      providers:
+        'Microsoft.Dashboard':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: global-shared-resources
     globalMSIName: global-ev2-identity
     nsp:
@@ -155,10 +172,24 @@ defaults:
     subscription:
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
       displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
-      afecFlags:
-      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-      - Microsoft.Compute/EncryptionAtHost
-      - Microsoft.ContainerService/IstioNativeSidecarModePreview
+      providers:
+        'Microsoft.Dashboard':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
@@ -228,10 +259,24 @@ defaults:
     subscription:
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
       displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
-      afecFlags:
-      - Microsoft.Network/AllowBringYourOwnPublicIpAddress
-      - Microsoft.Compute/EncryptionAtHost
-      - Microsoft.ContainerService/IstioNativeSidecarModePreview
+      providers:
+        'Microsoft.Storage':
+          poll: true
+        'Microsoft.Network':
+          poll: true
+          features:
+          - name: AllowBringYourOwnPublicIpAddress
+            poll: true
+        'Microsoft.Compute':
+          poll: true
+          features:
+          - name: EncryptionAtHost
+            poll: true
+        'Microsoft.ContainerService':
+          poll: true
+          features:
+          - name: IstioNativeSidecarModePreview
+            poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
     applyKubeletFixes: true
     nsp:
@@ -330,6 +375,20 @@ defaults:
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
+  # MSI Credentials Refresher
+  msiCredentialsRefresher:
+    managedIdentityName: msi-credential-refresher
+    k8s:
+      namespace: msi-credential-refresher
+      serviceAccountName: msi-credential-refresher
+    image:
+      registry: "empty-sentinel"
+      repository: "empty-sentinel"
+      digest: ""
+    certificate:
+      name: "msi-refresher"
+      manage: true
+      issuer: OneCertV2-PrivateCA
   # Maestro
   maestro:
     server:
@@ -474,14 +533,12 @@ clouds:
           key: ARO Hosted Control Planes (EA Subscription 1)
         region: westus3
         globalMSIName: global-rollout-identity
-        secretsToSyncDir: "dev/arohcpdev-global"
         keyVault:
           name: arohcpdev-global
       # DNS
       dns:
         baseDnsZoneRG: global
         cxParentZoneName: hcp.osadev.cloud
-        cxParentZoneDelegation: false
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
       # 1P app
@@ -526,7 +583,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+          digest: sha256:41c6ff66219ca049036bcfb98e0c134a9315fc8a7b21d20e598f494f94a54649
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -579,7 +636,10 @@ clouds:
         rg: 'global'
         region: 'westus3'
         softDelete: true
-      # disable soft delete on etcd KVs in DEV
+      # MSI Credentials Refresher
+      msiCredentialsRefresher:
+        certificate:
+          manage: false
       svc:
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)

@@ -248,6 +248,15 @@ param fpaCertificateIssuer string
 @description('Whether to create the FPA certificate in the SVC keyvault')
 param manageFpaCertificate bool
 
+@description('Whether to create the MSI refresher certificate in the SVC keyvault')
+param manageMsiRefresherCertificate bool
+
+@description('The name of the MSI refresher certificate in the SVC keyvault')
+param msiRefresherCertificateName string
+
+@description('The issuer of the MSI refresher certificate')
+param msiRefresherCertificateIssuer string
+
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
@@ -262,6 +271,15 @@ param csNamespace string
 
 @description('The service account name of the CS managed identity')
 param csServiceAccountName string
+
+@description('The name of the MSI refresher managed identity')
+param msiRefresherMIName string
+
+@description('The namespace of the MSI refresher managed identity')
+param msiRefresherNamespace string
+
+@description('The service account name of the MSI refresher managed identity')
+param msiRefresherServiceAccountName string
 
 // logs
 @description('The namespace of the logs')
@@ -402,6 +420,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         uamiName: 'prometheus'
         namespace: 'prometheus'
         serviceAccountName: 'prometheus'
+      }
+      msi_refresher_wi: {
+        uamiName: msiRefresherMIName
+        namespace: msiRefresherNamespace
+        serviceAccountName: msiRefresherServiceAccountName
       }
     })
     aksKeyVaultName: aksKeyVaultName
@@ -631,6 +654,27 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
     serviceType: 'eventgrid'
     groupId: 'topicspace'
     vnetId: svcCluster.outputs.aksVnetId
+  }
+}
+
+//
+//   M S I   C R E D E N T I A L S   R E F R E S H E R
+//
+
+var msiRefresherCertificateSNI = '${msiRefresherCertificateName}.${svcDNSZoneName}'
+
+module msiRefresherCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageMsiRefresherCertificate) {
+  name: 'msi-refresher-certificate-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${msiRefresherCertificateSNI}'
+    certName: msiRefresherCertificateName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      msiRefresherCertificateSNI
+    ]
+    issuerName: msiRefresherCertificateIssuer
   }
 }
 

@@ -41,10 +41,13 @@ resourceGroups:
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: rpRegistration
-    action: ResourceProviderRegistration
-    resourceProviderNamespaces:
-      value:
-      - Microsoft.Storage # for deployment scripts
+    action: ProviderFeatureRegistration
+    providerConfigRef: mgmt.subscription.providers
+    identityFrom:
+      step: global-output
+      name: globalMSIId
+    dependsOn:
+    - global-output
   - name: mgmt-infra
     action: ARM
     template: templates/mgmt-infra.bicep
@@ -55,6 +58,10 @@ resourceGroups:
       input:
         step: svc-output
         name: cs
+    - name: msiRefresherMIResourceId
+      input:
+        step: svc-output
+        name: msiRefresher
     - name: logAnalyticsWorkspaceId
       input:
         step: region-output

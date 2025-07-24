@@ -1,4 +1,4 @@
-@description('The name of the keyvault where access is managed')
+@description('The name of the keyvault where an encryption key is being added')
 param keyVaultName string
 
 @description('Name of the key in the keyvault to be created')

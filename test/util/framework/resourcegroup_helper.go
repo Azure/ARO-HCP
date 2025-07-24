@@ -68,7 +68,6 @@ func DeleteResourceGroup(
 	ctx context.Context,
 	resourceGroupsClient *armresources.ResourceGroupsClient,
 	resourceGroupName string,
-	interval time.Duration,
 	timeout time.Duration,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -80,7 +79,7 @@ func DeleteResourceGroup(
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: interval,
+		Frequency: StandardPollInterval,
 	})
 	if err != nil {
 		return fmt.Errorf("failed waiting for resourcegroup=%q to finish deleting: %w", resourceGroupName, err)

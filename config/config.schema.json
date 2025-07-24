@@ -3,6 +3,36 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "namespaceName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "description": "A valid RFC1123 DNS label. Must start and end with a lowercase letter or number, and can contain hyphens in between."
+    },
+    "serviceAccountName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 243,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+      "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
+    },
+    "k8sServiceAccount": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/namespaceName"
+        },
+        "serviceAccountName": {
+          "$ref": "#/definitions/serviceAccountName"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "serviceAccountName"
+      ]
+    },
     "postgresName": {
       "type": "string",
       "minLength": 3,
@@ -50,6 +80,38 @@
         "keyVault",
         "name"
       ]
+    },
+    "registrationConfig": {
+      "additionalProperties": false,
+      "type": "object",
+      "patternProperties": {
+        "^.+$": {
+          "type": "object",
+          "properties": {
+            "poll": {
+              "type": "boolean"
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "poll": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        }
+      }
     },
     "audit": {
       "additionalProperties": false,
@@ -436,12 +498,8 @@
             "type": "string"
           }
         },
-        "afecFlags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(([A-Z][a-z]+)+.?)+/[A-Za-z]+"
-          }
+        "providers": {
+          "$ref": "#/definitions/registrationConfig"
         }
       },
       "additionalProperties": false,
@@ -472,10 +530,6 @@
         "cxParentZoneName": {
           "type": "string",
           "description": "The parent DNS zone name for regional HCP cluster DNS zones"
-        },
-        "cxParentZoneDelegation": {
-          "type": "boolean",
-          "description": "Whether to manage the CX parent zone delegation on the parents parent."
         },
         "svcParentZoneName": {
           "type": "string",
@@ -559,20 +613,7 @@
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
         "k8s": {
-          "type": "object",
-          "properties": {
-            "namespace": {
-              "type": "string"
-            },
-            "serviceAccountName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "namespace",
-            "serviceAccountName"
-          ]
+          "$ref": "#/definitions/k8sServiceAccount"
         },
         "postgres": {
           "$ref": "#/definitions/postgres"
@@ -999,6 +1040,48 @@
         "dataPlaneAudienceResource"
       ]
     },
+    "msiCredentialsRefresher": {
+      "type": "object",
+      "properties": {
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the refresher"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sServiceAccount"
+        },
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "certificate": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            },
+            "manage": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer",
+            "manage"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "managedIdentityName",
+        "k8s",
+        "image",
+        "certificate"
+      ]
+    },
     "global": {
       "type": "object",
       "additionalProperties": false,
@@ -1017,14 +1100,15 @@
         },
         "globalMSIName": {
           "type": "string",
-          "description": "The name of the MSI that will be used for ev2"
+          "description": "The name of the MSI that will be used for deployments."
+        },
+        "contributorRoleId": {
+          "type": "string",
+          "description": "The ID of the role assignment given to the global MSI to deploy our service."
         },
         "safeDnsIntAppObjectId": {
           "type": "string",
           "description": "SafeDnsIntApplication object ID use to delegate child DNS. This is only required for MSFT INT and can be left empty for other targets"
-        },
-        "secretsToSyncDir": {
-          "type": "string"
         },
         "keyVault": {
           "$ref": "#/definitions/keyVault"
@@ -1034,8 +1118,7 @@
         "rg",
         "subscription",
         "region",
-        "keyVault",
-        "secretsToSyncDir"
+        "keyVault"
       ]
     },
     "backplaneAPI": {
@@ -1209,20 +1292,7 @@
               "$ref": "#/definitions/tracing"
             },
             "k8s": {
-              "type": "object",
-              "properties": {
-                "namespace": {
-                  "type": "string"
-                },
-                "serviceAccountName": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "namespace",
-                "serviceAccountName"
-              ]
+              "$ref": "#/definitions/k8sServiceAccount"
             }
           },
           "additionalProperties": false,
@@ -1733,6 +1803,8 @@
     "region",
     "regionRG",
     "serviceKeyVault",
-    "svc"
+    "svc",
+    "msiRp",
+    "msiCredentialsRefresher"
   ]
 }

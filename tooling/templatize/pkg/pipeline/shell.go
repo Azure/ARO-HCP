@@ -16,12 +16,17 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
 	"os/exec"
 	"path/filepath"
+	"time"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+	"github.com/Azure/ARO-Tools/pkg/registration"
+	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -93,6 +98,68 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 
 	fmt.Fprint(outputWriter, string(output))
 	return nil
+}
+
+func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *PipelineRunOptions) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	if options.DryRun {
+		logger.Info("Skipping secret sync step for dry-run.")
+		return nil
+	}
+	syncOpts := populate.RawOptions{
+		RawOptions: &cmdutils.RawOptions{
+			Cloud: options.Cloud,
+		},
+		KeyVault:         s.KeyVault,
+		KeyEncryptionKey: s.EncryptionKey,
+		ConfigFile:       filepath.Join(filepath.Dir(options.PipelineFilePath), s.ConfigurationFile),
+	}
+	validated, err := syncOpts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Populate(ctx)
+}
+
+func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
+	logger := logr.FromContextOrDiscard(ctx)
+	if options.DryRun {
+		logger.Info("Skipping provider and feature registration step for dry-run.")
+		return nil
+	}
+
+	rawCfg, err := options.Configuration.GetByPath(s.ProviderConfigRef)
+	if err != nil {
+		return fmt.Errorf("failed to get raw registration configuration: %w", err)
+	}
+
+	encoded, err := json.Marshal(rawCfg)
+	if err != nil {
+		return fmt.Errorf("failed to serialize raw registration configuration: %w", err)
+	}
+
+	registrationOpts := registration.RawOptions{
+		RawOptions: &cmdutils.RawOptions{
+			Cloud: options.Cloud,
+		},
+		ConfigJSON:     string(encoded),
+		SubscriptionID: executionTarget.GetSubscriptionID(),
+		PollFrequency:  10 * time.Second,
+		PollDuration:   10 * time.Minute,
+	}
+	validated, err := registrationOpts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Register(ctx)
 }
 
 func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]string, error) {

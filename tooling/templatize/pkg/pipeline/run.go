@@ -34,6 +34,7 @@ type PipelineRunOptions struct {
 	DryRun                   bool
 	Step                     string
 	Region                   string
+	Cloud                    string
 	Configuration            config.Configuration
 	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
@@ -171,6 +172,16 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		output := buf.String()
 		fmt.Println(output)
 		return ShellOutput(output), nil
+	case *types.SecretSyncStep:
+		if err := runSecretSyncStep(step, ctx, options); err != nil {
+			return nil, fmt.Errorf("error running secret sync Step, %v", err)
+		}
+		return nil, nil
+	case *types.ProviderFeatureRegistrationStep:
+		if err := runRegistrationStep(step, ctx, options, executionTarget); err != nil {
+			return nil, fmt.Errorf("error running provider and feature registration Step, %v", err)
+		}
+		return nil, nil
 	case *types.ARMStep:
 		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if a == nil {
