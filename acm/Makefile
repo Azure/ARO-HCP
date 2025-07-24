@@ -47,10 +47,11 @@ helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@podman save -o ${MCE_OPERATOR_BUNDLE_FILE} ${MCE_OPERATOR_BUNDLE_IMAGE}
 	rm -rf ${MCE_CHART_DIR}
-	go run ../tooling/mcerepkg/main.go \
-		-b ${MCE_OPERATOR_BUNDLE_FILE} \
+	go run ../tooling/olm-bundle-repkg/main.go \
+		-c olm-bundle-repkg-config.yaml \
+		-b oci://${MCE_OPERATOR_BUNDLE_FILE} \
 		-o ${HELM_BASE_DIR} -s scaffold \
-		-l oci://${MCE_OPERATOR_BUNDLE_IMAGE}
+		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
 	@echo "Cloning remote mce-install-kube repository..."

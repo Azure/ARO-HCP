@@ -39,9 +39,9 @@ import (
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 
-	registry "github.com/Azure/ARO-HCP/tooling/mcerepkg/internal/rukpak/operator-registry"
+	registry "github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/rukpak/operator-registry"
 
-	"github.com/Azure/ARO-HCP/tooling/mcerepkg/internal/rukpak/util"
+	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/rukpak/util"
 )
 
 type RegistryV1 struct {
