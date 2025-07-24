@@ -523,6 +523,8 @@ defaults:
     softDelete: false
     private: false
     assignNSP: true
+    tagKey: aroHCPPurpose
+    tagValue: service
   # Management Cluster KV
   cxKeyVault:
     name: "ah-{{ .ctx.environment }}-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
@@ -656,8 +658,6 @@ clouds:
         rg: 'global'
         region: 'westus3'
         softDelete: true
-        tagKey: aroHCPPurpose
-        tagValue: service
       # MSI Credentials Refresher
       msiCredentialsRefresher:
         certificate:
