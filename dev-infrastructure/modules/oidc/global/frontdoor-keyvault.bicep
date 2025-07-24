@@ -14,7 +14,6 @@ module keyVault '../../keyvault/keyvault.bicep' = {
     location: resourceGroup().location
     enableSoftDelete: false
     private: false
-    purpose: 'Azure Front Door Key Vault'
   }
 }
 

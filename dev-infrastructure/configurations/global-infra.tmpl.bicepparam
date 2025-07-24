@@ -10,6 +10,8 @@ param safeDnsIntAppObjectId = '{{ .global.safeDnsIntAppObjectId }}'
 param keyVaultName = '{{ .global.keyVault.name}}'
 param keyVaultPrivate = {{ .global.keyVault.private }}
 param keyVaultSoftDelete = {{ .global.keyVault.softDelete }}
+param keyVaultTagKey = '{{ .global.keyVault.tagKey }}'
+param keyVaultTagValue = '{{ .global.keyVault.tagValue }}'
 
 param grafanaName = '{{ .monitoring.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
@@ -23,6 +25,6 @@ param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'
 param oidcSubdomain = '{{ .oidc.frontdoor.subdomain }}'
 param azureFrontDoorProfileName = '{{ .oidc.frontdoor.name }}'
 param azureFrontDoorSkuName = '{{ .oidc.frontdoor.sku }}'
-param azureFrontDoorkeyVaultName = '{{ .oidc.frontdoor.keyVaultName }}'
+param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
 param keyVaultAdminPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
 param oidcMsiName = '{{ .oidc.frontdoor.msiName }}'

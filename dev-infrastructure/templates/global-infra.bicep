@@ -15,6 +15,12 @@ param keyVaultPrivate bool
 @description('Defines if the keyvault should have soft delete enabled')
 param keyVaultSoftDelete bool
 
+@description('Tag key for the keyvault')
+param keyVaultTagKey string
+
+@description('Tag value for the keyvault')
+param keyVaultTagValue string
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -48,7 +54,7 @@ param globalNSPAccessMode string
 
 param oidcSubdomain string
 param azureFrontDoorProfileName string
-param azureFrontDoorkeyVaultName string
+param azureFrontDoorKeyVaultName string
 param azureFrontDoorSkuName string
 param keyVaultAdminPrincipalId string
 param oidcMsiName string
@@ -71,7 +77,8 @@ module globalKV '../modules/keyvault/keyvault.bicep' = {
     keyVaultName: keyVaultName
     private: keyVaultPrivate
     enableSoftDelete: keyVaultSoftDelete
-    purpose: 'imagesync'
+    tagKey: keyVaultTagKey
+    tagValue: keyVaultTagValue
   }
 }
 
@@ -194,7 +201,7 @@ module grafana '../modules/grafana/instance.bicep' = {
   }
 }
 
-// 
+//
 //   N E T W O R K    S E C U R I T Y    P E R I M E T E R
 //
 
@@ -237,7 +244,7 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = {
     frontDoorSkuName: azureFrontDoorSkuName
     securityPolicyName: azureFrontDoorProfileName
     wafPolicyName: azureFrontDoorProfileName
-    keyVaultName: azureFrontDoorkeyVaultName
+    keyVaultName: azureFrontDoorKeyVaultName
     keyVaultAdminSPObjId: keyVaultAdminPrincipalId
     oidcMsiName: oidcMsiName
   }
