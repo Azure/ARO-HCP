@@ -4,7 +4,7 @@
 deploy:
 	kubectl create namespace mds --dry-run=client -o json | kubectl apply -f - && \
 	# ${HELM_CMD} arobit \
-	helm template arobit
+	helm template arobit \
 		deploy/ \
 		--namespace mds \
 		--set forwarder.fluentbit.image.registry=${AROBIT_FORWARDER_REGISTRY} \

@@ -130,7 +130,7 @@ defaults:
         secretName: rplogs
         accountName: placeholder
         namespace: ""
-        san: ""
+        san: "foo"
         configVersion: "1"
   kusto:
     resourceGroup: ""
