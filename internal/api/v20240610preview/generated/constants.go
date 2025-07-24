@@ -8,7 +8,7 @@
 package generated
 
 const (
-	moduleName    = "does_not_matter"
+	moduleName = "does_not_matter"
 	moduleVersion = "v0.0.1"
 )
 
@@ -21,7 +21,7 @@ const (
 
 // PossibleActionTypeValues returns the possible values for the ActionType const type.
 func PossibleActionTypeValues() []ActionType {
-	return []ActionType{
+	return []ActionType{	
 		ActionTypeInternal,
 	}
 }
@@ -34,12 +34,12 @@ type ClusterImageRegistryProfileState string
 
 const (
 	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
-	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+	ClusterImageRegistryProfileStateEnabled ClusterImageRegistryProfileState = "Enabled"
 )
 
 // PossibleClusterImageRegistryProfileStateValues returns the possible values for the ClusterImageRegistryProfileState const type.
 func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProfileState {
-	return []ClusterImageRegistryProfileState{
+	return []ClusterImageRegistryProfileState{	
 		ClusterImageRegistryProfileStateDisabled,
 		ClusterImageRegistryProfileStateEnabled,
 	}
@@ -49,15 +49,15 @@ func PossibleClusterImageRegistryProfileStateValues() []ClusterImageRegistryProf
 type CreatedByType string
 
 const (
-	CreatedByTypeApplication     CreatedByType = "Application"
-	CreatedByTypeKey             CreatedByType = "Key"
+	CreatedByTypeApplication CreatedByType = "Application"
+	CreatedByTypeKey CreatedByType = "Key"
 	CreatedByTypeManagedIdentity CreatedByType = "ManagedIdentity"
-	CreatedByTypeUser            CreatedByType = "User"
+	CreatedByTypeUser CreatedByType = "User"
 )
 
 // PossibleCreatedByTypeValues returns the possible values for the CreatedByType const type.
 func PossibleCreatedByTypeValues() []CreatedByType {
-	return []CreatedByType{
+	return []CreatedByType{	
 		CreatedByTypeApplication,
 		CreatedByTypeKey,
 		CreatedByTypeManagedIdentity,
@@ -75,7 +75,7 @@ const (
 
 // PossibleCustomerManagedEncryptionTypeValues returns the possible values for the CustomerManagedEncryptionType const type.
 func PossibleCustomerManagedEncryptionTypeValues() []CustomerManagedEncryptionType {
-	return []CustomerManagedEncryptionType{
+	return []CustomerManagedEncryptionType{	
 		CustomerManagedEncryptionTypeKms,
 	}
 }
@@ -95,7 +95,7 @@ const (
 
 // PossibleDiskStorageAccountTypeValues returns the possible values for the DiskStorageAccountType const type.
 func PossibleDiskStorageAccountTypeValues() []DiskStorageAccountType {
-	return []DiskStorageAccountType{
+	return []DiskStorageAccountType{	
 		DiskStorageAccountTypePremiumLRS,
 		DiskStorageAccountTypeStandardLRS,
 		DiskStorageAccountTypeStandardSSDLRS,
@@ -116,7 +116,7 @@ const (
 
 // PossibleEffectValues returns the possible values for the Effect const type.
 func PossibleEffectValues() []Effect {
-	return []Effect{
+	return []Effect{	
 		EffectNoExecute,
 		EffectNoSchedule,
 		EffectPreferNoSchedule,
@@ -136,7 +136,7 @@ const (
 
 // PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.
 func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptionKeyManagementModeType {
-	return []EtcdDataEncryptionKeyManagementModeType{
+	return []EtcdDataEncryptionKeyManagementModeType{	
 		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	}
@@ -147,17 +147,17 @@ type ExternalAuthClientType string
 
 const (
 	// ExternalAuthClientTypeConfidential - Indicates that the client is confidential.
-	// Confidential clients must provide a client secret.
-	// The secret should be provided within the cluster itself.
+// Confidential clients must provide a client secret.
+// The secret should be provided within the cluster itself.
 	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
 	// ExternalAuthClientTypePublic - Indicates that the client is public.
-	// Public clients must not provide a client secret.
+// Public clients must not provide a client secret.
 	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
 )
 
 // PossibleExternalAuthClientTypeValues returns the possible values for the ExternalAuthClientType const type.
 func PossibleExternalAuthClientTypeValues() []ExternalAuthClientType {
-	return []ExternalAuthClientType{
+	return []ExternalAuthClientType{	
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,
 	}
@@ -177,7 +177,7 @@ const (
 
 // PossibleExternalAuthConditionTypeValues returns the possible values for the ExternalAuthConditionType const type.
 func PossibleExternalAuthConditionTypeValues() []ExternalAuthConditionType {
-	return []ExternalAuthConditionType{
+	return []ExternalAuthConditionType{	
 		ExternalAuthConditionTypeAvailable,
 		ExternalAuthConditionTypeDegraded,
 		ExternalAuthConditionTypeProgressing,
@@ -208,7 +208,7 @@ const (
 
 // PossibleExternalAuthProvisioningStateValues returns the possible values for the ExternalAuthProvisioningState const type.
 func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningState {
-	return []ExternalAuthProvisioningState{
+	return []ExternalAuthProvisioningState{	
 		ExternalAuthProvisioningStateAccepted,
 		ExternalAuthProvisioningStateAwaitingSecret,
 		ExternalAuthProvisioningStateCanceled,
@@ -224,15 +224,15 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 type ManagedServiceIdentityType string
 
 const (
-	ManagedServiceIdentityTypeNone                       ManagedServiceIdentityType = "None"
-	ManagedServiceIdentityTypeSystemAssigned             ManagedServiceIdentityType = "SystemAssigned"
+	ManagedServiceIdentityTypeNone ManagedServiceIdentityType = "None"
+	ManagedServiceIdentityTypeSystemAssigned ManagedServiceIdentityType = "SystemAssigned"
 	ManagedServiceIdentityTypeSystemAssignedUserAssigned ManagedServiceIdentityType = "SystemAssigned,UserAssigned"
-	ManagedServiceIdentityTypeUserAssigned               ManagedServiceIdentityType = "UserAssigned"
+	ManagedServiceIdentityTypeUserAssigned ManagedServiceIdentityType = "UserAssigned"
 )
 
 // PossibleManagedServiceIdentityTypeValues returns the possible values for the ManagedServiceIdentityType const type.
 func PossibleManagedServiceIdentityTypeValues() []ManagedServiceIdentityType {
-	return []ManagedServiceIdentityType{
+	return []ManagedServiceIdentityType{	
 		ManagedServiceIdentityTypeNone,
 		ManagedServiceIdentityTypeSystemAssigned,
 		ManagedServiceIdentityTypeSystemAssignedUserAssigned,
@@ -252,7 +252,7 @@ const (
 
 // PossibleNetworkTypeValues returns the possible values for the NetworkType const type.
 func PossibleNetworkTypeValues() []NetworkType {
-	return []NetworkType{
+	return []NetworkType{	
 		NetworkTypeOVNKubernetes,
 		NetworkTypeOther,
 	}
@@ -265,13 +265,13 @@ const (
 	// OperatorIdentityRequiredAlways - Indicates the identity is always required.
 	OperatorIdentityRequiredAlways OperatorIdentityRequired = "Always"
 	// OperatorIdentityRequiredOnEnablement - Indicates the identity is only required when a functionality that leverages the
-	// operator is enabled.
+// operator is enabled.
 	OperatorIdentityRequiredOnEnablement OperatorIdentityRequired = "OnEnablement"
 )
 
 // PossibleOperatorIdentityRequiredValues returns the possible values for the OperatorIdentityRequired const type.
 func PossibleOperatorIdentityRequiredValues() []OperatorIdentityRequired {
-	return []OperatorIdentityRequired{
+	return []OperatorIdentityRequired{	
 		OperatorIdentityRequiredAlways,
 		OperatorIdentityRequiredOnEnablement,
 	}
@@ -282,14 +282,14 @@ func PossibleOperatorIdentityRequiredValues() []OperatorIdentityRequired {
 type Origin string
 
 const (
-	OriginSystem     Origin = "system"
-	OriginUser       Origin = "user"
+	OriginSystem Origin = "system"
+	OriginUser Origin = "user"
 	OriginUserSystem Origin = "user,system"
 )
 
 // PossibleOriginValues returns the possible values for the Origin const type.
 func PossibleOriginValues() []Origin {
-	return []Origin{
+	return []Origin{	
 		OriginSystem,
 		OriginUser,
 		OriginUserSystem,
@@ -306,7 +306,7 @@ const (
 
 // PossibleOutboundTypeValues returns the possible values for the OutboundType const type.
 func PossibleOutboundTypeValues() []OutboundType {
-	return []OutboundType{
+	return []OutboundType{	
 		OutboundTypeLoadBalancer,
 	}
 }
@@ -333,7 +333,7 @@ const (
 
 // PossibleProvisioningStateValues returns the possible values for the ProvisioningState const type.
 func PossibleProvisioningStateValues() []ProvisioningState {
-	return []ProvisioningState{
+	return []ProvisioningState{	
 		ProvisioningStateAccepted,
 		ProvisioningStateCanceled,
 		ProvisioningStateDeleting,
@@ -358,7 +358,7 @@ const (
 
 // PossibleStatusTypeValues returns the possible values for the StatusType const type.
 func PossibleStatusTypeValues() []StatusType {
-	return []StatusType{
+	return []StatusType{	
 		StatusTypeFalse,
 		StatusTypeTrue,
 		StatusTypeUnknown,
@@ -370,14 +370,14 @@ type TokenValidationRuleType string
 
 const (
 	// TokenValidationRuleTypeRequiredClaim - Indicates that a Required Claim validation rule.
-	// When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
-	// contains the required claim and that its value matches the required value.
+// When set to 'RequiredClaim', the Kubernetes API server will be configured to validate that the incoming JWT
+// contains the required claim and that its value matches the required value.
 	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
 )
 
 // PossibleTokenValidationRuleTypeValues returns the possible values for the TokenValidationRuleType const type.
 func PossibleTokenValidationRuleTypeValues() []TokenValidationRuleType {
-	return []TokenValidationRuleType{
+	return []TokenValidationRuleType{	
 		TokenValidationRuleTypeRequiredClaim,
 	}
 }
@@ -394,8 +394,9 @@ const (
 
 // PossibleVisibilityValues returns the possible values for the Visibility const type.
 func PossibleVisibilityValues() []Visibility {
-	return []Visibility{
+	return []Visibility{	
 		VisibilityPrivate,
 		VisibilityPublic,
 	}
 }
+

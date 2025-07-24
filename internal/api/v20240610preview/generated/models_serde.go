@@ -10,9 +10,8 @@ package generated
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"reflect"
 )
 
 // MarshalJSON implements the json.Marshaller interface for type APIProfile.
@@ -34,13 +33,13 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "authorizedCidrs":
-			err = unpopulate(val, "AuthorizedCidrs", &a.AuthorizedCidrs)
+				err = unpopulate(val, "AuthorizedCidrs", &a.AuthorizedCidrs)
 			delete(rawMsg, key)
 		case "url":
-			err = unpopulate(val, "URL", &a.URL)
+				err = unpopulate(val, "URL", &a.URL)
 			delete(rawMsg, key)
 		case "visibility":
-			err = unpopulate(val, "Visibility", &a.Visibility)
+				err = unpopulate(val, "Visibility", &a.Visibility)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", a, key)
@@ -70,10 +69,10 @@ func (a *AzureResourceManagerCommonTypesManagedServiceIdentityUpdate) UnmarshalJ
 		var err error
 		switch key {
 		case "type":
-			err = unpopulate(val, "Type", &a.Type)
+				err = unpopulate(val, "Type", &a.Type)
 			delete(rawMsg, key)
 		case "userAssignedIdentities":
-			err = unpopulate(val, "UserAssignedIdentities", &a.UserAssignedIdentities)
+				err = unpopulate(val, "UserAssignedIdentities", &a.UserAssignedIdentities)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", a, key)
@@ -106,19 +105,19 @@ func (a *AzureResourceManagerCommonTypesTrackedResourceUpdate) UnmarshalJSON(dat
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &a.ID)
+				err = unpopulate(val, "ID", &a.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &a.Name)
+				err = unpopulate(val, "Name", &a.Name)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &a.SystemData)
+				err = unpopulate(val, "SystemData", &a.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &a.Tags)
+				err = unpopulate(val, "Tags", &a.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &a.Type)
+				err = unpopulate(val, "Type", &a.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", a, key)
@@ -150,16 +149,16 @@ func (c *ClusterAutoscalingProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "maxNodeProvisionTimeSeconds":
-			err = unpopulate(val, "MaxNodeProvisionTimeSeconds", &c.MaxNodeProvisionTimeSeconds)
+				err = unpopulate(val, "MaxNodeProvisionTimeSeconds", &c.MaxNodeProvisionTimeSeconds)
 			delete(rawMsg, key)
 		case "maxNodesTotal":
-			err = unpopulate(val, "MaxNodesTotal", &c.MaxNodesTotal)
+				err = unpopulate(val, "MaxNodesTotal", &c.MaxNodesTotal)
 			delete(rawMsg, key)
 		case "maxPodGracePeriodSeconds":
-			err = unpopulate(val, "MaxPodGracePeriodSeconds", &c.MaxPodGracePeriodSeconds)
+				err = unpopulate(val, "MaxPodGracePeriodSeconds", &c.MaxPodGracePeriodSeconds)
 			delete(rawMsg, key)
 		case "podPriorityThreshold":
-			err = unpopulate(val, "PodPriorityThreshold", &c.PodPriorityThreshold)
+				err = unpopulate(val, "PodPriorityThreshold", &c.PodPriorityThreshold)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
@@ -188,7 +187,7 @@ func (c *ClusterImageRegistryProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "state":
-			err = unpopulate(val, "State", &c.State)
+				err = unpopulate(val, "State", &c.State)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
@@ -217,7 +216,7 @@ func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "url":
-			err = unpopulate(val, "URL", &c.URL)
+				err = unpopulate(val, "URL", &c.URL)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
@@ -247,10 +246,10 @@ func (c *CustomerManagedEncryptionProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "encryptionType":
-			err = unpopulate(val, "EncryptionType", &c.EncryptionType)
+				err = unpopulate(val, "EncryptionType", &c.EncryptionType)
 			delete(rawMsg, key)
 		case "kms":
-			err = unpopulate(val, "Kms", &c.Kms)
+				err = unpopulate(val, "Kms", &c.Kms)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
@@ -280,10 +279,10 @@ func (d *DNSProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "baseDomain":
-			err = unpopulate(val, "BaseDomain", &d.BaseDomain)
+				err = unpopulate(val, "BaseDomain", &d.BaseDomain)
 			delete(rawMsg, key)
 		case "baseDomainPrefix":
-			err = unpopulate(val, "BaseDomainPrefix", &d.BaseDomainPrefix)
+				err = unpopulate(val, "BaseDomainPrefix", &d.BaseDomainPrefix)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", d, key)
@@ -313,10 +312,10 @@ func (e *ErrorAdditionalInfo) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "info":
-			err = unpopulate(val, "Info", &e.Info)
+				err = unpopulate(val, "Info", &e.Info)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &e.Type)
+				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -349,19 +348,19 @@ func (e *ErrorDetail) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "additionalInfo":
-			err = unpopulate(val, "AdditionalInfo", &e.AdditionalInfo)
+				err = unpopulate(val, "AdditionalInfo", &e.AdditionalInfo)
 			delete(rawMsg, key)
 		case "code":
-			err = unpopulate(val, "Code", &e.Code)
+				err = unpopulate(val, "Code", &e.Code)
 			delete(rawMsg, key)
 		case "details":
-			err = unpopulate(val, "Details", &e.Details)
+				err = unpopulate(val, "Details", &e.Details)
 			delete(rawMsg, key)
 		case "message":
-			err = unpopulate(val, "Message", &e.Message)
+				err = unpopulate(val, "Message", &e.Message)
 			delete(rawMsg, key)
 		case "target":
-			err = unpopulate(val, "Target", &e.Target)
+				err = unpopulate(val, "Target", &e.Target)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -390,7 +389,7 @@ func (e *ErrorResponse) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "error":
-			err = unpopulate(val, "Error", &e.Error)
+				err = unpopulate(val, "Error", &e.Error)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -420,10 +419,10 @@ func (e *EtcdDataEncryptionProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "customerManaged":
-			err = unpopulate(val, "CustomerManaged", &e.CustomerManaged)
+				err = unpopulate(val, "CustomerManaged", &e.CustomerManaged)
 			delete(rawMsg, key)
 		case "keyManagementMode":
-			err = unpopulate(val, "KeyManagementMode", &e.KeyManagementMode)
+				err = unpopulate(val, "KeyManagementMode", &e.KeyManagementMode)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -452,7 +451,7 @@ func (e *EtcdProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "dataEncryption":
-			err = unpopulate(val, "DataEncryption", &e.DataEncryption)
+				err = unpopulate(val, "DataEncryption", &e.DataEncryption)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -485,19 +484,19 @@ func (e *ExternalAuth) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &e.ID)
+				err = unpopulate(val, "ID", &e.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &e.Name)
+				err = unpopulate(val, "Name", &e.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &e.Properties)
+				err = unpopulate(val, "Properties", &e.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &e.SystemData)
+				err = unpopulate(val, "SystemData", &e.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &e.Type)
+				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -527,10 +526,10 @@ func (e *ExternalAuthClaimProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "mappings":
-			err = unpopulate(val, "Mappings", &e.Mappings)
+				err = unpopulate(val, "Mappings", &e.Mappings)
 			delete(rawMsg, key)
 		case "validationRules":
-			err = unpopulate(val, "ValidationRules", &e.ValidationRules)
+				err = unpopulate(val, "ValidationRules", &e.ValidationRules)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -560,10 +559,10 @@ func (e *ExternalAuthClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "mappings":
-			err = unpopulate(val, "Mappings", &e.Mappings)
+				err = unpopulate(val, "Mappings", &e.Mappings)
 			delete(rawMsg, key)
 		case "validationRules":
-			err = unpopulate(val, "ValidationRules", &e.ValidationRules)
+				err = unpopulate(val, "ValidationRules", &e.ValidationRules)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -593,10 +592,10 @@ func (e *ExternalAuthClientComponentProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "authClientNamespace":
-			err = unpopulate(val, "AuthClientNamespace", &e.AuthClientNamespace)
+				err = unpopulate(val, "AuthClientNamespace", &e.AuthClientNamespace)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &e.Name)
+				err = unpopulate(val, "Name", &e.Name)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -628,16 +627,16 @@ func (e *ExternalAuthClientProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "clientId":
-			err = unpopulate(val, "ClientID", &e.ClientID)
+				err = unpopulate(val, "ClientID", &e.ClientID)
 			delete(rawMsg, key)
 		case "component":
-			err = unpopulate(val, "Component", &e.Component)
+				err = unpopulate(val, "Component", &e.Component)
 			delete(rawMsg, key)
 		case "extraScopes":
-			err = unpopulate(val, "ExtraScopes", &e.ExtraScopes)
+				err = unpopulate(val, "ExtraScopes", &e.ExtraScopes)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &e.Type)
+				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -670,19 +669,19 @@ func (e *ExternalAuthCondition) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "lastTransitionTime":
-			err = unpopulateDateTimeRFC3339(val, "LastTransitionTime", &e.LastTransitionTime)
+				err = unpopulateDateTimeRFC3339(val, "LastTransitionTime", &e.LastTransitionTime)
 			delete(rawMsg, key)
 		case "message":
-			err = unpopulate(val, "Message", &e.Message)
+				err = unpopulate(val, "Message", &e.Message)
 			delete(rawMsg, key)
 		case "reason":
-			err = unpopulate(val, "Reason", &e.Reason)
+				err = unpopulate(val, "Reason", &e.Reason)
 			delete(rawMsg, key)
 		case "status":
-			err = unpopulate(val, "Status", &e.Status)
+				err = unpopulate(val, "Status", &e.Status)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &e.Type)
+				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -712,10 +711,10 @@ func (e *ExternalAuthListResult) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &e.NextLink)
+				err = unpopulate(val, "NextLink", &e.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &e.Value)
+				err = unpopulate(val, "Value", &e.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -748,19 +747,19 @@ func (e *ExternalAuthProperties) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &e.Claim)
+				err = unpopulate(val, "Claim", &e.Claim)
 			delete(rawMsg, key)
 		case "clients":
-			err = unpopulate(val, "Clients", &e.Clients)
+				err = unpopulate(val, "Clients", &e.Clients)
 			delete(rawMsg, key)
 		case "condition":
-			err = unpopulate(val, "Condition", &e.Condition)
+				err = unpopulate(val, "Condition", &e.Condition)
 			delete(rawMsg, key)
 		case "issuer":
-			err = unpopulate(val, "Issuer", &e.Issuer)
+				err = unpopulate(val, "Issuer", &e.Issuer)
 			delete(rawMsg, key)
 		case "provisioningState":
-			err = unpopulate(val, "ProvisioningState", &e.ProvisioningState)
+				err = unpopulate(val, "ProvisioningState", &e.ProvisioningState)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -791,13 +790,13 @@ func (e *ExternalAuthPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &e.Claim)
+				err = unpopulate(val, "Claim", &e.Claim)
 			delete(rawMsg, key)
 		case "clients":
-			err = unpopulate(val, "Clients", &e.Clients)
+				err = unpopulate(val, "Clients", &e.Clients)
 			delete(rawMsg, key)
 		case "issuer":
-			err = unpopulate(val, "Issuer", &e.Issuer)
+				err = unpopulate(val, "Issuer", &e.Issuer)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -830,19 +829,19 @@ func (e *ExternalAuthUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &e.ID)
+				err = unpopulate(val, "ID", &e.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &e.Name)
+				err = unpopulate(val, "Name", &e.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &e.Properties)
+				err = unpopulate(val, "Properties", &e.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &e.SystemData)
+				err = unpopulate(val, "SystemData", &e.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &e.Type)
+				err = unpopulate(val, "Type", &e.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", e, key)
@@ -872,10 +871,10 @@ func (g *GroupClaimProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &g.Claim)
+				err = unpopulate(val, "Claim", &g.Claim)
 			delete(rawMsg, key)
 		case "prefix":
-			err = unpopulate(val, "Prefix", &g.Prefix)
+				err = unpopulate(val, "Prefix", &g.Prefix)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", g, key)
@@ -905,10 +904,10 @@ func (g *GroupClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &g.Claim)
+				err = unpopulate(val, "Claim", &g.Claim)
 			delete(rawMsg, key)
 		case "prefix":
-			err = unpopulate(val, "Prefix", &g.Prefix)
+				err = unpopulate(val, "Prefix", &g.Prefix)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", g, key)
@@ -944,28 +943,28 @@ func (h *HcpOpenShiftCluster) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &h.ID)
+				err = unpopulate(val, "ID", &h.ID)
 			delete(rawMsg, key)
 		case "identity":
-			err = unpopulate(val, "Identity", &h.Identity)
+				err = unpopulate(val, "Identity", &h.Identity)
 			delete(rawMsg, key)
 		case "location":
-			err = unpopulate(val, "Location", &h.Location)
+				err = unpopulate(val, "Location", &h.Location)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &h.Name)
+				err = unpopulate(val, "Name", &h.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &h.Properties)
+				err = unpopulate(val, "Properties", &h.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &h.SystemData)
+				err = unpopulate(val, "SystemData", &h.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &h.Tags)
+				err = unpopulate(val, "Tags", &h.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &h.Type)
+				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -995,10 +994,10 @@ func (h *HcpOpenShiftClusterAdminCredential) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "expirationTimestamp":
-			err = unpopulateDateTimeRFC3339(val, "ExpirationTimestamp", &h.ExpirationTimestamp)
+				err = unpopulateDateTimeRFC3339(val, "ExpirationTimestamp", &h.ExpirationTimestamp)
 			delete(rawMsg, key)
 		case "kubeconfig":
-			err = unpopulate(val, "Kubeconfig", &h.Kubeconfig)
+				err = unpopulate(val, "Kubeconfig", &h.Kubeconfig)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1028,10 +1027,10 @@ func (h *HcpOpenShiftClusterListResult) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &h.NextLink)
+				err = unpopulate(val, "NextLink", &h.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &h.Value)
+				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1070,37 +1069,37 @@ func (h *HcpOpenShiftClusterProperties) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "api":
-			err = unpopulate(val, "API", &h.API)
+				err = unpopulate(val, "API", &h.API)
 			delete(rawMsg, key)
 		case "autoscaling":
-			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
+				err = unpopulate(val, "Autoscaling", &h.Autoscaling)
 			delete(rawMsg, key)
 		case "clusterImageRegistry":
-			err = unpopulate(val, "ClusterImageRegistry", &h.ClusterImageRegistry)
+				err = unpopulate(val, "ClusterImageRegistry", &h.ClusterImageRegistry)
 			delete(rawMsg, key)
 		case "console":
-			err = unpopulate(val, "Console", &h.Console)
+				err = unpopulate(val, "Console", &h.Console)
 			delete(rawMsg, key)
 		case "dns":
-			err = unpopulate(val, "DNS", &h.DNS)
+				err = unpopulate(val, "DNS", &h.DNS)
 			delete(rawMsg, key)
 		case "etcd":
-			err = unpopulate(val, "Etcd", &h.Etcd)
+				err = unpopulate(val, "Etcd", &h.Etcd)
 			delete(rawMsg, key)
 		case "network":
-			err = unpopulate(val, "Network", &h.Network)
+				err = unpopulate(val, "Network", &h.Network)
 			delete(rawMsg, key)
 		case "nodeDrainTimeoutMinutes":
-			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
+				err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
-			err = unpopulate(val, "Platform", &h.Platform)
+				err = unpopulate(val, "Platform", &h.Platform)
 			delete(rawMsg, key)
 		case "provisioningState":
-			err = unpopulate(val, "ProvisioningState", &h.ProvisioningState)
+				err = unpopulate(val, "ProvisioningState", &h.ProvisioningState)
 			delete(rawMsg, key)
 		case "version":
-			err = unpopulate(val, "Version", &h.Version)
+				err = unpopulate(val, "Version", &h.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1132,16 +1131,16 @@ func (h *HcpOpenShiftClusterPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "autoscaling":
-			err = unpopulate(val, "Autoscaling", &h.Autoscaling)
+				err = unpopulate(val, "Autoscaling", &h.Autoscaling)
 			delete(rawMsg, key)
 		case "nodeDrainTimeoutMinutes":
-			err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
+				err = unpopulate(val, "NodeDrainTimeoutMinutes", &h.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
-			err = unpopulate(val, "Platform", &h.Platform)
+				err = unpopulate(val, "Platform", &h.Platform)
 			delete(rawMsg, key)
 		case "version":
-			err = unpopulate(val, "Version", &h.Version)
+				err = unpopulate(val, "Version", &h.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1176,25 +1175,25 @@ func (h *HcpOpenShiftClusterUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &h.ID)
+				err = unpopulate(val, "ID", &h.ID)
 			delete(rawMsg, key)
 		case "identity":
-			err = unpopulate(val, "Identity", &h.Identity)
+				err = unpopulate(val, "Identity", &h.Identity)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &h.Name)
+				err = unpopulate(val, "Name", &h.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &h.Properties)
+				err = unpopulate(val, "Properties", &h.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &h.SystemData)
+				err = unpopulate(val, "SystemData", &h.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &h.Tags)
+				err = unpopulate(val, "Tags", &h.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &h.Type)
+				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1227,19 +1226,19 @@ func (h *HcpOpenShiftVersion) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &h.ID)
+				err = unpopulate(val, "ID", &h.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &h.Name)
+				err = unpopulate(val, "Name", &h.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &h.Properties)
+				err = unpopulate(val, "Properties", &h.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &h.SystemData)
+				err = unpopulate(val, "SystemData", &h.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &h.Type)
+				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1269,10 +1268,10 @@ func (h *HcpOpenShiftVersionListResult) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &h.NextLink)
+				err = unpopulate(val, "NextLink", &h.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &h.Value)
+				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1303,13 +1302,13 @@ func (h *HcpOpenShiftVersionProperties) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "channelGroup":
-			err = unpopulate(val, "ChannelGroup", &h.ChannelGroup)
+				err = unpopulate(val, "ChannelGroup", &h.ChannelGroup)
 			delete(rawMsg, key)
 		case "enabled":
-			err = unpopulate(val, "Enabled", &h.Enabled)
+				err = unpopulate(val, "Enabled", &h.Enabled)
 			delete(rawMsg, key)
 		case "endOfLifeTimestamp":
-			err = unpopulateDateTimeRFC3339(val, "EndOfLifeTimestamp", &h.EndOfLifeTimestamp)
+				err = unpopulateDateTimeRFC3339(val, "EndOfLifeTimestamp", &h.EndOfLifeTimestamp)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1342,19 +1341,19 @@ func (h *HcpOperatorIdentityRoleSet) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &h.ID)
+				err = unpopulate(val, "ID", &h.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &h.Name)
+				err = unpopulate(val, "Name", &h.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &h.Properties)
+				err = unpopulate(val, "Properties", &h.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &h.SystemData)
+				err = unpopulate(val, "SystemData", &h.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &h.Type)
+				err = unpopulate(val, "Type", &h.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1384,10 +1383,10 @@ func (h *HcpOperatorIdentityRoleSetListResult) UnmarshalJSON(data []byte) error 
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &h.NextLink)
+				err = unpopulate(val, "NextLink", &h.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &h.Value)
+				err = unpopulate(val, "Value", &h.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1417,10 +1416,10 @@ func (h *HcpOperatorIdentityRoleSetProperties) UnmarshalJSON(data []byte) error 
 		var err error
 		switch key {
 		case "controlPlaneOperators":
-			err = unpopulate(val, "ControlPlaneOperators", &h.ControlPlaneOperators)
+				err = unpopulate(val, "ControlPlaneOperators", &h.ControlPlaneOperators)
 			delete(rawMsg, key)
 		case "dataPlaneOperators":
-			err = unpopulate(val, "DataPlaneOperators", &h.DataPlaneOperators)
+				err = unpopulate(val, "DataPlaneOperators", &h.DataPlaneOperators)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", h, key)
@@ -1449,7 +1448,7 @@ func (k *KmsEncryptionProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "activeKey":
-			err = unpopulate(val, "ActiveKey", &k.ActiveKey)
+				err = unpopulate(val, "ActiveKey", &k.ActiveKey)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
@@ -1480,13 +1479,13 @@ func (k *KmsKey) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "name":
-			err = unpopulate(val, "Name", &k.Name)
+				err = unpopulate(val, "Name", &k.Name)
 			delete(rawMsg, key)
 		case "vaultName":
-			err = unpopulate(val, "VaultName", &k.VaultName)
+				err = unpopulate(val, "VaultName", &k.VaultName)
 			delete(rawMsg, key)
 		case "version":
-			err = unpopulate(val, "Version", &k.Version)
+				err = unpopulate(val, "Version", &k.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", k, key)
@@ -1516,10 +1515,10 @@ func (l *Label) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "key":
-			err = unpopulate(val, "Key", &l.Key)
+				err = unpopulate(val, "Key", &l.Key)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &l.Value)
+				err = unpopulate(val, "Value", &l.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", l, key)
@@ -1551,16 +1550,16 @@ func (m *ManagedServiceIdentity) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "principalId":
-			err = unpopulate(val, "PrincipalID", &m.PrincipalID)
+				err = unpopulate(val, "PrincipalID", &m.PrincipalID)
 			delete(rawMsg, key)
 		case "tenantId":
-			err = unpopulate(val, "TenantID", &m.TenantID)
+				err = unpopulate(val, "TenantID", &m.TenantID)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &m.Type)
+				err = unpopulate(val, "Type", &m.Type)
 			delete(rawMsg, key)
 		case "userAssignedIdentities":
-			err = unpopulate(val, "UserAssignedIdentities", &m.UserAssignedIdentities)
+				err = unpopulate(val, "UserAssignedIdentities", &m.UserAssignedIdentities)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", m, key)
@@ -1593,19 +1592,19 @@ func (n *NetworkProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "hostPrefix":
-			err = unpopulate(val, "HostPrefix", &n.HostPrefix)
+				err = unpopulate(val, "HostPrefix", &n.HostPrefix)
 			delete(rawMsg, key)
 		case "machineCidr":
-			err = unpopulate(val, "MachineCidr", &n.MachineCidr)
+				err = unpopulate(val, "MachineCidr", &n.MachineCidr)
 			delete(rawMsg, key)
 		case "networkType":
-			err = unpopulate(val, "NetworkType", &n.NetworkType)
+				err = unpopulate(val, "NetworkType", &n.NetworkType)
 			delete(rawMsg, key)
 		case "podCidr":
-			err = unpopulate(val, "PodCidr", &n.PodCidr)
+				err = unpopulate(val, "PodCidr", &n.PodCidr)
 			delete(rawMsg, key)
 		case "serviceCidr":
-			err = unpopulate(val, "ServiceCidr", &n.ServiceCidr)
+				err = unpopulate(val, "ServiceCidr", &n.ServiceCidr)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1641,28 +1640,28 @@ func (n *NodePool) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &n.ID)
+				err = unpopulate(val, "ID", &n.ID)
 			delete(rawMsg, key)
 		case "identity":
-			err = unpopulate(val, "Identity", &n.Identity)
+				err = unpopulate(val, "Identity", &n.Identity)
 			delete(rawMsg, key)
 		case "location":
-			err = unpopulate(val, "Location", &n.Location)
+				err = unpopulate(val, "Location", &n.Location)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &n.Name)
+				err = unpopulate(val, "Name", &n.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &n.Properties)
+				err = unpopulate(val, "Properties", &n.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &n.SystemData)
+				err = unpopulate(val, "SystemData", &n.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &n.Tags)
+				err = unpopulate(val, "Tags", &n.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &n.Type)
+				err = unpopulate(val, "Type", &n.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1692,10 +1691,10 @@ func (n *NodePoolAutoScaling) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "max":
-			err = unpopulate(val, "Max", &n.Max)
+				err = unpopulate(val, "Max", &n.Max)
 			delete(rawMsg, key)
 		case "min":
-			err = unpopulate(val, "Min", &n.Min)
+				err = unpopulate(val, "Min", &n.Min)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1725,10 +1724,10 @@ func (n *NodePoolListResult) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &n.NextLink)
+				err = unpopulate(val, "NextLink", &n.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &n.Value)
+				err = unpopulate(val, "Value", &n.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1761,19 +1760,19 @@ func (n *NodePoolPlatformProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "availabilityZone":
-			err = unpopulate(val, "AvailabilityZone", &n.AvailabilityZone)
+				err = unpopulate(val, "AvailabilityZone", &n.AvailabilityZone)
 			delete(rawMsg, key)
 		case "enableEncryptionAtHost":
-			err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
+				err = unpopulate(val, "EnableEncryptionAtHost", &n.EnableEncryptionAtHost)
 			delete(rawMsg, key)
 		case "osDisk":
-			err = unpopulate(val, "OSDisk", &n.OSDisk)
+				err = unpopulate(val, "OSDisk", &n.OSDisk)
 			delete(rawMsg, key)
 		case "subnetId":
-			err = unpopulate(val, "SubnetID", &n.SubnetID)
+				err = unpopulate(val, "SubnetID", &n.SubnetID)
 			delete(rawMsg, key)
 		case "vmSize":
-			err = unpopulate(val, "VMSize", &n.VMSize)
+				err = unpopulate(val, "VMSize", &n.VMSize)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1810,31 +1809,31 @@ func (n *NodePoolProperties) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "autoRepair":
-			err = unpopulate(val, "AutoRepair", &n.AutoRepair)
+				err = unpopulate(val, "AutoRepair", &n.AutoRepair)
 			delete(rawMsg, key)
 		case "autoScaling":
-			err = unpopulate(val, "AutoScaling", &n.AutoScaling)
+				err = unpopulate(val, "AutoScaling", &n.AutoScaling)
 			delete(rawMsg, key)
 		case "labels":
-			err = unpopulate(val, "Labels", &n.Labels)
+				err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
 		case "nodeDrainTimeoutMinutes":
-			err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
+				err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "platform":
-			err = unpopulate(val, "Platform", &n.Platform)
+				err = unpopulate(val, "Platform", &n.Platform)
 			delete(rawMsg, key)
 		case "provisioningState":
-			err = unpopulate(val, "ProvisioningState", &n.ProvisioningState)
+				err = unpopulate(val, "ProvisioningState", &n.ProvisioningState)
 			delete(rawMsg, key)
 		case "replicas":
-			err = unpopulate(val, "Replicas", &n.Replicas)
+				err = unpopulate(val, "Replicas", &n.Replicas)
 			delete(rawMsg, key)
 		case "taints":
-			err = unpopulate(val, "Taints", &n.Taints)
+				err = unpopulate(val, "Taints", &n.Taints)
 			delete(rawMsg, key)
 		case "version":
-			err = unpopulate(val, "Version", &n.Version)
+				err = unpopulate(val, "Version", &n.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1868,22 +1867,22 @@ func (n *NodePoolPropertiesUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "autoScaling":
-			err = unpopulate(val, "AutoScaling", &n.AutoScaling)
+				err = unpopulate(val, "AutoScaling", &n.AutoScaling)
 			delete(rawMsg, key)
 		case "labels":
-			err = unpopulate(val, "Labels", &n.Labels)
+				err = unpopulate(val, "Labels", &n.Labels)
 			delete(rawMsg, key)
 		case "nodeDrainTimeoutMinutes":
-			err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
+				err = unpopulate(val, "NodeDrainTimeoutMinutes", &n.NodeDrainTimeoutMinutes)
 			delete(rawMsg, key)
 		case "replicas":
-			err = unpopulate(val, "Replicas", &n.Replicas)
+				err = unpopulate(val, "Replicas", &n.Replicas)
 			delete(rawMsg, key)
 		case "taints":
-			err = unpopulate(val, "Taints", &n.Taints)
+				err = unpopulate(val, "Taints", &n.Taints)
 			delete(rawMsg, key)
 		case "version":
-			err = unpopulate(val, "Version", &n.Version)
+				err = unpopulate(val, "Version", &n.Version)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1918,25 +1917,25 @@ func (n *NodePoolUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &n.ID)
+				err = unpopulate(val, "ID", &n.ID)
 			delete(rawMsg, key)
 		case "identity":
-			err = unpopulate(val, "Identity", &n.Identity)
+				err = unpopulate(val, "Identity", &n.Identity)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &n.Name)
+				err = unpopulate(val, "Name", &n.Name)
 			delete(rawMsg, key)
 		case "properties":
-			err = unpopulate(val, "Properties", &n.Properties)
+				err = unpopulate(val, "Properties", &n.Properties)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &n.SystemData)
+				err = unpopulate(val, "SystemData", &n.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &n.Tags)
+				err = unpopulate(val, "Tags", &n.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &n.Type)
+				err = unpopulate(val, "Type", &n.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -1966,10 +1965,10 @@ func (n *NodePoolVersionProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "channelGroup":
-			err = unpopulate(val, "ChannelGroup", &n.ChannelGroup)
+				err = unpopulate(val, "ChannelGroup", &n.ChannelGroup)
 			delete(rawMsg, key)
 		case "id":
-			err = unpopulate(val, "ID", &n.ID)
+				err = unpopulate(val, "ID", &n.ID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -2002,19 +2001,19 @@ func (o *Operation) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "actionType":
-			err = unpopulate(val, "ActionType", &o.ActionType)
+				err = unpopulate(val, "ActionType", &o.ActionType)
 			delete(rawMsg, key)
 		case "display":
-			err = unpopulate(val, "Display", &o.Display)
+				err = unpopulate(val, "Display", &o.Display)
 			delete(rawMsg, key)
 		case "isDataAction":
-			err = unpopulate(val, "IsDataAction", &o.IsDataAction)
+				err = unpopulate(val, "IsDataAction", &o.IsDataAction)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &o.Name)
+				err = unpopulate(val, "Name", &o.Name)
 			delete(rawMsg, key)
 		case "origin":
-			err = unpopulate(val, "Origin", &o.Origin)
+				err = unpopulate(val, "Origin", &o.Origin)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2046,16 +2045,16 @@ func (o *OperationDisplay) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "description":
-			err = unpopulate(val, "Description", &o.Description)
+				err = unpopulate(val, "Description", &o.Description)
 			delete(rawMsg, key)
 		case "operation":
-			err = unpopulate(val, "Operation", &o.Operation)
+				err = unpopulate(val, "Operation", &o.Operation)
 			delete(rawMsg, key)
 		case "provider":
-			err = unpopulate(val, "Provider", &o.Provider)
+				err = unpopulate(val, "Provider", &o.Provider)
 			delete(rawMsg, key)
 		case "resource":
-			err = unpopulate(val, "Resource", &o.Resource)
+				err = unpopulate(val, "Resource", &o.Resource)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2085,10 +2084,10 @@ func (o *OperationListResult) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "nextLink":
-			err = unpopulate(val, "NextLink", &o.NextLink)
+				err = unpopulate(val, "NextLink", &o.NextLink)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &o.Value)
+				err = unpopulate(val, "Value", &o.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2119,13 +2118,13 @@ func (o *OperatorIdentityRoles) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "name":
-			err = unpopulate(val, "Name", &o.Name)
+				err = unpopulate(val, "Name", &o.Name)
 			delete(rawMsg, key)
 		case "required":
-			err = unpopulate(val, "Required", &o.Required)
+				err = unpopulate(val, "Required", &o.Required)
 			delete(rawMsg, key)
 		case "roleDefinitions":
-			err = unpopulate(val, "RoleDefinitions", &o.RoleDefinitions)
+				err = unpopulate(val, "RoleDefinitions", &o.RoleDefinitions)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2154,7 +2153,7 @@ func (o *OperatorsAuthenticationProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "userAssignedIdentities":
-			err = unpopulate(val, "UserAssignedIdentities", &o.UserAssignedIdentities)
+				err = unpopulate(val, "UserAssignedIdentities", &o.UserAssignedIdentities)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2183,7 +2182,7 @@ func (o *OperatorsAuthenticationProfileUpdate) UnmarshalJSON(data []byte) error 
 		var err error
 		switch key {
 		case "userAssignedIdentities":
-			err = unpopulate(val, "UserAssignedIdentities", &o.UserAssignedIdentities)
+				err = unpopulate(val, "UserAssignedIdentities", &o.UserAssignedIdentities)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2214,13 +2213,13 @@ func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "diskStorageAccountType":
-			err = unpopulate(val, "DiskStorageAccountType", &o.DiskStorageAccountType)
+				err = unpopulate(val, "DiskStorageAccountType", &o.DiskStorageAccountType)
 			delete(rawMsg, key)
 		case "encryptionSetId":
-			err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)
+				err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)
 			delete(rawMsg, key)
 		case "sizeGiB":
-			err = unpopulate(val, "SizeGiB", &o.SizeGiB)
+				err = unpopulate(val, "SizeGiB", &o.SizeGiB)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", o, key)
@@ -2254,22 +2253,22 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "issuerUrl":
-			err = unpopulate(val, "IssuerURL", &p.IssuerURL)
+				err = unpopulate(val, "IssuerURL", &p.IssuerURL)
 			delete(rawMsg, key)
 		case "managedResourceGroup":
-			err = unpopulate(val, "ManagedResourceGroup", &p.ManagedResourceGroup)
+				err = unpopulate(val, "ManagedResourceGroup", &p.ManagedResourceGroup)
 			delete(rawMsg, key)
 		case "networkSecurityGroupId":
-			err = unpopulate(val, "NetworkSecurityGroupID", &p.NetworkSecurityGroupID)
+				err = unpopulate(val, "NetworkSecurityGroupID", &p.NetworkSecurityGroupID)
 			delete(rawMsg, key)
 		case "operatorsAuthentication":
-			err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
+				err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
 			delete(rawMsg, key)
 		case "outboundType":
-			err = unpopulate(val, "OutboundType", &p.OutboundType)
+				err = unpopulate(val, "OutboundType", &p.OutboundType)
 			delete(rawMsg, key)
 		case "subnetId":
-			err = unpopulate(val, "SubnetID", &p.SubnetID)
+				err = unpopulate(val, "SubnetID", &p.SubnetID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
@@ -2298,7 +2297,7 @@ func (p *PlatformProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "operatorsAuthentication":
-			err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
+				err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
@@ -2330,16 +2329,16 @@ func (p *ProxyResource) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &p.ID)
+				err = unpopulate(val, "ID", &p.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &p.Name)
+				err = unpopulate(val, "Name", &p.Name)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &p.SystemData)
+				err = unpopulate(val, "SystemData", &p.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &p.Type)
+				err = unpopulate(val, "Type", &p.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", p, key)
@@ -2371,16 +2370,16 @@ func (r *Resource) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &r.ID)
+				err = unpopulate(val, "ID", &r.ID)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &r.Name)
+				err = unpopulate(val, "Name", &r.Name)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &r.SystemData)
+				err = unpopulate(val, "SystemData", &r.SystemData)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &r.Type)
+				err = unpopulate(val, "Type", &r.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", r, key)
@@ -2410,10 +2409,10 @@ func (r *RoleDefinition) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "name":
-			err = unpopulate(val, "Name", &r.Name)
+				err = unpopulate(val, "Name", &r.Name)
 			delete(rawMsg, key)
 		case "resourceId":
-			err = unpopulate(val, "ResourceID", &r.ResourceID)
+				err = unpopulate(val, "ResourceID", &r.ResourceID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", r, key)
@@ -2447,22 +2446,22 @@ func (s *SystemData) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "createdAt":
-			err = unpopulateDateTimeRFC3339(val, "CreatedAt", &s.CreatedAt)
+				err = unpopulateDateTimeRFC3339(val, "CreatedAt", &s.CreatedAt)
 			delete(rawMsg, key)
 		case "createdBy":
-			err = unpopulate(val, "CreatedBy", &s.CreatedBy)
+				err = unpopulate(val, "CreatedBy", &s.CreatedBy)
 			delete(rawMsg, key)
 		case "createdByType":
-			err = unpopulate(val, "CreatedByType", &s.CreatedByType)
+				err = unpopulate(val, "CreatedByType", &s.CreatedByType)
 			delete(rawMsg, key)
 		case "lastModifiedAt":
-			err = unpopulateDateTimeRFC3339(val, "LastModifiedAt", &s.LastModifiedAt)
+				err = unpopulateDateTimeRFC3339(val, "LastModifiedAt", &s.LastModifiedAt)
 			delete(rawMsg, key)
 		case "lastModifiedBy":
-			err = unpopulate(val, "LastModifiedBy", &s.LastModifiedBy)
+				err = unpopulate(val, "LastModifiedBy", &s.LastModifiedBy)
 			delete(rawMsg, key)
 		case "lastModifiedByType":
-			err = unpopulate(val, "LastModifiedByType", &s.LastModifiedByType)
+				err = unpopulate(val, "LastModifiedByType", &s.LastModifiedByType)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", s, key)
@@ -2493,13 +2492,13 @@ func (t *Taint) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "effect":
-			err = unpopulate(val, "Effect", &t.Effect)
+				err = unpopulate(val, "Effect", &t.Effect)
 			delete(rawMsg, key)
 		case "key":
-			err = unpopulate(val, "Key", &t.Key)
+				err = unpopulate(val, "Key", &t.Key)
 			delete(rawMsg, key)
 		case "value":
-			err = unpopulate(val, "Value", &t.Value)
+				err = unpopulate(val, "Value", &t.Value)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2529,10 +2528,10 @@ func (t *TokenClaimMappingsProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "groups":
-			err = unpopulate(val, "Groups", &t.Groups)
+				err = unpopulate(val, "Groups", &t.Groups)
 			delete(rawMsg, key)
 		case "username":
-			err = unpopulate(val, "Username", &t.Username)
+				err = unpopulate(val, "Username", &t.Username)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2562,10 +2561,10 @@ func (t *TokenClaimMappingsProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "groups":
-			err = unpopulate(val, "Groups", &t.Groups)
+				err = unpopulate(val, "Groups", &t.Groups)
 			delete(rawMsg, key)
 		case "username":
-			err = unpopulate(val, "Username", &t.Username)
+				err = unpopulate(val, "Username", &t.Username)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2595,10 +2594,10 @@ func (t *TokenClaimValidationRule) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "requiredClaim":
-			err = unpopulate(val, "RequiredClaim", &t.RequiredClaim)
+				err = unpopulate(val, "RequiredClaim", &t.RequiredClaim)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &t.Type)
+				err = unpopulate(val, "Type", &t.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2629,13 +2628,13 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "audiences":
-			err = unpopulate(val, "Audiences", &t.Audiences)
+				err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+				err = unpopulate(val, "Ca", &t.Ca)
 			delete(rawMsg, key)
 		case "url":
-			err = unpopulate(val, "URL", &t.URL)
+				err = unpopulate(val, "URL", &t.URL)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2666,13 +2665,13 @@ func (t *TokenIssuerProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "audiences":
-			err = unpopulate(val, "Audiences", &t.Audiences)
+				err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+				err = unpopulate(val, "Ca", &t.Ca)
 			delete(rawMsg, key)
 		case "url":
-			err = unpopulate(val, "URL", &t.URL)
+				err = unpopulate(val, "URL", &t.URL)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2702,10 +2701,10 @@ func (t *TokenRequiredClaim) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &t.Claim)
+				err = unpopulate(val, "Claim", &t.Claim)
 			delete(rawMsg, key)
 		case "requiredValue":
-			err = unpopulate(val, "RequiredValue", &t.RequiredValue)
+				err = unpopulate(val, "RequiredValue", &t.RequiredValue)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2739,22 +2738,22 @@ func (t *TrackedResource) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "id":
-			err = unpopulate(val, "ID", &t.ID)
+				err = unpopulate(val, "ID", &t.ID)
 			delete(rawMsg, key)
 		case "location":
-			err = unpopulate(val, "Location", &t.Location)
+				err = unpopulate(val, "Location", &t.Location)
 			delete(rawMsg, key)
 		case "name":
-			err = unpopulate(val, "Name", &t.Name)
+				err = unpopulate(val, "Name", &t.Name)
 			delete(rawMsg, key)
 		case "systemData":
-			err = unpopulate(val, "SystemData", &t.SystemData)
+				err = unpopulate(val, "SystemData", &t.SystemData)
 			delete(rawMsg, key)
 		case "tags":
-			err = unpopulate(val, "Tags", &t.Tags)
+				err = unpopulate(val, "Tags", &t.Tags)
 			delete(rawMsg, key)
 		case "type":
-			err = unpopulate(val, "Type", &t.Type)
+				err = unpopulate(val, "Type", &t.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", t, key)
@@ -2785,13 +2784,13 @@ func (u *UserAssignedIdentitiesProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "controlPlaneOperators":
-			err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
+				err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
 			delete(rawMsg, key)
 		case "dataPlaneOperators":
-			err = unpopulate(val, "DataPlaneOperators", &u.DataPlaneOperators)
+				err = unpopulate(val, "DataPlaneOperators", &u.DataPlaneOperators)
 			delete(rawMsg, key)
 		case "serviceManagedIdentity":
-			err = unpopulate(val, "ServiceManagedIdentity", &u.ServiceManagedIdentity)
+				err = unpopulate(val, "ServiceManagedIdentity", &u.ServiceManagedIdentity)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
@@ -2822,13 +2821,13 @@ func (u *UserAssignedIdentitiesProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "controlPlaneOperators":
-			err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
+				err = unpopulate(val, "ControlPlaneOperators", &u.ControlPlaneOperators)
 			delete(rawMsg, key)
 		case "dataPlaneOperators":
-			err = unpopulate(val, "DataPlaneOperators", &u.DataPlaneOperators)
+				err = unpopulate(val, "DataPlaneOperators", &u.DataPlaneOperators)
 			delete(rawMsg, key)
 		case "serviceManagedIdentity":
-			err = unpopulate(val, "ServiceManagedIdentity", &u.ServiceManagedIdentity)
+				err = unpopulate(val, "ServiceManagedIdentity", &u.ServiceManagedIdentity)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
@@ -2858,10 +2857,10 @@ func (u *UserAssignedIdentity) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "clientId":
-			err = unpopulate(val, "ClientID", &u.ClientID)
+				err = unpopulate(val, "ClientID", &u.ClientID)
 			delete(rawMsg, key)
 		case "principalId":
-			err = unpopulate(val, "PrincipalID", &u.PrincipalID)
+				err = unpopulate(val, "PrincipalID", &u.PrincipalID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
@@ -2892,13 +2891,13 @@ func (u *UsernameClaimProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &u.Claim)
+				err = unpopulate(val, "Claim", &u.Claim)
 			delete(rawMsg, key)
 		case "prefix":
-			err = unpopulate(val, "Prefix", &u.Prefix)
+				err = unpopulate(val, "Prefix", &u.Prefix)
 			delete(rawMsg, key)
 		case "prefixPolicy":
-			err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
+				err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
@@ -2929,13 +2928,13 @@ func (u *UsernameClaimProfileUpdate) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "claim":
-			err = unpopulate(val, "Claim", &u.Claim)
+				err = unpopulate(val, "Claim", &u.Claim)
 			delete(rawMsg, key)
 		case "prefix":
-			err = unpopulate(val, "Prefix", &u.Prefix)
+				err = unpopulate(val, "Prefix", &u.Prefix)
 			delete(rawMsg, key)
 		case "prefixPolicy":
-			err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
+				err = unpopulate(val, "PrefixPolicy", &u.PrefixPolicy)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", u, key)
@@ -2965,10 +2964,10 @@ func (v *VersionProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "channelGroup":
-			err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
+				err = unpopulate(val, "ChannelGroup", &v.ChannelGroup)
 			delete(rawMsg, key)
 		case "id":
-			err = unpopulate(val, "ID", &v.ID)
+				err = unpopulate(val, "ID", &v.ID)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", v, key)
@@ -3009,3 +3008,4 @@ func unpopulate(data json.RawMessage, fn string, v any) error {
 	}
 	return nil
 }
+

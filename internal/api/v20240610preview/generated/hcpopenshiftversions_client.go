@@ -10,20 +10,19 @@ package generated
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 // HcpOpenShiftVersionsClient contains the methods for the HcpOpenShiftVersions group.
 // Don't use this type directly, use NewHcpOpenShiftVersionsClient() instead.
 type HcpOpenShiftVersionsClient struct {
-	internal       *arm.Client
+	internal *arm.Client
 	subscriptionID string
 }
 
@@ -38,7 +37,7 @@ func NewHcpOpenShiftVersionsClient(subscriptionID string, credential azcore.Toke
 	}
 	client := &HcpOpenShiftVersionsClient{
 		subscriptionID: subscriptionID,
-		internal:       cl,
+	internal: cl,
 	}
 	return client, nil
 }
@@ -110,7 +109,7 @@ func (client *HcpOpenShiftVersionsClient) getHandleResponse(resp *http.Response)
 //   - location - The name of the Azure region.
 //   - options - HcpOpenShiftVersionsClientListOptions contains the optional parameters for the HcpOpenShiftVersionsClient.NewListPager
 //     method.
-func (client *HcpOpenShiftVersionsClient) NewListPager(location string, options *HcpOpenShiftVersionsClientListOptions) *runtime.Pager[HcpOpenShiftVersionsClientListResponse] {
+func (client *HcpOpenShiftVersionsClient) NewListPager(location string, options *HcpOpenShiftVersionsClientListOptions) (*runtime.Pager[HcpOpenShiftVersionsClientListResponse]) {
 	return runtime.NewPager(runtime.PagingHandler[HcpOpenShiftVersionsClientListResponse]{
 		More: func(page HcpOpenShiftVersionsClientListResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
@@ -127,7 +126,7 @@ func (client *HcpOpenShiftVersionsClient) NewListPager(location string, options 
 				return HcpOpenShiftVersionsClientListResponse{}, err
 			}
 			return client.listHandleResponse(resp)
-		},
+			},
 	})
 }
 
@@ -161,3 +160,4 @@ func (client *HcpOpenShiftVersionsClient) listHandleResponse(resp *http.Response
 	}
 	return result, nil
 }
+
