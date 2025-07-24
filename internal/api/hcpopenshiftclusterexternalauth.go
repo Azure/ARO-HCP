@@ -137,6 +137,30 @@ func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAut
 	return &HCPOpenShiftClusterExternalAuth{}
 }
 
+// validateClientIdInAudiences checks that each ClientId matches an audience in the TokenIssuerProfile.
+func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if len(externalAuth.Properties.Clients) > 0 {
+		audiencesSet := make(map[string]struct{}, len(externalAuth.Properties.Issuer.Audiences))
+		for _, aud := range externalAuth.Properties.Issuer.Audiences {
+			audiencesSet[aud] = struct{}{}
+		}
+
+		for i, client := range externalAuth.Properties.Clients {
+			if _, found := audiencesSet[client.ClientId]; !found {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf("ClientId '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientId, i),
+					Target:  "properties.clients",
+				})
+			}
+		}
+	}
+
+	return errorDetails
+}
+
 // This combination is used later in the system as a unique identifier and as
 // such we must ensure uniqueness.
 func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentifiers() []arm.CloudErrorBody {
