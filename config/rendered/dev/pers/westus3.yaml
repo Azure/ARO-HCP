@@ -89,6 +89,8 @@ cxKeyVault:
   name: ah-pers-cx-usw3test-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: cx
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud
@@ -157,6 +159,8 @@ global:
     name: arohcpdev-global
     private: false
     softDelete: true
+    tagKey: aroHCPPurpose
+    tagValue: global
   nsp:
     accessMode: Learning
     name: nsp-global
@@ -264,8 +268,11 @@ mgmt:
     enableSwiftV2Nodepools: false
     enableSwiftV2Vnet: false
     etcd:
-      kvName: ah-pers-me-usw3test-1
-      kvSoftDelete: false
+      name: ah-pers-me-usw3test-1
+      private: true
+      softDelete: false
+      tagKey: aroHCPPurpose
+      tagValue: etcd-encryption
     infraAgentPool:
       azCount: 1
       maxCount: 3
@@ -352,6 +359,8 @@ mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: mgmt
 miMockCertName: msiMockCert2
 miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
@@ -394,6 +403,8 @@ msiKeyVault:
   name: ah-pers-mi-usw3test-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: msi
 msiRp:
   dataPlaneAudienceResource: https://dummy.org
 oidc:
@@ -435,12 +446,17 @@ serviceKeyVault:
   region: westus3
   rg: global
   softDelete: true
+  tagKey: aroHCPPurpose
+  tagValue: service
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      kvName: ah-pers-se-usw3test-1
-      kvSoftDelete: false
+      name: ah-pers-se-usw3test-1
+      private: true
+      softDelete: false
+      tagKey: aroHCPPurpose
+      tagValue: etcd-encryption
     infraAgentPool:
       azCount: 1
       maxCount: 3

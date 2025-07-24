@@ -61,6 +61,8 @@ defaults:
       name: 'arohcp{{ .ctx.environment }}-global' # [globally-unique]
       private: false
       softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: global
   # ACR
   acr:
     svc:
@@ -225,8 +227,11 @@ defaults:
         osDiskSizeGB: 32
         azCount: {{ .ev2.availabilityZoneCount }}
       etcd:
-        kvName: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
-        kvSoftDelete: true
+        name: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
+        softDelete: true
+        private: true
+        tagKey: aroHCPPurpose
+        tagValue: etcd-encryption
       clusterOutboundIPAddressIPTags: ""
     logs:
       namespace: HCPServiceLogs
@@ -290,8 +295,11 @@ defaults:
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
-        kvName: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-        kvSoftDelete: true
+        name: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+        softDelete: true
+        private: true
+        tagKey: aroHCPPurpose
+        tagValue: etcd-encryption
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
@@ -514,14 +522,20 @@ defaults:
     name: "ah-{{ .ctx.environment }}-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: cx
   msiKeyVault:
     name: "ah-{{ .ctx.environment }}-mi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: msi
   mgmtKeyVault:
     name: "ah-{{ .ctx.environment }}-mg-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: mgmt
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -636,6 +650,8 @@ clouds:
         rg: 'global'
         region: 'westus3'
         softDelete: true
+        tagKey: aroHCPPurpose
+        tagValue: service
       # MSI Credentials Refresher
       msiCredentialsRefresher:
         certificate:
@@ -652,7 +668,7 @@ clouds:
           versions: "asm-1-25"
         aks:
           etcd:
-            kvSoftDelete: false
+            softDelete: false
           infraAgentPool:
             azCount: 1
           systemAgentPool:
@@ -683,7 +699,7 @@ clouds:
           infraAgentPool:
             azCount: 1
           etcd:
-            kvSoftDelete: false
+            softDelete: false
           enableSwiftV2Vnet: false
           enableSwiftV2Nodepools: false
         nsp:

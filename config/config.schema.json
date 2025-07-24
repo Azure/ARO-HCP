@@ -199,13 +199,21 @@
         },
         "softDelete": {
           "type": "boolean"
+        },
+        "tagKey": {
+          "type": "string"
+        },
+        "tagValue": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "private",
-        "softDelete"
+        "softDelete",
+        "tagKey",
+        "tagValue"
       ]
     },
     "aksAgentPool": {
@@ -297,20 +305,7 @@
           ]
         },
         "etcd": {
-          "type": "object",
-          "properties": {
-            "kvName": {
-              "$ref": "#/definitions/keyVaultName"
-            },
-            "kvSoftDelete": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kvName",
-            "kvSoftDelete"
-          ]
+          "$ref": "#/definitions/keyVault"
         },
         "userAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
@@ -1651,6 +1646,12 @@
         },
         "assignNSP": {
           "type": "boolean"
+        },
+        "tagKey": {
+          "type": "string"
+        },
+        "tagValue": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1659,7 +1660,9 @@
         "private",
         "region",
         "rg",
-        "softDelete"
+        "softDelete",
+        "tagKey",
+        "tagValue"
       ]
     },
     "svc": {
