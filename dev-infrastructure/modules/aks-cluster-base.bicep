@@ -74,6 +74,10 @@ var istioIngressGatewayIPAddressIPTagsArray = [
 @maxLength(24)
 param aksKeyVaultName string
 
+// KV tagging
+param aksKeyVaultTagName string
+param aksKeyVaultTagValue string
+
 param logAnalyticsWorkspaceId string = ''
 
 // Local Params
@@ -134,7 +138,8 @@ module aks_keyvault_builder '../modules/keyvault/keyvault.bicep' = {
     // todo: change for higher environments
     private: false
     enableSoftDelete: aksEtcdKVEnableSoftDelete
-    purpose: 'etcd-encryption'
+    tagKey: aksKeyVaultTagName
+    tagValue: aksKeyVaultTagValue
   }
 }
 

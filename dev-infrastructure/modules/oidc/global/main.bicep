@@ -6,7 +6,10 @@ param frontDoorSkuName string
 param securityPolicyName string
 param wafPolicyName string
 param keyVaultName string
+param keyVaultTagKey string
+param keyVaultTagValue string
 param keyVaultAdminSPObjId string
+param useManagedCertificates bool
 param oidcMsiName string
 
 //
@@ -44,10 +47,12 @@ module frontDoor 'frontdoor-instance.bicep' = {
 //
 //   K E Y   V A U L T
 //
-module keyVault 'frontdoor-keyvault.bicep' = if (!empty(keyVaultName)) {
+module keyVault 'frontdoor-keyvault.bicep' = if (!useManagedCertificates) {
   name: 'frontdoor-keyvault'
   params: {
     keyVaultName: keyVaultName
+    keyVaultTagKey: keyVaultTagKey
+    keyVaultTagValue: keyVaultTagValue
     frontDoorPrincipalId: frontDoor.outputs.frontDoorPrincipalId
     keyVaultAdminPrincipalId: keyVaultAdminSPObjId
   }

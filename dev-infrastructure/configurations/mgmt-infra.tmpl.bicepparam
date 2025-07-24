@@ -4,16 +4,22 @@ using '../templates/mgmt-infra.bicep'
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'
 param cxKeyVaultPrivate = {{ .cxKeyVault.private }}
 param cxKeyVaultSoftDelete = {{ .cxKeyVault.softDelete }}
+param cxKeyVaultTagName = '{{ .cxKeyVault.tagKey }}'
+param cxKeyVaultTagValue = '{{ .cxKeyVault.tagValue }}'
 
 // MSI KV
 param msiKeyVaultName = '{{ .msiKeyVault.name }}'
 param msiKeyVaultPrivate = {{ .msiKeyVault.private }}
 param msiKeyVaultSoftDelete = {{ .msiKeyVault.softDelete }}
+param msiKeyVaultTagName = '{{ .msiKeyVault.tagKey }}'
+param msiKeyVaultTagValue = '{{ .msiKeyVault.tagValue }}'
 
 // MGMT KV
 param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 param mgmtKeyVaultPrivate = {{ .mgmtKeyVault.private }}
 param mgmtKeyVaultSoftDelete = {{ .mgmtKeyVault.softDelete }}
+param mgmtKeyVaultTagName = '{{ .mgmtKeyVault.tagKey }}'
+param mgmtKeyVaultTagValue = '{{ .mgmtKeyVault.tagValue }}'
 
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'

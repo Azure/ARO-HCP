@@ -10,8 +10,11 @@ param enableSoftDelete bool
 @description('Toggle to make the keyvault private.')
 param private bool
 
-@description('Purpose of the keyvault.')
-param purpose string
+@description('Tag key for the keyvault.')
+param tagKey string
+
+@description('Tag value for the keyvault.')
+param tagValue string
 
 @description('Log Analytics Workspace ID if logging to Log Analytics')
 param logAnalyticsWorkspaceId string = ''
@@ -21,7 +24,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
   name: keyVaultName
   tags: {
     resourceGroup: resourceGroup().name
-    aroHCPPurpose: purpose
+    '${tagKey}': tagValue
   }
   properties: {
     enableRbacAuthorization: true
