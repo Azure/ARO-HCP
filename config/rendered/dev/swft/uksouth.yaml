@@ -365,6 +365,9 @@ mise:
     digest: ""
     repository: ""
   tenantId: ""
+  tracing:
+    address: ""
+    exporter: ""
 monitoring:
   devAlertingEmails: aro-hcp-service-lifecycle-team@redhat.com
   grafanaMajorVersion: "11"
