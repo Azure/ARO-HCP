@@ -92,6 +92,12 @@ param istioVersions string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('The tag key for the AKS keyvault')
+param aksKeyVaultTagName string
+
+@description('The tag value for the AKS keyvault')
+param aksKeyVaultTagValue string
+
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
@@ -428,6 +434,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
+    aksKeyVaultTagName: aksKeyVaultTagName
+    aksKeyVaultTagValue: aksKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
