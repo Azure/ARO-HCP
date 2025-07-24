@@ -7,11 +7,39 @@ param hcpAzureMonitoringWorkspaceId string
 @description('List of emails for Dev Alerting')
 param devAlertingEmails string
 
+@description('The ICM environment')
+param icmEnvironment string
+
+@description('Name of the ICM Action Group')
+param icmActionGroupName string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortName string
+
+@description('ICM routing ID')
+param icmRoutingId string
+
+@description('ICM connection Name')
+param icmConnectionName string
+
+@description('ICM connection id')
+param icmConnectionId string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabled string
 
 module actionGroups '../modules/metrics/actiongroups.bicep' = {
   name: 'actionGroups'
   params: {
     devAlertingEmails: devAlertingEmails
+    icmEnvironment: icmEnvironment
+    icmActionGroupName: icmActionGroupName
+    icmActionGroupShortName: icmActionGroupShortName
+    icmRoutingId: icmRoutingId
+    icmConnectionName: icmConnectionName
+    icmConnectionId: icmConnectionId
+    icmAutomitigationEnabled: icmAutomitigationEnabled
   }
 }
 

@@ -1437,17 +1437,49 @@
         "devAlertingEmails": {
           "type": "string"
         },
-        "sev1ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev2ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev3ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev4ActionGroupIDs": {
-          "type": "string"
+        "icm": {
+          "type": "object",
+          "properties": {
+            "environment": {
+              "type": "string",
+              "description": "The ICM environment"
+            },
+            "actionGroupName": {
+              "type": "string",
+              "description": "Name of the ICM Action Group"
+            },
+            "actionGroupShortName": {
+              "type": "string",
+              "maxLength": 8,
+              "description": "Name of the ICM Action Group"
+            },
+            "routingId": {
+              "type": "string",
+              "description": "ICM routing ID"
+            },
+            "connectionName": {
+              "type": "string",
+              "description": "ICM connection Name"
+            },
+            "connectionId": {
+              "type": "string",
+              "description": "ICM connection id"
+            },
+            "automitigationEnabled": {
+              "type": "string",
+              "description": "ICM automitigation enabled ID"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "environment",
+            "actionGroupName",
+            "actionGroupShortName",
+            "routingId",
+            "connectionName",
+            "connectionId",
+            "automitigationEnabled"
+          ]
         }
       },
       "additionalProperties": false,

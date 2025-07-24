@@ -170,10 +170,14 @@ defaults:
     svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
     devAlertingEmails: ""
-    sev1ActionGroupIDs: ""
-    sev2ActionGroupIDs: ""
-    sev3ActionGroupIDs: ""
-    sev4ActionGroupIDs: ""
+    icm:
+      environment: ""
+      actionGroupName: ""
+      actionGroupShortName: ""
+      routingId: ""
+      connectionName: ""
+      connectionId: ""
+      automitigationEnabled: ""
   # SVC cluster specifics
   svc:
     subscription:
