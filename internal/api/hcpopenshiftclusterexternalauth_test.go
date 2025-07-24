@@ -154,6 +154,34 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
+		// New test cases for ClientId in Audiences validation
+		{
+			name: "Valid ClientId matches audience",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{ClientId1},
+					},
+					Clients: []ExternalAuthClientProfile{
+						{
+							ClientId: ClientId1,
+							Component: ExternalAuthClientComponentProfile{
+								Name:      ClientComponentName,
+								Namespace: ClientComponentNamespace,
+							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: nil, // Valid case: no errors
+		},
 		{
 			name: "External Auth with multiple clients that have the same Name/Namespace pair",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
@@ -187,7 +215,6 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 	}
-
 	validate := NewTestValidator()
 
 	for _, tt := range tests {
