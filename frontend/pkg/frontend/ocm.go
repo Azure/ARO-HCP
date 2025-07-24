@@ -102,31 +102,32 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
-func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.Cluster) api.CustomerManagedEncryptionProfile {
-	if customerManaged, ok := in.Azure().EtcdEncryption().DataEncryption().GetCustomerManaged(); ok {
-		return api.CustomerManagedEncryptionProfile{
-			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
-			Kms:            convertKmsEncryptionCSToRP(in),
-		}
-	}
-	return api.CustomerManagedEncryptionProfile{}
-}
-
-func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.Cluster) *api.KmsEncryptionProfile {
-
-	if kms, ok := in.Azure().EtcdEncryption().DataEncryption().CustomerManaged().GetKms(); ok {
-		if activeKey, ok := kms.GetActiveKey(); ok {
-			return &api.KmsEncryptionProfile{
-				ActiveKey: api.KmsKey{
-					Name:      activeKey.KeyName(),
-					VaultName: activeKey.KeyVaultName(),
-					Version:   activeKey.KeyVersion(),
-				},
-			}
-		}
-	}
-	return nil
-}
+// TODO: Uncomment when CS supports it.
+// func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.Cluster) api.CustomerManagedEncryptionProfile {
+// 	if customerManaged, ok := in.Azure().EtcdEncryption().DataEncryption().GetCustomerManaged(); ok {
+// 		return api.CustomerManagedEncryptionProfile{
+// 			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
+// 			Kms:            convertKmsEncryptionCSToRP(in),
+// 		}
+// 	}
+// 	return api.CustomerManagedEncryptionProfile{}
+// }
+//
+// func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.Cluster) *api.KmsEncryptionProfile {
+//
+// 	if kms, ok := in.Azure().EtcdEncryption().DataEncryption().CustomerManaged().GetKms(); ok {
+// 		if activeKey, ok := kms.GetActiveKey(); ok {
+// 			return &api.KmsEncryptionProfile{
+// 				ActiveKey: api.KmsKey{
+// 					Name:      activeKey.KeyName(),
+// 					VaultName: activeKey.KeyVaultName(),
+// 					Version:   activeKey.KeyVersion(),
+// 				},
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
 
 func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
 
