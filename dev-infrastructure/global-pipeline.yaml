@@ -35,6 +35,8 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    dependsOn:
+    - global-infra
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh
