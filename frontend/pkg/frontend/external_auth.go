@@ -257,7 +257,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
 	hcpExternalAuth := ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
 	hcpExternalAuth.SystemData = doc.SystemData
-	// TODO: Use the correct state from the document.
+	// TODO: Use the correct state from the document when CS returns ir.
 	hcpExternalAuth.Properties.ProvisioningState = arm.ExternalAuthProvisioningStateSucceeded
 
 	return versionedInterface.MarshalHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
