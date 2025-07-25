@@ -328,9 +328,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
-	// FIXME HcpOpenShiftCluster attributes not being passed:
-	//       ExternalAuth                        (TODO, complicated)
-
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
 		// Add attributes that cannot be updated after cluster creation.
