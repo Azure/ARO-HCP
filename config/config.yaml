@@ -831,6 +831,9 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+            tracing:
+              address: "http://arobit-forwarder.mds.svc.cluster.local:4318"
+              exporter: "otlp"
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
@@ -838,11 +841,23 @@ clouds:
           maestro:
             postgres:
               deploy: false
+            server:
+              tracing:
+                address: "http://arobit-forwarder.mds.svc.cluster.local:4318"
+                exporter: "otlp"
           # Frontend
           frontend:
+            tracing:
+              address: "http://arobit-forwarder.mds.svc.cluster.local:4318"
+              exporter: "otlp"
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          # Backend
+          backend:
+            tracing:
+              address: "http://arobit-forwarder.mds.svc.cluster.local:4318"
+              exporter: "otlp"
           # MC
           mgmt:
             subscription:

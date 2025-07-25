@@ -36,8 +36,8 @@ backend:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   tracing:
-    address: ""
-    exporter: ""
+    address: http://arobit-forwarder.mds.svc.cluster.local:4318
+    exporter: otlp
 backplaneAPI:
   image:
     digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
@@ -83,8 +83,8 @@ clustersService:
     serverVersion: "12"
     zoneRedundantMode: Auto
   tracing:
-    address: ""
-    exporter: ""
+    address: http://arobit-forwarder.mds.svc.cluster.local:4318
+    exporter: otlp
 cxKeyVault:
   name: ah-ntly-cx-ln-1
   private: false
@@ -125,8 +125,8 @@ frontend:
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   tracing:
-    address: ""
-    exporter: ""
+    address: http://arobit-forwarder.mds.svc.cluster.local:4318
+    exporter: otlp
 geneva:
   logs:
     administrators:
@@ -260,8 +260,8 @@ maestro:
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-ln
     tracing:
-      address: ""
-      exporter: ""
+      address: http://arobit-forwarder.mds.svc.cluster.local:4318
+      exporter: otlp
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
