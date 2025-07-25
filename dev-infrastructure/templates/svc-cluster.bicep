@@ -92,6 +92,12 @@ param istioVersions string
 @maxLength(24)
 param aksKeyVaultName string
 
+@description('The tag key for the AKS keyvault')
+param aksKeyVaultTagName string
+
+@description('The tag value for the AKS keyvault')
+param aksKeyVaultTagValue string
+
 @description('Manage soft delete setting for AKS etcd key-value store')
 param aksEtcdKVEnableSoftDelete bool = true
 
@@ -220,6 +226,15 @@ param azureFrontDoorRegionalSubdomain string
 
 @description('The name of the Azure Front Door global Key Vault')
 param azureFrontDoorKeyVaultName string
+
+@description('The tag key for the Azure Front Door Key Vault')
+param azureFrontDoorKeyTagKey string
+
+@description('The tag value for the Azure Front Door Key Vault')
+param azureFrontDoorKeyTagValue string
+
+@description('Whether to use managed certificates for the Azure Front Door')
+param azureFrontDoorUseManagedCertificates bool
 
 @description('MSI that will be used to run the deploymentScript')
 param globalMSIId string
@@ -428,6 +443,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       }
     })
     aksKeyVaultName: aksKeyVaultName
+    aksKeyVaultTagName: aksKeyVaultTagName
+    aksKeyVaultTagValue: aksKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
@@ -629,6 +646,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
       ? 'Standard_ZRS'
       : 'Standard_LRS'
     keyVaultName: azureFrontDoorKeyVaultName
+    useManagedCertificates: azureFrontDoorUseManagedCertificates
     globalMSIId: globalMSIId
     deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic

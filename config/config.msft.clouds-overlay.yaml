@@ -8,7 +8,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:41c6ff66219ca049036bcfb98e0c134a9315fc8a7b21d20e598f494f94a54649
+              digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
           # ACR Pull
           acrPull:
             image:
@@ -75,8 +75,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              registry: arohcpsvcdev.azurecr.io
-              digest: sha256:64b4fd5d657f17a13a960f37fde59b25310e9d336e5c727ac121ac7ff98788f8
+              digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
           # ACR Pull
           acrPull:
             image:
@@ -143,7 +142,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:0dee01f6620847b53030ae716547953931769c362364e5de6e4e05991aac1168
+              digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
           # ACR Pull
           acrPull:
             image:

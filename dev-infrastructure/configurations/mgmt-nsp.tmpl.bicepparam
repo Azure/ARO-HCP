@@ -10,7 +10,7 @@ param msiKeyVaultName = '{{ .msiKeyVault.name }}'
 param mgmtKeyVaultName = '{{ .mgmtKeyVault.name }}'
 
 // ETCD KV
-param aksKeyVaultName = '{{ .mgmt.aks.etcd.kvName }}'
+param aksKeyVaultName = '{{ .mgmt.aks.etcd.name }}'
 
 
 param mgmtNSPName = '{{ .mgmt.nsp.name }}'

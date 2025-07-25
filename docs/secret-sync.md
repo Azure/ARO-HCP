@@ -1,5 +1,6 @@
 # Secret Synchronization
 
+This document describes the process of populating ARO HCP Key Vaults with secrets.
 
 ## High level concept
 
@@ -7,49 +8,78 @@ Secrets are encrypted using the public part of RSA. We can generate RSA Key Pair
 
 For this we'd have to do:
 
- * Create an RSA key in Key Vault (target key vault for secret)
- * Download the Public key and store in this repo
- * Use `./tooling/secret-sync` to encrypt a secret using this key
- * In target environment use `./tooling/secret-sync` to decrypt this secret and store it in the target key vault
+- Create an RSA key in Key Vault (target key vault for secret)
+- Download the Public key and store in this repo
+- Use `./tooling/secret-sync register` to encrypt a secret using this key
+- In target environment use `./tooling/secret-sync populate` to populate secrets into the target key vault
 
-![overview](overview.png)
+> [!NOTE]
+> The `populate` command is idempotent. Also the private key never leaves the target key vault but we use Key Vaults crypto capabilities to inject the public key encrypted secrets.
 
+```mermaid
+sequenceDiagram
+    participant SF as Secret File<br/>(source)
+    participant SRE as SRE
+    participant TKV as Target Key Vault
+    participant ST as ./tooling/secret-sync
+    participant Config as encryptedsecrets.yaml
+    participant Pipeline as Deployment Pipeline
 
-## Public Key Storage
+    Note over TKV: RSA keypair "secretSyncKey"<br/>already exists
+
+    SRE->>TKV: Download public key<br/>(az keyvault key download)
+    TKV->>SRE: Returns public key PEM file
+
+    Note over SF: Contains secret content
+
+    SRE->>ST: Run register command with:<br/>• secret file<br/>• public key<br/>• target keyvault name
+    ST->>SF: Read secret content
+    ST->>ST: Encrypt secret using<br/>public key (RSA)
+    ST->>Config: Update encryptedsecrets.yaml<br/>with encrypted secret
+
+    Note over Config: Contains encrypted secrets<br/>for multiple key vaults
+
+    Pipeline->>Config: Read encrypted secrets<br/>during deployment
+    Pipeline->>TKV: Populate command:<br/>decrypt using private key<br/>inject into key vault
+
+    Note over TKV: Private key never leaves<br/>Key Vault - uses crypto capabilities
+```
+
+## Public Key Retrieval
 
 You can use the following cli command to download a public key (run from repo root). Need to adapt parameters accordingly.
 
 ```bash
-DEPLOY_ENV=dev
-KEYVAULT=arohcpdev-global
-KEYNAME=secretSyncKey
-az keyvault key download --vault-name $KEYVAULT -n $KEYNAME -f ./dev-infrastructure/data/keys/${DEPLOY_ENV}_${KEYVAULT}_${KEYNAME}.pem
+KEYVAULT=arohcp${DEPLOY_ENV}-global # e.g. arohcpdev-global
+az keyvault key download --vault-name ${KEYVAULT} -n secretSyncKey -f ${KEYVAULT}-public-key.pem
 ```
 
-## Secret storage and rotation
+For MSFT environments, activating PIM or requesting a JIT is required to download the public key.
 
-Encrypted secrets can be stored under `./dev-infrastructure/data/encryptedsecrets/`. The directoy has subfolders:
-- Deployment environment
-- Keyvault Name
+## Register a Secret
 
-So, there is a folder for each Key Vault. Every file in the last directory is expected to be a secret. All secrets are discovered and synced into the corresponding key vault.
+To register a secret for a key vault instance, prepare a file that contains the secret content.
 
-### Rotation
-
-In order to rotate a secret, create a new secret and store it under a different name in the encryptedsecrets folder.
-
-After running the secrets sync pipeline, the new secret should be available and you can update the reference to this secret in the configuration file.
-
-## Encrypting a secret
-
-In order to encrypt a secret use the `encrypt-all.sh` script. Example usage:
-
-`echo "foo" | ./tooling/secret-sync/encrypt-all.sh testing.enc`
+```sh
+./tooling/secret-sync register \
+    --cloud public \
+    --config-file dev-infrastructure/data/encryptedsecrets.yaml \
+    --keyvault ${KEYVAULT} \
+    --secret-file ${FILE_WITH_SECRET_CONTENT} \
+    --secret-name ${SECRET_NAME_IN_KV} \
+    --public-key-file ${KEYVAULT}-public-key.pem
+```
 
 > [!IMPORTANT]
 > Make yourself aquinted with the encoding need of the respective secret. Some secrets are expected to be base64 encoded. In doubt, check the current content of the `aroghcpdev-global` key vault.
 
-This will encrypt the secret `foo` using all keys stored in `data/keys` and store it encrypted under `data/encryptedsecrets`.
-
 > [!TIP]
-> If you run `encrypt-all.sh` the content of all files in `data/encryptedsecrets` will change even though the plaintext secret did not. This is expected.
+Specifying `--public-key-file` is only required the first time. Once there is a record for the key vault in the config file, this parameter can be omitted.
+
+## Rotation a Secret
+
+In order to rotate a secret, repeat the process described in [Register a Secret](#register-a-secret) with the new secret content.
+
+## Rotate a Public Key
+
+In case the encryption key for a key vault needs to be rotated, [retrieve the new public key](#public-key-retrieval) and [register all secrets again](#register-a-secret).

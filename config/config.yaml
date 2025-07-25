@@ -11,10 +11,10 @@ $schema: config.schema.json
 # - [globally-unique] - a resource needs to be unique within the Azure cloud.
 #   This is a technical requirement of Azure for certain resource types
 # - [env-unique] - a resource needs to be unique within an ARO HCP environment,
-#   so accross all regions of ARO HCP in the same environment.
+#   so across all regions of ARO HCP in the same environment.
 #   An environment unique names does not need to be unique within the Azure cloud
 #
-# To implement names, we leverate static strings combined with the {{ .ctx }} variables, e.g.
+# To implement names, we leverage static strings combined with the {{ .ctx }} variables, e.g.
 # - {{ .ctx.environment }} length: 1-4 / starts with a character, may end with a digit
 # - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
 # - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
@@ -27,7 +27,7 @@ defaults:
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
   administration:
-    readerGroupIds: []
+    readerGroupId: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -61,6 +61,8 @@ defaults:
       name: 'arohcp{{ .ctx.environment }}-global' # [globally-unique]
       private: false
       softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: global
   # ACR
   acr:
     svc:
@@ -225,8 +227,11 @@ defaults:
         osDiskSizeGB: 32
         azCount: {{ .ev2.availabilityZoneCount }}
       etcd:
-        kvName: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
-        kvSoftDelete: true
+        name: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
+        softDelete: true
+        private: true
+        tagKey: aroHCPPurpose
+        tagValue: etcd-encryption
       clusterOutboundIPAddressIPTags: ""
     logs:
       namespace: HCPServiceLogs
@@ -290,8 +295,11 @@ defaults:
       networkDataplane: "azure"
       networkPolicy: "azure"
       etcd:
-        kvName: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
-        kvSoftDelete: true
+        name: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
+        softDelete: true
+        private: true
+        tagKey: aroHCPPurpose
+        tagValue: etcd-encryption
       systemAgentPool:
         vmSize: 'Standard_E8s_v3'
         osDiskSizeGB: 128
@@ -378,6 +386,7 @@ defaults:
   # MSI Credentials Refresher
   msiCredentialsRefresher:
     managedIdentityName: msi-credential-refresher
+    firstPartyAppClientId: ""
     k8s:
       namespace: msi-credential-refresher
       serviceAccountName: msi-credential-refresher
@@ -499,7 +508,13 @@ defaults:
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
-      keyVaultName: "" # we don't need one in public cloud, but we need a value to validate the field
+      keyVault:
+        name: "ah-{{ .ctx.environment }}-afd" # [globally-unique]
+        private: false
+        softDelete: true
+        tagKey: aroHCPPurpose
+        tagValue: afd
+      useManagedCertificates: true
       msiName: arohcp-afd
   # Service Key Vault
   serviceKeyVault:
@@ -509,19 +524,27 @@ defaults:
     softDelete: false
     private: false
     assignNSP: true
+    tagKey: aroHCPPurpose
+    tagValue: service
   # Management Cluster KV
   cxKeyVault:
     name: "ah-{{ .ctx.environment }}-cx-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: cx
   msiKeyVault:
     name: "ah-{{ .ctx.environment }}-mi-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: msi
   mgmtKeyVault:
     name: "ah-{{ .ctx.environment }}-mg-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
     softDelete: false
     private: false
+    tagKey: aroHCPPurpose
+    tagValue: mgmt
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
@@ -583,7 +606,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:41c6ff66219ca049036bcfb98e0c134a9315fc8a7b21d20e598f494f94a54649
+          digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -652,7 +675,7 @@ clouds:
           versions: "asm-1-25"
         aks:
           etcd:
-            kvSoftDelete: false
+            softDelete: false
           infraAgentPool:
             azCount: 1
           systemAgentPool:
@@ -683,7 +706,7 @@ clouds:
           infraAgentPool:
             azCount: 1
           etcd:
-            kvSoftDelete: false
+            softDelete: false
           enableSwiftV2Vnet: false
           enableSwiftV2Nodepools: false
         nsp:

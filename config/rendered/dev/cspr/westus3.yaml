@@ -14,7 +14,7 @@ acrPull:
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 administration:
-  readerGroupIds: []
+  readerGroupId: ""
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
@@ -66,7 +66,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   environment: arohcpdev
   image:
-    digest: sha256:41c6ff66219ca049036bcfb98e0c134a9315fc8a7b21d20e598f494f94a54649
+    digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -89,6 +89,8 @@ cxKeyVault:
   name: ah-cspr-cx-usw3-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: cx
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud
@@ -157,6 +159,8 @@ global:
     name: arohcpdev-global
     private: false
     softDelete: true
+    tagKey: aroHCPPurpose
+    tagValue: global
   nsp:
     accessMode: Learning
     name: nsp-global
@@ -264,8 +268,11 @@ mgmt:
     enableSwiftV2Nodepools: false
     enableSwiftV2Vnet: false
     etcd:
-      kvName: ah-cspr-me-usw3-1
-      kvSoftDelete: false
+      name: ah-cspr-me-usw3-1
+      private: true
+      softDelete: false
+      tagKey: aroHCPPurpose
+      tagValue: etcd-encryption
     infraAgentPool:
       azCount: 1
       maxCount: 3
@@ -350,6 +357,8 @@ mgmtKeyVault:
   name: ah-cspr-mg-usw3-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: mgmt
 miMockCertName: msiMockCert2
 miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
@@ -380,6 +389,7 @@ msiCredentialsRefresher:
     issuer: OneCertV2-PrivateCA
     manage: false
     name: msi-refresher
+  firstPartyAppClientId: ""
   image:
     digest: ""
     registry: empty-sentinel
@@ -392,15 +402,23 @@ msiKeyVault:
   name: ah-cspr-mi-usw3-1
   private: false
   softDelete: false
+  tagKey: aroHCPPurpose
+  tagValue: msi
 msiRp:
   dataPlaneAudienceResource: https://dummy.org
 oidc:
   frontdoor:
-    keyVaultName: ""
+    keyVault:
+      name: ah-cspr-afd
+      private: false
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: afd
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor
     subdomain: oic
+    useManagedCertificates: true
   storageAccount:
     name: arohcpcsproidcusw3
     public: true
@@ -433,12 +451,17 @@ serviceKeyVault:
   region: westus3
   rg: global
   softDelete: true
+  tagKey: aroHCPPurpose
+  tagValue: service
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      kvName: ah-cspr-se-usw3-1
-      kvSoftDelete: false
+      name: ah-cspr-se-usw3-1
+      private: true
+      softDelete: false
+      tagKey: aroHCPPurpose
+      tagValue: etcd-encryption
     infraAgentPool:
       azCount: 1
       maxCount: 3

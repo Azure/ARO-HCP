@@ -47,13 +47,6 @@
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
       "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
     },
-    "optionalKeyVaultName": {
-      "anyOf": [
-      { "$ref": "#/definitions/keyVaultName" },
-      { "type": "string", "pattern": "^$" }
-      ],
-      "description": "A key vault name or an empty string"
-    },
     "operatorConfig": {
       "type": "object",
       "properties": {
@@ -199,13 +192,21 @@
         },
         "softDelete": {
           "type": "boolean"
+        },
+        "tagKey": {
+          "type": "string"
+        },
+        "tagValue": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "private",
-        "softDelete"
+        "softDelete",
+        "tagKey",
+        "tagValue"
       ]
     },
     "aksAgentPool": {
@@ -297,20 +298,7 @@
           ]
         },
         "etcd": {
-          "type": "object",
-          "properties": {
-            "kvName": {
-              "$ref": "#/definitions/keyVaultName"
-            },
-            "kvSoftDelete": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kvName",
-            "kvSoftDelete"
-          ]
+          "$ref": "#/definitions/keyVault"
         },
         "userAgentPool": {
           "$ref": "#/definitions/aksAgentPool"
@@ -1047,6 +1035,10 @@
           "type": "string",
           "description": "The name of the MSI that will be used by the refresher"
         },
+        "firstPartyAppClientId": {
+          "type": "string",
+          "description": "The client ID of the first party application that will be used by the refresher"
+        },
         "k8s": {
           "$ref": "#/definitions/k8sServiceAccount"
         },
@@ -1602,8 +1594,11 @@
             "subdomain": {
               "type": "string"
             },
-            "keyVaultName": {
-              "$ref": "#/definitions/optionalKeyVaultName"
+            "keyVault": {
+              "$ref": "#/definitions/keyVault"
+            },
+            "useManagedCertificates": {
+              "type": "boolean"
             },
             "msiName": {
               "type": "string"
@@ -1614,7 +1609,8 @@
             "name",
             "subdomain",
             "sku",
-            "keyVaultName",
+            "keyVault",
+            "useManagedCertificates",
             "msiName"
           ]
         }
@@ -1651,6 +1647,12 @@
         },
         "assignNSP": {
           "type": "boolean"
+        },
+        "tagKey": {
+          "type": "string"
+        },
+        "tagValue": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1659,7 +1661,9 @@
         "private",
         "region",
         "rg",
-        "softDelete"
+        "softDelete",
+        "tagKey",
+        "tagValue"
       ]
     },
     "svc": {
@@ -1765,16 +1769,13 @@
     "administration": {
       "type": "object",
       "properties": {
-        "readerGroupIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "readerGroupId": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
-        "readerGroupIds"
+        "readerGroupId"
       ]
     }
   },
