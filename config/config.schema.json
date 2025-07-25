@@ -1769,16 +1769,13 @@
     "administration": {
       "type": "object",
       "properties": {
-        "readerGroupIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "readerGroupId": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
-        "readerGroupIds"
+        "readerGroupId"
       ]
     }
   },
