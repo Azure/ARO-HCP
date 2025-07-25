@@ -103,6 +103,25 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 }
 
 // TODO: Uncomment when CS supports it.
+// func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) {
+// 	switch keyManagementModeCS {
+// 	case "platform_managed":
+// 		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+// 	case "customer_managed":
+// 		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+// 	}
+// 	return
+// }
+
+// func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) (keyManagementModeCS string) {
+// 	switch keyManagementModeRP {
+// 	case api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged:
+// 		keyManagementModeCS = "platform_managed"
+// 	case api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged:
+// 		keyManagementModeCS = "customer_managed"
+// 	}
+// 	return
+// }
 // func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.Cluster) api.CustomerManagedEncryptionProfile {
 // 	if customerManaged, ok := in.Azure().EtcdEncryption().DataEncryption().GetCustomerManaged(); ok {
 // 		return api.CustomerManagedEncryptionProfile{
@@ -130,16 +149,18 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 // }
 
 // func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
+// 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode))
 
-// 	azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
+// 	if in.DataEncryption.CustomerManaged.Kms != nil || in.DataEncryption.CustomerManaged.EncryptionType != "" {
 
-// 	if in.DataEncryption.CustomerManaged.Kms != nil {
+// 		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
+
 // 		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
 // 		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
 // 		azureEtcdDataEncryptionCustomerManagedBuilder = azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
-// 	}
 
-// 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(string(in.DataEncryption.KeyManagementMode)).CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
+// 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
+// 	}
 
 // 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder)
 
@@ -195,12 +216,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
-			// TODO: Reconcile this with the other comment below when CS supports this.
-			Etcd: api.EtcdProfile{
-				DataEncryption: api.EtcdDataEncryptionProfile{
-					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-				},
-			},
 		},
 	}
 	// TODO: Uncomment when CS supports it.
