@@ -148,17 +148,6 @@ spec:
               mountPath: /etc/ssl/certs/ca-certificates.crt
               readOnly: true
         {{- end }}
-          volumeMounts:
-            - name: mdsd-run
-              mountPath: /var/run/mdsd/
-            {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
-            - name: mdsd-logs
-              mountPath: /geneva/geneva_logs/
-            {{- end }}
-            - name: cacrt-host
-              mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-        {{- end }}
       volumes:
         - name: sp-host
           hostPath:
