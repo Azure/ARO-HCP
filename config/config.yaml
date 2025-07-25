@@ -11,10 +11,10 @@ $schema: config.schema.json
 # - [globally-unique] - a resource needs to be unique within the Azure cloud.
 #   This is a technical requirement of Azure for certain resource types
 # - [env-unique] - a resource needs to be unique within an ARO HCP environment,
-#   so accross all regions of ARO HCP in the same environment.
+#   so across all regions of ARO HCP in the same environment.
 #   An environment unique names does not need to be unique within the Azure cloud
 #
-# To implement names, we leverate static strings combined with the {{ .ctx }} variables, e.g.
+# To implement names, we leverage static strings combined with the {{ .ctx }} variables, e.g.
 # - {{ .ctx.environment }} length: 1-4 / starts with a character, may end with a digit
 # - {{ .ctx.regionShort }} length: 2-4 / starts with a character, may end with a digit
 # - {{ .ctx.region }} very long, up to 20 characters / starts with a character, may end with a digit
@@ -27,7 +27,7 @@ defaults:
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
   administration:
-    readerGroupIds: []
+    readerGroupId: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty

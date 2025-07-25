@@ -14,7 +14,7 @@ acrPull:
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 administration:
-  readerGroupIds: []
+  readerGroupId: ""
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
