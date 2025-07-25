@@ -383,13 +383,22 @@ monitoring:
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-lnstest
   icm:
-    actionGroupName: ""
-    actionGroupShortName: ""
-    automitigationEnabled: ""
-    connectionId: ""
-    connectionName: ""
-    environment: ""
-    routingId: ""
+    sl:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      connectionId: ""
+      connectionName: ""
+      environment: ""
+      routingId: ""
+    sre:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      connectionId: ""
+      connectionName: ""
+      environment: ""
+      routingId: ""
   svcWorkspaceName: services-lnstest
 msiCredentialsRefresher:
   certificate:

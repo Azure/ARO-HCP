@@ -1,39 +1,47 @@
-import { csvToArray } from '../common.bicep'
-
-@description('Comma seperated list of email notifications. Only set in non MSFT environments!')
-param devAlertingEmails string
-
-@description('The ICM environment')
-param icmEnvironment string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupName string
-
-@description('Name of the ICM Action Group')
-@maxLength(8)
-param icmActionGroupShortName string
-
-@description('ICM routing ID')
-param icmRoutingId string
-
 @description('ICM connection Name')
 param icmConnectionName string
 
 @description('ICM connection id')
 param icmConnectionId string
 
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabled string
+@description('The ICM environment')
+param icmEnvironment string
 
-resource icm 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupName != '') {
-  name: 'icm-action-group'
+@description('Name of the ICM Action Group')
+param icmActionGroupNameSRE string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameSRE string
+
+@description('ICM routing ID')
+param icmRoutingIdSRE string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledSRE string
+
+@description('Name of the ICM Action Group')
+param icmActionGroupNameSL string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameSL string
+
+@description('ICM routing ID')
+param icmRoutingIdSL string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledSL string
+
+resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSRE != '') {
+  name: 'icm-action-group-sre'
   location: 'global'
   properties: {
     enabled: true
-    groupShortName: icmActionGroupShortName
+    groupShortName: icmActionGroupShortNameSRE
     incidentReceivers: [
       {
-        name: icmActionGroupName
+        name: icmActionGroupNameSRE
         incidentManagementService: 'Icm'
         connection: {
           name: icmConnectionName
@@ -41,31 +49,37 @@ resource icm 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActio
         }
         mappings: {
           'Icm.occurringlocation.environment': icmEnvironment
-          'Icm.routingid': icmRoutingId
-          'Icm.automitigationenabled': icmAutomitigationEnabled
+          'Icm.routingid': icmRoutingIdSRE
+          'Icm.automitigationenabled': icmAutomitigationEnabledSRE
         }
       }
     ]
   }
 }
 
-var emailAdresses = csvToArray(devAlertingEmails)
-resource emailActions 'Microsoft.Insights/actionGroups@2023-01-01' = [
-  for email in emailAdresses: {
-    name: email
-    location: 'Global'
-    properties: {
-      groupShortName: substring(uniqueString(email), 0, 8)
-      enabled: true
-      emailReceivers: [
-        {
-          name: split(email, '@')[0]
-          emailAddress: email
-          useCommonAlertSchema: true
+resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSL != '') {
+  name: 'icm-action-group-sl'
+  location: 'global'
+  properties: {
+    enabled: true
+    groupShortName: icmActionGroupShortNameSL
+    incidentReceivers: [
+      {
+        name: icmActionGroupNameSL
+        incidentManagementService: 'Icm'
+        connection: {
+          name: icmConnectionName
+          id: icmConnectionId
         }
-      ]
-    }
+        mappings: {
+          'Icm.occurringlocation.environment': icmEnvironment
+          'Icm.routingid': icmRoutingIdSL
+          'Icm.automitigationenabled': icmAutomitigationEnabledSL
+        }
+      }
+    ]
   }
-]
+}
 
-output actionGroups array = [for (j, index) in emailAdresses: emailActions[index].id]
+output actionGroupsSRE string = icmsre.id
+output actionGroupsSL string = icmsl.id

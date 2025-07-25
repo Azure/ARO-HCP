@@ -33,6 +33,36 @@
         "serviceAccountName"
       ]
     },
+    "icmConnection": {
+      "type": "object",
+      "properties": {
+        "actionGroupName": {
+          "type": "string",
+          "description": "Name of the ICM Action Group"
+        },
+        "actionGroupShortName": {
+          "type": "string",
+          "maxLength": 8,
+          "description": "Name of the ICM Action Group"
+        },
+        "routingId": {
+          "type": "string",
+          "description": "ICM routing ID"
+        },
+
+        "automitigationEnabled": {
+          "type": "string",
+          "description": "ICM automitigation enabled ID"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "actionGroupName",
+        "actionGroupShortName",
+        "routingId",
+        "automitigationEnabled"
+      ]
+    },
     "postgresName": {
       "type": "string",
       "minLength": 3,
@@ -1434,29 +1464,9 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
-        "devAlertingEmails": {
-          "type": "string"
-        },
         "icm": {
           "type": "object",
           "properties": {
-            "environment": {
-              "type": "string",
-              "description": "The ICM environment"
-            },
-            "actionGroupName": {
-              "type": "string",
-              "description": "Name of the ICM Action Group"
-            },
-            "actionGroupShortName": {
-              "type": "string",
-              "maxLength": 8,
-              "description": "Name of the ICM Action Group"
-            },
-            "routingId": {
-              "type": "string",
-              "description": "ICM routing ID"
-            },
             "connectionName": {
               "type": "string",
               "description": "ICM connection Name"
@@ -1465,20 +1475,24 @@
               "type": "string",
               "description": "ICM connection id"
             },
-            "automitigationEnabled": {
+            "environment": {
               "type": "string",
-              "description": "ICM automitigation enabled ID"
+              "description": "ICM environment"
+            },
+            "sre": {
+              "$ref": "#/definitions/icmConnection"
+            },
+            "sl": {
+              "$ref": "#/definitions/icmConnection"
             }
           },
           "additionalProperties": false,
           "required": [
-            "environment",
-            "actionGroupName",
-            "actionGroupShortName",
-            "routingId",
             "connectionName",
             "connectionId",
-            "automitigationEnabled"
+            "environment",
+            "sre",
+            "sl"
           ]
         }
       },

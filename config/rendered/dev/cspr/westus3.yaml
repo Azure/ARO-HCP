@@ -381,13 +381,22 @@ monitoring:
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-cspr-usw3
   icm:
-    actionGroupName: ""
-    actionGroupShortName: ""
-    automitigationEnabled: ""
-    connectionId: ""
-    connectionName: ""
-    environment: ""
-    routingId: ""
+    sl:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      connectionId: ""
+      connectionName: ""
+      environment: ""
+      routingId: ""
+    sre:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      connectionId: ""
+      connectionName: ""
+      environment: ""
+      routingId: ""
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:
