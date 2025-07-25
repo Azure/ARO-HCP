@@ -1,60 +1,34 @@
 ---
-{{- if .Values.forwarder.enabled }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "arobit.name" . }}-forwarder
-  {{- if .Values.forwarder.annotations }}
-  annotations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.annotations "context" $) | nindent 4 }}
-  {{- end }}
-  labels: {{- include "arobit.labels" . | nindent 4 }}
-    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
-    app: {{ include "arobit.name" . }}-forwarder
+    app: arobit-forwarder
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-      app.kubernetes.io/instance: {{ .Release.Name }}
-  updateStrategy: {{- toYaml .Values.forwarder.updateStrategy | nindent 4 }}
+      app.kubernetes.io/name: arobit-forwarder
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
-      labels: {{- include "arobit.labels" . | nindent 8 }}
-        app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app: {{ include "arobit.name" . }}-forwarder
-        {{- if .Values.forwarder.podLabels }}
-        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podLabels "context" $) | nindent 8 }}
-        {{- end }}
-      annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/forwarder-configmap.yaml") . | sha256sum }}
-        {{- if .Values.forwarder.podAnnotations }}
-        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podAnnotations "context" $) | nindent 8 }}
-        {{- end }}
+      labels:
+        app.kubernetes.io/name: arobit-forwarder
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app: arobit-forwarder
     spec:
-      serviceAccountName: {{ template "arobit.forwarder.serviceAccountName" . }}
-      priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
-      {{- if .Values.imqePullSecrets }}
-      imagePullSecrets:  {{- toYaml .Values.imagePullSecrets | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.affinity }}
-      affinity: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.affinity "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.nodeSelector }}
-      nodeSelector: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.nodeSelector "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.tolerations }}
-      tolerations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.tolerations "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.securityContext.enabled }}
-      securityContext: {{- omit .Values.forwarder.securityContext "enabled" | toYaml | nindent 8 }}
-      {{- end }}
+      serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
+      priorityClassName: '{{ .Values.forwarder.priorityClassName | quote }}'
       shareProcessNamespace: true
       containers:
         - name: fluentbit
           image: {{ .Values.forwarder.fluentbit.image.registry }}/{{ .Values.forwarder.fluentbit.image.repository }}@{{ .Values.forwarder.fluentbit.image.digest }}
-          imagePullPolicy: {{ .Values.forwarder.fluentbit.image.pullPolicy }}
+          imagePullPolicy: '{{ .Values.forwarder.fluentbit.image.pullPolicy }}'
           command:
             - /fluent-bit/bin/fluent-bit
           args:
@@ -64,34 +38,31 @@ spec:
             {{- if .Values.forwarder.fluentbit.containerPorts }}
             {{- toYaml .Values.forwarder.fluentbit.containerPorts | nindent 12 }}
             {{- end }}
-          {{- if .Values.forwarder.fluentbit.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
               path: /api/v1/health
               port: http
-            initialDelaySeconds: {{ .Values.forwarder.fluentbit.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.timeoutSeconds }}
-            successThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.successThreshold }}
-            failureThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.failureThreshold }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.readinessProbe.enabled }}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
           readinessProbe:
             httpGet:
               path: /api/v1/health
               port: http
-            initialDelaySeconds: {{ .Values.forwarder.fluentbit.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.timeoutSeconds }}
-            successThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.successThreshold }}
-            failureThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.failureThreshold }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.resources }}
-          resources: {{- toYaml .Values.forwarder.fluentbit.resources | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.forwarder.fluentbit.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{ end }}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
           volumeMounts:
             - name: varlog
               mountPath: /var/log
@@ -104,27 +75,44 @@ spec:
         {{- if .Values.forwarder.mdsd.enabled }}
         - name: mdsd
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
-          imagePullPolicy: {{ .Values.forwarder.mdsd.image.pullPolicy }}
-          command: {{- toYaml .Values.forwarder.mdsd.command | nindent 12 }}
-          args: {{- toYaml .Values.forwarder.mdsd.args | nindent 12 }}
-          ports:
-            {{- if .Values.forwarder.mdsd.containerPorts }}
-            {{- toYaml .Values.forwarder.mdsd.containerPorts | nindent 12 }}
-            {{- end }}
+          imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
+          command:
+              - /start_mdsd.sh
           env:
+            - name: MONITORING_CONFIG_VERSION
+              value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
+            - name: MONITORING_GCS_ACCOUNT
+              value: '{{ .Values.forwarder.mdsd.geneva.accountName }}'
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthMSIToken
+            - name: MONITORING_MANAGED_ID_IDENTIFIER
+              value: client_id 
+            - name: MONITORING_MANAGED_ID_VALUE
+              value: '{{ .Values.forwarder.mdsd.geneva.managedIdentityId }}'
+            - name: MONITORING_GCS_ENVIRONMENT
+              value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
+            - name: MONITORING_GCS_NAMESPACE
+              value: '{{ .Values.forwarder.mdsd.geneva.namespace }}'
+            - name: MONITORING_GCS_REGION
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
             {{- range $key,$value := .Values.forwarder.mdsd.env }}
-            - name: {{ $key | upper | quote }}
-              value: {{ $value | quote }}
+            - name: '{{ $key | upper | quote }}'
+              value: '{{ $value | quote }}'
             {{- end }}
-          {{- if .Values.forwarder.mdsd.lifecycle }}
-          lifecycle: {{- toYaml .Values.forwarder.mdsd.lifecycle | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.mdsd.resources }}
-          resources: {{- toYaml .Values.forwarder.mdsd.resources | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.mdsd.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.forwarder.mdsd.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{ end }}
+          lifecycle: 
+            preStop:
+              exec:
+                command:
+                - "/bin/sleep"
+                - "60"
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              add: []
+              drop: []
           volumeMounts:
             - name: mdsd-run
               mountPath: /var/run/mdsd/
@@ -134,9 +122,6 @@ spec:
             {{- end }}
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-            - mountPath: /geneva/geneva_auth/
-              name: geneva-certs
               readOnly: true
         {{- end }}
       volumes:
@@ -154,21 +139,6 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: geneva-certs
-          {{- if .Values.forwarder.secretProvider.enabled }}
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              # TODO: needs to be coordinated with MSFT to get the actual secret provider class name
-              secretProviderClass: {{ include "arobit.name" . }}-forwarder-secretprovider
-            {{- if .Values.forwarder.secretProvider.useNodePublishSecret }}
-            nodePublishSecretRef:
-              name: {{ include "arobit.name" . }}-forwarder-kv-creds
-            {{- end }}
-          secret:
-            secretName: {{ include "arobit.name" . }}-forwarder
-          {{- end }}
         - name: mdsd-run
           emptyDir: {}
         {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
@@ -177,6 +147,5 @@ spec:
         {{- end }}
         - name: flb-config
           configMap:
-            name: {{ include "arobit.name" . }}-forwarder
+            name: arobit-forwarder
             defaultMode: 0755
-{{- end }}

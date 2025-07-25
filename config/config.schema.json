@@ -17,6 +17,32 @@
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
       "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
     },
+    "genevaLogsAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accountName": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
+        },
+        "namespace": {
+          "description": "Geneva logs account namespace",
+          "type": "string"
+        },
+        "configVersion": {
+          "description": "Geneva logs account namespace configuration version",
+          "pattern": "^[0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountName",
+        "namespace",
+        "configVersion"
+      ]
+    },
     "k8sServiceAccount": {
       "type": "object",
       "properties": {
@@ -882,6 +908,13 @@
                 "securityGroup"
               ]
             },
+            "managedIdentityName": {
+              "type": "string",
+              "description": "The name of the  that will be used by arobit"
+            },
+            "k8s": {
+              "$ref": "#/definitions/k8sServiceAccount"
+            },
             "typeName": {
               "type": "string"
             },
@@ -902,42 +935,10 @@
               ]
             },
             "cluster": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "accountName": {
-                  "type": "string",
-                  "minLength": 6,
-                  "maxLength": 32,
-                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
-                }
-              },
-              "required": [
-                "accountName",
-                "accountCert"
-              ]
+              "$ref": "#/definitions/genevaLogsAccount"
             },
             "rp": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "accountName": {
-                  "type": "string",
-                  "minLength": 6,
-                  "maxLength": 32,
-                  "pattern": "^[a-zA-Z][a-zA-Z0-9]*$"
-                },
-                "accountCert": {
-                  "$ref": "#/definitions/certificateRef"
-                }
-              },
-              "required": [
-                "accountName",
-                "accountCert"
-              ]
+              "$ref": "#/definitions/genevaLogsAccount"
             }
           },
           "required": [

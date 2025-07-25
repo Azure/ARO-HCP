@@ -37,16 +37,6 @@ Common labels
 helm.sh/chart: {{ include "arobit.chart" . }}
 {{- end }}
 
-{{/*
-Create the name of the forwarder service account to use
-*/}}
-{{- define "arobit.forwarder.serviceAccountName" -}}
-{{- if .Values.forwarder.serviceAccount.create -}}
-    {{ default (printf "%s-forwarder" (include "arobit.name" .)) .Values.forwarder.serviceAccount.name }}
-{{- else -}}
-    {{ default "default" .Values.forwarder.serviceAccount.name }}
-{{- end -}}
-{{- end -}}
 
 {{/*
 Renders a value that contains template.

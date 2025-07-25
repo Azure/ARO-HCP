@@ -263,9 +263,20 @@ resourceGroups:
       configRef: arobit.mdsd.image.registry
     - name: AROBIT_MDSD_ENABLED
       configRef: arobit.mdsd.enabled
-    dependsOn:
-    - svc
-    - global-output
+    - name: AROBIT_MDSD_GENEVA_ACCOUNT_NAME
+      configRef: geneva.logs.rp.accountName
+    - name: AROBIT_MDSD_GENEVA_ENVIRONMENT
+      configRef: geneva.logs.environment
+    - name: AROBIT_MDSD_GENEVA_NAMESPACE
+      configRef: geneva.logs.rp.namespace
+    - name: AROBIT_MDSD_GENEVA_REGION
+      configRef: region
+    - name: AROBIT_CLUSTER_TYPE
+      value: svc
+    - name: MI_NAME
+      configRef: geneva.logs.managedIdentityName
+    - name: RESOURCEGROUP
+      configRef: svc.rg
     shellIdentity:
       input:
         step: global-output
