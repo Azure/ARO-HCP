@@ -1,25 +1,20 @@
-{{- if and .Values.forwarder.enabled .Values.forwarder.service.ports }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "arobit.name" . }}-forwarder
-  labels: {{- include "arobit.labels" . | nindent 4 }}
-    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
-    app: {{ include "arobit.name" . }}-forwarder
-  {{- if .Values.forwarder.service.annotations }}
-  annotations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.service.annotations "context" $) | nindent 4 }}
-  {{- end }}
+    app: arobit-forwarder
 spec:
   type: ClusterIP
   ports:
   {{- range $key, $value := .Values.forwarder.service.ports }}
-    - name: {{ $key }}
+    - name: '{{ $key }}'
       {{ toYaml $value | nindent 6 }}
   {{- end }}
   selector:
-    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-    app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
