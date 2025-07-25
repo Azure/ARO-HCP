@@ -70,6 +70,10 @@ param msiRefresherMIName = '{{ .msiCredentialsRefresher.managedIdentityName }}'
 param msiRefresherNamespace = '{{ .msiCredentialsRefresher.k8s.namespace }}'
 param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceAccountName }}'
 
+param genevaLogsMIName = '{{ .geneva.logs.managedIdentityName }}'
+param genevaLogsNamespace = '{{ .geneva.logs.k8s.namespace }}'
+param genevaLogsServiceAccountName = '{{ .geneva.logs.k8s.serviceAccountName }}'
+
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 

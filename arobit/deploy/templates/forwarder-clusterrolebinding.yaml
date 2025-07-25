@@ -13,6 +13,6 @@ roleRef:
   name: {{ template "arobit.name" . }}-forwarder
 subjects:
   - kind: ServiceAccount
-    name: {{ template "arobit.forwarder.serviceAccountName" . }}
+    name: {{ .Values.forwarder.serviceAccountName }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

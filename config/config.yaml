@@ -121,16 +121,18 @@ defaults:
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       typeName: ""
       environment: "Test"
+      managedIdentityName: arobit
+      k8s:
+        namespace: mdsd
+        serviceAccountName: arobit-forwarder
       cluster:
         accountName: AROClusterLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
+        namespace: HCPCustomerLogs
+        configVersion: "1"
       rp:
         accountName: ARORPLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
+        namespace: HCPServiceLogs
+        configVersion: "1"
   kusto:
     resourceGroup: ""
     cluster: ""
