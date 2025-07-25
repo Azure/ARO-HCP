@@ -25,10 +25,7 @@ image:
 .PHONY: image
 
 push:
-	@echo "Logging in to ACR with podman using service principal credentials..."
-	podman login $(ARO_HCP_E2ETESTS_IMAGE_REGISTRY) \
-	  --username $(AZURE_CLIENT_ID) \
-	  --password $(AZURE_CLIENT_SECRET)
+	DOCKER_COMMAND=podman az acr login --name $(ARO_HCP_E2ETESTS_ACR)
 	podman push $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) $(ARO_HCP_E2ETESTS_IMAGE_ACR):$(COMMIT_SHA)
 	podman push $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) $(ARO_HCP_E2ETESTS_IMAGE_ACR):latest
 .PHONY: push

@@ -1,4 +1,4 @@
-name: Build and Push E2E Test Image to ACR
+name: Build and Push E2E Tests Image to ACR
 on:
   workflow_dispatch:
   push:
@@ -18,10 +18,6 @@ permissions:
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
-    env:
-      COMMIT_SHA: ${{ github.sha }}
-      ARO_HCP_E2ETESTS_IMAGE: aro-hcp-e2e-tests
-      ARO_HCP_E2ETESTS_IMAGE_REGISTRY: e2etestsacr.azurecr.io
     steps:
     - uses: actions/checkout@v4
       with:
@@ -34,28 +30,9 @@ jobs:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - name: Get ACR refreshToken # Workaround for podman login to ACR
-      id: acr_token
+    - name: Build E2E Tests Image
       run: |
-        REFRESH_TOKEN=$(az acr login --name ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }} --expose-token --output tsv --query refreshToken)
-        echo "::add-mask::$REFRESH_TOKEN"
-        echo "refresh_token=$REFRESH_TOKEN" >> $GITHUB_OUTPUT
-    - name: Podman login to ACR with refreshToken
-      uses: redhat-actions/podman-login@v1
-      with:
-        registry: ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }}
-        username: 00000000-0000-0000-0000-000000000000
-        password: ${{ steps.acr_token.outputs.refresh_token }}
-    - name: Build e2e test image
-      id: build_image
-      uses: redhat-actions/buildah-build@v2
-      with:
-        image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
-        tags: latest ${{ env.COMMIT_SHA }}
-        containerfiles: test/Containerfile.e2e
-    - name: Push e2e test image to ACR
-      uses: redhat-actions/push-to-registry@v2
-      with:
-        image: ${{ env.ARO_HCP_E2ETESTS_IMAGE }}
-        tags: ${{ steps.build_image.outputs.tags }}
-        registry: ${{ env.ARO_HCP_E2ETESTS_IMAGE_REGISTRY }}
+        make -C test/e2e image
+    - name: Push E2E Tests Image to ACR
+      run: |
+        make -C test/e2e push
