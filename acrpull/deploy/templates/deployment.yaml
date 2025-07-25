@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: acrpull
-  replicas: {? {.Values.replicas: ''} : ''}
+  replicas: {{ .Values.replicas }}
   template:
     metadata:
       labels:
