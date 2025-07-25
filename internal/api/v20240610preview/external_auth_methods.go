@@ -15,6 +15,8 @@
 package v20240610preview
 
 import (
+	"net/http"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -77,6 +79,26 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	}
 }
 
+func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
+	var normalized api.HCPOpenShiftClusterExternalAuth
+	var errorDetails []arm.CloudErrorBody
+
+	// Pass the embedded HcpOpenShiftCluster struct so the
+	// struct field names match the clusterStructTagMap keys.
+	errorDetails = api.ValidateVisibility(
+		c.ExternalAuth,
+		current.(*ExternalAuth).ExternalAuth,
+		clusterStructTagMap, updating)
+
+	c.Normalize(&normalized)
+
+	// Run additional validation on the "normalized" cluster model.
+	errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
+}
+
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
 	if p.Component != nil {
 		out.Component.Name = *p.Component.Name
@@ -113,7 +135,7 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 
 func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, out *api.ExternalAuthClaimProfile) {
 	if p.Mappings != nil {
-		normailzeTokenClaimMappingsProfile(p.Mappings, &out.Mappings)
+		normalizeTokenClaimMappingsProfile(p.Mappings, &out.Mappings)
 	}
 
 	out.ValidationRules = make([]api.TokenClaimValidationRule, len(p.ValidationRules))
@@ -122,15 +144,26 @@ func normalizeExternalAuthClaimProfile(p *generated.ExternalAuthClaimProfile, ou
 	}
 }
 
-func normailzeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, out *api.TokenClaimMappingsProfile) {
+func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, out *api.TokenClaimMappingsProfile) {
 	if p.Username != nil {
-		out.Username.Claim = *p.Username.Claim
-		out.Username.Prefix = *p.Username.Prefix
-		out.Username.PrefixPolicy = *p.Username.PrefixPolicy
+
+		if p.Username.Claim != nil {
+			out.Username.Claim = *p.Username.Claim
+		}
+		if p.Username.Prefix != nil {
+			out.Username.Prefix = *p.Username.Prefix
+		}
+		if p.Username.PrefixPolicy != nil {
+			out.Username.PrefixPolicy = *p.Username.PrefixPolicy
+		}
 	}
 	if p.Groups != nil {
-		out.Groups.Claim = *p.Groups.Claim
-		out.Groups.Prefix = *p.Groups.Prefix
+		if p.Groups.Claim != nil {
+			out.Groups.Claim = *p.Groups.Claim
+		}
+		if p.Groups.Prefix != nil {
+			out.Groups.Prefix = *p.Groups.Prefix
+		}
 	}
 }
 
@@ -139,8 +172,12 @@ func normalizeTokenClaimValidationRule(p *generated.TokenClaimValidationRule, ou
 		out.TokenClaimValidationRuleType = api.TokenValidationRuleType(*p.Type)
 	}
 	if p.RequiredClaim != nil {
-		out.RequiredClaim.Claim = *p.RequiredClaim.Claim
-		out.RequiredClaim.RequiredValue = *p.RequiredClaim.RequiredValue
+		if p.RequiredClaim.Claim != nil {
+			out.RequiredClaim.Claim = *p.RequiredClaim.Claim
+		}
+		if p.RequiredClaim.RequiredValue != nil {
+			out.RequiredClaim.RequiredValue = *p.RequiredClaim.RequiredValue
+		}
 	}
 }
 

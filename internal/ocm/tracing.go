@@ -222,6 +222,63 @@ func (csc *clusterServiceClientWithTracing) GetBreakGlassCredential(ctx context.
 	return credential, err
 }
 
+func (csc *clusterServiceClientWithTracing) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetExternalAuth")
+	defer span.End()
+
+	externalAuth, err := csc.csc.GetExternalAuth(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetExternalAuthAttributes(span, externalAuth)
+	}
+
+	return externalAuth, err
+}
+
+func (csc *clusterServiceClientWithTracing) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostExternalAuth")
+	defer span.End()
+
+	externalAuth, err := csc.csc.PostExternalAuth(ctx, clusterInternalID, externalAuth)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetExternalAuthAttributes(span, externalAuth)
+	}
+
+	return externalAuth, err
+}
+
+func (csc *clusterServiceClientWithTracing) UpdateExternalAuth(ctx context.Context, internalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateExternalAuth")
+	defer span.End()
+
+	externalAuth, err := csc.csc.UpdateExternalAuth(ctx, internalID, externalAuth)
+	if err != nil {
+		span.RecordError(err)
+	} else {
+		tracing.SetExternalAuthAttributes(span, externalAuth)
+	}
+
+	return externalAuth, err
+}
+
+func (csc *clusterServiceClientWithTracing) DeleteExternalAuth(ctx context.Context, internalID InternalID) error {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.DeleteExternalAuth")
+	defer span.End()
+
+	span.SetAttributes(
+		tracing.ExternalAuthIDKey.String(internalID.ID()),
+	)
+	err := csc.csc.DeleteExternalAuth(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return err
+}
+
 func (csc *clusterServiceClientWithTracing) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostBreakGlassCredential")
 	defer span.End()

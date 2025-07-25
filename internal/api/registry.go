@@ -55,6 +55,7 @@ type VersionedHCPOpenShiftClusterNodePool interface {
 
 type VersionedHCPOpenShiftClusterExternalAuth interface {
 	Normalize(*HCPOpenShiftClusterExternalAuth)
+	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
 }
 
 type Version interface {
