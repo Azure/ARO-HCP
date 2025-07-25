@@ -1771,11 +1771,15 @@
       "properties": {
         "readerGroupId": {
           "type": "string"
+        },
+        "releaseManagementGroupId": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
-        "readerGroupId"
+        "readerGroupId",
+        "releaseManagementGroupId"
       ]
     }
   },
