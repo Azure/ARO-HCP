@@ -13,19 +13,15 @@ on:
     - 'internal/api/**'
     - '.github/workflows/aro-hcp-e2e-tests-image.yaml'
 permissions:
-  id-token: write
   contents: read
+  id-token: write
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
     env:
-      REPOSITORY: ${{ github.workspace }}
       COMMIT_SHA: ${{ github.sha }}
       ARO_HCP_E2ETESTS_IMAGE: aro-hcp-e2e-tests
       ARO_HCP_E2ETESTS_IMAGE_REGISTRY: e2etestsacr.azurecr.io
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
     - uses: actions/checkout@v4
       with:
