@@ -28,6 +28,7 @@ defaults:
   cloud: "{{ .ev2.cloudName }}"
   administration:
     readerGroupId: ""
+    releaseManagementGroupId: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
