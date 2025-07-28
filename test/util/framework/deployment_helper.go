@@ -105,3 +105,55 @@ func CreateBicepTemplateAndWait(
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
+
+func ListAllDeployments(
+	ctx context.Context,
+	deploymentsClient *armresources.DeploymentsClient,
+	resourceGroupName string,
+	timeout time.Duration,
+) ([]*armresources.DeploymentExtended, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	deploymentsPager := deploymentsClient.NewListByResourceGroupPager(resourceGroupName, nil)
+
+	allDeployments := []*armresources.DeploymentExtended{}
+	for deploymentsPager.More() {
+		deploymentPage, err := deploymentsPager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed listing deployments in resourcegroup=%q: %w", resourceGroupName, err)
+		}
+		for i := range deploymentPage.Value {
+			curr := deploymentPage.Value[i]
+			allDeployments = append(allDeployments, curr)
+		}
+	}
+
+	return allDeployments, nil
+}
+
+func ListAllOperations(
+	ctx context.Context,
+	deploymentOperationsClient *armresources.DeploymentOperationsClient,
+	resourceGroupName string,
+	deploymentName string,
+	timeout time.Duration,
+) ([]*armresources.DeploymentOperation, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	operationsPager := deploymentOperationsClient.NewListPager(resourceGroupName, deploymentName, nil)
+
+	allOperations := []*armresources.DeploymentOperation{}
+	for operationsPager.More() {
+		operationsPage, err := operationsPager.NextPage(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed listing operations in resourcegroup=%q deployment=%q: %w", resourceGroupName, deploymentName, err)
+		}
+		for _, operation := range operationsPage.DeploymentOperationsListResult.Value {
+			allOperations = append(allOperations, operation)
+		}
+	}
+
+	return allOperations, nil
+}
