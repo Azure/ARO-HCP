@@ -5,7 +5,7 @@ COMMIT_SHA=$(shell git rev-parse HEAD)
 ARO_HCP_E2ETESTS_IMAGE="aro-hcp-e2e-tests"
 LABEL_FILTER?="Positivity:Positive||Positivity:Negative"
 SETUP_FILEPATH?=e2e-setup.json
-ARO_HCP_E2ETESTS_ACR ?= e2etestsacr
+ARO_HCP_E2ETESTS_ACR ?= arohcpsvcdev
 ARO_HCP_E2ETESTS_IMAGE_REGISTRY = $(ARO_HCP_E2ETESTS_ACR).azurecr.io
 ARO_HCP_E2ETESTS_IMAGE_ACR = $(ARO_HCP_E2ETESTS_IMAGE_REGISTRY)/$(ARO_HCP_E2ETESTS_IMAGE)
 
