@@ -1,12 +1,11 @@
 ---
-{{- if .Values.forwarder.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "arobit.name" . }}-forwarder
-  labels: {{- include "arobit.labels" . | nindent 4 }}
-    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
@@ -15,8 +14,16 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
 
-{{- if .Values.forwarder.mdsd.enabled -}}
+    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+    @INCLUDE /forwarder/etc/filter-ocm.conf
+    {{- end }}
+
+{{- if .Values.forwarder.mdsd.enabled }}
     @INCLUDE /forwarder/etc/output-mdsd.conf
+    
+    {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+    @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
+    {{- end }}
 {{- else }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}
@@ -24,4 +31,3 @@ data:
   {{ $key }}: |
 {{ $value | default "{}" | indent 4 }}
 {{- end }}
-{{- end -}}

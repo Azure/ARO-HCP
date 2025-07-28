@@ -296,6 +296,15 @@ param msiRefresherNamespace string
 @description('The service account name of the MSI refresher managed identity')
 param msiRefresherServiceAccountName string
 
+@description('The name of the MSI refresher managed identity')
+param genevaLogsMIName string
+
+@description('The namespace of the MSI refresher managed identity')
+param genevaLogsNamespace string
+
+@description('The service account name of the MSI refresher managed identity')
+param genevaLogsServiceAccountName string
+
 // logs
 @description('The namespace of the logs')
 param logsNamespace string
@@ -440,6 +449,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         uamiName: msiRefresherMIName
         namespace: msiRefresherNamespace
         serviceAccountName: msiRefresherServiceAccountName
+      }
+      geneva_logs_wi: {
+        uamiName: genevaLogsMIName
+        namespace: genevaLogsNamespace
+        serviceAccountName: genevaLogsServiceAccountName
       }
     })
     aksKeyVaultName: aksKeyVaultName

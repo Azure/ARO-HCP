@@ -134,16 +134,18 @@ geneva:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
     cluster:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
       accountName: AROClusterLogs
+      configVersion: "1"
+      namespace: HCPCustomerLogs
     environment: Test
+    k8s:
+      namespace: mdsd
+      serviceAccountName: arobit-forwarder
+    managedIdentityName: arobit
     rp:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
       accountName: ARORPLogs
+      configVersion: "1"
+      namespace: HCPServiceLogs
     typeName: ""
   metrics:
     cluster:
