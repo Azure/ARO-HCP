@@ -1,0 +1,274 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package framework
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+	"github.com/onsi/ginkgo/v2"
+	"golang.org/x/sync/errgroup"
+	"k8s.io/apimachinery/pkg/util/rand"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+)
+
+type perItOrDescribeTestContext struct {
+	perBinaryInvocationTestContext *perBinaryInvocationTestContext
+
+	contextLock                   sync.RWMutex
+	knownResourceGroups           []string
+	subscriptionID                string
+	clientFactory20240610         *hcpapi20240610.ClientFactory
+	armResourcesClientFactory     *armresources.ClientFactory
+	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
+}
+
+func NewInvocationContext() *perItOrDescribeTestContext {
+	tc := &perItOrDescribeTestContext{
+		perBinaryInvocationTestContext: invocationContext(),
+	}
+
+	// this construct allows us to be called before or after the test has started and still properly register cleanup.
+	if !ginkgo.GetSuite().InRunPhase() {
+		ginkgo.BeforeEach(tc.BeforeEach, AnnotatedLocation("set up test context"))
+	} else {
+		tc.BeforeEach(context.TODO())
+	}
+
+	return tc
+}
+
+// BeforeEach gives a chance for initialization (none yet) and registers the cleanup
+func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
+	// DeferCleanup, in contrast to AfterEach, triggers execution in
+	// first-in-last-out order. This ensures that the framework instance
+	// remains valid as long as possible.
+	//
+	// In addition, AfterEach will not be called if a test never gets here.
+	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(45*time.Minute))
+
+	// Registered later and thus runs before deleting namespaces.
+	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
+}
+
+// deleteCreatedResources deletes what was created that we know of.
+func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+
+	// deletion takes a while, it's worth it to do this in parallel
+	waitGroup, ctx := errgroup.WithContext(ctx)
+	for _, resourceGroupName := range tc.knownResourceGroups {
+		waitGroup.Go(func() error {
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to funcion.
+			utilruntime.HandleCrashWithContext(ctx)
+
+			return tc.cleanupResourceGroup(ctx, resourceGroupName)
+		})
+	}
+	if err := waitGroup.Wait(); err != nil {
+		// remember that Wait only shows the first error, not all the errors.
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+	}
+}
+
+// collectDebugInfo collects information and saves it in artifact dir
+func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
+	// TODO dump deployment operation info for all resource groups
+}
+
+func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix, location string) (*armresources.ResourceGroup, error) {
+
+	suffix := rand.String(6)
+	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
+	func() {
+		tc.contextLock.Lock()
+		defer tc.contextLock.Unlock()
+		tc.knownResourceGroups = append(tc.knownResourceGroups, resourceGroupName)
+	}()
+	ginkgo.GinkgoLogr.Info("creating resource group", "resourceGroup", resourceGroupName)
+
+	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 20*time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource group: %w", err)
+	}
+
+	return resourceGroup, nil
+}
+
+// cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
+// 1. delete all HCP clusters and wait for success
+// 2. delete the resource group and wait for success
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string) error {
+	errs := []error{}
+
+	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
+	if hcpClientFactory, err := tc.get20240610ClientFactoryUnlocked(ctx); err == nil {
+		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	}
+
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	if armClientFactory, err := tc.GetARMResourcesClientFactory(ctx); err == nil {
+		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 60*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	}
+
+	return errors.Join(errs...)
+}
+
+func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
+	return Must(tc.GetARMResourcesClientFactory(ctx))
+}
+
+func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpapi20240610.ClientFactory {
+	return Must(tc.Get20240610ClientFactory(ctx))
+}
+
+func (tc *perItOrDescribeTestContext) GetARMSubscriptionsClientFactory() (*armsubscriptions.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.clientFactory20240610 != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armSubscriptionsClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMSubscriptionsClientFactoryUnlocked()
+}
+
+func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked() (*armsubscriptions.ClientFactory, error) {
+	if tc.armResourcesClientFactory != nil {
+		return tc.armSubscriptionsClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := armsubscriptions.NewClientFactory(creds, nil)
+	if err != nil {
+		return nil, err
+	}
+	tc.armSubscriptionsClientFactory = clientFactory
+
+	return tc.armSubscriptionsClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.clientFactory20240610 != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armResourcesClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMResourcesClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx context.Context) (*armresources.ClientFactory, error) {
+	if tc.armResourcesClientFactory != nil {
+		return tc.armResourcesClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := armresources.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return nil, err
+	}
+	tc.armResourcesClientFactory = clientFactory
+
+	return tc.armResourcesClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpapi20240610.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.clientFactory20240610 != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.clientFactory20240610, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.get20240610ClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx context.Context) (*hcpapi20240610.ClientFactory, error) {
+	if tc.clientFactory20240610 != nil {
+		return tc.clientFactory20240610, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := hcpapi20240610.NewClientFactory(subscriptionID, creds, nil)
+	if err != nil {
+		return nil, err
+	}
+	tc.clientFactory20240610 = clientFactory
+
+	return tc.clientFactory20240610, nil
+}
+
+func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Context) (string, error) {
+	if len(tc.subscriptionID) > 0 {
+		return tc.subscriptionID, nil
+	}
+
+	clientFactory, err := tc.getARMSubscriptionsClientFactoryUnlocked()
+	if err != nil {
+		return "", fmt.Errorf("failed to get ARM subscriptions client factory: %w", err)
+	}
+
+	return tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
+}
+
+func (tc *perItOrDescribeTestContext) Location() string {
+	return tc.perBinaryInvocationTestContext.Location()
+}
