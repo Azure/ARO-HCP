@@ -1,0 +1,18 @@
+{
+  "kind": "ManagementClusters",
+  "total": 1,
+  "items": [
+    {
+      "name": "test-cluster",
+      "resourcegroup": "test-rg",
+      "subscriptionid": "sub-123",
+      "subscription": "Test Subscription",
+      "location": "eastus",
+      "state": "Succeeded",
+      "tags": {
+        "environment": "test",
+        "owner": "team-a"
+      }
+    }
+  ]
+}

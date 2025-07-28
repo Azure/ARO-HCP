@@ -1,0 +1,26 @@
+Certificate Request:
+    Data:
+        Version: 0
+        Subject: CN=system:sre-break-glass:b-user@microsoft.com,O=aro-sre
+        Subject Public Key Info:
+            Public Key Algorithm: RSA
+                Public-Key: (2048 bit)
+                Modulus:
+                    d8:3e:04:28:7d:74:78:5c:90:5b:0f:1c:68:3e:b9:6d:
+                    56:ca:58:08:8d:ae:34:3d:d7:5e:66:dc:8d:51:69:c0:
+                    8c:17:7a:a9:81:f1:75:ff:b4:db:a7:fd:cd:b9:33:c5:
+                    f1:1f:c8:ce:22:93:ad:c0:61:ab:57:00:2a:9a:d8:15:
+                    d4:df:ca:65:ea:5f:f6:e6:81:9b:cd:81:fb:b1:14:50:
+                    4b:b0:14:7a:30:b7:f8:ce:b0:f3:b1:40:09:77:84:8a:
+                    70:6d:b8:ac:5d:1d:b3:7c:15:55:af:65:ca:6a:0e:18:
+                    e0:c1:de:8a:f4:8b:f1:b9:e1:51:1e:98:7e:73:fb:fb:
+                    cd:97:31:99:48:3b:80:11:d1:f5:78:90:4c:f7:41:84:
+                    e8:78:2d:80:30:3d:a5:de:9b:d8:23:68:9c:97:7b:36:
+                    64:51:95:e1:4f:ea:47:b0:4b:8f:7b:63:f4:fd:5d:dc:
+                    44:b7:69:21:9b:8b:42:2a:f8:70:a6:a6:2f:4c:fc:2c:
+                    c2:e0:89:dd:b1:29:41:b4:a9:dd:47:07:51:77:b2:05:
+                    2c:2a:51:c0:a6:11:b7:6f:c0:67:95:05:a8:44:83:b2:
+                    ad:3d:52:54:f0:94:19:f3:ea:2c:53:1b:0e:90:1f:99:
+                    67:52:19:5e:37:4c:b3:52:68:08:85:77:29:1a:2a:7b
+                Exponent: 65537 (0x10001)
+    Signature Algorithm: SHA256-RSA

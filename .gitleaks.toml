@@ -1,0 +1,11 @@
+# Gitleaks configuration file
+# https://github.com/gitleaks/gitleaks
+
+title = "ARO HCP Gitleaks Configuration"
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+    # Exclude test data directory from secret scanning
+    "tooling/hcpctl/testdata/.*",
+]
