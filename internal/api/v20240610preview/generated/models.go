@@ -85,6 +85,12 @@ type DNSProfile struct {
 	BaseDomain *string
 }
 
+// EffectiveOutboundIP - Represents an effective outbound IP resource of the cluster's public load balancer
+type EffectiveOutboundIP struct {
+	// REQUIRED; The fully qualified Azure resource ID of an IP address resource
+	ID *string
+}
+
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
 	// Specify customer managed encryption key details. Required when keyManagementMode is "CustomerManaged".
@@ -512,7 +518,7 @@ type LoadBalancerProfile struct {
 	ManagedOutboundIPs *ManagedOutboundIPs
 
 	// READ-ONLY; The list of effective outbound IP addresses of the cluster's public load balancer
-	EffectiveOutboundIPs []*string
+	EffectiveOutboundIPs []*EffectiveOutboundIP
 }
 
 // LoadBalancerProfileUpdate - A representation of the cluster's public load balancer.

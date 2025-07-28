@@ -383,7 +383,13 @@ model LoadBalancerProfile {
 
   /** The list of effective outbound IP addresses of the cluster's public load balancer */
   @visibility(Lifecycle.Read)
-  effectiveOutboundIps: EffectiveOutboundIpResourceId[];
+  effectiveOutboundIps: EffectiveOutboundIp[];
+}
+
+/** Represents an effective outbound IP resource of the cluster's public load balancer */
+model EffectiveOutboundIp {
+  /** The fully qualified Azure resource ID of an IP address resource */
+  id: EffectiveOutboundIpResourceId
 }
 
 scalar EffectiveOutboundIpResourceId
