@@ -104,6 +104,12 @@ type DNSProfile struct {
 	BaseDomain *string
 }
 
+// EffectiveOutboundIP - Represents an effective outbound IP resource of the cluster's public load balancer
+type EffectiveOutboundIP struct {
+	// REQUIRED; The fully qualified Azure resource ID of an IP address resource
+	ID *string
+}
+
 // ErrorAdditionalInfo - The resource management error additional info.
 type ErrorAdditionalInfo struct {
 	// READ-ONLY; The additional info.
@@ -565,7 +571,7 @@ type LoadBalancerProfile struct {
 	ManagedOutboundIPs *ManagedOutboundIPs
 
 	// READ-ONLY; The list of effective outbound IP addresses of the cluster's public load balancer
-	EffectiveOutboundIPs []*string
+	EffectiveOutboundIPs []*EffectiveOutboundIP
 }
 
 // LoadBalancerProfileUpdate - A representation of the cluster's public load balancer.
