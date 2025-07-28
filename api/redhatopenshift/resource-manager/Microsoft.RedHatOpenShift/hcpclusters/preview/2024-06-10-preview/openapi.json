@@ -1673,6 +1673,19 @@
         ]
       }
     },
+    "EffectiveOutboundIp": {
+      "type": "object",
+      "description": "Represents an effective outbound IP resource of the cluster's public load balancer",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/EffectiveOutboundIpResourceId",
+          "description": "The fully qualified Azure resource ID of an IP address resource"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
     "EffectiveOutboundIpResourceId": {
       "type": "string",
       "format": "arm-id",
@@ -2575,7 +2588,7 @@
           "type": "array",
           "description": "The list of effective outbound IP addresses of the cluster's public load balancer",
           "items": {
-            "$ref": "#/definitions/EffectiveOutboundIpResourceId"
+            "$ref": "#/definitions/EffectiveOutboundIp"
           },
           "readOnly": true
         }
