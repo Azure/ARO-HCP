@@ -48,10 +48,10 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     variables:
-      - name: GRAFANA_NAME
-        configRef: monitoring.grafanaName
-      - name: GLOBAL_RESOURCEGROUP
-        configRef: global.rg
+    - name: GRAFANA_NAME
+      configRef: monitoring.grafanaName
+    - name: GLOBAL_RESOURCEGROUP
+      configRef: global.rg
     shellIdentity:
       input:
         step: global-output
