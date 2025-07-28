@@ -1039,6 +1039,10 @@
           "type": "string",
           "description": "The client ID of the first party application that will be used by the refresher"
         },
+        "msiKeyvaultUri": {
+          "type": "string",
+          "description": "The full URI of the MSI keyvault that the refresher will watch"
+        },
         "k8s": {
           "$ref": "#/definitions/k8sServiceAccount"
         },

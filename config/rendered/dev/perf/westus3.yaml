@@ -399,6 +399,7 @@ msiCredentialsRefresher:
     namespace: msi-credential-refresher
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
+  msiKeyvaultUri: ""
 msiKeyVault:
   name: ah-perf-mi-usw3ptest-1
   private: false

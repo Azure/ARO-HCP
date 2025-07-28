@@ -388,6 +388,7 @@ defaults:
   msiCredentialsRefresher:
     managedIdentityName: msi-credential-refresher
     firstPartyAppClientId: ""
+    msiKeyvaultUri: ""
     k8s:
       namespace: msi-credential-refresher
       serviceAccountName: msi-credential-refresher
