@@ -8,7 +8,7 @@ source env_vars
 # The ONLY supported region for ARO-HCP in INT is uksouth
 LOCATION=uksouth 
 # This is the only supported subscription for creating INT hcp/nodepools
-SUBSCRIPTION="ARO SRE Team - INT (EA Subscription 3)"
+SUBSCRIPTION="ARO HCP - STAGE testing (EA Subscription)"
 
 az group create \
   --name "${CUSTOMER_RG_NAME}" \
@@ -43,8 +43,9 @@ az deployment group create \
   --resource-group "${CUSTOMER_RG_NAME}" \
   --template-file bicep/cluster.bicep \
   --parameters \
-    networkSecurityGroupId="${NSG_ID}" \
-    subnetId="${SUBNET_ID}" \
+    vnetName="${CUSTOMER_VNET_NAME}" \
+    subnetName="${CUSTOMER_VNET_SUBNET1}" \
+    nsgName="${CUSTOMER_NSG}" \
     clusterName="${CLUSTER_NAME}" \
     managedResourceGroupName="${MANAGED_RESOURCE_GROUP}"
 
