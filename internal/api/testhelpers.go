@@ -86,6 +86,9 @@ func NewTestValidator() *validator.Validate {
 		arm.ManagedServiceIdentityTypeSystemAssigned,
 		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
 		arm.ManagedServiceIdentityTypeUserAssigned))
+	validate.RegisterAlias("enum_clusterimageregistryprofilestate", EnumValidateTag(
+		ClusterImageRegistryProfileStateEnabled,
+		ClusterImageRegistryProfileStateDisabled))
 
 	return validate
 }
