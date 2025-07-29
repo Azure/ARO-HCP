@@ -485,6 +485,8 @@ defaults:
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
       zoneRedundantMode: 'Auto'
+      backupRetentionDays: 7
+      geoRedundantBackup: false
     restrictIstioIngress: true
     certDomain: ""
     image:
@@ -543,6 +545,8 @@ defaults:
       serverStorageSizeGB: 128
       databaseName: clusters-service
       zoneRedundantMode: 'Auto'
+      backupRetentionDays: 7
+      geoRedundantBackup: false
     managedIdentityName: clusters-service
     k8s:
       namespace: clusters-service

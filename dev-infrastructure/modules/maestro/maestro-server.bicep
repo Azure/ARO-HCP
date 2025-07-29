@@ -66,7 +66,14 @@ param maestroServerManagedIdentityPrincipalId string
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+@description('The zone redundant mode of the Postgres Database')
 param postgresZoneRedundantMode string
+
+@description('The number of days to retain backups for.')
+param postgresBackupRetentionDays int
+
+@description('Enable geo-redundant backups for the PostgreSQL server.')
+param postgresGeoRedundantBackup bool
 
 @description('The log analytics workspace ID to link to the server.')
 param logAnalyticsWorkspaceId string = ''
@@ -120,6 +127,8 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
       startHour: 1
       startMinute: 12
     }
+    backupRetentionDays: postgresBackupRetentionDays
+    geoRedundantBackup: postgresGeoRedundantBackup
     storageSizeGB: postgresServerStorageSizeGB
     private: postgresServerPrivate
     subnetId: privateEndpointSubnetId
