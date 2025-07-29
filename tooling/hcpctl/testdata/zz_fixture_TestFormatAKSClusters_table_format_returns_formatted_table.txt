@@ -1,0 +1,5 @@
+
+Found 1 management cluster(s):
+
+CLUSTER NAME    SUBSCRIPTION ID    RESOURCE GROUP    LOCATION
+test-cluster    sub-123            test-rg           eastus

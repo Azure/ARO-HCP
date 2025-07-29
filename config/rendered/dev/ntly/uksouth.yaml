@@ -15,6 +15,7 @@ acrPull:
     repository: aks/msi-acrpull
 administration:
   readerGroupId: ""
+  releaseManagementGroupId: ""
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
@@ -132,17 +133,21 @@ geneva:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    certificateDomain: aro-hcp-ntly.azure.com
+    certificateIssuer: Self
     cluster:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: AROClusterLogs
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: clusterlogs
     environment: Test
     rp:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: ARORPLogs
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: rplogs
     typeName: ""
   metrics:
     cluster:
@@ -299,10 +304,6 @@ mgmt:
       vmSize: Standard_D4s_v3
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
-  logs:
-    configVersion: "1"
-    namespace: HCPCustomerLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-ln-mgmt-1
@@ -494,10 +495,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-25
     versions: asm-1-25
-  logs:
-    configVersion: "1"
-    namespace: HCPServiceLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-ln-svc

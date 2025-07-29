@@ -97,6 +97,23 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				},
 			),
 		},
+		// TODO: Uncomment when CS supports it.
+		// {
+		// 	name: "converts EtcdEncryption for only default PlatformManaged",
+		// 	cluster: arohcpv1alpha1.NewCluster().
+		// 		Azure(arohcpv1alpha1.NewAzure().
+		// 			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+		// 				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+		// 					KeyManagementMode("PlatformManaged")),
+		// 			),
+		// 		),
+		// 	want: clusterResource(
+		// 		func(hsc *api.HCPOpenShiftCluster) {
+		// 			hsc.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+		// 			hsc.Properties.Etcd.DataEncryption.CustomerManaged = api.CustomerManagedEncryptionProfile{}
+		// 		},
+		// 	),
+		// },
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -160,6 +177,12 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 	}
 	for _, opt := range opts {
 		opt(c)
+	}
+	// Temporarily add a default that CS doesn't supply.
+	c.Properties.Etcd = api.EtcdProfile{
+		DataEncryption: api.EtcdDataEncryptionProfile{
+			KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		},
 	}
 	return c
 }

@@ -28,6 +28,7 @@ defaults:
   cloud: "{{ .ev2.cloudName }}"
   administration:
     readerGroupId: ""
+    releaseManagementGroupId: ""
   # Global scope settings
   global:
     safeDnsIntAppObjectId: "" # intentionally left empty
@@ -118,18 +119,22 @@ defaults:
       administrators:
         alias: AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      certificateIssuer: Self
+      certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
       typeName: ""
       environment: "Test"
       cluster:
-        accountName: AROClusterLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
+        secretName: clusterlogs
+        accountName: placeholder
+        namespace: ""
+        san: ""
+        configVersion: "1"
       rp:
-        accountName: ARORPLogs
-        accountCert:
-          keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
-          name: ""
+        secretName: rplogs
+        accountName: placeholder
+        namespace: ""
+        san: ""
+        configVersion: "1"
   kusto:
     resourceGroup: ""
     cluster: ""
@@ -233,10 +238,6 @@ defaults:
         tagKey: aroHCPPurpose
         tagValue: etcd-encryption
       clusterOutboundIPAddressIPTags: ""
-    logs:
-      namespace: HCPServiceLogs
-      san: ""
-      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: ""
@@ -319,10 +320,6 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
-    logs:
-      namespace: HCPCustomerLogs
-      san: ""
-      configVersion: "1"
     prometheus:
       namespace: prometheus
       namespaceLabel: network.openshift.io/policy-group=monitoring
