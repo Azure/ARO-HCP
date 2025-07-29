@@ -1,14 +1,14 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
 
-CURRENT_COMMIT ?= $(shell COMMIT_SHA=$$(git rev-parse --short=7 HEAD); if [ -z "$$(git status --porcelain 2>/dev/null)" ]; then echo "$$COMMIT_SHA"; else echo "$$COMMIT_SHA"-dirty; fi )
+ARO_HCP_IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)$(shell git status --porcelain --untracked-files=no | grep --quiet . && echo -dirty)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_BACKEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
+ARO_HCP_BACKEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
 
 .DEFAULT_GOAL := backend
 
 backend:
-	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${CURRENT_COMMIT}" -o aro-hcp-backend .
+	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_IMAGE_TAG}" -o aro-hcp-backend .
 .PHONY: backend
 
 run:
@@ -28,14 +28,14 @@ image:
 	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
 	          cp ${ENV_VARS_FILE} image-environment; \
 	          docker build . --file backend/Dockerfile \
-	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
 	                         --build-arg PLATFORM=linux/amd64 \
-	                         --tag ${ARO_HCP_BACKEND_IMAGE}:${CURRENT_COMMIT}"
+	                         --build-arg TAG=${ARO_HCP_IMAGE_TAG} \
+	                         --tag ${ARO_HCP_BACKEND_IMAGE}"
 .PHONY: image
 
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_BACKEND_IMAGE}:${CURRENT_COMMIT}
+	docker push ${ARO_HCP_BACKEND_IMAGE}
 .PHONY: push
 
 deploy:
@@ -53,11 +53,11 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
+		--set configMap.currentVersion=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
 		--set configMap.location=${LOCATION} \
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
-		--set deployment.imageName=${ARO_HCP_BACKEND_IMAGE}@$${DIGEST} \
+		--set deployment.imageName=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
 		--namespace aro-hcp
