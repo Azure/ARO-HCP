@@ -53,7 +53,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a prereqs in the resource group")
-				infraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"infra",
@@ -68,10 +68,6 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the hcp cluster")
-				networkSecurityGroupID, err := framework.GetOutputValueString(infraDeploymentResult, "networkSecurityGroupId")
-				Expect(err).NotTo(HaveOccurred())
-				subnetID, err := framework.GetOutputValueString(infraDeploymentResult, "subnetId")
-				Expect(err).NotTo(HaveOccurred())
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 				clusterTemplate := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/illegal-install-version/cluster.json"))
@@ -83,8 +79,9 @@ var _ = Describe("Customer", func() {
 					"infra",
 					clusterTemplate,
 					map[string]string{
-						"networkSecurityGroupId":   networkSecurityGroupID,
-						"subnetId":                 subnetID,
+						"nsgName":                  customerNetworkSecurityGroupName,
+						"vnetName":                 customerVnetName,
+						"subnetName":               customerVnetSubnetName,
 						"clusterName":              customerClusterName,
 						"managedResourceGroupName": managedResourceGroupName,
 					},
