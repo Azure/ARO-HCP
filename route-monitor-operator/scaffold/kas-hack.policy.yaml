@@ -10,64 +10,64 @@ metadata:
 spec:
   disabled: false
   policy-templates:
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: kas-hack
-        spec:
-          pruneObjectBehavior: DeleteIfCreated
-          remediationAction: enforce
-          severity: low
-          evaluationInterval:
-            compliant: 2m
-            noncompliant: 30s
-          object-templates-raw: |
-            {{ `{{- range (lookup "v1" "Namespace" "" "" "hypershift.openshift.io/hosted-control-plane=true").items }}` }}
-            - complianceType: mustonlyhave
-              objectDefinition:
-                apiVersion: monitoring.openshift.io/v1alpha1
-                kind: RouteMonitor
-                metadata:
-                  name: kas-monitor
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: kas-hack
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: low
+        evaluationInterval:
+          compliant: 2m
+          noncompliant: 30s
+        object-templates-raw: |
+          {{ `{{- range (lookup "v1" "Namespace" "" "" "hypershift.openshift.io/hosted-control-plane=true").items }}` }}
+          - complianceType: mustonlyhave
+            objectDefinition:
+              apiVersion: monitoring.openshift.io/v1alpha1
+              kind: RouteMonitor
+              metadata:
+                name: kas-monitor
+                namespace: {{ `'{{ .metadata.name }}'` }}
+              spec:
+                route:
+                  name: kube-apiserver
                   namespace: {{ `'{{ .metadata.name }}'` }}
-                spec:
-                  route:
-                    name: kube-apiserver
-                    namespace: {{ `'{{ .metadata.name }}'` }}
-                    port: 443
-                    suffix: /livez
-                  skipPrometheusRule: true
-                  serviceMonitorType: monitoring.rhobs
-                  insecureSkipTLSVerify: true
-            {{ `{{- range (lookup "monitoring.rhobs/v1" "ServiceMonitor" (printf "%s" .metadata.name) "").items }}` }}
-            - complianceType: mustonlyhave
-              objectDefinition:
-                apiVersion: monitoring.coreos.com/v1
-                kind: ServiceMonitor
-                metadata:
-                  name: {{ `'{{ .metadata.name }}'` }}
-                  namespace: {{ `'{{ .metadata.namespace }}'` }}
-                spec:
-                  endpoints:
-                    - bearerTokenSecret: {{ `'{{ (index .spec.endpoints 0).bearerTokenSecret | toRawJson | toLiteral }}'` }}
-                      interval: {{ `'{{ (index .spec.endpoints 0).interval }}'` }}
-                      metricRelabelings:
-                        - action: replace
-                          replacement: {{ `'{{ (index (index .spec.endpoints 0).metricRelabelings 0).replacement }}'` }}
-                          targetLabel: probe_url
-                        - action: replace
-                          replacement: {{ `'{{ (index (index .spec.endpoints 0).metricRelabelings 1).replacement }}'` }}
-                          targetLabel: _id
-                        - action: replace
-                          replacement: {{ `'{{ .metadata.namespace }}'` }}
-                          targetLabel: namespace
-                      params: {{ `'{{ (index .spec.endpoints 0).params | toRawJson | toLiteral }}'` }}
-                      path: {{ `'{{ (index .spec.endpoints 0).path }}'` }}
-                      port: {{ `'{{ (index .spec.endpoints 0).port }}'` }}
-                      scheme: {{ `'{{ (index .spec.endpoints 0).scheme }}'` }}
-                      scrapeTimeout: {{ `'{{ (index .spec.endpoints 0).scrapeTimeout }}'` }}
-                  namespaceSelector: {{ `'{{ .spec.namespaceSelector | toRawJson | toLiteral }}'` }}
-                  selector: {{ `'{{ .spec.selector | toRawJson | toLiteral }}'` }}
-            {{ `{{- end }}` }}
-            {{ `{{- end }}` }}
+                  port: 443
+                  suffix: /livez
+                skipPrometheusRule: true
+                serviceMonitorType: monitoring.rhobs
+                insecureSkipTLSVerify: true
+          {{ `{{- range (lookup "monitoring.rhobs/v1" "ServiceMonitor" (printf "%s" .metadata.name) "").items }}` }}
+          - complianceType: mustonlyhave
+            objectDefinition:
+              apiVersion: monitoring.coreos.com/v1
+              kind: ServiceMonitor
+              metadata:
+                name: {{ `'{{ .metadata.name }}'` }}
+                namespace: {{ `'{{ .metadata.namespace }}'` }}
+              spec:
+                endpoints:
+                  - bearerTokenSecret: {{ `'{{ (index .spec.endpoints 0).bearerTokenSecret | toRawJson | toLiteral }}'` }}
+                    interval: {{ `'{{ (index .spec.endpoints 0).interval }}'` }}
+                    metricRelabelings:
+                      - action: replace
+                        replacement: {{ `'{{ (index (index .spec.endpoints 0).metricRelabelings 0).replacement }}'` }}
+                        targetLabel: probe_url
+                      - action: replace
+                        replacement: {{ `'{{ (index (index .spec.endpoints 0).metricRelabelings 1).replacement }}'` }}
+                        targetLabel: _id
+                      - action: replace
+                        replacement: {{ `'{{ .metadata.namespace }}'` }}
+                        targetLabel: namespace
+                    params: {{ `'{{ (index .spec.endpoints 0).params | toRawJson | toLiteral }}'` }}
+                    path: {{ `'{{ (index .spec.endpoints 0).path }}'` }}
+                    port: {{ `'{{ (index .spec.endpoints 0).port }}'` }}
+                    scheme: {{ `'{{ (index .spec.endpoints 0).scheme }}'` }}
+                    scrapeTimeout: {{ `'{{ (index .spec.endpoints 0).scrapeTimeout }}'` }}
+                namespaceSelector: {{ `'{{ .spec.namespaceSelector | toRawJson | toLiteral }}'` }}
+                selector: {{ `'{{ .spec.selector | toRawJson | toLiteral }}'` }}
+          {{ `{{- end }}` }}
+          {{ `{{- end }}` }}

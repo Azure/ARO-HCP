@@ -63,22 +63,22 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     variables:
-      # Bundle version is not used in runtime, it's used to generate
-      # the Helm chart for the route-monitor-operator
-      # WARNING: Keep this in sync with the image digests
-      - name: BUNDLE_VERSION
-        configRef: routeMonitorOperator.bundleVersion
-      # Image refs
-      - name: ACR_NAME
-        configRef: acr.svc.name
-      - name: OPERATOR_IMAGE_REPOSITORY
-        configRef: routeMonitorOperator.operatorImage.repository
-      - name: OPERATOR_IMAGE_DIGEST
-        configRef: routeMonitorOperator.operatorImage.digest
-      - name: BLACKBOX_IMAGE_REPOSITORY
-        configRef: routeMonitorOperator.blackboxExporterImage.repository
-      - name: BLACKBOX_IMAGE_DIGEST
-        configRef: routeMonitorOperator.blackboxExporterImage.digest
+    # Bundle version is not used in runtime, it's used to generate
+    # the Helm chart for the route-monitor-operator
+    # WARNING: Keep this in sync with the image digests
+    - name: BUNDLE_VERSION
+      configRef: routeMonitorOperator.bundleVersion
+    # Image refs
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: OPERATOR_IMAGE_REPOSITORY
+      configRef: routeMonitorOperator.operatorImage.repository
+    - name: OPERATOR_IMAGE_DIGEST
+      configRef: routeMonitorOperator.operatorImage.digest
+    - name: BLACKBOX_IMAGE_REPOSITORY
+      configRef: routeMonitorOperator.blackboxExporterImage.repository
+    - name: BLACKBOX_IMAGE_DIGEST
+      configRef: routeMonitorOperator.blackboxExporterImage.digest
     dependsOn:
     - mirror-operator-image
     - mirror-blackbox-image

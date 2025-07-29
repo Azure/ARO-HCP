@@ -54,20 +54,17 @@ spec:
                     description: Namespace is the namespace of the Route
                     type: string
                   port:
-                    description: Port optionally defines the port we should use while
-                      probing
+                    description: Port optionally defines the port we should use while probing
                     format: int64
                     minimum: 1
                     type: integer
                   suffix:
-                    description: Suffix optionally defines the path we should probe
-                      (/livez /readyz etc)
+                    description: Suffix optionally defines the path we should probe (/livez /readyz etc)
                     type: string
                 type: object
               serviceMonitorType:
                 default: monitoring.coreos.com
-                description: ServiceMonitorType dictates the type of ServiceMonitor
-                  the RouteMonitor should create
+                description: ServiceMonitorType dictates the type of ServiceMonitor the RouteMonitor should create
                 enum:
                 - monitoring.coreos.com
                 - monitoring.rhobs
@@ -81,8 +78,7 @@ spec:
                 description: SloSpec defines what is the percentage
                 properties:
                   targetAvailabilityPercent:
-                    description: TargetAvailabilityPercent defines the percent number
-                      to be used
+                    description: TargetAvailabilityPercent defines the percent number to be used
                     type: string
                 required:
                 - targetAvailabilityPercent
@@ -94,8 +90,7 @@ spec:
               errorStatus:
                 type: string
               prometheusRuleRef:
-                description: NamespacedName contains the name of a object and its
-                  namespace
+                description: NamespacedName contains the name of a object and its namespace
                 properties:
                   name:
                     type: string
@@ -109,8 +104,7 @@ spec:
                 description: RouteURL is the url extracted from the Route resource
                 type: string
               serviceMonitorRef:
-                description: NamespacedName contains the name of a object and its
-                  namespace
+                description: NamespacedName contains the name of a object and its namespace
                 properties:
                   name:
                     type: string

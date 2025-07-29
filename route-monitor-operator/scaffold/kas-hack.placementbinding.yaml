@@ -8,6 +8,6 @@ placementRef:
   kind: Placement
   name: kas-hack
 subjects:
-  - apiGroup: policy.open-cluster-management.io
-    kind: Policy
-    name: kas-hack
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: kas-hack
