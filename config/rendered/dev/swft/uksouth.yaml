@@ -133,17 +133,21 @@ geneva:
     administrators:
       alias: AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+    certificateDomain: aro-hcp-swft.azure.com
+    certificateIssuer: Self
     cluster:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: AROClusterLogs
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: clusterlogs
     environment: Test
     rp:
-      accountCert:
-        keyVault: empty-sentinel
-        name: ""
-      accountName: ARORPLogs
+      accountName: placeholder
+      configVersion: "1"
+      namespace: ""
+      san: ""
+      secretName: rplogs
     typeName: ""
   metrics:
     cluster:
@@ -302,10 +306,6 @@ mgmt:
   applyKubeletFixes: false
   jaeger:
     deploy: false
-  logs:
-    configVersion: "1"
-    namespace: HCPCustomerLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-lnstest-mgmt-1
@@ -497,10 +497,6 @@ svc:
     tag: prod-stable
     targetVersion: asm-1-25
     versions: asm-1-25
-  logs:
-    configVersion: "1"
-    namespace: HCPServiceLogs
-    san: ""
   nsp:
     accessMode: Learning
     name: nsp-lnstest-svc

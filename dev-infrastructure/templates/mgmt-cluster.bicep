@@ -144,6 +144,18 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
+@description('Issuer of certificate for Geneva Authentication')
+param genevaCertificateIssuer string = 'Self'
+
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaRpLogsName string
+
+@description('Name of certificate in Keyvault and hostname used in SAN')
+param genevaClusterLogsName string
+
+@description('Domain used for creation of geneva auth certificates')
+param genevaCertificateDomain string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -325,6 +337,36 @@ module msiCSIKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' =
 
 resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: mgmtKeyVaultName
+}
+
+//
+//   G E N E V A   C E R T I F I C A T E
+//
+
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
+  name: 'geneva-rp-certificate'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: genevaCertificateDomain
+    certificateIssuer: genevaCertificateIssuer
+    hostName: genevaRpLogsName
+    keyVaultCertificateName: genevaRpLogsName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
+}
+
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
+  name: 'geneva-cluster-log-certificate'
+  params: {
+    keyVaultName: mgmtKeyVaultName
+    kvCertOfficerManagedIdentityResourceId: globalMSIId
+    certDomain: genevaCertificateDomain
+    certificateIssuer: genevaCertificateIssuer
+    hostName: genevaClusterLogsName
+    keyVaultCertificateName: genevaClusterLogsName
+    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+  }
 }
 
 //
