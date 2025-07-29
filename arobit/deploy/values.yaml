@@ -1,11 +1,11 @@
-## Global Docker image parameters
+# Global Docker image parameters
 ##
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
+  clusterType: svc
   ## Enable forwarder daemonset
   ##
-  enabled: true
   dynamicConfig: false
   ## K8s Security Context for forwarder pods
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
@@ -14,76 +14,10 @@ forwarder:
     enabled: true
     runAsUser: 65532
     runAsGroup: 65532
-  ## Set up update strategy.
-  ## ref: https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/#daemonset-update-strategy
-  ## Example:
-  # updateStrategy:
-  #  type: RollingUpdate
-  #  rollingUpdate:
-  #    maxSurge: 25%
-  #    maxUnavailable: 25%
-  updateStrategy:
-    type: RollingUpdate
-  ## Set Priority Class Name to allow priority control over other pods
-  ## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
-  ##
-  priorityClassName: ""
-  ## Node labels for pod assignment
-  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
-  ##
-  nodeSelector: {}
-  ## Tolerations for pod assignment
-  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-  ##
-  tolerations: []
-  ## Affinity for pod assignment
-  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-  ##
-  affinity: {}
-  ## Annotations for the forwarder
-  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  ##
-  annotations: {}
-  ## Pod annotations
-  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  ##
-  podAnnotations: {}
-  ## Extra labels to add to Pod
-  podLabels: {}
-  # mode: createSecretProvider - Creates csi secret provider if enabled is set to true
-  secretProvider:
-    enabled: false
-    usePodIdentity: false
-    useMsi: false
-    labels: {}
-    useNodePublishSecret: true
-    useWorkloadIdentity: false
-    # clientSecret: ""
-    # cloudEnvFileName: ""
-    # cloudName: ""
-    # gcsCertSecret: ""
-    # keyVault: ""
-    # tenantId: ""
-    # msiClientId: ""
   ## ref: https://github.com/Hexadite/acs-keyvault-agent
   ## Pods Service Account
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
-  serviceAccount:
-    ## Specifies whether a ServiceAccount should be created
-    ##
-    create: true
-    ## The name of the ServiceAccount to use.
-
-    ## If not set and create is true, a name is generated using the template
-    # name:
-    ## Annotations for the Service Account (evaluated as a template)
-    ##
-    annotations: {}
-  ## Role Based Access
-  ## ref: https://kubernetes.io/docs/admin/authorization/rbac/
-  ##
-  rbac:
-    create: true
+  serviceAccountName: arobit-forwarder
   ## Service parameters
   ##
   service:
@@ -125,19 +59,6 @@ forwarder:
     - name: forward
       containerPort: 24224
       protocol: TCP
-    ## K8s Security Context for fluent bit container
-    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-    containerSecurityContext:
-      enabled: true
-      privileged: false
-      allowPrivilegeEscalation: false
-      runAsUser: 0
-      runAsGroup: 0
-      capabilities:
-        drop: ['ALL']
-        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
-    # readOnlyRootFilesystem: true
-
     ## The configMap that contains the configuration files for fluent-bit
     ##
     configMap:
@@ -251,6 +172,14 @@ forwarder:
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
+      filter-ocm.conf: |
+        [FILTER]
+            Name            rewrite_tag
+            Alias           filter.namespace_router
+            Match           kubernetes.var.log.containers.*
+            Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+            Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+            Emitter_Name    re_emitted
       output.conf: |
         [OUTPUT]
             Name       opentelemetry
@@ -266,10 +195,11 @@ forwarder:
             Host  0.0.0.0
             Port  2020
       output-mdsd.conf: |
+        # Forward logs to mdsd instance (default port)
         [OUTPUT]
             Name  forward
-            Alias forward.mdsd
-            Match kubernetes.*
+            Alias forward.mdsd.other
+            Match other.logs
             Host  127.0.0.1
             Port  5001
             Tag   kubernetes
@@ -280,6 +210,15 @@ forwarder:
             Match metrics.fluentbit
             Host  0.0.0.0
             Port  2020
+      output-mdsd-ocm.conf: |
+        # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
+        [OUTPUT]
+            Name  forward
+            Alias forward.mdsd.ocm
+            Match ocm.logs
+            Host  127.0.0.1
+            Port  5002
+            Tag   ocm.kubernetes
       reassemble_cri.lua: |
         local reassemble_state = {}
         function reassemble_cri(tag, timestamp, record)
@@ -294,33 +233,6 @@ forwarder:
           reassemble_state[reassemble_key] = nil
           return 1, timestamp, record
         end
-    ## forwarder containers' liveness and readiness probes
-    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes)
-    ##
-    livenessProbe:
-      enabled: true
-      initialDelaySeconds: 15
-      periodSeconds: 15
-      timeoutSeconds: 5
-      failureThreshold: 6
-      successThreshold: 1
-    readinessProbe:
-      enabled: true
-      initialDelaySeconds: 15
-      periodSeconds: 15
-      timeoutSeconds: 5
-      failureThreshold: 6
-      successThreshold: 1
-    ## fluentbit resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
   mdsd:
     ## Specifies whether mdsd should enabled
     enabled: false
@@ -331,34 +243,6 @@ forwarder:
       repository: genevamdsd
       digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
       pullPolicy: IfNotPresent
-    ## TODO: when using distroless image, use args instead of command
-    command:
-    - /start_mdsd.sh
-    args: []
-    #   - "-p"
-    #   - "$(MDSD_PORT)"
-    #   - "-f"
-    #   - "$(FLUENTD_PORT)"
-    #   - "$(MDSD_LOG_OPTIONS)"
-    #   - "$(GCS_AUTOMATIC_CONFIG_RUNTIME)"
-    #   - "$(MDSD_DEBUG_LOG_FLAGS)"
-    ## forwarder mdsd container ports
-    ##
-    containerPorts: []
-    ## K8s Security Context for fluent-bit forwarder containers
-    ## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-    containerSecurityContext:
-      enabled: true
-      privileged: false
-      allowPrivilegeEscalation: false
-      runAsUser: 0
-      runAsGroup: 0
-      capabilities:
-        add: []
-        drop: []
-        # Requires mounting an `extraVolume` of type `emptyDir` into /tmp
-    # readOnlyRootFilesystem: true
-
     ## Environment variables for mdsd
     ## ref: https://dev.azure.com/msazure/One/_git/Compute-Runtime-Tux-GenevaContainers?_a=preview&path=%2FDockerRunDocumentation_mdsd.md&version=GBmaster
     ## Must override these environment variables:
@@ -390,88 +274,4 @@ forwarder:
       MDSD_PORT: "0"
       MDSD_TCMALLOC_RELEASE_FREQ_SEC: "1"
       MDSD_USE_LOCAL_PERSISTENCY: "false"
-      MONITORING_CONFIG_VERSION: "3.2"
-      MONITORING_GCS_CERT_CERTFILE: "/geneva/geneva_auth/gcscert.pem"
-      MONITORING_GCS_CERT_KEYFILE: "/geneva/geneva_auth/gcskey.pem"
-      MONITORING_GCS_ENVIRONMENT: "Test"
-      MONITORING_GCS_ACCOUNT: "AKSGenevaSample"
-      MONITORING_GCS_REGION: "westus2"
-      MONITORING_GCS_NAMESPACE: "AKSGenevaSample"
-      MONITORING_GCS_EXACT_VERSION: "false"
       MONITORING_MAX_EVENT_RATE: "100000"
-    ## Secret for geneva certificate when kvagent is disabled
-    ##
-    secret:
-      gcsKey: ""
-      gcsCert: ""
-      base64Encode: true
-    ## Settings for Csi Secret Provider
-    # See https://eng.ms/docs/products/geneva/collect/authentication/keyvaultgetupdatedcert for more details
-    # MDSD_AKV_CERTIFICATE_STORE_PATH: "/geneva/geneva_auth"
-    # MONITORING_GCS_AUTH_ID_TYPE: "AuthKeyvault"
-    # MONITORING_GCS_AUTH_ID: ""
-    ## Container lifecycle
-    ##
-    lifecycle:
-      # Allow the duration time to expire, so that mdsd could flush the buffer
-      # Set this value according to the event duration in the Geneva config
-      preStop:
-        exec:
-          command:
-          - "/bin/sleep"
-          - "60"
-          # Workaround to delay starting the test container
-    # postStart:
-    #   exec:
-    #     command:
-    #       - "/bin/sleep"
-    #       - "30"
-
-    ## mdsd resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
-  exporter:
-    ## storage exporter image version
-    ##
-    image:
-      repository: quay.io/prometheuscommunity/json-exporter
-      tag: v0.6.0
-      pullPolicy: IfNotPresent
-    ## exporter container ports
-    ##
-    containerPorts:
-    - name: exporter
-      containerPort: 7979
-      protocol: TCP
-    ## The exporter configuration
-    ## ref: https://github.com/prometheus-community/json_exporter
-    ##
-    configMap:
-      config.yml: |
-        modules:
-          default:
-            metrics:
-              - name: fluentbit_storage_layer
-                type: object
-                path: '{.storage_layer}'
-                help: The total number of chunks in the filesystem storage
-                values:
-                  fs_chunks_up: '{.chunks.fs_chunks_up}'
-                  fs_chunks_down: '{.chunks.fs_chunks_down}'
-    ## resource requests and limits
-    ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-    ##
-    resources:
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      limits: {}
-      requests: {}
