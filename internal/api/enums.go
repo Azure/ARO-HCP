@@ -72,3 +72,14 @@ const (
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
+
+// ClusterImageRegistryProfileState - state indicates the desired ImageStream-backed cluster image registry installation mode.
+// This can only be set during cluster creation and cannot be changed after cluster creation. Enabled means the
+// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+// image registry will not be present in the cluster. The default is Enabled.
+type ClusterImageRegistryProfileState string
+
+const (
+	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
+	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
