@@ -6,9 +6,18 @@ set -o pipefail
 
 source env_vars
 # The ONLY supported region for ARO-HCP in INT is uksouth
-LOCATION=uksouth 
-# This is the only supported subscription for creating INT hcp/nodepools
-SUBSCRIPTION="ARO HCP - STAGE testing (EA Subscription)"
+LOCATION=uksouth
+# This is the only supported subscription for creating INT/STAGE hcp/nodepools
+SUBSCRIPTION=$(az account show --query 'name' -o tsv)
+
+if [[ "${SUBSCRIPTION}" != "ARO HCP - STAGE testing (EA Subscription)" && "${SUBSCRIPTION}" != "ARO SRE Team - INT (EA Subscription 3)" ]]; then
+  echo "ERROR: Current subscription is '${SUBSCRIPTION}'."
+  echo "This script must be run in either:"
+  echo "  - 'ARO HCP - STAGE testing (EA Subscription)' - for testing ARO HCP in STAGE (AME)"
+  echo "  - 'ARO SRE Team - INT (EA Subscription 3)'    - for testing ARO HCP in INT (MSIT)"
+  echo "Please run 'az account set --subscription <subscription-name>' to switch to the correct subscription"
+  exit 1
+fi
 
 az group create \
   --name "${CUSTOMER_RG_NAME}" \
