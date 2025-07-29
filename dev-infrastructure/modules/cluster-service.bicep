@@ -68,7 +68,14 @@ param ocpAcrResourceId string
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+@description('The zone redundant mode of the Postgres Database')
 param postgresZoneRedundantMode string
+
+@description('The number of days to retain backups for.')
+param postgresBackupRetentionDays int
+
+@description('Enable geo-redundant backups for the PostgreSQL server.')
+param postgresGeoRedundantBackup bool
 
 //
 //   P O S T G R E S
@@ -116,6 +123,8 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
       startHour: 1
       startMinute: 12
     }
+    backupRetentionDays: postgresBackupRetentionDays
+    geoRedundantBackup: postgresGeoRedundantBackup
     storageSizeGB: postgresServerStorageSizeGB
     private: postgresServerPrivate
     subnetId: privateEndpointSubnetId
