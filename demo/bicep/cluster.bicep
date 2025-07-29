@@ -92,6 +92,11 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       hostPrefix: 23
     }
     console: {}
+    etcd: {
+      dataEncryption: {
+        keyManagementMode: 'PlatformManaged'
+      }
+    }    
     api: {
       visibility: 'Public'
     }
