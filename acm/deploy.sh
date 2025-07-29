@@ -56,5 +56,3 @@ ${HELM_CMD} \
 if [ "${DRY_RUN}" != "true" ]; then
     kubectl annotate mce multiclusterengine installer.multicluster.openshift.io/pause=${MCE_PAUSE_RECONCILIATION} --overwrite
 fi
-
-make deploy-policies
