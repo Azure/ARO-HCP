@@ -159,6 +159,8 @@ resourceGroups:
       configRef: msiKeyVault.name
     - name: TRACING_ADDRESS
       configRef: clustersService.tracing.address
+    - name: TLS_CERTIFICATES_ISSUER
+      configRef: clustersService.azureRuntimeConfig.tlsCertificatesIssuer
     shellIdentity:
       input:
         step: global-output
