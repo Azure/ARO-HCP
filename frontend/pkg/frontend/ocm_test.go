@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -114,6 +115,20 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 		// 		},
 		// 	),
 		// },
+		{
+			name: "converts CS ClusterImageRegistry to ClusterImageRegistryProfile",
+			cluster: arohcpv1alpha1.NewCluster().
+				ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
+					State(string(csImageRegistryStateDisabled)),
+				),
+			want: clusterResource(
+				func(hsc *api.HCPOpenShiftCluster) {
+					hsc.Properties.ClusterImageRegistry = api.ClusterImageRegistryProfile{
+						State: to.Ptr(api.ClusterImageRegistryProfileStateDisabled),
+					}
+				},
+			),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -234,6 +249,8 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				ID("test")).
 			Version(arohcpv1alpha1.NewVersion().
 				ID("").
-				ChannelGroup(""))
+				ChannelGroup("")).
+			ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
+				State(""))
 	}
 }
