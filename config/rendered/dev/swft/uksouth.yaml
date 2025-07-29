@@ -173,7 +173,7 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
-    displayName: ARO HCP - swft - Global
+    displayName: Azure Red Hat OpenShift HCP - swft - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -336,7 +336,7 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - swft - svc - uksouth
+    displayName: Azure Red Hat OpenShift HCP - UK South - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -526,7 +526,7 @@ svc:
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - swft - svc - uksouth
+    displayName: Azure Red Hat OpenShift HCP - UK South - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:

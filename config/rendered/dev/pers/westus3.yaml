@@ -173,7 +173,7 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
-    displayName: ARO HCP - pers - Global
+    displayName: Azure Red Hat OpenShift HCP - pers - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -297,7 +297,7 @@ mgmt:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     userAgentPool:
-      azCount: 3
+      azCount: 4
       maxCount: 6
       minCount: 1
       osDiskSizeGB: 100
@@ -336,7 +336,7 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - pers - svc - westus3
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -484,7 +484,7 @@ svc:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     userAgentPool:
-      azCount: 3
+      azCount: 4
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
@@ -528,7 +528,7 @@ svc:
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - pers - svc - westus3
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
