@@ -218,6 +218,12 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 		},
 	}
+	// Temporarily set KeyManagementMode to its default value.
+	hcpcluster.Properties.Etcd = api.EtcdProfile{
+		DataEncryption: api.EtcdDataEncryptionProfile{
+			KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		},
+	}
 	// TODO: Uncomment when CS supports it.
 	// // Only set etcd encryption settings if they exist in the cluster service response
 	// if cluster.Azure().EtcdEncryption() != nil && cluster.Azure().EtcdEncryption().DataEncryption() != nil {

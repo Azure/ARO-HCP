@@ -183,6 +183,11 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			// 		KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 			// 	},
 			// },
+			Etcd: EtcdProfile{
+				DataEncryption: EtcdDataEncryptionProfile{
+					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				},
+			},
 		},
 	}
 }

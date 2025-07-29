@@ -178,6 +178,12 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 	for _, opt := range opts {
 		opt(c)
 	}
+	// Temporarily add a default that CS doesn't supply.
+	c.Properties.Etcd = api.EtcdProfile{
+		DataEncryption: api.EtcdDataEncryptionProfile{
+			KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		},
+	}
 	return c
 }
 
