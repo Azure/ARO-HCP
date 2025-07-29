@@ -18,4 +18,6 @@ RUN make --directory backend ARO_HCP_IMAGE_TAG=${TAG} ENV_VARS_FILE=/app/image-e
 FROM --platform=${PLATFORM} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
+ARG REVISION
+LABEL vcs-ref="${REVISION}"
 ENTRYPOINT ["/aro-hcp-backend"]
