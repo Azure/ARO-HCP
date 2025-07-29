@@ -1,7 +1,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: kas-hack
+  name: kas-monitoring-hack
   namespace: openshift-route-monitor-operator
 spec:
   predicates:

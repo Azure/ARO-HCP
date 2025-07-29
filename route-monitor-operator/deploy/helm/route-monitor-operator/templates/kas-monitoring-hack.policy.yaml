@@ -5,7 +5,7 @@ metadata:
     policy.open-cluster-management.io/categories: CM Configuration Management
     policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
     policy.open-cluster-management.io/standards: NIST SP 800-53
-  name: kas-hack
+  name: kas-monitoring-hack
   namespace: '{{ .Release.Namespace }}'
 spec:
   disabled: false
@@ -14,7 +14,7 @@ spec:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: kas-hack
+        name: kas-monitoring-hack
       spec:
         evaluationInterval:
           compliant: 2m
