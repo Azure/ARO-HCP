@@ -49,7 +49,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		// Declare variables that will be used in the defer function
 		var resourceGroup string
-		var testCtx *framework.TestContext
+		var testCtx interface{}
 		var armResourcesClientFactory *armresources.ClientFactory
 		var resourceGroupClient *armresources.ResourceGroupsClient
 
@@ -72,8 +72,10 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 			}
 			By("Cleaning up the resource group")
 			// Use the framework's test context for resource group cleanup since it doesn't need the systemData policy
-			testCtx = framework.InvocationContext()
-			armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
+			testCtx = framework.NewInvocationContext()
+			armResourcesClientFactory = testCtx.(interface {
+				GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
+			}).GetARMResourcesClientFactoryOrDie(ctx)
 			resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
 			err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
@@ -86,11 +88,13 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Create a new resource group for the cluster")
 		// Use the framework's test context for resource group operations since they don't need the systemData policy
-		testCtx = framework.InvocationContext()
-		armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
+		testCtx = framework.NewInvocationContext()
+		armResourcesClientFactory = testCtx.(interface {
+			GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
+		}).GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
 		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
-		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, testCtx.Location(), 10*time.Minute)
+		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, testCtx.(interface{ Location() string }).Location(), 10*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 		By("Deploying the infrastructure only bicep template")
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
@@ -154,7 +158,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		location := testCtx.Location()
+		location := testCtx.(interface{ Location() string }).Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
 		versionID := "openshift-v4.19.0"
@@ -247,8 +251,10 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 		By("Cleaning up the resource group")
-		testCtx = framework.InvocationContext()
-		armResourcesClientFactory = testCtx.GetARMResourcesClientFactoryOrDie(ctx)
+		testCtx = framework.NewInvocationContext()
+		armResourcesClientFactory = testCtx.(interface {
+			GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
+		}).GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
 		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
