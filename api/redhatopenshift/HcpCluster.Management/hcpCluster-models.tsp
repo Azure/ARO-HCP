@@ -75,6 +75,10 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
 
+  /** Shows the cluster ingress profile */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  ingress?: IngressProfile;
+
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
@@ -224,6 +228,13 @@ model ApiProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @maxItems(500)
   authorizedCidrs?: string[];
+}
+
+/** Information about the ingress of a cluster. */
+model IngressProfile {
+  /** The internet visibility of the OpenShift ingress */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  visibility?: Visibility = Visibility.Private;
 }
 
 /** The internet visibility of the OpenShift API server */
