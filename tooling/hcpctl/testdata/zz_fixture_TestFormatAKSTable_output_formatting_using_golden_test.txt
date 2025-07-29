@@ -1,0 +1,6 @@
+
+Found 2 management cluster(s):
+
+CLUSTER NAME    SUBSCRIPTION ID    RESOURCE GROUP    LOCATION
+cluster-1       sub-123            rg-1              eastus
+cluster-2       sub-456            rg-2              westus2

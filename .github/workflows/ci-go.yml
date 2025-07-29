@@ -64,7 +64,7 @@ jobs:
           exit 1
         fi
     - name: 'Test'
-      run: JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
+      run: E2E_MC_CLUSTER=dev-westus3-mgmt-1 JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
   lint:
     permissions:
       contents: 'read'

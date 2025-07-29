@@ -1,0 +1,17 @@
+# GitGuardian configuration file
+# https://docs.gitguardian.com/secrets-detection/detectors/configuration
+# Global configuration
+version: v1
+# Paths to exclude from secret scanning
+paths-ignore:
+# Exclude test data directory from secret scanning
+- "tooling/hcpctl/testdata/**"
+
+# Additional ignore patterns can be added here
+# matches-ignore:
+#   - match: "example-secret-pattern"
+#     name: "Example ignore rule"
+
+# Detector-specific configuration
+# detectors:
+#   # Configure specific detectors if needed

@@ -1,0 +1,6 @@
+hcpctl
+*.exe
+*.out
+
+# Generated kubeconfig files
+*.kubeconfig

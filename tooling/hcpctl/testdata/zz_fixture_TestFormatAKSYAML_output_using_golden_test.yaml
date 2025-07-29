@@ -1,0 +1,12 @@
+items:
+- location: eastus
+  name: test-cluster
+  resourcegroup: test-rg
+  state: Succeeded
+  subscription: Test Subscription
+  subscriptionid: sub-123
+  tags:
+    environment: test
+    owner: team-a
+kind: ManagementClusters
+total: 1

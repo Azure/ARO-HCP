@@ -8,6 +8,7 @@ use (
 	./frontend
 	./internal
 	./test
+	./tooling/hcpctl
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
