@@ -11,10 +11,18 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  {{- range $key, $value := .Values.forwarder.service.ports }}
-    - name: '{{ $key }}'
-      {{ toYaml $value | nindent 6 }}
-  {{- end }}
+  - http:
+      port: 2020
+      targetPort: http
+      protocol: TCP
+  - otlp-http:
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+  - forward:
+      port: 24224
+      targetPort: forward
+      protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: '{{ .Release.Name }}'

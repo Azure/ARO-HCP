@@ -22,8 +22,8 @@ spec:
         app.kubernetes.io/instance: '{{ .Release.Name }}'
         app: arobit-forwarder
     spec:
-      serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
-      priorityClassName: '{{ .Values.forwarder.priorityClassName | quote }}'
+      serviceAccountName: {{ .Values.forwarder.serviceAccountName }}
+      priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
       shareProcessNamespace: true
       containers:
         - name: fluentbit
@@ -35,9 +35,15 @@ spec:
             - -c
             - /forwarder/etc/fluent-bit.conf
           ports:
-            {{- if .Values.forwarder.fluentbit.containerPorts }}
-            {{- toYaml .Values.forwarder.fluentbit.containerPorts | nindent 12 }}
-            {{- end }}
+            - name: http
+              containerPort: 2020
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: forward
+              containerPort: 24224
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /api/v1/health
@@ -79,26 +85,60 @@ spec:
           command:
               - /start_mdsd.sh
           env:
+            - name: MONITORING_GCS_AUTH_ID
+              value: {{ .Values.forwarder.mdsd.geneva.san }}
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthKeyVault
             - name: MONITORING_CONFIG_VERSION
               value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
             - name: MONITORING_GCS_ACCOUNT
               value: '{{ .Values.forwarder.mdsd.geneva.accountName }}'
-            - name: MONITORING_GCS_AUTH_ID_TYPE
-              value: 
-            - name: MONITORING_MANAGED_ID_IDENTIFIER
-              value:  
-            - name: MONITORING_MANAGED_ID_VALUE
-              value: '{{ .Values.forwarder.mdsd.geneva.managedIdentityId }}'
             - name: MONITORING_GCS_ENVIRONMENT
               value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
             - name: MONITORING_GCS_NAMESPACE
               value: '{{ .Values.forwarder.mdsd.geneva.namespace }}'
             - name: MONITORING_GCS_REGION
               value: '{{ .Values.forwarder.mdsd.geneva.region }}'
-            {{- range $key,$value := .Values.forwarder.mdsd.env }}
-            - name: '{{ $key | upper | quote }}'
-              value: '{{ $value | quote }}'
-            {{- end }}
+            - name: DOCKER_LOGGING
+              value: 'true'
+            - name: FLUENTD_PORT
+              value: '5001'
+            - name: GCS_AUTOMATIC_CONFIGURATION
+              value: '1'
+            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
+              value: '-A'
+            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
+              value: '5'
+            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
+              value: '1000'
+            - name: MDSD_COMPRESSION_ALGORITHM
+              value: 'lz4'
+            - name: MDSD_COMPRESSION_LEVEL
+              value: '4'
+            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
+              value: 'true'
+            - name: MDSD_DEBUG_LOG_FLAGS
+              value: '-T 0x00'
+            - name: MDSD_LOG_OPTIONS
+              value: '-D'
+            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_NESTING_LEVEL
+              value: '10'
+            - name: MDSD_MSGPACK_SEND_ACK
+              value: '0'
+            - name: MDSD_MSGPACK_SORT_COLUMNS
+              value: '1'
+            - name: MDSD_PORT
+              value: '0'
+            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
+              value: '1'
+            - name: MDSD_USE_LOCAL_PERSISTENCY
+              value: 'false'
+            - name: MONITORING_MAX_EVENT_RATE
+              value: '100000'
           lifecycle: 
             preStop:
               exec:
@@ -116,12 +156,11 @@ spec:
           volumeMounts:
             - name: mdsd-run
               mountPath: /var/run/mdsd/
-            {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
-            - name: mdsd-logs
-              mountPath: /geneva/geneva_logs/
-            {{- end }}
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs
               readOnly: true
         {{- end }}
       volumes:
@@ -141,11 +180,17 @@ spec:
             path: /etc/ssl/certs/ca-certificates.crt
         - name: mdsd-run
           emptyDir: {}
-        {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
-        - name: mdsd-logs
-          emptyDir: {}
-        {{- end }}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
+        {{- if .Values.forwarder.mdsd.enabled }}
+        - name: geneva-certs
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: arobit-secretprovider
+          secret:
+            secretName: arobit-forwarder
+        {{- end }}

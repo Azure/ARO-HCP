@@ -14,31 +14,9 @@ forwarder:
     enabled: true
     runAsUser: 65532
     runAsGroup: 65532
-  ## ref: https://github.com/Hexadite/acs-keyvault-agent
   ## Pods Service Account
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
   serviceAccountName: arobit-forwarder
-  ## Service parameters
-  ##
-  service:
-    ## Service ports
-    ##
-    ports:
-      http:
-        port: 2020
-        targetPort: http
-        protocol: TCP
-      otlp-http:
-        port: 4318
-        targetPort: otlp-http
-        protocol: TCP
-      forward:
-        port: 24224
-        targetPort: forward
-        protocol: TCP
-    ## Provide any additional annotations which may be required
-    ##
-    annotations: {}
   fluentbit:
     ## Fluent Bit image version
     ##
@@ -47,18 +25,6 @@ forwarder:
       repository: /oss/fluent/fluent-bit
       digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
       pullPolicy: IfNotPresent
-    ## forwarder fluentbit container ports
-    ##
-    containerPorts:
-    - name: http
-      containerPort: 2020
-      protocol: TCP
-    - name: otlp-http
-      containerPort: 4318
-      protocol: TCP
-    - name: forward
-      containerPort: 24224
-      protocol: TCP
     ## The configMap that contains the configuration files for fluent-bit
     ##
     configMap:
@@ -234,6 +200,15 @@ forwarder:
           return 1, timestamp, record
         end
   mdsd:
+    # Geneva Config
+    geneva:
+      rpSecretName: "rpLogs"
+      configVersion: 1
+      accountName: ""
+      san: ""
+      environment: ""
+      namespace: ""
+      region: ""
     ## Specifies whether mdsd should enabled
     enabled: false
     ## mdsd image version
@@ -243,35 +218,8 @@ forwarder:
       repository: genevamdsd
       digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
       pullPolicy: IfNotPresent
-    ## Environment variables for mdsd
-    ## ref: https://dev.azure.com/msazure/One/_git/Compute-Runtime-Tux-GenevaContainers?_a=preview&path=%2FDockerRunDocumentation_mdsd.md&version=GBmaster
-    ## Must override these environment variables:
-    ## - MONITORING_CONFIG_VERSION
-    ## - MONITORING_GCS_ENVIRONMENT
-    ## - MONITORING_GCS_ACCOUNT
-    ## - MONITORING_GCS_REGION
-    ## - MONITORING_GCS_NAMESPACE
-    ##
-    env:
-      DOCKER_LOGGING: "true"
-      FLUENTD_PORT: "5001"
-      GCS_AUTOMATIC_CONFIGURATION: "1"
-      GCS_AUTOMATIC_CONFIG_RUNTIME: "-A"
-      MDSD_COMPRESSION_ALGORITHM: "lz4"
-      MDSD_COMPRESSION_LEVEL: "4"
-      MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED: "true"
-      MDSD_DEBUG_LOG_FLAGS: "-T 0x00"
-      MDSD_LOG_OPTIONS: "-D"
-      MDSD_BACKPRESSURE_MONITOR_FREQ_SEC: "5"
-      # MDSD will limit its memory usage to this threshold (in MB)
-
-      MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB: "1000"
-      MDSD_MSGPACK_ARRAY_SIZE_ITEMS: "10480000"
-      MDSD_MSGPACK_MAP_SIZE_ITEMS: "10480000"
-      MDSD_MSGPACK_NESTING_LEVEL: "10"
-      MDSD_MSGPACK_SEND_ACK: "0"
-      MDSD_MSGPACK_SORT_COLUMNS: "1"
-      MDSD_PORT: "0"
-      MDSD_TCMALLOC_RELEASE_FREQ_SEC: "1"
-      MDSD_USE_LOCAL_PERSISTENCY: "false"
-      MONITORING_MAX_EVENT_RATE: "100000"
+  secretProvider:
+    msiClientId: "020b5a59-be15-45b7-b9cb-401836cdab3c"
+    keyVault: "foo"
+    rpSecret: "rpLogs"
+    tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47"
