@@ -28,7 +28,6 @@ import (
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
-	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
@@ -36,15 +35,11 @@ import (
 var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 	var (
 		clustersClient *api.HcpOpenShiftClustersClient
-		customerEnv    *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
 		By("Preparing HCP clusters client")
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
-
-		By("Preparing customer environment values")
-		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	It("Creates requried infrastructure resources then creates a cluster", labels.Critical, labels.Positive, labels.CreateCluster, func(ctx context.Context) {
@@ -100,23 +95,17 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
 
 		// Read the bicep template file
-		bicepTemplatePath := "../templates/cluster-lifecycle-infra.bicep"
+		bicepTemplatePath := "../../e2e-setup/bicep/infra-only.bicep"
 		bicepContent, err := os.ReadFile(bicepTemplatePath)
 		Expect(err).NotTo(HaveOccurred(), "failed to read bicep template")
 
-		// Create deployment parameters
+		// Create deployment parameters for infra-only.bicep
 		deploymentParameters := map[string]interface{}{
 			"clusterName": map[string]interface{}{
 				"value": clusterName,
 			},
-			"customerNsgName": map[string]interface{}{
-				"value": fmt.Sprintf("e2e-lifecycle-%s-nsg", uuid.NewString()[:4]),
-			},
-			"customerVnetName": map[string]interface{}{
-				"value": fmt.Sprintf("e2e-lifecycle-%s-vnet", uuid.NewString()[:4]),
-			},
-			"customerVnetSubnetName": map[string]interface{}{
-				"value": "worker-subnet",
+			"persistTagValue": map[string]interface{}{
+				"value": false,
 			},
 		}
 
@@ -139,20 +128,28 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		deploymentResult, err := poller.PollUntilDone(ctx, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to complete bicep deployment")
 
-		// Get deployment outputs to retrieve managed identity names
+		// Get deployment outputs to retrieve managed identity information
 		deploymentOutputs := deploymentResult.Properties.Outputs
 		Expect(deploymentOutputs).NotTo(BeNil(), "deployment outputs should not be nil")
 
-		// Get subnet and NSG IDs from deployment outputs
+		// Get deployment outputs to retrieve managed identity information
 		outputs := deploymentOutputs.(map[string]interface{})
+
+		// Extract identityValue and userAssignedIdentitiesValue from outputs
+		identityValue := outputs["identityValue"].(map[string]interface{})
+		userAssignedIdentitiesValue := outputs["userAssignedIdentitiesValue"].(map[string]interface{})
+
+		// Get subnet and NSG IDs from the main template outputs
 		subnetID := outputs["subnetId"].(map[string]interface{})["value"].(string)
 		nsgID := outputs["networkSecurityGroupId"].(map[string]interface{})["value"].(string)
 
 		By("Converting the UserAssignedIdentity map to a map of pointers")
-		uamiMap := make(map[string]*api.UserAssignedIdentity, len(customerEnv.IdentityUAMIs))
-		for k, v := range customerEnv.IdentityUAMIs {
-			identity := v // Create a new variable in the loop's scope to get a unique pointer.
-			uamiMap[k] = &identity
+		// Use the identityValue from bicep deployment instead of customerEnv.IdentityUAMIs
+		identityValueMap := identityValue["userAssignedIdentities"].(map[string]interface{})
+		uamiMap := make(map[string]*api.UserAssignedIdentity, len(identityValueMap))
+		for identityID := range identityValueMap {
+			// Create a UserAssignedIdentity with empty struct (the ID is the key)
+			uamiMap[identityID] = &api.UserAssignedIdentity{}
 		}
 
 		By("Defining a new cluster resource for creation")
@@ -176,7 +173,23 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 					SubnetID:               &subnetID,
 					NetworkSecurityGroupID: &nsgID,
 					OperatorsAuthentication: &api.OperatorsAuthenticationProfile{
-						UserAssignedIdentities: &customerEnv.UAMIs,
+						UserAssignedIdentities: &api.UserAssignedIdentitiesProfile{
+							ControlPlaneOperators: map[string]*string{
+								"cluster-api-azure":        to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cluster-api-azure"].(string)),
+								"control-plane":            to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["control-plane"].(string)),
+								"cloud-controller-manager": to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cloud-controller-manager"].(string)),
+								"ingress":                  to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["ingress"].(string)),
+								"disk-csi-driver":          to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["disk-csi-driver"].(string)),
+								"file-csi-driver":          to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["file-csi-driver"].(string)),
+								"image-registry":           to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["image-registry"].(string)),
+								"cloud-network-config":     to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cloud-network-config"].(string)),
+							},
+							DataPlaneOperators: map[string]*string{
+								"disk-csi-driver": to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["disk-csi-driver"].(string)),
+								"file-csi-driver": to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["file-csi-driver"].(string)),
+								"image-registry":  to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["image-registry"].(string)),
+							},
+						},
 					},
 				},
 				API: &api.APIProfile{
