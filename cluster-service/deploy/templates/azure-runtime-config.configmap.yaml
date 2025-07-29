@@ -18,5 +18,9 @@ data:
         "storage_account_blob_container_name": "$web",
         "storage_account_blob_service_url": "{{ .Values.oidcIssuerBlobServiceUrl }}",
         "oidc_issuer_base_url": "{{ .Values.oidcIssuerBaseUrl }}"
+      },
+      "tls_certificates_config": {
+        "issuer": "{{ .Values.tlsCertificatesIssuer }}",
+        "enabled": {{ .Values.tlsCertificatesEnabled }}
       }
     }
