@@ -6,19 +6,52 @@ ARO-HCP uses a combination Azure Managed Prometheus agents and self-managed Prom
 
 ## Prometheus Stack
 
-Azure Managed Prometheus is enabled through the aks-cluster-base.bicep module.  By enabling this, AKS cluster Control Plane metrics are made available to the associated Azure Monitor Workspace.  In addition having this enabled deploys node exporters and scrape targets by default.  Therefore Azure Managed Prometheus is responsible for scraping "cluster" level metrics.
+### Azure Managed Prometheus
 
-A self managed Prometheus stack is deployed to the service and management AKS clusters using the community-maintained [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart.  This prometheus stack scrapes metrics from services for both the service and management cluster and hosted control plane metrics.  The Helm chart is customized using a modified version of the upstream `values.yaml`, located at `observability/prometheus/values.yaml`. This file is a trimmed-down version of the original. Refer to the upstream `values.yaml` for additional configurable settings. Deployment customization is further handled through configuration files and by dynamically fetching Azure deployment outputs at deploy time.
+Azure Managed Prometheus is enabled through the `aks-cluster-base.bicep` module via the `azureMonitorProfile.metrics.enabled: true` setting. This automatically provisions Azure Monitor agents on AKS nodes and enables comprehensive infrastructure monitoring.
 
-The number of **Prometheus replicas and shards** is configurable via the svc/mgmt cluster's configuration in `config/config.yaml`. This allows tuning based on cluster size, expected metrics volume, and HA requirements.
+**Azure Managed Prometheus Configuration:**
+- Configured via `ama-metrics-settings-configmap` in the `kube-system` namespace
+- **Scrape Interval**: 30 seconds for all targets  
+- **Built-in Targets Enabled**: kubelet, coredns, cadvisor, kubeproxy, apiserver, nodeexporter, control plane components (etcd, scheduler, controller-manager), and network observability (Retina, Hubble, Cilium)
+- **Disabled Targets**: kube-state-metrics (handled by self-managed Prometheus), Windows exporters
+- **Metadata Collection**: Supports custom `metricLabelsAllowlist` and `metricAnnotationsAllowList` via Bicep parameters
 
-Self managed Prometheus uses **remote write** to persist metrics to Azure Monitor Workspaces. The Prometheus server is configured for Microsoft Entra Workload Identity. The `prometheus` identity is assigned the "Monitoring Metrics Publisher" role on the Data Collection Rule (DCR) associated with each AKS cluster.
+Azure Managed Prometheus handles **cluster-level infrastructure metrics** and automatically forwards them to the regional Azure Monitor Workspace associated with each AKS cluster.
 
-The prometheus stack is deployed to service and management clusters apart of the `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml`.
+### Self-Managed Prometheus Stack
+
+A self-managed Prometheus stack is deployed to service and management AKS clusters using the community-maintained [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart. This Prometheus instance handles **application and service metrics** from both service/management clusters and hosted control planes.
+
+**Configuration:**
+- Helm chart customized via `observability/prometheus/values.yaml` (trimmed-down version of upstream)
+- **Replicas and shards** configurable via cluster configuration in `config/config.yaml`
+- **Global Discovery**: Monitors all namespaces (`serviceMonitorNamespaceSelector: {}`, `podMonitorNamespaceSelector: {}`)
+- **Workload Identity**: Uses Microsoft Entra Workload Identity with "Monitoring Metrics Publisher" role on DCRs
+
+**Dual Remote Write Architecture:**
+Self-managed Prometheus implements namespace-based routing to two Azure Monitor Workspaces:
+
+1. **Service Monitoring Workspace** (`prometheusSpec.remoteWriteUrl`):
+   - Receives metrics from **all namespaces except** those matching `^ocm-<environment>.*`
+   - Handles infrastructure services, applications, and general cluster metrics
+
+2. **HCP Monitoring Workspace** (`prometheusSpec.hcpRemoteWriteUrl`):
+   - Receives metrics **only from** namespaces matching `^ocm-<environment>.*`  
+   - Handles Hosted Control Plane specific metrics (OCM-related components)
+
+**Deployment:**
+The Prometheus stack is deployed via `dev-infrastructure/mgmt-pipeline.yaml` and `dev-infrastructure/svc-pipeline.yaml` pipelines.
 
 ## Application Metrics Collection
 
-Each service deployed to the AKS clusters includes either a `ServiceMonitor` or a `PodMonitor` resource in its Helm chart.  The one exception to this is the hypershift operator, the hypershift operator lays down its own service monitor.  These resources define how Prometheus should scrape metrics from the service or pods.  The Prometheus stack is configured to discover `ServiceMonitor` and `PodMonitor` resources across **all namespaces**.
+Application metrics are collected through Kubernetes custom resources that define scraping targets for the self-managed Prometheus stack.
+
+### ServiceMonitor and PodMonitor Resources
+
+Each service deployed to AKS clusters includes either a `ServiceMonitor` or `PodMonitor` resource in its Helm chart. The Prometheus stack automatically discovers these resources across **all namespaces** via global selectors.
+
+**Scrape Interval**: 30 seconds (most services)
 
 ## Hosted Control Plane Metrics
 
@@ -30,23 +63,44 @@ Each **Hosted Control Plane** will have multiple `ServiceMonitor` and `PodMonito
 
 ## Metrics Infrastructure
 
+### Dual Workspace Architecture
+
+ARO-HCP implements two Azure Monitor Workspace to separate metrics based on their source and purpose:
+
+**1. Service Monitoring Workspace (Primary)**
+- **Scope**: Infrastructure services, applications, and general cluster metrics
+- **Sources**: Azure Managed Prometheus (infrastructure) + Self-managed Prometheus (applications)
+- **Namespace Filter**: All namespaces **except** `ocm-<environment>.*`
+- **Data Flow**: 
+  - Azure Managed Prometheus → Direct ingestion
+  - Self-managed Prometheus → Remote write with namespace filtering
+
+**2. HCP Monitoring Workspace (Hosted Control Planes)**
+- **Scope**: Hosted Control Plane specific metrics
+- **Sources**: Self-managed Prometheus only
+- **Namespace Filter**: **Only** namespaces matching `ocm-<environment>.*`
+- **Data Flow**: Self-managed Prometheus → Remote write with namespace filtering
+
+This separation ensures clean metric isolation between platform infrastructure/services and customer data.
+
 ### Global Grafana
 
-A single **Azure Managed Grafana** instance is deployed globally and configured with a data source for each **Azure Monitor Workspace** (AMW) in the environment. This allows users to visualize metrics from all services and Hosted Control Planes in a centralized dashboard experience, regardless of region or cluster.
+A single **Azure Managed Grafana** instance is deployed globally and configured with data sources for **both workspace types** in each region. This provides:
+- Unified visualization across all services and Hosted Control Planes
+- Region-agnostic dashboard experience
+- Consolidated alerting and monitoring workflows
 
 ### Regional Azure Monitor Workspace
 
-Each region contains an **Azure Monitor Workspace (AMW)** that receives metrics from clusters in that region. Metrics are ingested from each cluster via its associated **Data Collection Rule (DCR)** and **Data Collection Endpoint (DCE)**.
+Each region contains **two Azure Monitor Workspaces (AMW)**:
+1. **Service AMW**: Receives infrastructure and application metrics
+2. **HCP AMW**: Receives Hosted Control Plane metrics
 
-There is currently one AMW per region for **services** and **HCPs**.
+Metrics are ingested via associated **Data Collection Rules (DCR)** and **Data Collection Endpoints (DCE)** for each AKS cluster.
 
 ### Alerting
 
 Prometheus metrics written to Azure Monitor Workspaces can be queried using PromQL. Alert rules are defined directly within an Azure Monitor Workspace, and when triggered they generate incidents in **IcM** (Internal Case Management system).
-
-Currently, AMWs are integrated with IcM via an **IcM Connector**, which routes fired alerts to appropriate incident queues. The IcM Connector is a legacy mechanism and will be migrated to **IcM Actions**.
-
-Using self-managed Prometheus enables the use of the Alert Manager component.  This can be used to setup future automated remediation tooling directly on the svc/mgmt cluster.
 
 ### Per-Cluster Data Collection Rule (DCR)
 
