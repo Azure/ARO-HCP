@@ -1,0 +1,710 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "pipeline.schema.v1",
+    "type": "object",
+    "additionalProperties": false,
+    "definitions": {
+        "configRef": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*"
+        },
+        "staticVariableValue": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "minLength": 1
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            ]
+        },
+        "input": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "step": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "step",
+                "name"
+            ]
+        },
+        "value": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "$ref": "#/definitions/input"
+                },
+                "configRef": {
+                    "$ref": "#/definitions/configRef"
+                },
+                "value": {
+                    "$ref": "#/definitions/staticVariableValue"
+                }
+            },
+            "oneOf": [
+                {
+                    "required": [
+                        "input"
+                    ]
+                },
+                {
+                    "required": [
+                        "configRef"
+                    ]
+                },
+                {
+                    "required": [
+                        "value"
+                    ]
+                }
+            ]
+        },
+        "variable": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "input": {
+                    "$ref": "#/definitions/input"
+                },
+                "configRef": {
+                    "$ref": "#/definitions/configRef"
+                },
+                "value": {
+                    "$ref": "#/definitions/staticVariableValue"
+                }
+            },
+            "oneOf": [
+                {
+                    "required": [
+                        "name",
+                        "input"
+                    ]
+                },
+                {
+                    "required": [
+                        "name",
+                        "configRef"
+                    ]
+                },
+                {
+                    "required": [
+                        "name",
+                        "value"
+                    ]
+                }
+            ],
+            "required": [
+                "name"
+            ]
+        }
+    },
+    "properties": {
+        "$schema": {
+            "type": "string"
+        },
+        "serviceGroup": {
+            "type": "string",
+            "minLength": 1
+        },
+        "rolloutName": {
+            "type": "string",
+            "minLength": 1
+        },
+        "resourceGroups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "subscription": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "subscriptionProvisioning": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                            "displayName": {
+                                "$ref": "#/definitions/value"
+                            },
+                            "airsRegisteredUserPrincipalId": {
+                                "$ref": "#/definitions/value"
+                            },
+                            "certificateDomains": {
+                                "$ref": "#/definitions/value"
+                            },
+                            "roleAssignment": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        },
+                        "required": [
+                            "displayName",
+                            "roleAssignment"
+                        ]
+                    },
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "ARM"
+                                        },
+                                        "template": {
+                                            "type": "string"
+                                        },
+                                        "parameters": {
+                                            "type": "string"
+                                        },
+                                        "variables": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/variable"
+                                            }
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "deploymentLevel": {
+                                            "type": "string",
+                                            "enum": [
+                                                "ResourceGroup",
+                                                "Subscription"
+                                            ]
+                                        },
+                                        "deploymentMode": {
+                                            "type": "string",
+                                            "enum": [
+                                                "incremental",
+                                                "complete"
+                                            ]
+                                        },
+                                        "outputOnly": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "template",
+                                        "parameters",
+                                        "deploymentLevel"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "Shell"
+                                        },
+                                        "command": {
+                                            "type": "string"
+                                        },
+                                        "aksCluster": {
+                                            "type": "string"
+                                        },
+                                        "variables": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/variable"
+                                            }
+                                        },
+                                        "subnetName": {
+                                            "type": "string"
+                                        },
+                                        "shellIdentity": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "dryRun": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "command": {
+                                                    "type": "string"
+                                                },
+                                                "variables": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/definitions/variable"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "command"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "DelegateChildZone"
+                                        },
+                                        "parentZone": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "childZone": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "parentZone",
+                                        "childZone"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "SetCertificateIssuer"
+                                        },
+                                        "vaultBaseUrl": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "issuer": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretKeyVault": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretName": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "applicationId": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "vaultBaseUrl",
+                                        "issuer",
+                                        "secretKeyVault",
+                                        "secretName",
+                                        "applicationId"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "CreateCertificate"
+                                        },
+                                        "vaultBaseUrl": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "certificateName": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "contentType": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "san": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "issuer": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretKeyVault": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretName": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "applicationId": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "vaultBaseUrl",
+                                        "certificateName",
+                                        "contentType",
+                                        "san",
+                                        "issuer",
+                                        "secretKeyVault",
+                                        "secretName",
+                                        "applicationId"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "ResourceProviderRegistration"
+                                        },
+                                        "resourceProviderNamespaces": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "resourceProviderNamespaces"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["RPLogsAccount", "ClusterLogsAccount"]
+                                        },
+                                        "typeName":  {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretKeyVault": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretName": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "environment":  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "accountName":  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "metricsAccount":  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "adminAlias":  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "adminGroup":  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "subscriptionId": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "namespace": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "certsan": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "certdescription": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "configVersion": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "events": {
+                                            "type": "object",
+                                            "description": "A map of event configurations where keys represent the fluent bit tag and values are their corresponding Geneva table name. Refer to https://eng.ms/docs/products/geneva/collect/instrument/linux/fluentd for details",
+                                            "patternProperties": {
+                                                "^.*$": {
+                                                    "type": "string",
+                                                    "description": "Geneva table name for the corresponding fluent bit tag"
+                                                }
+                                            },
+                                            "additionalProperties": false
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "typeName",
+                                        "secretKeyVault",
+                                        "secretName",
+                                        "environment",
+                                        "accountName",
+                                        "metricsAccount",
+                                        "adminAlias",
+                                        "adminGroup",
+                                        "subscriptionId",
+                                        "namespace",
+                                        "certsan",
+                                        "certdescription",
+                                        "configVersion",
+                                        "events"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "ImageMirror"
+                                        },
+                                        "targetACR" : {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "sourceRegistry" : {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "repository" :  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "digest" : {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "pullSecretKeyVault" :  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "pullSecretName" : {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "shellIdentity" :  {
+                                            "$ref":  "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "targetACR",
+                                        "sourceRegistry",
+                                        "repository",
+                                        "digest",
+                                        "pullSecretKeyVault",
+                                        "pullSecretName",
+                                        "shellIdentity"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "FeatureRegistration"
+                                        },
+                                        "featureFlags" : {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretKeyVault": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "secretName": {
+                                            "$ref": "#/definitions/value"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "secretKeyVault",
+                                        "secretName",
+                                        "featureFlags"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "ProviderFeatureRegistration"
+                                        },
+                                        "providerConfigRef" : {
+                                            "$ref": "#/definitions/configRef"
+                                        },
+                                        "identityFrom" : {
+                                            "$ref": "#/definitions/input"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "providerConfigRef",
+                                        "identityFrom"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "SecretSync"
+                                        },
+                                        "configurationFile" : {
+                                            "type": "string",
+                                            "minLength": 1
+                                        },
+                                        "encryptionKey" : {
+                                            "type": "string",
+                                            "minLength": 1
+                                        },
+                                        "keyVault" : {
+                                            "type": "string",
+                                            "minLength": 1
+                                        },
+                                        "identityFrom" : {
+                                            "$ref": "#/definitions/input"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "minLength": 1
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "configurationFile",
+                                        "encryptionKey",
+                                        "keyVault",
+                                        "identityFrom"
+                                    ]
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "action": {
+                                            "const": "Ev2Registration"
+                                        },
+                                        "identityFrom" : {
+                                            "$ref": "#/definitions/input"
+                                        },
+                                        "dependsOn": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "minLength": 1
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "identityFrom"
+                                    ]
+                                }
+                            ],
+                            "required": [
+                                "name",
+                                "action"
+                            ]
+                        }
+                    },
+                    "aksCluster": {
+                        "description": "Deprecated, to be removed",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "subscription",
+                    "steps"
+                ]
+            }
+        },
+        "buildStep": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "required": [
+        "serviceGroup",
+        "rolloutName",
+        "resourceGroups"
+    ]
+}

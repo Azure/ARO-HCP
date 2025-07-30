@@ -1,0 +1,361 @@
+clouds:
+  ff:
+    defaults:
+      cloudName: Fairfax
+      keyVault:
+        domainNameSuffix: vault.usgovcloudapi.net
+    regions:
+      usdodcentral:
+        availabilityZoneCount: 0
+        regionFriendlyName: USDoD Central
+        regionShortName: dd
+      usdodeast:
+        availabilityZoneCount: 1
+        regionFriendlyName: USDoD East
+        regionShortName: bd
+      usdodsouthcentral:
+        availabilityZoneCount: 0
+        regionFriendlyName: USDoD South Central
+        regionShortName: usdsc
+      usdodsouthwest:
+        availabilityZoneCount: 0
+        regionFriendlyName: USDoD Southwest
+        regionShortName: phxd
+      usdodwestcentral:
+        availabilityZoneCount: 0
+        regionFriendlyName: USDoD West Central
+        regionShortName: usdwc
+      usgovarizona:
+        availabilityZoneCount: 3
+        regionFriendlyName: USGov Arizona
+        regionShortName: phx
+      usgovtexas:
+        availabilityZoneCount: 0
+        regionFriendlyName: USGov Texas
+        regionShortName: sn
+      usgovvirginia:
+        availabilityZoneCount: 3
+        regionFriendlyName: USGov Virginia
+        regionShortName: bn
+      usgovwyoming:
+        availabilityZoneCount: 0
+        regionFriendlyName: USGov Wyoming
+        regionShortName: cy
+  public:
+    defaults:
+      cloudName: Public
+      keyVault:
+        domainNameSuffix: vault.azure.net
+    regions:
+      apacsoutheast2:
+        availabilityZoneCount: 0
+        regionFriendlyName: APAC Southeast 2
+        regionShortName: kul
+      australiacentral:
+        availabilityZoneCount: 1
+        regionFriendlyName: Australia Central
+        regionShortName: cbr
+      australiacentral2:
+        availabilityZoneCount: 1
+        regionFriendlyName: Australia Central 2
+        regionShortName: cbr2
+      australiaeast:
+        availabilityZoneCount: 3
+        regionFriendlyName: Australia East
+        regionShortName: sy
+      australiasoutheast:
+        availabilityZoneCount: 2
+        regionFriendlyName: Australia Southeast
+        regionShortName: ml
+      austriaeast:
+        availabilityZoneCount: 3
+        regionFriendlyName: Austria East
+        regionShortName: ate
+      belgiumcentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Belgium Central
+        regionShortName: bec
+      brazilnortheast:
+        availabilityZoneCount: 0
+        regionFriendlyName: Brazil Northeast
+        regionShortName: brne
+      brazilsouth:
+        availabilityZoneCount: 3
+        regionFriendlyName: Brazil South
+        regionShortName: cq
+      brazilsoutheast:
+        availabilityZoneCount: 1
+        regionFriendlyName: Brazil Southeast
+        regionShortName: brse
+      canadacentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Canada Central
+        regionShortName: yt
+      canadaeast:
+        availabilityZoneCount: 1
+        regionFriendlyName: Canada East
+        regionShortName: yq
+      centralindia:
+        availabilityZoneCount: 3
+        regionFriendlyName: Central India
+        regionShortName: pn
+      centralus:
+        availabilityZoneCount: 3
+        regionFriendlyName: Central US
+        regionShortName: dm
+      centraluseuap:
+        availabilityZoneCount: 1
+        regionFriendlyName: Central US EUAP
+        regionShortName: cdm
+      chilecentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Chile Central
+        regionShortName: clc
+      denmarkeast:
+        availabilityZoneCount: 3
+        regionFriendlyName: Denmark East
+        regionShortName: dke
+      eastasia:
+        availabilityZoneCount: 3
+        regionFriendlyName: East Asia
+        regionShortName: hk
+      eastus:
+        availabilityZoneCount: 3
+        regionFriendlyName: East US
+        regionShortName: bl
+      eastus2:
+        availabilityZoneCount: 4
+        regionFriendlyName: East US 2
+        regionShortName: bn
+      eastus2euap:
+        availabilityZoneCount: 4
+        regionFriendlyName: East US 2 EUAP
+        regionShortName: cbn
+      eastus3:
+        availabilityZoneCount: 1
+        regionFriendlyName: East US 3
+        regionShortName: use3
+      eastusslv:
+        availabilityZoneCount: 1
+        regionFriendlyName: East US SLV
+        regionShortName: use
+      eastusstg:
+        availabilityZoneCount: 2
+        regionFriendlyName: East US STG
+        regionShortName: uste
+      francecentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: France Central
+        regionShortName: par
+      francesouth:
+        availabilityZoneCount: 1
+        regionFriendlyName: France South
+        regionShortName: mrs
+      germanynorth:
+        availabilityZoneCount: 1
+        regionFriendlyName: Germany North
+        regionShortName: den
+      germanywestcentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Germany West Central
+        regionShortName: dewc
+      indonesiacentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Indonesia Central
+        regionShortName: idc
+      israelcentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Israel Central
+        regionShortName: ilc
+      israelnorthwest:
+        availabilityZoneCount: 1
+        regionFriendlyName: Israel Northwest
+        regionShortName: ilnw
+      italynorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: Italy North
+        regionShortName: itn
+      japaneast:
+        availabilityZoneCount: 3
+        regionFriendlyName: Japan East
+        regionShortName: ty
+      japanwest:
+        availabilityZoneCount: 3
+        regionFriendlyName: Japan West
+        regionShortName: os
+      jioindiacentral:
+        availabilityZoneCount: 1
+        regionFriendlyName: Jio India Central
+        regionShortName: jinc
+      jioindiawest:
+        availabilityZoneCount: 1
+        regionFriendlyName: Jio India West
+        regionShortName: jinw
+      koreacentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Korea Central
+        regionShortName: se
+      koreasouth:
+        availabilityZoneCount: 1
+        regionFriendlyName: Korea South
+        regionShortName: ps
+      koreasouth2:
+        availabilityZoneCount: 0
+        regionFriendlyName: Korea South 2
+        regionShortName: krs2
+      malaysiasouth:
+        availabilityZoneCount: 1
+        regionFriendlyName: Malaysia South
+        regionShortName: mys
+      malaysiawest:
+        availabilityZoneCount: 3
+        regionFriendlyName: Malaysia West
+        regionShortName: myw
+      mexicocentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Mexico Central
+        regionShortName: mxc
+      newzealandnorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: New Zealand North
+        regionShortName: nzn
+      northcentralus:
+        availabilityZoneCount: 3
+        regionFriendlyName: North Central US
+        regionShortName: ch
+      northeastus5:
+        availabilityZoneCount: 0
+        regionFriendlyName: Northeast US 5
+        regionShortName: usne5
+      northeurope:
+        availabilityZoneCount: 3
+        regionFriendlyName: North Europe
+        regionShortName: db
+      norwayeast:
+        availabilityZoneCount: 3
+        regionFriendlyName: Norway East
+        regionShortName: noe
+      norwaywest:
+        availabilityZoneCount: 1
+        regionFriendlyName: Norway West
+        regionShortName: now
+      polandcentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Poland Central
+        regionShortName: plc
+      qatarcentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Qatar Central
+        regionShortName: qac
+      southafricanorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: South Africa North
+        regionShortName: jnb
+      southafricawest:
+        availabilityZoneCount: 1
+        regionFriendlyName: South Africa West
+        regionShortName: cpt
+      southcentralus:
+        availabilityZoneCount: 4
+        regionFriendlyName: South Central US
+        regionShortName: sn
+      southcentralus2:
+        availabilityZoneCount: 1
+        regionFriendlyName: South Central US 2
+        regionShortName: ussc2
+      southcentralusstg:
+        availabilityZoneCount: 1
+        regionFriendlyName: South Central US STG
+        regionShortName: ustsc
+      southeastasia:
+        availabilityZoneCount: 3
+        regionFriendlyName: Southeast Asia
+        regionShortName: sg
+      southeastus:
+        availabilityZoneCount: 1
+        regionFriendlyName: Southeast US
+        regionShortName: usse1
+      southeastus3:
+        availabilityZoneCount: 1
+        regionFriendlyName: Southeast US 3
+        regionShortName: usse3
+      southeastus5:
+        availabilityZoneCount: 1
+        regionFriendlyName: Southeast US 5
+        regionShortName: usse5
+      southindia:
+        availabilityZoneCount: 1
+        regionFriendlyName: South India
+        regionShortName: ma
+      southwestus:
+        availabilityZoneCount: 1
+        regionFriendlyName: Southwest US
+        regionShortName: ussw1
+      spaincentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Spain Central
+        regionShortName: esc
+      swedencentral:
+        availabilityZoneCount: 3
+        regionFriendlyName: Sweden Central
+        regionShortName: sec
+      swedensouth:
+        availabilityZoneCount: 1
+        regionFriendlyName: Sweden South
+        regionShortName: ses
+      switzerlandnorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: Switzerland North
+        regionShortName: chn
+      switzerlandwest:
+        availabilityZoneCount: 1
+        regionFriendlyName: Switzerland West
+        regionShortName: chw
+      taiwannorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: Taiwan North
+        regionShortName: twn
+      taiwannorthwest:
+        availabilityZoneCount: 1
+        regionFriendlyName: Taiwan Northwest
+        regionShortName: twnw
+      uaecentral:
+        availabilityZoneCount: 2
+        regionFriendlyName: UAE Central
+        regionShortName: auh
+      uaenorth:
+        availabilityZoneCount: 3
+        regionFriendlyName: UAE North
+        regionShortName: dxb
+      uksouth:
+        availabilityZoneCount: 3
+        regionFriendlyName: UK South
+        regionShortName: ln
+      ukwest:
+        availabilityZoneCount: 1
+        regionFriendlyName: UK West
+        regionShortName: cw
+      westcentralus:
+        availabilityZoneCount: 3
+        regionFriendlyName: West Central US
+        regionShortName: cy
+      westeurope:
+        availabilityZoneCount: 3
+        regionFriendlyName: West Europe
+        regionShortName: am
+      westindia:
+        availabilityZoneCount: 1
+        regionFriendlyName: West India
+        regionShortName: bm
+      westus:
+        availabilityZoneCount: 2
+        regionFriendlyName: West US
+        regionShortName: by
+      westus2:
+        availabilityZoneCount: 3
+        regionFriendlyName: West US 2
+        regionShortName: mwh
+      westus3:
+        availabilityZoneCount: 4
+        regionFriendlyName: West US 3
+        regionShortName: usw3
