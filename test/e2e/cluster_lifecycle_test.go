@@ -96,41 +96,31 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
 		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, testCtx.(interface{ Location() string }).Location(), 10*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
+
 		By("Deploying the infrastructure only bicep template")
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
 
-		// Read the bicep template file
+		// Read the bicep template file from the correct location
 		bicepTemplatePath := "../../e2e-setup/bicep/infra-only.bicep"
 		bicepContent, err := os.ReadFile(bicepTemplatePath)
 		Expect(err).NotTo(HaveOccurred(), "failed to read bicep template")
 
 		// Create deployment parameters for infra-only.bicep
-		deploymentParameters := map[string]interface{}{
-			"clusterName": map[string]interface{}{
-				"value": clusterName,
-			},
-			"persistTagValue": map[string]interface{}{
-				"value": false,
-			},
+		deploymentParameters := map[string]string{
+			"clusterName":     clusterName,
+			"persistTagValue": "false",
 		}
 
-		// Create deployment properties
-		deploymentProperties := armresources.DeploymentProperties{
-			Template:   bicepContent,
-			Parameters: deploymentParameters,
-			Mode:       to.Ptr(armresources.DeploymentModeIncremental),
-		}
-
-		// Create the deployment using the framework's client factory (no systemData policy needed for deployments)
-		deploymentsClient := armResourcesClientFactory.NewDeploymentsClient()
-		deployment := armresources.Deployment{
-			Properties: &deploymentProperties,
-		}
-
-		poller, err := deploymentsClient.BeginCreateOrUpdate(ctx, resourceGroup, deploymentName, deployment, nil)
-		Expect(err).NotTo(HaveOccurred(), "failed to start bicep deployment")
-
-		deploymentResult, err := poller.PollUntilDone(ctx, nil)
+		// Use the framework's CreateBicepTemplateAndWait function for consistency
+		deploymentResult, err := framework.CreateBicepTemplateAndWait(
+			ctx,
+			armResourcesClientFactory.NewDeploymentsClient(),
+			resourceGroup,
+			deploymentName,
+			bicepContent,
+			deploymentParameters,
+			45*time.Minute,
+		)
 		Expect(err).NotTo(HaveOccurred(), "failed to complete bicep deployment")
 
 		// Get deployment outputs to retrieve managed identity information
@@ -171,6 +161,9 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		visibility := api.VisibilityPublic
 		identityType := api.ManagedServiceIdentityTypeUserAssigned
 
+		// Extract service managed identity from the deployment outputs
+		serviceManagedIdentity := userAssignedIdentitiesValue["serviceManagedIdentity"].(string)
+
 		clusterResource := api.HcpOpenShiftCluster{
 			Location: &location,
 			Properties: &api.HcpOpenShiftClusterProperties{
@@ -194,6 +187,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 								"file-csi-driver": to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["file-csi-driver"].(string)),
 								"image-registry":  to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["image-registry"].(string)),
 							},
+							ServiceManagedIdentity: &serviceManagedIdentity,
 						},
 					},
 				},
