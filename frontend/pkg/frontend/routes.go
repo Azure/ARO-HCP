@@ -27,24 +27,26 @@ import (
 )
 
 const (
-	WildcardDeploymentName    = "{" + PathSegmentDeploymentName + "}"
-	WildcardLocation          = "{" + PathSegmentLocation + "}"
-	WildcardNodePoolName      = "{" + PathSegmentNodePoolName + "}"
-	WildcardOperationID       = "{" + PathSegmentOperationID + "}"
-	WildcardResourceGroupName = "{" + PathSegmentResourceGroupName + "}"
-	WildcardResourceName      = "{" + PathSegmentResourceName + "}"
-	WildcardSubscriptionID    = "{" + PathSegmentSubscriptionID + "}"
+	WildcardDeploymentName              = "{" + PathSegmentDeploymentName + "}"
+	WildcardLocation                    = "{" + PathSegmentLocation + "}"
+	WildcardNodePoolName                = "{" + PathSegmentNodePoolName + "}"
+	WildcardOperationID                 = "{" + PathSegmentOperationID + "}"
+	WildcardResourceGroupName           = "{" + PathSegmentResourceGroupName + "}"
+	WildcardResourceName                = "{" + PathSegmentResourceName + "}"
+	WildcardSubscriptionID              = "{" + PathSegmentSubscriptionID + "}"
+	WildcardOperatorIdentityRoleSetName = "{" + PathSegmentOperatorIdentityRoleSetName + "}"
 
-	PatternSubscriptions     = "subscriptions/" + WildcardSubscriptionID
-	PatternLocations         = "locations/" + WildcardLocation
-	PatternProviders         = "providers/" + api.ProviderNamespace
-	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
-	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternVersions          = api.ClusterVersionTypeName + "/" + WildcardResourceName
-	PatternDeployments       = "deployments/" + WildcardDeploymentName
-	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
-	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
-	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternSubscriptions            = "subscriptions/" + WildcardSubscriptionID
+	PatternLocations                = "locations/" + WildcardLocation
+	PatternProviders                = "providers/" + api.ProviderNamespace
+	PatternClusters                 = api.ClusterResourceTypeName + "/" + WildcardResourceName
+	PatternNodePools                = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternVersions                 = api.ClusterVersionTypeName + "/" + WildcardResourceName
+	PatternDeployments              = "deployments/" + WildcardDeploymentName
+	PatternResourceGroups           = "resourcegroups/" + WildcardResourceGroupName
+	PatternOperationResults         = api.OperationResultResourceTypeName + "/" + WildcardOperationID
+	PatternOperationStatuses        = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
+	PatternOperatorIdentityRoleSets = api.OperatorIdentityRoleSetResourceTypeName + "/" + WildcardOperatorIdentityRoleSetName
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -101,6 +103,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.ClusterVersionTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.OperatorIdentityRoleSetResourceTypeName),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
 	// Resource read endpoints
 	postMuxMiddleware = NewMiddleware(
@@ -116,6 +121,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternVersions),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperatorIdentityRoleSets),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
 	// Resource create/update/delete endpoints
