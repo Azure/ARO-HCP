@@ -12,6 +12,10 @@ param acrSku string
 @description('Toggle zone redundancy of ACR.')
 param zoneRedundant bool
 
+//
+//   A C R   R E S O U R C E
+//
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
@@ -42,6 +46,10 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
     }
   }
 }
+
+//
+//   A C R   P U L L
+//
 
 // Assign the AcrPull Role to the ${acrName}-pull-identity
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'

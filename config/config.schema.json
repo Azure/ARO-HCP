@@ -1788,6 +1788,14 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
+        },
+        "ocpReleaseCache": {
+          "type": "object",
+          "properties": {
+            "purgeAfterDays": {
+              "type": "number"
+            }
+          }
         }
       },
       "additionalProperties": false,

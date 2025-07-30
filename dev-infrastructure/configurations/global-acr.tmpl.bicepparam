@@ -5,6 +5,7 @@ param svcAcrSku = 'Premium'
 
 param ocpAcrName = '{{ .acr.ocp.name }}'
 param ocpAcrSku = 'Premium'
+param ocpImagesPurgeAfterDays = {{ .acr.ocpReleaseCache.purgeAfterDays }}
 
 param globalMSIName = '{{ .global.globalMSIName }}'
 
@@ -12,3 +13,5 @@ param location = '{{ .global.region }}'
 
 param svcAcrZoneRedundantMode = '{{ .acr.svc.zoneRedundantMode }}'
 param ocpAcrZoneRedundantMode = '{{ .acr.ocp.zoneRedundantMode }}'
+
+param globalKeyVaultName = '{{ .global.keyVault.name}}'

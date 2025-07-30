@@ -72,6 +72,8 @@ defaults:
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
+    ocpReleaseCache:
+      purgeAfterDays: 90
   # ACR Pull
   acrPull:
     image:
