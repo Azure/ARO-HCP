@@ -10,12 +10,21 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/onsi/ginkgo/v2/types"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/dbtime"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"k8s.io/utils/ptr"
 )
 
+func ProcessExecRunFactory(testName string, spec types.TestSpec) func() *extensiontests.ExtensionTestResult {
+	return func() *extensiontests.ExtensionTestResult {
+		return SpawnProcessToRunTest(context.TODO(), testName, extensiontests.LifecycleBlocking, 90*time.Minute)
+	}
+}
+
 func SpawnProcessToRunTest(ctx context.Context, testName string, testLifecycle extensiontests.Lifecycle, timeout time.Duration) *extensiontests.ExtensionTestResult {
+	fmt.Printf("Running test %q\n", testName)
+
 	// longerCtx is used to backstop the process, but leave termination up to us if possible to allow a double interrupt
 	longerCtx, longerCancel := context.WithTimeout(ctx, timeout+15*time.Minute)
 	defer longerCancel()
@@ -30,6 +39,7 @@ func SpawnProcessToRunTest(ctx context.Context, testName string, testLifecycle e
 	command.Stderr = stderr
 
 	start := time.Now()
+	fmt.Printf("Starting test %q with command %s\n", testName, command.String())
 	err := command.Start()
 	if err != nil {
 		fmt.Fprintf(stderr, "failed to start test: %v\n", err)
@@ -60,6 +70,7 @@ func SpawnProcessToRunTest(ctx context.Context, testName string, testLifecycle e
 
 	result := extensiontests.ResultFailed
 	var exitError *exec.ExitError
+	fmt.Printf("Waiting for test %q to complete\n", testName)
 	cmdErr := command.Wait()
 	switch {
 	case cmdErr == nil:
@@ -82,6 +93,7 @@ func SpawnProcessToRunTest(ctx context.Context, testName string, testLifecycle e
 		result = extensiontests.ResultFailed
 	}
 
+	fmt.Printf("Test %q completed with result %s\n", testName, result)
 	return newTestResult(testName, result, testLifecycle, start, time.Now(), stdout, stderr)
 }
 

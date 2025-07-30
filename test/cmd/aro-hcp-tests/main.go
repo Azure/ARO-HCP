@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 
+	openshift_test_integration "github.com/Azure/ARO-HCP/test/util/openshift-test-integration"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -60,7 +61,7 @@ func main() {
 	})
 
 	// If using Ginkgo, build test specs automatically
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuiteWithRunFactory(openshift_test_integration.ProcessExecRunFactory)
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
