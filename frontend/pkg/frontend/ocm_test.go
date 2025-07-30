@@ -98,7 +98,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			),
 		},
 		/*
-		   Test for CI
+		   Test for CI and
 		*/
 		// TODO: Uncomment when CS supports it.
 		// {
