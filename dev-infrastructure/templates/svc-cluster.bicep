@@ -582,18 +582,6 @@ module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bic
   }
 }
 
-module serviceKeyVaultPrivateEndpoint '../modules/private-endpoint.bicep' = {
-  name: '${deployment().name}-svcs-kv-pe'
-  params: {
-    location: location
-    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
-    vnetId: svcCluster.outputs.aksVnetId
-    privateLinkServiceId: serviceKeyVault.id
-    serviceType: 'keyvault'
-    groupId: 'vault'
-  }
-}
-
 //
 //   C L U S T E R   S E R V I C E
 //
