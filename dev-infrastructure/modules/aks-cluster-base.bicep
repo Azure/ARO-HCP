@@ -12,22 +12,22 @@ param aksEtcdKVEnableSoftDelete bool
 param metricLabelsAllowlist string = ''
 param metricAnnotationsAllowList string = ''
 
-// System agentpool spec(Infra)
-param systemAgentMinCount int = 2
-param systemAgentMaxCount int = 3
-param systemAgentVMSize string = 'Standard_D2s_v3'
+// System agentpool spec (Infra)
+param systemAgentMinCount int
+param systemAgentMaxCount int
+param systemAgentVMSize string
 
 // User agentpool spec (Worker)
-param userAgentMinCount int = 1
-param userAgentMaxCount int = 3
-param userAgentVMSize string = 'Standard_D2s_v3'
-param userAgentPoolAZCount int = 3
+param userAgentMinCount int
+param userAgentMaxCount int
+param userAgentVMSize string
+param userAgentPoolAZCount int
 
 // User agentpool spec (Infra)
-param infraAgentMinCount int = 1
-param infraAgentMaxCount int = 3
-param infraAgentVMSize string = 'Standard_D2s_v3'
-param infraAgentPoolAZCount int = 1
+param infraAgentMinCount int
+param infraAgentMaxCount int
+param infraAgentVMSize string
+param infraAgentPoolAZCount int
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -551,7 +551,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
 }
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, userAgentPoolAZCount): {
+  for i in range(0, max(userAgentPoolAZCount, 3)): {
     parent: aksCluster
     name: 'user${take(string(i+1), 8)}'
     properties: {
@@ -590,7 +590,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
 ]
 
 resource infraAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, infraAgentPoolAZCount): {
+  for i in range(0, max(infraAgentPoolAZCount, 3)): {
     parent: aksCluster
     name: 'infra${take(string(i+1), 7)}'
     properties: {
