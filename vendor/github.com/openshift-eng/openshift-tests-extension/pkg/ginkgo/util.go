@@ -41,21 +41,13 @@ func configureGinkgo() (*types.SuiteConfig, *types.ReporterConfig, error) {
 	return &suiteConfig, &reporterConfig, nil
 }
 
-// BuildExtensionTestSpecsFromOpenShiftGinkgoSuite generates OTE specs for Gingko tests. While OTE isn't limited to
-// calling ginkgo tests, anything that implements the ExtensionTestSpec interface can be used, it's the most common
-// course of action.  The typical use case is to omit selectFns, but if provided, these will filter the returned list
-// of specs, applied in the order provided.
-func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunction) (ext.ExtensionTestSpecs, error) {
+type TestRunFactoryFunc func(testName string, spec types.TestSpec) func() *ext.ExtensionTestResult
+
+func BuildExtensionTestSpecsFromOpenShiftGinkgoSuiteWithRunFactory(testRunFactoryFn TestRunFactoryFunc, selectFns ...ext.SelectFunction) (ext.ExtensionTestSpecs, error) {
 	var specs ext.ExtensionTestSpecs
-	var enforceSerialExecutionForGinkgo sync.Mutex // in-process parallelization for ginkgo is impossible so far
 
 	if _, _, err := configureGinkgo(); err != nil {
 		return nil, err
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, errors.Wrap(err, "couldn't get current working directory")
 	}
 
 	ginkgo.GetSuite().WalkTests(func(name string, spec types.TestSpec) {
@@ -69,67 +61,7 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 			Labels:        sets.New[string](spec.Labels()...),
 			CodeLocations: codeLocations,
 			Lifecycle:     GetLifecycle(spec.Labels()),
-			Run: func() *ext.ExtensionTestResult {
-				enforceSerialExecutionForGinkgo.Lock()
-				defer enforceSerialExecutionForGinkgo.Unlock()
-
-				suiteConfig, reporterConfig, _ := configureGinkgo()
-
-				result := &ext.ExtensionTestResult{
-					Name: spec.Text(),
-				}
-
-				var summary types.SpecReport
-				ginkgo.GetSuite().RunSpec(spec, ginkgo.Labels{}, "", cwd, ginkgo.GetFailer(), ginkgo.GetWriter(), *suiteConfig,
-					*reporterConfig)
-				for _, report := range ginkgo.GetSuite().GetReport().SpecReports {
-					if report.NumAttempts > 0 {
-						summary = report
-					}
-				}
-
-				result.Output = summary.CapturedGinkgoWriterOutput
-				result.Error = summary.CapturedStdOutErr
-
-				switch {
-				case summary.State == types.SpecStatePassed:
-					result.Result = ext.ResultPassed
-				case summary.State == types.SpecStateSkipped:
-					result.Result = ext.ResultSkipped
-					if len(summary.Failure.Message) > 0 {
-						result.Output = fmt.Sprintf(
-							"%s\n skip [%s:%d]: %s\n",
-							result.Output,
-							lastFilenameSegment(summary.Failure.Location.FileName),
-							summary.Failure.Location.LineNumber,
-							summary.Failure.Message,
-						)
-					} else if len(summary.Failure.ForwardedPanic) > 0 {
-						result.Output = fmt.Sprintf(
-							"%s\n skip [%s:%d]: %s\n",
-							result.Output,
-							lastFilenameSegment(summary.Failure.Location.FileName),
-							summary.Failure.Location.LineNumber,
-							summary.Failure.ForwardedPanic,
-						)
-					}
-				case summary.State == types.SpecStateFailed, summary.State == types.SpecStatePanicked, summary.State == types.SpecStateInterrupted:
-					result.Result = ext.ResultFailed
-					var errors []string
-					if len(summary.Failure.ForwardedPanic) > 0 {
-						if len(summary.Failure.Location.FullStackTrace) > 0 {
-							errors = append(errors, fmt.Sprintf("\n%s\n", summary.Failure.Location.FullStackTrace))
-						}
-						errors = append(errors, fmt.Sprintf("fail [%s:%d]: Test Panicked: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.ForwardedPanic))
-					}
-					errors = append(errors, fmt.Sprintf("fail [%s:%d]: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.Message))
-					result.Error = strings.Join(errors, "\n")
-				default:
-					panic(fmt.Sprintf("test produced unknown outcome: %#v", summary))
-				}
-
-				return result
-			},
+			Run: testRunFactoryFn(name, spec),
 		}
 		specs = append(specs, testCase)
 	})
@@ -148,6 +80,87 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 	}
 
 	return specs, nil
+}
+
+type defaultTestFactory struct{
+	enforceSerialExecutionForGinkgo sync.Mutex // in-process parallelization for ginkgo is impossible so far
+}
+
+func (f *defaultTestFactory) defaultTestFactoryFn(testName string, spec types.TestSpec) func() *ext.ExtensionTestResult {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	return func() *ext.ExtensionTestResult {
+		f.enforceSerialExecutionForGinkgo.Lock()
+		defer f.enforceSerialExecutionForGinkgo.Unlock()
+
+		suiteConfig, reporterConfig, _ := configureGinkgo()
+
+		result := &ext.ExtensionTestResult{
+			Name: spec.Text(),
+		}
+
+		var summary types.SpecReport
+		ginkgo.GetSuite().RunSpec(spec, ginkgo.Labels{}, "", cwd, ginkgo.GetFailer(), ginkgo.GetWriter(), *suiteConfig,
+			*reporterConfig)
+		for _, report := range ginkgo.GetSuite().GetReport().SpecReports {
+			if report.NumAttempts > 0 {
+				summary = report
+			}
+		}
+
+		result.Output = summary.CapturedGinkgoWriterOutput
+		result.Error = summary.CapturedStdOutErr
+
+		switch {
+		case summary.State == types.SpecStatePassed:
+			result.Result = ext.ResultPassed
+		case summary.State == types.SpecStateSkipped:
+			result.Result = ext.ResultSkipped
+			if len(summary.Failure.Message) > 0 {
+				result.Output = fmt.Sprintf(
+					"%s\n skip [%s:%d]: %s\n",
+					result.Output,
+					lastFilenameSegment(summary.Failure.Location.FileName),
+					summary.Failure.Location.LineNumber,
+					summary.Failure.Message,
+				)
+			} else if len(summary.Failure.ForwardedPanic) > 0 {
+				result.Output = fmt.Sprintf(
+					"%s\n skip [%s:%d]: %s\n",
+					result.Output,
+					lastFilenameSegment(summary.Failure.Location.FileName),
+					summary.Failure.Location.LineNumber,
+					summary.Failure.ForwardedPanic,
+				)
+			}
+		case summary.State == types.SpecStateFailed, summary.State == types.SpecStatePanicked, summary.State == types.SpecStateInterrupted:
+			result.Result = ext.ResultFailed
+			var errors []string
+			if len(summary.Failure.ForwardedPanic) > 0 {
+				if len(summary.Failure.Location.FullStackTrace) > 0 {
+					errors = append(errors, fmt.Sprintf("\n%s\n", summary.Failure.Location.FullStackTrace))
+				}
+				errors = append(errors, fmt.Sprintf("fail [%s:%d]: Test Panicked: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.ForwardedPanic))
+			}
+			errors = append(errors, fmt.Sprintf("fail [%s:%d]: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.Message))
+			result.Error = strings.Join(errors, "\n")
+		default:
+			panic(fmt.Sprintf("test produced unknown outcome: %#v", summary))
+		}
+
+		return result
+	}
+}
+// BuildExtensionTestSpecsFromOpenShiftGinkgoSuite generates OTE specs for Gingko tests. While OTE isn't limited to
+// calling ginkgo tests, anything that implements the ExtensionTestSpec interface can be used, it's the most common
+// course of action.  The typical use case is to omit selectFns, but if provided, these will filter the returned list
+// of specs, applied in the order provided.
+func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunction) (ext.ExtensionTestSpecs, error) {
+	f := &defaultTestFactory{}
+	return BuildExtensionTestSpecsFromOpenShiftGinkgoSuiteWithRunFactory(f.defaultTestFactoryFn, selectFns...)
 }
 
 func Informing() ginkgo.Labels {
