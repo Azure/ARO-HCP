@@ -1,47 +1,85 @@
-import { csvToArray } from '../common.bicep'
+@description('ICM connection Name')
+param icmConnectionName string
 
-@description('Comma seperated list of email notifications. Only set in non MSFT environments!')
-param devAlertingEmails string
+@description('ICM connection id')
+param icmConnectionId string
 
-@description('Comma seperated list of action groups for Sev 1 alerts.')
-param sev1ActionGroupIDs string
+@description('The ICM environment')
+param icmEnvironment string
 
-@description('Comma seperated list of action groups for Sev 2 alerts.')
-param sev2ActionGroupIDs string
+@description('Name of the ICM Action Group')
+param icmActionGroupNameSRE string
 
-@description('Comma seperated list of action groups for Sev 3 alerts.')
-param sev3ActionGroupIDs string
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameSRE string
 
-@description('Comma seperated list of action groups for Sev 4 alerts.')
-param sev4ActionGroupIDs string
+@description('ICM routing ID')
+param icmRoutingIdSRE string
 
-var sev1ActionGroups = csvToArray(sev1ActionGroupIDs)
-var sev2ActionGroups = csvToArray(sev2ActionGroupIDs)
-var sev3ActionGroups = csvToArray(sev3ActionGroupIDs)
-var sev4ActionGroups = csvToArray(sev4ActionGroupIDs)
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledSRE string
 
-var emailAdresses = csvToArray(devAlertingEmails)
-resource emailActions 'Microsoft.Insights/actionGroups@2023-01-01' = [
-  for email in emailAdresses: {
-    name: email
-    location: 'Global'
-    properties: {
-      groupShortName: substring(uniqueString(email), 0, 8)
-      enabled: true
-      emailReceivers: [
-        {
-          name: split(email, '@')[0]
-          emailAddress: email
-          useCommonAlertSchema: true
+@description('Name of the ICM Action Group')
+param icmActionGroupNameSL string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameSL string
+
+@description('ICM routing ID')
+param icmRoutingIdSL string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledSL string
+
+resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSRE != '') {
+  name: 'icm-action-group-sre'
+  location: 'global'
+  properties: {
+    enabled: true
+    groupShortName: icmActionGroupShortNameSRE
+    incidentReceivers: [
+      {
+        name: icmActionGroupNameSRE
+        incidentManagementService: 'Icm'
+        connection: {
+          name: icmConnectionName
+          id: icmConnectionId
         }
-      ]
-    }
+        mappings: {
+          'Icm.occurringlocation.environment': icmEnvironment
+          'Icm.routingid': icmRoutingIdSRE
+          'Icm.automitigationenabled': icmAutomitigationEnabledSRE
+        }
+      }
+    ]
   }
-]
+}
 
-var actionGroupsCreated = [for (j, index) in emailAdresses: emailActions[index].id]
+resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSL != '') {
+  name: 'icm-action-group-sl'
+  location: 'global'
+  properties: {
+    enabled: true
+    groupShortName: icmActionGroupShortNameSL
+    incidentReceivers: [
+      {
+        name: icmActionGroupNameSL
+        incidentManagementService: 'Icm'
+        connection: {
+          name: icmConnectionName
+          id: icmConnectionId
+        }
+        mappings: {
+          'Icm.occurringlocation.environment': icmEnvironment
+          'Icm.routingid': icmRoutingIdSL
+          'Icm.automitigationenabled': icmAutomitigationEnabledSL
+        }
+      }
+    ]
+  }
+}
 
-output allSev1ActionGroups array = union(filter(sev1ActionGroups, a => (a != '')), actionGroupsCreated)
-output allSev2ActionGroups array = union(filter(sev2ActionGroups, a => (a != '')), actionGroupsCreated)
-output allSev3ActionGroups array = union(filter(sev3ActionGroups, a => (a != '')), actionGroupsCreated)
-output allSev4ActionGroups array = union(filter(sev4ActionGroups, a => (a != '')), actionGroupsCreated)
+output actionGroupsSRE string = icmsre.id
+output actionGroupsSL string = icmsl.id

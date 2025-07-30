@@ -1,0 +1,16 @@
+apiVersion: v2
+appVersion: 0.1.744-gad53663
+description: A Helm chart for Route Monitor Operator
+keywords:
+- operator-sdk
+- golang
+- monitoring
+- sre
+- openshift-dedicated
+- openshift
+- redhat
+name: route-monitor-operator
+sources:
+- https://gitlab.cee.redhat.com/service/saas-route-monitor-operator-bundle/route-monitor-operator/0.1.744-gad53663
+type: application
+version: 0.1.744-gad53663

@@ -1,0 +1,13 @@
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-cbl-mariner2.0 as builder
+
+WORKDIR /app
+COPY test /app/test
+COPY internal /app/internal
+RUN cd test/e2e && make e2etest
+
+FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
+
+WORKDIR /
+ENV SETUP_FILEPATH=/data/e2e-setup.json
+COPY --from=builder /app/test/e2e/e2e.test /e2e.test
+ENTRYPOINT ["/e2e.test", "--ginkgo.timeout", "1h", "--ginkgo.junit-report", "/data/junit-report.xml", "--ginkgo.trace"]

@@ -1,0 +1,89 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
+rolloutName: Route Monitor Operator Rollout
+resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-operator-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: routeMonitorOperator.operatorImage.registry
+    repository:
+      configRef: routeMonitorOperator.operatorImage.repository
+    digest:
+      configRef: routeMonitorOperator.operatorImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+  - name: mirror-blackbox-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: routeMonitorOperator.blackboxExporterImage.registry
+    repository:
+      configRef: routeMonitorOperator.blackboxExporterImage.repository
+    digest:
+      configRef: routeMonitorOperator.blackboxExporterImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name  }}'
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    # Bundle version is not used in runtime, it's used to generate
+    # the Helm chart for the route-monitor-operator
+    # WARNING: Keep this in sync with the image digests
+    - name: BUNDLE_VERSION
+      configRef: routeMonitorOperator.bundleVersion
+    # Image refs
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: OPERATOR_IMAGE_REPOSITORY
+      configRef: routeMonitorOperator.operatorImage.repository
+    - name: OPERATOR_IMAGE_DIGEST
+      configRef: routeMonitorOperator.operatorImage.digest
+    - name: BLACKBOX_IMAGE_REPOSITORY
+      configRef: routeMonitorOperator.blackboxExporterImage.repository
+    - name: BLACKBOX_IMAGE_DIGEST
+      configRef: routeMonitorOperator.blackboxExporterImage.digest
+    dependsOn:
+    - mirror-operator-image
+    - mirror-blackbox-image
+    - global-output
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId

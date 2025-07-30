@@ -23,7 +23,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
-
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -54,7 +53,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a prereqs in the resource group")
-			infraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"infra",
@@ -69,19 +68,16 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the hcp cluster")
-			networkSecurityGroupID, err := framework.GetOutputValueString(infraDeploymentResult, "networkSecurityGroupId")
-			Expect(err).NotTo(HaveOccurred())
-			subnetID, err := framework.GetOutputValueString(infraDeploymentResult, "subnetId")
-			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"infra",
+				"hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
 				map[string]string{
-					"networkSecurityGroupId":   networkSecurityGroupID,
-					"subnetId":                 subnetID,
+					"nsgName":                  customerNetworkSecurityGroupName,
+					"vnetName":                 customerVnetName,
+					"subnetName":               customerVnetSubnetName,
 					"clusterName":              customerClusterName,
 					"managedResourceGroupName": managedResourceGroupName,
 				},
@@ -93,7 +89,7 @@ var _ = Describe("Customer", func() {
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"infra",
+				"node-pool",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
 				map[string]string{
 					"clusterName":  customerClusterName,

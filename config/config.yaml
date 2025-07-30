@@ -34,7 +34,7 @@ defaults:
     safeDnsIntAppObjectId: "" # intentionally left empty
     subscription:
       key: hcp-global
-      displayName: "ARO HCP - {{ .ctx.environment }} - Global"
+      displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - Global"
       providers:
         'Microsoft.Dashboard':
           poll: true
@@ -117,7 +117,8 @@ defaults:
         account: AzureRedHatOpenShiftRP
     logs:
       administrators:
-        alias: AME\WEINONGW
+        alias:
+        - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       certificateIssuer: Self
       certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
@@ -169,16 +170,40 @@ defaults:
     grafanaRoles: ""
     svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
-    devAlertingEmails: ""
-    sev1ActionGroupIDs: ""
-    sev2ActionGroupIDs: ""
-    sev3ActionGroupIDs: ""
-    sev4ActionGroupIDs: ""
+    icm:
+      connectionName: ""
+      connectionId: ""
+      environment: ""
+      sre:
+        actionGroupName: ""
+        actionGroupShortName: ""
+        routingId: ""
+        automitigationEnabled: ""
+      sl:
+        actionGroupName: ""
+        actionGroupShortName: ""
+        routingId: ""
+        automitigationEnabled: ""
+  # Route Monitor Operator
+  routeMonitorOperator:
+    # Bundle version is not used in runtime, it's used to generate
+    # the Helm chart for the route-monitor-operator
+    # WARNING: Keep this in sync with the image digests
+    bundleVersion: 0.1.744-gad53663
+    # Image refs
+    operatorImage:
+      registry: quay.io
+      repository: app-sre/route-monitor-operator
+      digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+    blackboxExporterImage:
+      registry: quay.io
+      repository: prometheus/blackbox-exporter
+      digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
   # SVC cluster specifics
   svc:
     subscription:
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
-      displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
+      displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - SVC"
       providers:
         'Microsoft.Dashboard':
           poll: true
@@ -264,7 +289,7 @@ defaults:
   mgmt:
     subscription:
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
-      displayName: "ARO HCP - {{ .ctx.environment }} - svc - {{ .ctx.region }}"
+      displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
       providers:
         'Microsoft.Storage':
           poll: true
@@ -302,19 +327,19 @@ defaults:
         tagKey: aroHCPPurpose
         tagValue: etcd-encryption
       systemAgentPool:
-        vmSize: 'Standard_E8s_v3'
+        vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
         azCount: {{ .ev2.availabilityZoneCount }}
       userAgentPool:
-        vmSize: 'Standard_D16s_v3'
-        osDiskSizeGB: 128
+        vmSize: 'Standard_E32ds_v6'
+        osDiskSizeGB: 512
         minCount: 1
         azCount: {{ .ev2.availabilityZoneCount }}
       infraAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2s_v3'
+        vmSize: 'Standard_D2ds_v6'
         osDiskSizeGB: 32
         azCount: {{ .ev2.availabilityZoneCount }}
       clusterOutboundIPAddressIPTags: ""
@@ -694,6 +719,7 @@ clouds:
         aks:
           # MGMTM AKS nodepools - big enough for 2 HCPs
           systemAgentPool:
+            vmSize: 'Standard_E8s_v3'
             maxCount: 4
             azCount: 1
           userAgentPool:
@@ -701,6 +727,7 @@ clouds:
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
           infraAgentPool:
+            vmSize: 'Standard_D2s_v3'
             azCount: 1
           etcd:
             softDelete: false
@@ -727,7 +754,6 @@ clouds:
       # Metrics
       monitoring:
         grafanaName: arohcp-dev
-        devAlertingEmails: "aro-hcp-service-lifecycle-team@redhat.com"
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
         grafanaRoles: >-

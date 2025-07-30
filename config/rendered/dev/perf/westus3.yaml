@@ -131,7 +131,8 @@ frontend:
 geneva:
   logs:
     administrators:
-      alias: AME\WEINONGW
+      alias:
+      - AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
     certificateDomain: aro-hcp-perf.azure.com
     certificateIssuer: Self
@@ -173,7 +174,7 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
-    displayName: ARO HCP - perf - Global
+    displayName: Azure Red Hat OpenShift HCP - perf - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -297,7 +298,7 @@ mgmt:
       osDiskSizeGB: 128
       vmSize: Standard_E8s_v3
     userAgentPool:
-      azCount: 3
+      azCount: 4
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 128
@@ -334,7 +335,7 @@ mgmt:
     certificateDomains:
     - '*.hcp.osadev.cloud'
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - perf - svc - westus3
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - MGMT - 1
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:
@@ -374,16 +375,25 @@ mise:
     repository: ""
   tenantId: ""
 monitoring:
-  devAlertingEmails: aro-hcp-service-lifecycle-team@redhat.com
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-usw3ptest
-  sev1ActionGroupIDs: ""
-  sev2ActionGroupIDs: ""
-  sev3ActionGroupIDs: ""
-  sev4ActionGroupIDs: ""
+  icm:
+    connectionId: ""
+    connectionName: ""
+    environment: ""
+    sl:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
+    sre:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
   svcWorkspaceName: services-usw3ptest
 msiCredentialsRefresher:
   certificate:
@@ -439,6 +449,16 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionRG: hcp-underlay-perf-usw3ptest
+routeMonitorOperator:
+  blackboxExporterImage:
+    digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
+    registry: quay.io
+    repository: prometheus/blackbox-exporter
+  bundleVersion: 0.1.744-gad53663
+  operatorImage:
+    digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+    registry: quay.io
+    repository: app-sre/route-monitor-operator
 secretSyncController:
   image:
     digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
@@ -482,7 +502,7 @@ svc:
       osDiskSizeGB: 32
       vmSize: Standard_D2s_v3
     userAgentPool:
-      azCount: 3
+      azCount: 4
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
@@ -524,7 +544,7 @@ svc:
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
-    displayName: ARO HCP - perf - svc - westus3
+    displayName: Azure Red Hat OpenShift HCP - West US 3 - SVC
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Compute:

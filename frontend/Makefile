@@ -1,17 +1,14 @@
 -include ../setup-env.mk
 
-CURRENT_COMMIT ?= $(shell COMMIT_SHA=$$(git rev-parse --short=7 HEAD); if [ -z "$$(git status --porcelain 2>/dev/null)" ]; then echo "$$COMMIT_SHA"; else echo "$$COMMIT_SHA"-dirty; fi )
+ARO_HCP_REVISION = $(shell git rev-parse HEAD)
+ARO_HCP_IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)$(shell git status --porcelain --untracked-files=no | grep --quiet . && echo -dirty)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_FRONTEND_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ARO_HCP_IMAGE_REPOSITORY)
+ARO_HCP_FRONTEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
 
 .DEFAULT_GOAL := frontend
 
 frontend:
-	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${CURRENT_COMMIT}" -o aro-hcp-frontend .
-
-info:
-	@echo "ARO_HCP_FRONTEND_IMAGE: ${ARO_HCP_FRONTEND_IMAGE}"
-	@echo "COMMIT: ${CURRENT_COMMIT}"
+	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_IMAGE_TAG}" -o aro-hcp-frontend .
 
 run:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
@@ -32,14 +29,15 @@ image:
 	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
 	          cp ${ENV_VARS_FILE} image-environment; \
 	          docker build . --file frontend/Dockerfile \
-	                         --build-arg CURRENT_COMMIT=${CURRENT_COMMIT} \
 	                         --build-arg PLATFORM=linux/amd64 \
-	                         --tag ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT}"
+	                         --build-arg REVISION=${ARO_HCP_REVISION} \
+	                         --build-arg TAG=${ARO_HCP_IMAGE_TAG} \
+	                         --tag ${ARO_HCP_FRONTEND_IMAGE}"
 .PHONY: image
 
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_FRONTEND_IMAGE}:${CURRENT_COMMIT}
+	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
 deploy:
 	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
@@ -81,9 +79,9 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
+		--set configMap.currentVersion=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
 		--set configMap.location=${LOCATION}  \
-		--set deployment.imageName=${ARO_HCP_FRONTEND_IMAGE}@$${DIGEST} \
+		--set deployment.imageName=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clustersService.namespace=${CS_NAMESPACE} \

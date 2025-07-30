@@ -1,0 +1,17 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: kas-monitoring-hack
+  namespace: openshift-route-monitor-operator
+spec:
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          cluster.open-cluster-management.io/clusterset: default
+          name: local-cluster
+  tolerations:
+  - key: cluster.open-cluster-management.io/unavailable
+    operator: Exists
+  - key: cluster.open-cluster-management.io/unreachable
+    operator: Exists

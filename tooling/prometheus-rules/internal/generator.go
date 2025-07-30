@@ -220,16 +220,7 @@ func (o *Options) Generate() error {
 param azureMonitoring string
 
 #disable-next-line no-unused-params
-param allSev1ActionGroups array
-
-#disable-next-line no-unused-params
-param allSev2ActionGroups array
-
-#disable-next-line no-unused-params
-param allSev3ActionGroups array
-
-#disable-next-line no-unused-params
-param allSev4ActionGroups array
+param actionGroups array
 `)); err != nil {
 		return err
 	}
@@ -303,7 +294,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
     rules: [
 {{- range .groups.Properties.Rules}}
       {
-        actions: [for g in allSev{{.Severity}}ActionGroups: { actionGroupId: g }]
+        actions: [for g in actionGroups: { actionGroupId: g }]
         alert: '{{.Alert}}'
         enabled: {{.Enabled}}
 {{- if .Labels}}

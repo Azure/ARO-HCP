@@ -33,6 +33,36 @@
         "serviceAccountName"
       ]
     },
+    "icmConnection": {
+      "type": "object",
+      "properties": {
+        "actionGroupName": {
+          "type": "string",
+          "description": "Name of the ICM Action Group"
+        },
+        "actionGroupShortName": {
+          "type": "string",
+          "maxLength": 8,
+          "description": "Name of the ICM Action Group"
+        },
+        "routingId": {
+          "type": "string",
+          "description": "ICM routing ID"
+        },
+
+        "automitigationEnabled": {
+          "type": "string",
+          "description": "ICM automitigation enabled ID"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "actionGroupName",
+        "actionGroupShortName",
+        "routingId",
+        "automitigationEnabled"
+      ]
+    },
     "postgresName": {
       "type": "string",
       "minLength": 3,
@@ -883,7 +913,7 @@
               "additionalProperties": false,
               "properties": {
                 "alias": {
-                  "type": "string"
+                  "type": "array"
                 },
                 "securityGroup": {
                   "type": "string"
@@ -1434,20 +1464,36 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
-        "devAlertingEmails": {
-          "type": "string"
-        },
-        "sev1ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev2ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev3ActionGroupIDs": {
-          "type": "string"
-        },
-        "sev4ActionGroupIDs": {
-          "type": "string"
+        "icm": {
+          "type": "object",
+          "properties": {
+            "connectionName": {
+              "type": "string",
+              "description": "ICM connection Name"
+            },
+            "connectionId": {
+              "type": "string",
+              "description": "ICM connection id"
+            },
+            "environment": {
+              "type": "string",
+              "description": "ICM environment"
+            },
+            "sre": {
+              "$ref": "#/definitions/icmConnection"
+            },
+            "sl": {
+              "$ref": "#/definitions/icmConnection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "connectionName",
+            "connectionId",
+            "environment",
+            "sre",
+            "sl"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1457,6 +1503,26 @@
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
         "hcpWorkspaceName"
+      ]
+    },
+    "routeMonitorOperator": {
+      "type": "object",
+      "properties": {
+        "operatorImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "blackboxExporterImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "bundleVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operatorImage",
+        "blackboxExporterImage",
+        "bundleVersion"
       ]
     },
     "logs": {
