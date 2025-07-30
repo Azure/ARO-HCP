@@ -376,16 +376,25 @@ mise:
     repository: ""
   tenantId: ""
 monitoring:
-  devAlertingEmails: aro-hcp-service-lifecycle-team@redhat.com
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
   hcpWorkspaceName: hcps-lnstest
-  sev1ActionGroupIDs: ""
-  sev2ActionGroupIDs: ""
-  sev3ActionGroupIDs: ""
-  sev4ActionGroupIDs: ""
+  icm:
+    connectionId: ""
+    connectionName: ""
+    environment: ""
+    sl:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
+    sre:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
   svcWorkspaceName: services-lnstest
 msiCredentialsRefresher:
   certificate:
