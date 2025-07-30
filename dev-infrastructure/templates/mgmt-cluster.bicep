@@ -344,7 +344,7 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //
 
 module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
-  name: 'geneva-rp-certificate'
+  name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
     kvCertOfficerManagedIdentityResourceId: globalMSIId
