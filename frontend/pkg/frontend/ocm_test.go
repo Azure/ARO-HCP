@@ -97,6 +97,9 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				},
 			),
 		},
+		/*
+		   Test for CI
+		*/
 		// TODO: Uncomment when CS supports it.
 		// {
 		// 	name: "converts EtcdEncryption for only default PlatformManaged",
