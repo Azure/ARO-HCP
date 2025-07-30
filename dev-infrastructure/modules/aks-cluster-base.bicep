@@ -551,7 +551,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
 }
 
 resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, max(userAgentPoolAZCount, 3)): {
+  for i in range(0, min(userAgentPoolAZCount, 3)): {
     parent: aksCluster
     name: 'user${take(string(i+1), 8)}'
     properties: {
@@ -590,7 +590,7 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
 ]
 
 resource infraAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, max(infraAgentPoolAZCount, 3)): {
+  for i in range(0, min(infraAgentPoolAZCount, 3)): {
     parent: aksCluster
     name: 'infra${take(string(i+1), 7)}'
     properties: {
