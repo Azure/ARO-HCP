@@ -2,7 +2,7 @@
 -include ../helm-cmd.mk
 
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
-ARO_HCP_IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)$(shell git status --porcelain --untracked-files=no | grep --quiet . && echo -dirty)
+ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_BACKEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
 
