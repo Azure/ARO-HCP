@@ -314,10 +314,10 @@ monitoring.what-if:
 
 # ACR DEV customizations
 
-acr: acr-svc-cfg acr-ocp-cfg
+acr: acr-svc-cfg
 .PHONY: acr
 
-acr.what-if: acr-svc-cfg.what-if acr-ocp-cfg.what-if
+acr.what-if: acr-svc-cfg.what-if
 .PHONY: acr.what-if
 
 acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
@@ -338,25 +338,6 @@ acr-svc-cfg.what-if:
 		--parameters \
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg.what-if
-
-acr-ocp-cfg: # DEV only setup of caching rules in OCP ACR
-	az deployment group create \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/dev-acr.bicep \
-		$(PROMPT_TO_CONFIRM) \
-		--parameters \
-			configurations/acr-ocp.bicepparam
-.PHONY: acr-ocp-cfg
-
-acr-ocp-cfg.what-if:
-	az deployment group what-if \
-		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-ocp \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/dev-acr.bicep \
-		--parameters \
-			configurations/acr-ocp.bicepparam
-.PHONY: acr-ocp-cfg.what-if
 
 #
 # Postgres Authentication Helpers
