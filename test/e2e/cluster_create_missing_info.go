@@ -76,7 +76,7 @@ var _ = Describe("Customer", func() {
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
-					"infra",
+					"illegal-cluster",
 					clusterTemplate,
 					map[string]string{
 						"nsgName":                  customerNetworkSecurityGroupName,

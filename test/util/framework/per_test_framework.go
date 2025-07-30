@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"sigs.k8s.io/yaml"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
@@ -74,30 +77,53 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
 	tc.contextLock.RLock()
 	defer tc.contextLock.RUnlock()
+	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
 	for _, resourceGroupName := range tc.knownResourceGroups {
+		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to funcion.
 			utilruntime.HandleCrashWithContext(ctx)
 
-			return tc.cleanupResourceGroup(ctx, resourceGroupName)
+			return tc.cleanupResourceGroup(ctx, currResourceGroupName)
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
 		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
 	}
+
+	ginkgo.GinkgoLogr.Info("finished deleting created resources")
 }
 
 // collectDebugInfo collects information and saves it in artifact dir
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
-	// TODO dump deployment operation info for all resource groups
+	tc.contextLock.RLock()
+	defer tc.contextLock.RUnlock()
+	ginkgo.GinkgoLogr.Info("collecting debug info")
+
+	// deletion takes a while, it's worth it to do this in parallel
+	waitGroup, ctx := errgroup.WithContext(ctx)
+	for _, resourceGroupName := range tc.knownResourceGroups {
+		currResourceGroupName := resourceGroupName
+		waitGroup.Go(func() error {
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to funcion.
+			utilruntime.HandleCrashWithContext(ctx)
+
+			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)
+		})
+	}
+	if err := waitGroup.Wait(); err != nil {
+		// remember that Wait only shows the first error, not all the errors.
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("finished collecting debug info")
 }
 
 func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix, location string) (*armresources.ResourceGroup, error) {
-
 	suffix := rand.String(6)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 	func() {
@@ -139,6 +165,59 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		}
 	} else {
 		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	}
+
+	return errors.Join(errs...)
+}
+
+func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx context.Context, resourceGroupName string) error {
+	// TODO shift to only collect failed once we're confident it runs and works.
+	//if !ginkgo.CurrentSpecReport().Failed() {
+	//	// only collect data if we failed
+	//	return nil
+	//}
+
+	errs := []error{}
+
+	armResourceClient, err := tc.getARMResourcesClientFactoryUnlocked(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get ARM resource client: %w", err)
+	}
+
+	ginkgo.GinkgoLogr.Info("collecting deployments", "resourceGroup", resourceGroupName)
+	allDeployments, err := ListAllDeployments(ctx, armResourceClient.NewDeploymentsClient(), resourceGroupName, 10*time.Minute)
+	if err != nil {
+		return fmt.Errorf("failed to list deployments in %q: %w", resourceGroupName, err)
+	}
+	fullDeploymentListPath := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, "resourcegroups", resourceGroupName, "deployments.yaml")
+	if err := os.MkdirAll(filepath.Dir(fullDeploymentListPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(fullDeploymentListPath), err)
+	}
+	allDeploymentsYaml, err := yaml.Marshal(allDeployments)
+	if err != nil {
+		return fmt.Errorf("failed to marshal deployments: %w", err)
+	}
+	if err := os.WriteFile(fullDeploymentListPath, allDeploymentsYaml, 0644); err != nil {
+		return fmt.Errorf("failed to write deployments to %q: %w", fullDeploymentListPath, err)
+	}
+
+	for _, deployment := range allDeployments {
+		ginkgo.GinkgoLogr.Info("collecting operations", "resourceGroup", resourceGroupName, "deployment", *deployment.Name)
+		allOperations, err := ListAllOperations(ctx, armResourceClient.NewDeploymentOperationsClient(), resourceGroupName, *deployment.Name, 10*time.Minute)
+		if err != nil {
+			return fmt.Errorf("failed to list operations in %q: %w", *deployment.Name, err)
+		}
+		fullOperationsListPath := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, "resourcegroups", resourceGroupName, fmt.Sprintf("deployment-operations-%s.yaml", *deployment.Name))
+		if err := os.MkdirAll(filepath.Dir(fullOperationsListPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(fullOperationsListPath), err)
+		}
+		allOperationsYaml, err := yaml.Marshal(allOperations)
+		if err != nil {
+			return fmt.Errorf("failed to marshal operations: %w", err)
+		}
+		if err := os.WriteFile(fullOperationsListPath, allOperationsYaml, 0644); err != nil {
+			return fmt.Errorf("failed to write operations to %q: %w", fullOperationsListPath, err)
+		}
 	}
 
 	return errors.Join(errs...)

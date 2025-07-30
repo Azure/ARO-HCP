@@ -72,7 +72,7 @@ var _ = Describe("Customer", func() {
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"infra",
+				"hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
 				map[string]string{
 					"nsgName":                  customerNetworkSecurityGroupName,
@@ -89,7 +89,7 @@ var _ = Describe("Customer", func() {
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"infra",
+				"node-pool",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
 				map[string]string{
 					"clusterName":  customerClusterName,
