@@ -39,6 +39,12 @@ push: image
 	docker push ${ARO_HCP_BACKEND_IMAGE}
 .PHONY: push
 
+config:
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	yq --inplace '.clouds.*.environments.*.defaults.backend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
+	git diff
+.PHONY: config
+
 deploy:
 	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
