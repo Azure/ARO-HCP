@@ -36,19 +36,13 @@ func newMiddlewareLockSubscription(dbClient database.DBClient) *middlewareLockSu
 
 // handleRequest this is best effort, not guaranteed correct.  This must not be relied upon for guaranteeing correctness.
 func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	var lockClient database.LockClientInterface
-
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
 	subscriptionID := r.PathValue(PathSegmentSubscriptionID)
 
-	switch r.Method {
-	case http.MethodGet, http.MethodHead:
-		// These methods are read-only and don't require locking.
-	default:
-		lockClient = h.dbClient.GetLockClient()
-	}
+	// This may be nil when running "go test".
+	lockClient := h.dbClient.GetLockClient()
 
 	if lockClient == nil {
 		next(w, r)

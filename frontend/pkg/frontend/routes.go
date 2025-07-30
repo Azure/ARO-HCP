@@ -40,11 +40,11 @@ const (
 	PatternProviders         = "providers/" + api.ProviderNamespace
 	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
 	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
+	PatternVersions          = api.ClusterVersionTypeName + "/" + WildcardResourceName
 	PatternDeployments       = "deployments/" + WildcardDeploymentName
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
 	PatternOperationResults  = api.OperationResultResourceTypeName + "/" + WildcardOperationID
 	PatternOperationStatuses = api.OperationStatusResourceTypeName + "/" + WildcardOperationID
-	PatternClusterVersions   = api.ClusterVersionTypeName + "/" + WildcardResourceName
 
 	ActionRequestAdminCredential = "requestadmincredential"
 	ActionRevokeCredentials      = "revokecredentials"
@@ -79,12 +79,12 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareValidateStatic,
 	)
 
-	// Unauthenticated routes
+	// Miscellaneous routes
 	mux.HandleFunc("/", f.NotFound)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
 	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
-	// List endpoints
+	// Resource list endpoints
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
@@ -102,17 +102,29 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.ClusterVersionTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
-	// Resource ID endpoints
-	// Request context holds an azcorearm.ResourceID
+	// Resource read endpoints
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareResourceID,
+		MiddlewareLoggingPostMux,
+		MiddlewareValidateAPIVersion,
+		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternVersions),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+
+	// Resource create/update/delete endpoints
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
 		newMiddlewareLockSubscription(f.dbClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
@@ -129,9 +141,6 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRevokeCredentials),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRevokeCredentials))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
@@ -140,9 +149,6 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternClusterVersions),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(
@@ -161,11 +167,14 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	// Subscription management endpoints
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
-		MiddlewareLoggingPostMux,
-		newMiddlewareLockSubscription(f.dbClient).handleRequest)
+		MiddlewareLoggingPostMux)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionGet))
+	postMuxMiddleware = NewMiddleware(
+		MiddlewareResourceID,
+		MiddlewareLoggingPostMux,
+		newMiddlewareLockSubscription(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionPut))
