@@ -117,7 +117,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished collecting debug info")
