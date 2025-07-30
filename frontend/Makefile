@@ -22,8 +22,6 @@ clean:
 	rm -f aro-hcp-frontend
 .PHONY: clean
 
-build-push: image push
-
 image:
 	@bash -c "set -e; pushd .. > /dev/null; \
 	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
@@ -38,6 +36,7 @@ image:
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
+.PHONY: push
 
 deploy:
 	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
