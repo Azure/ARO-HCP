@@ -67,6 +67,18 @@ Get HcpOpenshiftVersion Resource
 curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOpenShiftVersions/4.19.0?api-version=2024-06-10-preview"
 ```
 
+List HcpOperatorIdentityRoleSet Resources by Location
+
+```bash
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOperatorIdentityRoleSets?api-version=2024-06-10-preview"
+```
+
+Get HcpOperatorIdentityRoleSet Resource by Version
+
+```bash
+curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/locations/westus3/hcpOperatorIdentityRoleSets/4.19?api-version=2024-06-10-preview"
+```
+
 List HcpOpenShiftClusterResource Resources by Subscription ID
 ```bash
 curl -X GET "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters?api-version=2024-06-10-preview"
