@@ -343,6 +343,40 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 		err = csIterator.GetError()
 
+	case strings.ToLower(api.OperatorIdentityRoleSetResourceTypeName):
+		csIterator := f.clusterServiceClient.ListVersions()
+
+		for csVersion := range csIterator.Items(ctx) {
+			versionName, err := api.GetMinorOpenShiftVersion(csVersion.ID())
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+				"/locations/" + location + "/" + api.OperatorIdentityRoleSetResourceTypeName + "/" + versionName
+			resourceID, err := azcorearm.ParseResourceID(stringResource)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			managedIdentitiesRequirements, err := f.clusterServiceClient.GetManagedIdentitiesRequirements(ctx, versionName)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			value, err := marshalCSManagedIdentitiesRequirements(*resourceID, managedIdentitiesRequirements, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+		err = csIterator.GetError()
+
 	default:
 		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
 	}
