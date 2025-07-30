@@ -352,6 +352,45 @@ func (c *MockClusterServiceClientSpecGetClusterStatusCall) DoAndReturn(f func(co
 	return c
 }
 
+// GetManagedIdentitiesRequirements mocks base method.
+func (m *MockClusterServiceClientSpec) GetManagedIdentitiesRequirements(ctx context.Context, version string) (*v1alpha1.ManagedIdentitiesRequirements, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetManagedIdentitiesRequirements", ctx, version)
+	ret0, _ := ret[0].(*v1alpha1.ManagedIdentitiesRequirements)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetManagedIdentitiesRequirements indicates an expected call of GetManagedIdentitiesRequirements.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetManagedIdentitiesRequirements(ctx, version any) *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManagedIdentitiesRequirements", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetManagedIdentitiesRequirements), ctx, version)
+	return &MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall) Return(arg0 *v1alpha1.ManagedIdentitiesRequirements, arg1 error) *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall) Do(f func(context.Context, string) (*v1alpha1.ManagedIdentitiesRequirements, error)) *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall) DoAndReturn(f func(context.Context, string) (*v1alpha1.ManagedIdentitiesRequirements, error)) *MockClusterServiceClientSpecGetManagedIdentitiesRequirementsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetNodePool mocks base method.
 func (m *MockClusterServiceClientSpec) GetNodePool(ctx context.Context, internalID ocm.InternalID) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()

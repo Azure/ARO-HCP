@@ -572,6 +572,51 @@ func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *ar
 	}
 }
 
+func ConvertCStoOperatorIdentityRoleSet(resourceID azcorearm.ResourceID, requirements *arohcpv1alpha1.ManagedIdentitiesRequirements) *api.HcpOperatorIdentityRoleSet {
+	hcpOperatorIdentityRoleSet := &api.HcpOperatorIdentityRoleSet{
+		ProxyResource: arm.ProxyResource{
+			Resource: arm.Resource{
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
+			},
+		},
+		Properties: api.HcpOperatorIdentityRoleSetProperties{
+			ControlPlaneOperators: make([]api.OperatorIdentityRoles, 0, len(requirements.ControlPlaneOperatorsIdentities())),
+			DataPlaneOperators:    make([]api.OperatorIdentityRoles, 0, len(requirements.DataPlaneOperatorsIdentities())),
+		},
+	}
+
+	for _, operatorIdentity := range requirements.ControlPlaneOperatorsIdentities() {
+		hcpOperatorIdentityRoleSet.Properties.ControlPlaneOperators = append(hcpOperatorIdentityRoleSet.Properties.ControlPlaneOperators, api.OperatorIdentityRoles{
+			Name:            operatorIdentity.OperatorName(),
+			Required:        api.OperatorIdentityRequired(operatorIdentity.Required()),
+			RoleDefinitions: convertRoleDefinitionsCStoRP(operatorIdentity.RoleDefinitions()),
+		})
+	}
+
+	for _, operatorIdentity := range requirements.DataPlaneOperatorsIdentities() {
+		hcpOperatorIdentityRoleSet.Properties.DataPlaneOperators = append(hcpOperatorIdentityRoleSet.Properties.DataPlaneOperators, api.OperatorIdentityRoles{
+			Name:            operatorIdentity.OperatorName(),
+			Required:        api.OperatorIdentityRequired(operatorIdentity.Required()),
+			RoleDefinitions: convertRoleDefinitionsCStoRP(operatorIdentity.RoleDefinitions()),
+		})
+	}
+
+	return hcpOperatorIdentityRoleSet
+}
+
+func convertRoleDefinitionsCStoRP(roleDefinitions []*arohcpv1alpha1.RoleDefinitionOperatorIdentityRequirement) []api.RoleDefinition {
+	roleDefinitionsRP := make([]api.RoleDefinition, 0, len(roleDefinitions))
+	for _, roleDefinition := range roleDefinitions {
+		roleDefinitionsRP = append(roleDefinitionsRP, api.RoleDefinition{
+			Name:       roleDefinition.Name(),
+			ResourceID: roleDefinition.ResourceId(),
+		})
+	}
+	return roleDefinitionsRP
+}
+
 // CSErrorToCloudError attempts to convert various 4xx status codes from
 // Cluster Service to an ARM-compliant error structure, with 500 Internal
 // Server Error as a last-ditch fallback.
