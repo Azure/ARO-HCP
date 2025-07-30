@@ -913,7 +913,7 @@
               "additionalProperties": false,
               "properties": {
                 "alias": {
-                  "type": "string"
+                  "type": "array"
                 },
                 "securityGroup": {
                   "type": "string"

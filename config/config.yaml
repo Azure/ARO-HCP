@@ -117,7 +117,8 @@ defaults:
         account: AzureRedHatOpenShiftRP
     logs:
       administrators:
-        alias: AME\WEINONGW
+        alias:
+        - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       certificateIssuer: Self
       certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
