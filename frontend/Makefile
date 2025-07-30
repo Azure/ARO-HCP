@@ -40,7 +40,7 @@ push: image
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
 
 deploy:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \

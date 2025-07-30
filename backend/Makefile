@@ -41,7 +41,7 @@ push: image
 .PHONY: push
 
 deploy:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n backend \
