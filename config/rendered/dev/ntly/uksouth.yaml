@@ -449,6 +449,16 @@ pko:
     repository: package-operator/remote-phase-manager
 region: uksouth
 regionRG: uksouth-shared-resources
+routeMonitorOperator:
+  blackboxExporterImage:
+    digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
+    registry: quay.io
+    repository: prometheus/blackbox-exporter
+  bundleVersion: 0.1.744-gad53663
+  operatorImage:
+    digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+    registry: quay.io
+    repository: app-sre/route-monitor-operator
 secretSyncController:
   image:
     digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a
