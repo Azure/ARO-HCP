@@ -17,7 +17,6 @@ param icmConnectionId string
 param icmActionGroupNameSRE string
 
 @description('Name of the ICM Action Group')
-@maxLength(8)
 param icmActionGroupShortNameSRE string
 
 @description('ICM routing ID')
@@ -30,7 +29,6 @@ param icmAutomitigationEnabledSRE string
 param icmActionGroupNameSL string
 
 @description('Name of the ICM Action Group')
-@maxLength(8)
 param icmActionGroupShortNameSL string
 
 @description('ICM routing ID')
