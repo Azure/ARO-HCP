@@ -1408,3 +1408,8 @@ func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.V
 	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
 	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
 }
+
+func marshalCSManagedIdentitiesRequirements(resourceID azcorearm.ResourceID, requirements *arohcpv1alpha1.ManagedIdentitiesRequirements, versionedInterface api.Version) ([]byte, error) {
+	hcpManagedIdentitiesRequirements := ConvertCStoOperatorIdentityRoleSet(resourceID, requirements)
+	return versionedInterface.MarshalHcpOperatorIdentityRoleSet(hcpManagedIdentitiesRequirements)
+}

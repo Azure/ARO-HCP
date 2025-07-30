@@ -262,3 +262,7 @@ func (csc *clusterServiceClientWithTracing) GetVersion(ctx context.Context, vers
 func (csc *clusterServiceClientWithTracing) ListVersions() VersionsListIterator {
 	return csc.csc.ListVersions()
 }
+
+func (csc *clusterServiceClientWithTracing) GetManagedIdentitiesRequirements(ctx context.Context, version string) (*arohcpv1alpha1.ManagedIdentitiesRequirements, error) {
+	return csc.csc.GetManagedIdentitiesRequirements(ctx, version)
+}

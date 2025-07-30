@@ -95,6 +95,9 @@ type ClusterServiceClientSpec interface {
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
 	ListVersions() VersionsListIterator
+
+	// GetManagedIdentitiesRequirements sends a GET request to fetch the managed identities requirements from Cluster Service.
+	GetManagedIdentitiesRequirements(ctx context.Context, version string) (*arohcpv1alpha1.ManagedIdentitiesRequirements, error)
 }
 
 type clusterServiceClient struct {
@@ -417,4 +420,20 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	return VersionsListIterator{request: versionsListRequest}
+}
+
+func (csc *clusterServiceClient) GetManagedIdentitiesRequirements(ctx context.Context, searchExpression string) (*arohcpv1alpha1.ManagedIdentitiesRequirements, error) {
+	managedIdentitiesRequirementsGetRequest := csc.conn.AroHCP().V1alpha1().ManagedIdentitiesRequirements().Get()
+	if searchExpression != "" {
+		managedIdentitiesRequirementsGetRequest.Version(searchExpression)
+	}
+	managedIdentitiesRequirementsGetResponse, err := managedIdentitiesRequirementsGetRequest.SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	managedIdentitiesRequirements, ok := managedIdentitiesRequirementsGetResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return managedIdentitiesRequirements, nil
 }
