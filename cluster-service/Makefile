@@ -9,9 +9,11 @@ export OP_FILE_CSI_DRIVER_ROLE_NAME
 export OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME
 export OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
 export OP_KMS_ROLE_NAME
+export TLS_CERTIFICATES_ISSUER
 
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 AFD_OIDC_BASE_ENDPOINT ?= "https://${REGIONAL_DNS_SUBDOMAIN}.${OIDC_SUBDOMAIN}.${SVC_PARENT_DNS_ZONE_NAME}/"
+TLS_CERTIFICATES_ENABLED ?= true
 
 deploy:
 	@source ./generate_helm_set_flags.sh && \
@@ -35,6 +37,8 @@ deploy:
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
 	  --set oidcIssuerBlobServiceUrl=$${OIDC_BLOB_SERVICE_ENDPOINT} \
 	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \
+	  --set tlsCertificatesIssuer=$${TLS_CERTIFICATES_ISSUER} \
+	  --set tlsCertificatesEnabled=$(TLS_CERTIFICATES_ENABLED) \
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
@@ -117,7 +121,7 @@ personal-runtime-config:
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	../templatize.sh $(DEPLOY_ENV) local/azure-runtime-config.tmpl.json local/azure-runtime-config.json \
-		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT}
+		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT},tls_certificates_issuer=$${TLS_CERTIFICATES_ISSUER},tls_certificates_enabled=$(TLS_CERTIFICATES_ENABLED)
 	@cat local/azure-runtime-config.json | jq
 .PHONY: personal-runtime-config
 
@@ -166,7 +170,7 @@ shared-storage-runtime-config:
 	OCP_ACR_URL=$(shell az acr show -n ${OCP_ACR_NAME} --query loginServer -o tsv) && \
 	OCP_ACR_RESOURCE_ID=$(shell az acr show -n ${OCP_ACR_NAME} --query id -o tsv) && \
 	../templatize.sh $(DEPLOY_ENV) local/azure-runtime-config.tmpl.json local/azure-runtime-config.json \
-		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT}
+		-e tenantId=$${TENANT_ID},ocpAcrResourceId=$${OCP_ACR_RESOURCE_ID},ocpAcrResourceUrl=$${OCP_ACR_URL},oidc_container='$$web',oidc_issuer_base_url=$${OIDC_ISSUER_BASE_ENDPOINT},oidc_service_url=$${OIDC_BLOB_SERVICE_ENDPOINT},tls_certificates_issuer=$${TLS_CERTIFICATES_ISSUER},tls_certificates_enabled=$(TLS_CERTIFICATES_ENABLED)
 	@cat local/azure-runtime-config.json | jq
 .PHONY: shared-storage-runtime-config
 
