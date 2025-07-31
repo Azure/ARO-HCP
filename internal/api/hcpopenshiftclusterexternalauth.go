@@ -15,7 +15,6 @@
 package api
 
 import (
-	"encoding/pem"
 	"fmt"
 	"net/http"
 	"time"
@@ -36,7 +35,7 @@ type HCPOpenShiftClusterExternalAuth struct {
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState,omitempty"       visibility:"read"`
-	Condition         ExternalAuthCondition             `json:"condition,omitzero"               visibility:"read"`
+	Condition         ExternalAuthCondition             `json:"condition,omitzero"                visibility:"read"`
 	Issuer            TokenIssuerProfile                `json:"issuer"                            visibility:"read create update"       validate:"required"`
 	Clients           []ExternalAuthClientProfile       `json:"clients,omitempty"                 visibility:"read create update"       validate:"max=20"`
 	Claim             ExternalAuthClaimProfile          `json:"claim"                             visibility:"read create update"       validate:"required"`
@@ -44,11 +43,11 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 
 /** Condition defines an observation of the external auth state. */
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"                    visibility:"read"`
-	Status             ConditionStatusType       `json:"status"                  visibility:"read"`
-	LastTransitionTime time.Time                 `json:"lastTransitionTime"      visibility:"read"`
-	Reason             string                    `json:"reason"                  visibility:"read"`
-	Message            string                    `json:"message"                 visibility:"read"`
+	ConditionType      ExternalAuthConditionType `json:"type"                         visibility:"read"     validate:"omitempty,enum_externalauthconditiontype"`
+	Status             ConditionStatusType       `json:"status"                       visibility:"read"     validate:"omitempty,enum_externalauthconditionstatustype"`
+	LastTransitionTime time.Time                 `json:"lastTransitionTime"           visibility:"read"`
+	Reason             string                    `json:"reason"                       visibility:"read"`
+	Message            string                    `json:"message"                      visibility:"read"`
 }
 
 /** Token issuer profile
@@ -57,10 +56,10 @@ type ExternalAuthCondition struct {
  */
 type TokenIssuerProfile struct {
 	// TODO: validate https url
-	Url string `json:"url"              visibility:"read create update"       validate:"required"`
+	Url string `json:"url"                      visibility:"read create update"       validate:"required"`
 	// TODO: validate at least one of the entries must match the 'aud' claim in the JWT token.
 	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,max=10"`
-	Ca        string   `json:"ca,omitempty"     visibility:"read create update"`
+	Ca        string   `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
 }
 
 /** External Auth client profile
@@ -69,9 +68,9 @@ type TokenIssuerProfile struct {
 type ExternalAuthClientProfile struct {
 	Component ExternalAuthClientComponentProfile `json:"component"                visibility:"read create update"       validate:"required"`
 	// TODO: The clientId must appear in the audience field of the TokenIssuerProfile.
-	ClientId                      string                 `json:"clientId"                visibility:"read create update"       validate:"required"`
-	ExtraScopes                   []string               `json:"extraScopes,omitempty"   visibility:"read create update"`
-	ExternalAuthClientProfileType ExternalAuthClientType `json:"type"                    visibility:"read create update"       validate:"required"`
+	ClientId                      string                 `json:"clientId"                       visibility:"read create update"       validate:"required"`
+	ExtraScopes                   []string               `json:"extraScopes,omitempty"          visibility:"read create update"`
+	ExternalAuthClientProfileType ExternalAuthClientType `json:"enum_externalauthclienttype"    visibility:"read create update"       validate:"required"`
 }
 
 /** External Auth component profile
@@ -121,8 +120,8 @@ type UsernameClaimProfile struct {
 
 /** External Auth claim validation rule */
 type TokenClaimValidationRule struct {
-	TokenClaimValidationRuleType TokenValidationRuleType `json:"type"                       visibility:"read create update"`
-	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim,omitempty"    visibility:"read create update"`
+	TokenClaimValidationRuleType TokenValidationRuleType `json:"enum_tokenvalidationruletyperequiredclaim"       visibility:"read create update"       validate:"required"`
+	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim,omitempty"                         visibility:"read create update"`
 }
 
 /** Token required claim validation rule. */
@@ -171,26 +170,6 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 	return errorDetails
 }
 
-// Certificate Authority string must be PEM encoded
-func (externalAuth *HCPOpenShiftClusterExternalAuth) validateIssuerCAsPEMEncoded() []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-	if externalAuth.Properties.Issuer.Ca != "" {
-		b := []byte(externalAuth.Properties.Issuer.Ca)
-		block, _ := pem.Decode(b)
-
-		if block == nil || block.Type != "PUBLIC KEY" {
-
-			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: "TokenIssuerProfile Certificate Authority push be PEM encoded",
-				Target:  "properties.issuer.ca",
-			})
-
-		}
-	}
-	return errorDetails
-}
-
 // This combination is used later in the system as a unique identifier.
 func (c ExternalAuthClientProfile) generateUniqueIdentifier() string {
 	return c.Component.Name + c.Component.Namespace
@@ -205,7 +184,6 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	// becoming overwhelming.
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
-		errorDetails = append(errorDetails, externalAuth.validateIssuerCAsPEMEncoded()...)
 	}
 
 	return errorDetails
