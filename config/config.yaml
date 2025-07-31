@@ -79,7 +79,7 @@ defaults:
         enabled: true
         days: 90
     msft:
-      name: 'aromsft{{ .ctx.environment }}' # [globally-unique]
+      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
       untaggedImagesRetention:
         enabled: true
@@ -407,14 +407,14 @@ defaults:
   # Billing
   billing:
     aub:
-      accountName: "arohcp{{ .ctx.environment }}-aub-{{ .ctx.regionShort }}"
+      accountName: ""
       cloudSuffix: ""
     pav2:
       cloudName: ""
     kusto:
-      clusterName: "arohcpHoBo{{ .ctx.environment }}"
+      clusterName: ""
     cosmosDB:
-      name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
+      name: ""
     eventHub:
       namespace: ""
       subscriptionId: ""
@@ -694,12 +694,6 @@ clouds:
           issuer: Self
         image:
           digest: '' # if empty uses commit sha of repo
-      #billing
-      billing:
-        eventHub:
-          namespace: "int-aro-PAv2-primary"
-          subscriptionId: "0cc1cafa-578f-4fa5-8d6b-ddfd8d82e6ea" # Azure Red Hat OpenShift v4.x - Development
-          resourceGroupName: "int-aro-billing-global-primary"
       # Backend
       backend:
         image:

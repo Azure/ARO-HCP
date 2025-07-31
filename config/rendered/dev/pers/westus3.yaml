@@ -3,7 +3,7 @@ acm:
     pauseReconciliation: true
 acr:
   msft:
-    name: aromsftpers
+    name: arohcpocppers
     untaggedImagesRetention:
       days: 365
       enabled: true
@@ -58,16 +58,16 @@ backplaneAPI:
     repository: app-sre/backplane-api
 billing:
   aub:
-    accountName: arohcppers-aub-usw3test
+    accountName: ""
     cloudSuffix: ""
   cosmosDB:
-    name: arohcppers-rp-usw3test
+    name: ""
   eventHub:
-    namespace: int-aro-PAv2-primary
-    resourceGroupName: int-aro-billing-global-primary
-    subscriptionId: 0cc1cafa-578f-4fa5-8d6b-ddfd8d82e6ea
+    namespace: ""
+    resourceGroupName: ""
+    subscriptionId: ""
   kusto:
-    clusterName: arohcpHoBopers
+    clusterName: ""
   pav2:
     cloudName: ""
 cloud: Public
