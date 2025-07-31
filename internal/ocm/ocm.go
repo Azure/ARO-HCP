@@ -400,10 +400,7 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 
 	var err error
 	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
-		versionName, err = NewOpenShiftVersionXYZ(versionName)
-		if err != nil {
-			return nil, err
-		}
+		versionName = api.OpenShiftVersionPrefix + versionName
 	}
 	client := csc.conn.AroHCP().V1alpha1().Versions().Version(versionName)
 
