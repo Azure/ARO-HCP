@@ -49,7 +49,7 @@ var _ = Describe("Customer", func() {
 				ic := framework.NewInvocationContext()
 
 				By("creating a resource group")
-				resourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", ic.Location())
+				resourceGroup, err := ic.NewResourceGroup(ctx, "illegal-ocp-version", ic.Location())
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a prereqs in the resource group")
@@ -58,7 +58,7 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					"infra",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
-					map[string]string{
+					map[string]interface{}{
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
@@ -78,7 +78,7 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					"illegal-cluster",
 					clusterTemplate,
-					map[string]string{
+					map[string]interface{}{
 						"nsgName":                  customerNetworkSecurityGroupName,
 						"vnetName":                 customerVnetName,
 						"subnetName":               customerVnetSubnetName,

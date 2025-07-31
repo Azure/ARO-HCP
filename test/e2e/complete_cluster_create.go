@@ -58,7 +58,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				"infra",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
-				map[string]string{
+				map[string]interface{}{
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -74,7 +74,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				"hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
-				map[string]string{
+				map[string]interface{}{
 					"nsgName":                  customerNetworkSecurityGroupName,
 					"vnetName":                 customerVnetName,
 					"subnetName":               customerVnetSubnetName,
@@ -91,7 +91,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				"node-pool",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
-				map[string]string{
+				map[string]interface{}{
 					"clusterName":  customerClusterName,
 					"nodePoolName": customerNodePoolName,
 				},
