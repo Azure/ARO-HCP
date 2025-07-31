@@ -106,10 +106,10 @@ func setup(ctx context.Context) error {
 	} else {
 		e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
 		if err != nil {
-			if _, found := os.LookupEnv("FALLBACK_TO_BICEP"); found {
+			if bicepName, found := os.LookupEnv("FALLBACK_TO_BICEP"); found {
 				// Fallback: create a complete HCP cluster using bicep
 				log.Logger.Warnf("Failed to load e2e setup file: %v. Falling back to bicep deployment.", err)
-				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, subscriptionID, creds, clients)
+				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, subscriptionID, creds, clients, bicepName)
 				if err != nil {
 					return fmt.Errorf("failed to create cluster with bicep fallback: %w", err)
 				}

@@ -33,7 +33,7 @@ import (
 
 // FallbackCreateClusterWithBicep creates a complete cluster using the demo.bicep file if setup file loading fails.
 // Returns a filled SetupModel and error.
-func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, clients *api.ClientFactory) (SetupModel, error) {
+func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, clients *api.ClientFactory, bicepJSONFileName string) (SetupModel, error) {
 	var setup SetupModel
 	// 1. Generate names
 	clusterName := "e2e-cluster-" + rand.String(8)
@@ -64,8 +64,14 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		return setup, fmt.Errorf("failed to create resource group: %w", err)
 	}
 
-	// 5. Read the pre-built ARM template JSON (demo.json) from test-artifacts (relative to e2e directory)
-	jsonPath := filepath.Join("test-artifacts", "generated-test-artifacts", "demo.json")
+	// 5. Read the pre-built ARM template JSON from test-artifacts (relative to e2e directory)
+	var jsonFile string
+	if bicepJSONFileName != "" {
+		jsonFile = bicepJSONFileName + ".json"
+	} else {
+		jsonFile = "demo.json"
+	}
+	jsonPath := filepath.Join("test-artifacts", "generated-test-artifacts", jsonFile)
 	templateBytes, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return setup, fmt.Errorf("failed to read pre-built ARM template: %w", err)
@@ -165,7 +171,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 	if err != nil {
 		log.Logger.Warnf("Failed to marshal SetupModel to JSON: %v", err)
 	} else {
-		outputPath := filepath.Join("test-artifacts", "generated-test-artifacts", "e2e-setup.json")
+		outputPath := filepath.Join("test-artifacts", "e2e-setup.json")
 		if err := os.WriteFile(outputPath, setupJSON, 0644); err != nil {
 			log.Logger.Warnf("Failed to write SetupModel JSON to file: %v", err)
 		}
