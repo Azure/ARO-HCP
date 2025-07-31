@@ -120,6 +120,7 @@ defaults:
         alias:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      manageCertificates: true
       certificateIssuer: Self
       certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
       typeName: ""
@@ -827,6 +828,10 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
@@ -887,6 +892,10 @@ clouds:
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'

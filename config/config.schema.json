@@ -924,6 +924,9 @@
                 "securityGroup"
               ]
             },
+            "manageCertificates": {
+              "type": "boolean"
+            },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
             },

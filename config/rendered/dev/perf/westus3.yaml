@@ -143,6 +143,7 @@ geneva:
       san: ""
       secretName: clusterlogs
     environment: Test
+    manageCertificates: true
     rp:
       accountName: placeholder
       configVersion: "1"
