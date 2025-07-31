@@ -32,7 +32,7 @@ module AroHcpCluster 'modules/cluster.bicep' = {
 module AroHcpNodePool 'modules/nodepool.bicep' = {
   name: 'nodepool-1'
   params: {
-    clusterName: clusterName
+    clusterName: AroHcpCluster.outputs.name
     nodePoolName: 'nodepool-1'
   }
 }
