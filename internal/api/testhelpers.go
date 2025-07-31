@@ -91,6 +91,23 @@ func NewTestValidator() *validator.Validate {
 	validate.RegisterAlias("enum_clusterimageregistryprofilestate", EnumValidateTag(
 		ClusterImageRegistryProfileStateEnabled,
 		ClusterImageRegistryProfileStateDisabled))
+	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	))
+	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
+		TokenValidationRuleTypeRequiredClaim,
+	))
+	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	))
+	validate.RegisterAlias("enum_externalauthconditionstatustype", EnumValidateTag(
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeUnknown,
+	))
 
 	return validate
 }

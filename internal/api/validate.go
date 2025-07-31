@@ -86,6 +86,20 @@ func NewValidator() *validator.Validate {
 		arm.SubscriptionStateWarned,
 		arm.SubscriptionStateDeleted,
 		arm.SubscriptionStateSuspended))
+	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	))
+	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	))
+	validate.RegisterAlias("enum_externalauthconditionstatustype", EnumValidateTag(
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeUnknown,
+	))
 
 	// Use this for string fields specifying an ARO-HCP API version.
 	err = validate.RegisterValidation("api_version", func(fl validator.FieldLevel) bool {
