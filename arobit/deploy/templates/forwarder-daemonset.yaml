@@ -86,7 +86,7 @@ spec:
               - /start_mdsd.sh
           env:
             - name: MONITORING_GCS_AUTH_ID
-              value: {{ .Values.forwarder.mdsd.geneva.san }}
+              value: {{ .Values.forwarder.mdsd.geneva.rpSan }}
             - name: MONITORING_GCS_AUTH_ID_TYPE
               value: AuthKeyVault
             - name: MDSD_AKV_CERTIFICATE_STORE_PATH
@@ -94,11 +94,11 @@ spec:
             - name: MONITORING_CONFIG_VERSION
               value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
             - name: MONITORING_GCS_ACCOUNT
-              value: '{{ .Values.forwarder.mdsd.geneva.accountName }}'
+              value: '{{ .Values.forwarder.mdsd.geneva.rpAccountName }}'
             - name: MONITORING_GCS_ENVIRONMENT
               value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
             - name: MONITORING_GCS_NAMESPACE
-              value: '{{ .Values.forwarder.mdsd.geneva.namespace }}'
+              value: '{{ .Values.forwarder.mdsd.geneva.rpNamespace }}'
             - name: MONITORING_GCS_REGION
               value: '{{ .Values.forwarder.mdsd.geneva.region }}'
             - name: DOCKER_LOGGING
@@ -164,6 +164,93 @@ spec:
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs
               readOnly: true
+        {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: mdsd-clusterlogs
+          image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
+          imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
+          command:
+              - /start_mdsd.sh
+          env:
+            - name: MONITORING_GCS_AUTH_ID
+              value: {{ .Values.forwarder.mdsd.geneva.clusterLogsSan }}
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthKeyVault
+            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
+              value: /geneva/geneva_auth
+            - name: MONITORING_CONFIG_VERSION
+              value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
+            - name: MONITORING_GCS_ACCOUNT
+              value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsAccountName }}'
+            - name: MONITORING_GCS_ENVIRONMENT
+              value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
+            - name: MONITORING_GCS_NAMESPACE
+              value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsNamespace }}'
+            - name: MONITORING_GCS_REGION
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
+            - name: DOCKER_LOGGING
+              value: 'true'
+            - name: FLUENTD_PORT
+              value: '5002'
+            - name: GCS_AUTOMATIC_CONFIGURATION
+              value: '1'
+            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
+              value: '-A'
+            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
+              value: '5'
+            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
+              value: '1000'
+            - name: MDSD_COMPRESSION_ALGORITHM
+              value: 'lz4'
+            - name: MDSD_COMPRESSION_LEVEL
+              value: '4'
+            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
+              value: 'true'
+            - name: MDSD_DEBUG_LOG_FLAGS
+              value: '-T 0x00'
+            - name: MDSD_LOG_OPTIONS
+              value: '-D'
+            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_NESTING_LEVEL
+              value: '10'
+            - name: MDSD_MSGPACK_SEND_ACK
+              value: '0'
+            - name: MDSD_MSGPACK_SORT_COLUMNS
+              value: '1'
+            - name: MDSD_PORT
+              value: '0'
+            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
+              value: '1'
+            - name: MDSD_USE_LOCAL_PERSISTENCY
+              value: 'false'
+            - name: MONITORING_MAX_EVENT_RATE
+              value: '100000'
+          lifecycle: 
+            preStop:
+              exec:
+                command:
+                - "/bin/sleep"
+                - "60"
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              add: []
+              drop: []
+          volumeMounts:
+            - name: mdsd-run
+              mountPath: /var/run/mdsd/
+            - name: cacrt-host
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs-clusterlogs
+              readOnly: true
+        {{- end }}
         {{- end }}
       volumes:
         - name: sp-host
@@ -193,4 +280,12 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: arobit-secretprovider
+          {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: geneva-certs-clusterlogs
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: arobit-secretprovider-clusterlogs
+          {{- end }}
         {{- end }}

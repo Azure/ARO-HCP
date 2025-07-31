@@ -202,12 +202,16 @@ forwarder:
   mdsd:
     # Geneva Config
     geneva:
+      rpAccountName: ""
       rpSecretName: "rpLogs"
+      rpSan: ""
+      rpNamespace: ""
+      clusterLogsAccountName: ""
+      clusterLogsSecretName: "rpLogs"
+      clusterLogsSan: ""
+      clusterLogsNamespace: ""
       configVersion: 1
-      accountName: ""
-      san: ""
       environment: ""
-      namespace: ""
       region: ""
     ## Specifies whether mdsd should enabled
     enabled: false
@@ -221,5 +225,4 @@ forwarder:
   secretProvider:
     msiClientId: "020b5a59-be15-45b7-b9cb-401836cdab3c"
     keyVault: "foo"
-    rpSecret: "rpLogs"
     tenantId: "72f988bf-86f1-41af-91ab-2d7cd011db47"
