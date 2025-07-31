@@ -56,10 +56,10 @@ type ExternalAuthCondition struct {
  * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
  */
 type TokenIssuerProfile struct {
-	// TODO: validate https url
-	Url string `json:"url"              visibility:"read create update"       validate:"required"`
-	// TODO: validate at least one of the entries must match the 'aud' claim in the JWT token.
-	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,max=10"`
+	// validate https url
+	Url string `json:"url" visibility:"read create update" validate:"required,url,startswith=https://"`
+	// validate at least one of the entries must match the 'aud' claim in the JWT token.
+	Audiences []string `json:"audiences" visibility:"read create update" validate:"required,min=1,max=10,dive,required"`
 	Ca        string   `json:"ca,omitempty"     visibility:"read create update"`
 }
 
@@ -68,7 +68,7 @@ type TokenIssuerProfile struct {
  */
 type ExternalAuthClientProfile struct {
 	Component ExternalAuthClientComponentProfile `json:"component"                visibility:"read create update"       validate:"required"`
-	// TODO: The clientId must appear in the audience field of the TokenIssuerProfile.
+	// The clientId must appear in the audience field of the TokenIssuerProfile.
 	ClientId                      string                 `json:"clientId"                visibility:"read create update"       validate:"required"`
 	ExtraScopes                   []string               `json:"extraScopes,omitempty"   visibility:"read create update"`
 	ExternalAuthClientProfileType ExternalAuthClientType `json:"type"                    visibility:"read create update"       validate:"required"`
@@ -135,6 +135,30 @@ func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAut
 	// Currently the only defaults in External Auth is for TokenValidationRuleType but as
 	// there are no TokenValidationRules by default the object is just empty.
 	return &HCPOpenShiftClusterExternalAuth{}
+}
+
+// validateClientIdInAudiences checks that each ClientId matches an audience in the TokenIssuerProfile.
+func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if len(externalAuth.Properties.Clients) > 0 {
+		audiencesSet := make(map[string]struct{}, len(externalAuth.Properties.Issuer.Audiences))
+		for _, aud := range externalAuth.Properties.Issuer.Audiences {
+			audiencesSet[aud] = struct{}{}
+		}
+
+		for i, client := range externalAuth.Properties.Clients {
+			if _, found := audiencesSet[client.ClientId]; !found {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf("ClientId '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientId, i),
+					Target:  "properties.clients",
+				})
+			}
+		}
+	}
+
+	return errorDetails
 }
 
 // This combination is used later in the system as a unique identifier and as
@@ -206,6 +230,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
 		errorDetails = append(errorDetails, externalAuth.validateIssuerCAsPEMEncoded()...)
+		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...) // New call added from above
 	}
 
 	return errorDetails

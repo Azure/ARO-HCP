@@ -154,10 +154,15 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
+		// New test cases for ClientId in Audiences validation
 		{
-			name: "External Auth with multiple clients that have the same Name/Namespace pair",
+			name: "Valid ClientId matches audience",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{ClientId1},
+					},
 					Clients: []ExternalAuthClientProfile{
 						{
 							ClientId: ClientId1,
@@ -165,6 +170,34 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:      ClientComponentName,
 								Namespace: ClientComponentNamespace,
 							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: nil, // Valid case: no errors
+		},
+		{
+			name: "External Auth with multiple clients that have the same Name/Namespace pair",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{ClientId1, ClientId2},
+					},
+					Clients: []ExternalAuthClientProfile{
+						{
+							ClientId: ClientId1,
+							Component: ExternalAuthClientComponentProfile{
+								Name:      ClientComponentName,
+								Namespace: ClientComponentNamespace,
+							},
+							ExternalAuthClientProfileType: "confidential",
 						},
 						{
 							ClientId: ClientId2,
@@ -172,6 +205,12 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:      ClientComponentName,
 								Namespace: ClientComponentNamespace,
 							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
 						},
 					},
 				},
@@ -181,7 +220,8 @@ func TestExternalAuthValidate(t *testing.T) {
 					Message: fmt.Sprintf(
 						"External Auth Clients must have a unique combination of component.Name & component.Namespace. "+
 							"The following clientIds share the same unique combination '%s%s' and are invalid: \n '[%s %s]' ",
-						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2),
+						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2,
+					),
 					Target: "properties.clients",
 				},
 			},
