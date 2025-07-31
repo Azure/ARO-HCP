@@ -583,8 +583,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	for _, client := range csExternalAuth.Clients() {
 		clients = append(clients, api.ExternalAuthClientProfile{
 			Component: api.ExternalAuthClientComponentProfile{
-				Name:      client.Component().Name(),
-				Namespace: client.Component().Namespace(),
+				Name:                client.Component().Name(),
+				AuthClientNamespace: client.Component().Namespace(),
 			},
 			ClientId:                      client.ID(),
 			ExtraScopes:                   client.ExtraScopes(),
@@ -651,7 +651,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 			ID(t.ClientId).
 			Component(arohcpv1alpha1.NewClientComponent().
 				Name(t.Component.Name).
-				Namespace(t.Component.Namespace),
+				Namespace(t.Component.AuthClientNamespace),
 			).
 			ExtraScopes(t.ExtraScopes...).
 			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))

@@ -162,15 +162,15 @@ func TestExternalAuthValidate(t *testing.T) {
 						{
 							ClientId: ClientId1,
 							Component: ExternalAuthClientComponentProfile{
-								Name:      ClientComponentName,
-								Namespace: ClientComponentNamespace,
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
 							},
 						},
 						{
 							ClientId: ClientId2,
 							Component: ExternalAuthClientComponentProfile{
-								Name:      ClientComponentName,
-								Namespace: ClientComponentNamespace,
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
 							},
 						},
 					},
@@ -179,7 +179,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: fmt.Sprintf(
-						"External Auth Clients must have a unique combination of component.Name & component.Namespace. "+
+						"External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace. "+
 							"The following clientIds share the same unique combination '%s%s' and are invalid: \n '[%s %s]' ",
 						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2),
 					Target: "properties.clients",

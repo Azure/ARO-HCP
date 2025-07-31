@@ -102,7 +102,7 @@ func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterEx
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
 	if p.Component != nil {
 		out.Component.Name = *p.Component.Name
-		out.Component.Namespace = *p.Component.AuthClientNamespace
+		out.Component.AuthClientNamespace = *p.Component.AuthClientNamespace
 	}
 	if p.ClientID != nil {
 		out.ClientId = *p.ClientID
@@ -252,7 +252,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 		out.Properties.Clients = append(out.Properties.Clients, &generated.ExternalAuthClientProfile{
 			Component: &generated.ExternalAuthClientComponentProfile{
 				Name:                api.PtrOrNil(client.Component.Name),
-				AuthClientNamespace: api.PtrOrNil(client.Component.Namespace),
+				AuthClientNamespace: api.PtrOrNil(client.Component.AuthClientNamespace),
 			},
 			ClientID:    api.PtrOrNil(client.ClientId),
 			ExtraScopes: api.StringSliceToStringPtrSlice(client.ExtraScopes),
