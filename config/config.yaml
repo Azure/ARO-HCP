@@ -785,9 +785,6 @@ clouds:
         ocp:
           name: 'arohcpocpdev' # [globally-unique]
           zoneRedundantMode: Disabled
-        msft:
-          name: 'aroMsftInternal' # [globally-unique]
-          zoneRedundantMode: Disabled
       # Metrics
       monitoring:
         grafanaName: arohcp-dev

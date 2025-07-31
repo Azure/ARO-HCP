@@ -2,6 +2,12 @@ acm:
   mce:
     pauseReconciliation: true
 acr:
+  msft:
+    name: aromsftdev
+    untaggedImagesRetention:
+      days: 365
+      enabled: true
+    zoneRedundantMode: Enabled
   ocp:
     name: arohcpocpdev
     untaggedImagesRetention:
@@ -50,6 +56,20 @@ backplaneAPI:
     digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
     registry: quay.io
     repository: app-sre/backplane-api
+billing:
+  aub:
+    accountName: arohcpdev-aub-usw3
+    cloudSuffix: ""
+  cosmosDB:
+    name: arohcpdev-rp-usw3
+  eventHub:
+    namespace: int-aro-PAv2-primary
+    resourceGroupName: int-aro-billing-global-primary
+    subscriptionId: 0cc1cafa-578f-4fa5-8d6b-ddfd8d82e6ea
+  kusto:
+    clusterName: arohcpHoBodev
+  pav2:
+    cloudName: ""
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
