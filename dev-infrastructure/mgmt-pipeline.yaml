@@ -288,8 +288,24 @@ resourceGroups:
       configRef: arobit.mdsd.image.registry
     - name: AROBIT_MDSD_ENABLED
       configRef: arobit.mdsd.enabled
-    dependsOn:
-    - mgmt-cluster
+    - name: AROBIT_GENEVA_RP_ACCOUNT_NAME
+      configRef: geneva.logs.rp.accountName
+    - name: AROBIT_GENEVA_RP_SECRET_NAME
+      configRef: geneva.logs.rp.secretName
+    - name: AROBIT_GENEVA_RP_SAN
+      configRef: geneva.logs.rp.san
+    - name: AROBIT_GENEVA_RP_NAMESPACE
+      configRef: geneva.logs.rp.namespace
+    - name: AROBIT_GENEVA_CLUSTER_LOGS_ACCOUNT_NAME
+      configRef: geneva.logs.cluster.accountName
+    - name: AROBIT_GENEVA_CLUSTER_LOGS_SECRET_NAME
+      configRef: geneva.logs.cluster.secretName
+    - name: AROBIT_GENEVA_CLUSTER_LOGS_SAN
+      configRef: geneva.logs.cluster.san
+    - name: AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE
+      configRef: geneva.logs.cluster.namespace
+    - name: AROBIT_CLUSTER_TYPE
+      value: "mgmt"
     shellIdentity:
       input:
         step: global-output
