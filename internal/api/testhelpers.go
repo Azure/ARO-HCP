@@ -88,6 +88,23 @@ func NewTestValidator() *validator.Validate {
 		arm.ManagedServiceIdentityTypeSystemAssigned,
 		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
 		arm.ManagedServiceIdentityTypeUserAssigned))
+	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	))
+	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
+		TokenValidationRuleTypeRequiredClaim,
+	))
+	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	))
+	validate.RegisterAlias("enum_externalauthconditionstatustype", EnumValidateTag(
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeUnknown,
+	))
 
 	return validate
 }

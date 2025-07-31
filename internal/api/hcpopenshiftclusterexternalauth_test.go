@@ -149,7 +149,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "TokenIssuerProfile Certificate Authority push be PEM encoded",
+					Message: "Invalid value 'NOT A PEM DOC' for field 'ca' (must provide PEM encoded certificates)",
 					Target:  "properties.issuer.ca",
 				},
 			},
