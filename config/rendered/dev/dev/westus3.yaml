@@ -4,9 +4,15 @@ acm:
 acr:
   ocp:
     name: arohcpocpdev
+    untaggedImagesRetention:
+      days: 90
+      enabled: true
     zoneRedundantMode: Disabled
   svc:
     name: arohcpsvcdev
+    untaggedImagesRetention:
+      days: 365
+      enabled: false
     zoneRedundantMode: Disabled
 acrPull:
   image:

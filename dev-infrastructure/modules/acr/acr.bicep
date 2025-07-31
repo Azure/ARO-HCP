@@ -20,7 +20,6 @@ type retentionPolicyConfig = {
 @description('Retention policy configuration for untagged manifests')
 param retentionPolicy retentionPolicyConfig
 
-
 //
 //   A C R   R E S O U R C E
 //
