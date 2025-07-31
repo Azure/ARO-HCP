@@ -203,11 +203,11 @@ forwarder:
     # Geneva Config
     geneva:
       rpAccountName: ""
-      rpSecretName: "rpLogs"
+      rpSecretName: ""
       rpSan: ""
       rpNamespace: ""
       clusterLogsAccountName: ""
-      clusterLogsSecretName: "rpLogs"
+      clusterLogsSecretName: ""
       clusterLogsSan: ""
       clusterLogsNamespace: ""
       configVersion: 1

@@ -2,8 +2,7 @@
 -include ../helm-cmd.mk
 
 deploy:
-	kubectl create namespace mds --dry-run=client -o json | kubectl apply -f - && \
-	${HELM_CMD} arobit \
+	helm template arobit \
 		deploy/ \
 		--namespace mds \
 		--set forwarder.fluentbit.image.registry=${AROBIT_FORWARDER_REGISTRY} \
@@ -12,7 +11,16 @@ deploy:
 		--set forwarder.mdsd.image.registry=${AROBIT_MDSD_REGISTRY} \
 		--set forwarder.mdsd.image.repository=${AROBIT_MDSD_REPOSITORY} \
 		--set forwarder.mdsd.image.digest=${AROBIT_MDSD_DIGEST} \
-		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED}
+		--set forwarder.clusterType=${AROBIT_CLUSTER_TYPE} \
+		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED} \
+		--set forwarder.mdsd.geneva.rpAccountName=${AROBIT_GENEVA_RP_ACCOUNT_NAME} \
+		--set forwarder.mdsd.geneva.rpSecretName=${AROBIT_GENEVA_RP_SECRET_NAME} \
+		--set forwarder.mdsd.geneva.rpSan=${AROBIT_GENEVA_RP_SAN} \
+		--set forwarder.mdsd.geneva.rpNamespace=${AROBIT_GENEVA_RP_NAMESPACE} \
+		--set forwarder.mdsd.geneva.clusterLogsAccountName=${AROBIT_GENEVA_CLUSTER_LOGS_ACCOUNT_NAME} \
+		--set forwarder.mdsd.geneva.clusterLogsSecretName=${AROBIT_GENEVA_CLUSTER_LOGS_SECRET_NAME} \
+		--set forwarder.mdsd.geneva.clusterLogsSan=${AROBIT_GENEVA_CLUSTER_LOGS_SAN} \
+		--set forwarder.mdsd.geneva.clusterLogsNamespace=${AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE} > foo.yaml
 .PHONY: deploy
 
 undeploy:
