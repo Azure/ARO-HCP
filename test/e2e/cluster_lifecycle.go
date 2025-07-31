@@ -43,7 +43,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		clustersClient = clients.NewHcpOpenShiftClustersClient()
 	})
 
-	It("Creates requried infrastructure resources then creates a cluster", labels.Critical, labels.Positive, labels.CreateCluster, func(ctx context.Context) {
+	It("Creates requried infrastructure resources then creates a cluster", labels.Critical, labels.Positive, labels.CreateCluster, labels.RequireNothing, func(ctx context.Context) {
 		// Generate a unique name for the cluster for this specific test run to avoid collisions.
 		clusterName := fmt.Sprintf("e2e-lifecycle-%s", uuid.NewString()[:8])
 
