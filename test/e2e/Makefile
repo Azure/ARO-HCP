@@ -41,6 +41,7 @@ e2etest-run:
 .PHONY: e2etest-run
 
 bicep-build:
+	mkdir -p test-artifacts/generated-test-artifacts
 	az bicep build --file ../e2e-setup/bicep/demo.bicep --outdir test-artifacts/generated-test-artifacts/
 	az bicep build --file ../e2e-setup/bicep/infra-only.bicep --outdir test-artifacts/generated-test-artifacts/
 .PHONY: bicep-build
