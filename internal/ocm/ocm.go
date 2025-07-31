@@ -398,7 +398,6 @@ func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID Int
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
 
-	var err error
 	if !strings.HasPrefix(versionName, api.OpenShiftVersionPrefix) {
 		versionName = api.OpenShiftVersionPrefix + versionName
 	}
@@ -423,7 +422,7 @@ func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 // NewOpenShiftVersionXY parses the given version, stripping off any
 // OpenShift prefix ("openshift-"), and returns a new Version X.Y.
 func NewOpenShiftVersionXY(v string) string {
-	v = strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+	v = ConvertOpenshiftVersionNoPrefix(v)
 	parts := strings.Split(v, ".")
 	if len(parts) >= 2 {
 		v = parts[0] + "." + parts[1]
@@ -432,12 +431,13 @@ func NewOpenShiftVersionXY(v string) string {
 }
 
 // NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
-func NewOpenShiftVersionXYZ(v string) (string, error) {
+func NewOpenShiftVersionXYZ(v string) string {
 	parts := strings.Split(v, ".")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("version %q must be X.Y", v)
+	if len(parts) == 1 {
+		parts = append(parts, "0")
 	}
-	return fmt.Sprintf("%s%s.%s.0", api.OpenShiftVersionPrefix, parts[0], parts[1]), nil
+	parts = append(parts[:2], "0")
+	return api.OpenShiftVersionPrefix + strings.Join(parts, ".")
 }
 
 // ConvertOpenshiftVersionNoPrefix strips off openshift-v prefix
@@ -445,8 +445,8 @@ func ConvertOpenshiftVersionNoPrefix(v string) string {
 	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
 }
 
-// ConverOpenshiftVersionAddPrefix adds openshift-v prefix
-func ConverOpenshiftVersionAddPrefix(v string) (string, error) {
+// ConvertOpenshiftVersionAddPrefix adds openshift-v prefix
+func ConvertOpenshiftVersionAddPrefix(v string) (string, error) {
 	parts := strings.Split(v, ".")
 	if len(parts) != 3 {
 		return "", fmt.Errorf("version %q must be X.Y.Z", v)

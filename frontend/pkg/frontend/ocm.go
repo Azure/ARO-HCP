@@ -290,10 +290,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
 
-	versionCSformat, err := ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)
-	if err != nil {
-		return nil, err
-	}
+	versionCSformat := ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)
 	hcpCluster.Properties.Version.ID = versionCSformat
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -514,7 +511,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	}
 
 	nodepoolVersion := nodePool.Properties.Version.ID
-	nodepoolCSversion, err := ocm.ConverOpenshiftVersionAddPrefix(nodepoolVersion)
+	nodepoolCSversion, err := ocm.ConvertOpenshiftVersionAddPrefix(nodepoolVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +533,7 @@ func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *ar
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   resourceID.String(),
-				Name: ocm.NewOpenShiftVersionXY(resourceID.Name),
+				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			}},
 		Properties: api.HCPOpenShiftVersionProperties{
