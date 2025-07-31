@@ -156,6 +156,9 @@ param genevaClusterLogsName string
 @description('Domain used for creation of geneva auth certificates')
 param genevaCertificateDomain string
 
+@description('Should geneva certificates be managed')
+param genevaManageCertificates bool
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -343,7 +346,7 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   G E N E V A   C E R T I F I C A T E
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
@@ -356,7 +359,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
