@@ -25,7 +25,7 @@ fi
 tags=$(mktemp)
 trap "rm ${tags}" EXIT
 
-az acr repository show-tags --orderby time_desc --n ${aro_hcp_image_acr} --repository ${repository} --detail > $tags
+az acr repository show-tags --orderby time_desc --n ${aro_hcp_image_acr} --repository ${repository} --detail --output json > $tags
 
 suggested_digest=$(jq -r --arg TAG $(git rev-parse --short=7 HEAD) \
     'first(.[] | select(.name==$TAG) | .digest)' $tags)
