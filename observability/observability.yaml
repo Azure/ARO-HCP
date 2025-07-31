@@ -1,5 +1,6 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - ../observability/alerts/prometheus-prometheusRule.yaml
   untestedRules:
   - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
