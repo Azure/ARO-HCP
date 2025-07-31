@@ -45,7 +45,7 @@ type purgeJob = {
 }
 
 @description('Array of purge job configurations')
-param purgeJobs purgeJob[]
+param purgeJobs purgeJob[] = []
 
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName

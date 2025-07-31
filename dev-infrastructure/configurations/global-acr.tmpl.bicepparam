@@ -2,10 +2,13 @@ using '../templates/global-acr.bicep'
 
 param svcAcrName = '{{ .acr.svc.name }}'
 param svcAcrSku = 'Premium'
+param svcAcrUntaggedImagesRetentionEnabled = {{ .acr.svc.untaggedImagesRetention.enabled }}
+param svcAcrUntaggedImagesRetentionDays = {{ .acr.svc.untaggedImagesRetention.days }}
 
 param ocpAcrName = '{{ .acr.ocp.name }}'
 param ocpAcrSku = 'Premium'
-param ocpImagesPurgeAfterDays = {{ .acr.ocpReleaseCache.purgeAfterDays }}
+param ocpAcrUntaggedImagesRetentionEnabled = {{ .acr.ocp.untaggedImagesRetention.enabled }}
+param ocpAcrUntaggedImagesRetentionDays = {{ .acr.ocp.untaggedImagesRetention.days }}
 
 param globalMSIName = '{{ .global.globalMSIName }}'
 

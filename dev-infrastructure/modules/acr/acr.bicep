@@ -12,6 +12,15 @@ param acrSku string
 @description('Toggle zone redundancy of ACR.')
 param zoneRedundant bool
 
+type retentionPolicyConfig = {
+  enabled: bool
+  days: int
+}
+
+@description('Retention policy configuration for untagged manifests')
+param retentionPolicy retentionPolicyConfig
+
+
 //
 //   A C R   R E S O U R C E
 //
@@ -42,6 +51,10 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
       softDeletePolicy: {
         retentionDays: 7
         status: 'disabled'
+      }
+      retentionPolicy: {
+        status: retentionPolicy.enabled ? 'enabled' : 'disabled'
+        days: retentionPolicy.days
       }
     }
   }

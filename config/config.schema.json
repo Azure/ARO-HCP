@@ -214,12 +214,31 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "untaggedImagesRetention": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365,
+              "description": "Number of days to retain untagged images"
+            }
+          },
+          "required": [
+            "enabled",
+            "days"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
-        "zoneRedundantMode"
+        "zoneRedundantMode",
+        "untaggedImagesRetention"
       ]
     },
     "nsp": {
@@ -1788,14 +1807,6 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        },
-        "ocpReleaseCache": {
-          "type": "object",
-          "properties": {
-            "purgeAfterDays": {
-              "type": "number"
-            }
-          }
         }
       },
       "additionalProperties": false,

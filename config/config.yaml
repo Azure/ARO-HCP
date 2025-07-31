@@ -69,11 +69,15 @@ defaults:
     svc:
       name: 'arohcpsvc{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: false
+        days: 365
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
-    ocpReleaseCache:
-      purgeAfterDays: 90
+      untaggedImagesRetention:
+        enabled: true
+        days: 90
   # ACR Pull
   acrPull:
     image:

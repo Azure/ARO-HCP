@@ -5,15 +5,17 @@ import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 
 param ocpAcrName string
 param ocpAcrSku string
+param ocpAcrUntaggedImagesRetentionEnabled bool
+param ocpAcrUntaggedImagesRetentionDays int
 
 param svcAcrName string
 param svcAcrSku string
+param svcAcrUntaggedImagesRetentionEnabled bool
+param svcAcrUntaggedImagesRetentionDays int
 
 param globalMSIName string
 
 param globalKeyVaultName string
-
-param ocpImagesPurgeAfterDays int
 
 param location string
 
@@ -36,7 +38,10 @@ module ocpAcr '../modules/acr/acr.bicep' = {
   params: {
     acrName: ocpAcrName
     acrSku: ocpAcrSku
-
+    retentionPolicy: {
+      enabled: ocpAcrUntaggedImagesRetentionEnabled
+      days: ocpAcrUntaggedImagesRetentionDays
+    }
     location: location
     zoneRedundant: determineZoneRedundancyForRegion(location, ocpAcrZoneRedundantMode)
   }
@@ -57,14 +62,6 @@ module ocpCaching '../modules/acr/cache.bicep' = {
         loginServer: 'quay.io'
       }
     ]
-    purgeJobs: [
-      {
-        name: 'openshift-release-dev-purge'
-        purgeFilter: 'quay.io/openshift-release-dev/.*:.*'
-        purgeAfter: '${ocpImagesPurgeAfterDays}d'
-        imagesToKeep: 100
-      }
-    ]
     keyVaultName: globalKeyVaultName
   }
   dependsOn: [
@@ -81,6 +78,10 @@ module svcAcr '../modules/acr/acr.bicep' = {
   params: {
     acrName: svcAcrName
     acrSku: svcAcrSku
+    retentionPolicy: {
+      enabled: svcAcrUntaggedImagesRetentionEnabled
+      days: svcAcrUntaggedImagesRetentionDays
+    }
     location: location
     zoneRedundant: determineZoneRedundancyForRegion(location, svcAcrZoneRedundantMode)
   }
