@@ -30,9 +30,9 @@ push:
 	podman push $(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) $(ARO_HCP_E2ETESTS_IMAGE_ACR):latest
 .PHONY: push
 
-e2etest-run: volume
+e2etest-run:
 	podman run --rm \
-	-v $(PWD)/data:/data:U,Z \
+	-v $(REPOSITORY)/test/e2e/test-artifacts:/test-artifacts:U,Z \
 	-e CUSTOMER_SUBSCRIPTION=$(CUSTOMER_SUBSCRIPTION) \
 	-e AZURE_TENANT_ID=$(AZURE_TENANT_ID) \
 	-e AZURE_CLIENT_ID=$(AZURE_CLIENT_ID) \
@@ -40,7 +40,7 @@ e2etest-run: volume
 	$(ARO_HCP_E2ETESTS_IMAGE):$(COMMIT_SHA) --ginkgo.label-filter=$(LABEL_FILTER)
 .PHONY: e2etest-run
 
-volume:
-	mkdir -p $(PWD)/data
-	cp $(SETUP_FILEPATH) $(PWD)/data/e2e-setup.json
-.PHONY: volume
+bicep-build:
+	az bicep build --file ../e2e-setup/bicep/demo.bicep --outdir test-artifacts/generated-test-artifacts/
+	az bicep build --file ../e2e-setup/bicep/infra-only.bicep --outdir test-artifacts/generated-test-artifacts/
+.PHONY: bicep-build
