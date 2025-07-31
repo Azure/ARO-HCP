@@ -1,0 +1,107 @@
+rule_files:
+  - prometheus-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+  # Test: PrometheusRemoteStorageFailures fires when remote storage failures > 1%
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "0+1x20" # 1 failure per minute for 20 minutes
+      - series: 'prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "0+50x20" # 50 successes per minute - this gives ~2% failure rate
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: PrometheusRemoteStorageFailures
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusRemoteStorageFailures
+              job: prometheus-prometheus
+              namespace: prometheus
+              pod: prometheus-prometheus-0
+              severity: critical
+            exp_annotations:
+              description: "Prometheus prometheus/prometheus-prometheus-0 failed to send 2.0% of the samples to :"
+              runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures"
+              summary: "Prometheus fails to send samples to remote storage."
+
+  # Test: PrometheusNotIngestingSamples fires when not ingesting samples but has targets
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "100x20" # no increase in samples appended
+      - series: 'prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "10x20" # has targets configured
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: PrometheusNotIngestingSamples
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusNotIngestingSamples
+              job: prometheus-prometheus
+              namespace: prometheus
+              pod: prometheus-prometheus-0
+              severity: warning
+            exp_annotations:
+              description: "Prometheus prometheus/prometheus-prometheus-0 is not ingesting samples."
+              runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples"
+              summary: "Prometheus is not ingesting samples."
+
+  # Test: PrometheusBadConfig fires when config reload consistently fails
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "0x20" # config reload consistently failing
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: PrometheusBadConfig
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusBadConfig
+              job: prometheus-prometheus
+              namespace: prometheus
+              pod: prometheus-prometheus-0
+              severity: critical
+            exp_annotations:
+              description: "Prometheus prometheus/prometheus-prometheus-0 has failed to reload its configuration."
+              runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig"
+              summary: "Failed Prometheus configuration reload."
+
+  # Test: PrometheusRuleFailures fires when rule evaluation failures increase
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-prometheus-0"}'
+        values: "0+1x20" # 1 failure per minute
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: PrometheusRuleFailures
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusRuleFailures
+              job: prometheus-prometheus
+              namespace: prometheus
+              pod: prometheus-prometheus-0
+              severity: critical
+            exp_annotations:
+              description: "Prometheus prometheus/prometheus-prometheus-0 has failed to evaluate 5 rules in the last 5m."
+              runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures"
+              summary: "Prometheus is failing rule evaluations."
+
+  # Test: PrometheusOperatorNotReady fires when operator not ready
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="prometheus",cluster="test"}'
+        values: "0x10" # operator not ready for 10 minutes
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: PrometheusOperatorNotReady
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusOperatorNotReady
+              cluster: test
+              controller: prometheus
+              namespace: prometheus
+              severity: warning
+            exp_annotations:
+              description: "Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources."
+              runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready"
+              summary: "Prometheus operator not ready"
