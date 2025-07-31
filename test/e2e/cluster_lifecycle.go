@@ -47,54 +47,11 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		// Generate a unique name for the cluster for this specific test run to avoid collisions.
 		clusterName := fmt.Sprintf("e2e-lifecycle-%s", uuid.NewString()[:8])
 
-		// Declare variables that will be used in the defer function
-		var resourceGroup string
-		var testCtx interface{}
-		var armResourcesClientFactory *armresources.ClientFactory
-		var resourceGroupClient *armresources.ResourceGroupsClient
-
-		// Define cleanup function upfront for better readability
-		defer func() {
-			By("Cleaning up the cluster resource")
-			// Use a new context for cleanup to avoid cancellation if the test context timed out.
-			cleanupCtx := context.Background()
-			poller, err := clustersClient.BeginDelete(cleanupCtx, resourceGroup, clusterName, nil)
-
-			// We don't want to fail the test here if cleanup fails, but we should log it.
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to start cluster deletion during cleanup")
-				return
-			}
-
-			_, err = poller.PollUntilDone(cleanupCtx, nil)
-			if err != nil {
-				GinkgoLogr.Error(err, "failed to poll for cluster deletion during cleanup")
-			}
-			By("Cleaning up the resource group")
-			// Use the framework's test context for resource group cleanup since it doesn't need the systemData policy
-			testCtx = framework.NewInvocationContext()
-			armResourcesClientFactory = testCtx.(interface {
-				GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
-			}).GetARMResourcesClientFactoryOrDie(ctx)
-			resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
-			err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
-			Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
-			By("Verifying the resource group is deleted")
-			_, err = resourceGroupClient.Get(ctx, resourceGroup, nil)
-			Expect(err).ToNot(BeNil())
-			errMessage := fmt.Sprintf("The resource group '%s' could not be found.", resourceGroup)
-			Expect(err.Error()).To(ContainSubstring(errMessage))
-		}()
-
 		By("Create a new resource group for the cluster")
 		// Use the framework's test context for resource group operations since they don't need the systemData policy
-		testCtx = framework.NewInvocationContext()
-		armResourcesClientFactory = testCtx.(interface {
-			GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
-		}).GetARMResourcesClientFactoryOrDie(ctx)
-		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
-		resourceGroup = fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
-		_, err := framework.CreateResourceGroup(ctx, resourceGroupClient, resourceGroup, testCtx.(interface{ Location() string }).Location(), 10*time.Minute)
+		ic := framework.NewInvocationContext()
+		resourceGroup := fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
+		resourceGroup, err := ic.NewResourceGroup(ctx, resourceGroup, ic.(interface{ Location() string }).Location())
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 		By("Deploying the infrastructure only bicep template")
@@ -148,7 +105,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		location := testCtx.(interface{ Location() string }).Location()
+		location := ic.(interface{ Location() string }).Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
 		versionID := "openshift-v4.19.0"
@@ -245,8 +202,8 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 		By("Cleaning up the resource group")
-		testCtx = framework.NewInvocationContext()
-		armResourcesClientFactory = testCtx.(interface {
+		ic = framework.NewInvocationContext()
+		armResourcesClientFactory = ic.(interface {
 			GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
 		}).GetARMResourcesClientFactoryOrDie(ctx)
 		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
