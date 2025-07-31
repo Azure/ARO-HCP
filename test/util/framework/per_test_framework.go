@@ -158,7 +158,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if armClientFactory, err := tc.GetARMResourcesClientFactory(ctx); err == nil {
+	if armClientFactory, err := tc.getARMResourcesClientFactoryUnlocked(ctx); err == nil {
 		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 60*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed to cleanup resource group: %w", err)
