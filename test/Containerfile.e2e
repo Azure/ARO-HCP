@@ -8,6 +8,7 @@ RUN cd test/e2e && make e2etest
 FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
 
 WORKDIR /
-ENV SETUP_FILEPATH=/data/e2e-setup.json
+ENV SETUP_FILEPATH=/test-artifacts/e2e-setup.json
 COPY --from=builder /app/test/e2e/e2e.test /e2e.test
-ENTRYPOINT ["/e2e.test", "--ginkgo.timeout", "1h", "--ginkgo.junit-report", "/data/junit-report.xml", "--ginkgo.trace"]
+COPY --from=builder /app/test/e2e/test-artifacts /test-artifacts
+ENTRYPOINT ["/e2e.test", "--ginkgo.timeout", "1h", "--ginkgo.junit-report", "/test-artifacts/junit-report.xml", "--ginkgo.trace"]
