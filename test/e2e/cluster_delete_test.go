@@ -41,7 +41,7 @@ var _ = Describe("ARO-HCP Cluster Deletion", func() {
 		By("checking that the HCP cluster is not present")
 		_, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
+		errMessage := fmt.Sprintf("The Resource 'Microsoft.RedHatOpenShift/HCPOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 	})
 })
