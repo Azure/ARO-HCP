@@ -359,7 +359,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates)  {
+module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
