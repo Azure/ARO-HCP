@@ -89,6 +89,8 @@ spec:
               value: {{ .Values.forwarder.mdsd.geneva.san }}
             - name: MONITORING_GCS_AUTH_ID_TYPE
               value: AuthKeyVault
+            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
+              value: /geneva/geneva_auth
             - name: MONITORING_CONFIG_VERSION
               value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
             - name: MONITORING_GCS_ACCOUNT
@@ -191,6 +193,4 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: arobit-secretprovider
-          secret:
-            secretName: arobit-forwarder
         {{- end }}
