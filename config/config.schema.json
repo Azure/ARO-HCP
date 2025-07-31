@@ -855,6 +855,86 @@
         "tracing"
       ]
     },
+    "billing": {
+      "type": "object",
+      "properties": {
+        "aub": {
+          "type": "object",
+          "properties": {
+            "accountName": {
+              "type": "string"
+            },
+            "cloudSuffix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "accountName",
+            "cloudSuffix"
+          ]
+        },
+        "pav2": {
+          "type": "object",
+          "properties": {
+            "cloudName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "cloudName"
+          ]
+        },
+        "kusto": {
+          "type": "object",
+          "properties": {
+            "clusterName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "clusterName"
+          ]
+        },
+        "cosmosDB": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "eventHub": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "subscriptionId": {
+              "type": "string"
+            },
+            "resourceGroupName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "subscriptionId",
+            "resourceGroupName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "aub",
+        "pav2",
+        "kusto",
+        "cosmosDB",
+        "eventHub"
+      ]
+    },    
     "ev2": {
       "type": "object",
       "properties": {
@@ -1807,12 +1887,16 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        }
+        },
+        "msft": {
+          "$ref": "#/definitions/acr"
+        }        
       },
       "additionalProperties": false,
       "required": [
         "svc",
-        "ocp"
+        "ocp",
+        "msft"
       ]
     },
     "releaseApprover": {
