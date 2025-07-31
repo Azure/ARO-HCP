@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,7 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/uuid"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	//"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -39,8 +38,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 	)
 
 	BeforeEach(func() {
-		By("Preparing HCP clusters client")
-		clustersClient = clients.NewHcpOpenShiftClustersClient()
+		// do nothing here
 	})
 
 	It("Creates requried infrastructure resources then creates a cluster", labels.Critical, labels.Positive, labels.CreateCluster, labels.RequireNothing, func(ctx context.Context) {
@@ -50,17 +48,15 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		By("Create a new resource group for the cluster")
 		// Use the framework's test context for resource group operations since they don't need the systemData policy
 		ic := framework.NewInvocationContext()
-		resourceGroup := fmt.Sprintf("e2e-lifecycle-%s-rg", uuid.NewString()[:4])
-		resourceGroup, err := ic.NewResourceGroup(ctx, resourceGroup, ic.(interface{ Location() string }).Location())
+		rgPrefix := "cluster_lifecycle"
+		resourceGroup, err := ic.NewResourceGroup(ctx, rgPrefix, ic.Location())
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 		By("Deploying the infrastructure only bicep template")
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
 
-		// Read the bicep template file from the correct location
-		bicepTemplatePath := "../../e2e-setup/bicep/infra-only.bicep"
-		bicepContent, err := os.ReadFile(bicepTemplatePath)
-		Expect(err).NotTo(HaveOccurred(), "failed to read bicep template")
+		// Read the bicep template file converted to json from the correct location
+		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/customer-infra.json"))
 
 		// Create deployment parameters for infra-only.bicep
 		deploymentParameters := map[string]string{
@@ -71,10 +67,10 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		// Use the framework's CreateBicepTemplateAndWait function for consistency
 		deploymentResult, err := framework.CreateBicepTemplateAndWait(
 			ctx,
-			armResourcesClientFactory.NewDeploymentsClient(),
-			resourceGroup,
+			ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			*resourceGroup.Name,
 			deploymentName,
-			bicepContent,
+			templateContent,
 			deploymentParameters,
 			45*time.Minute,
 		)
@@ -105,7 +101,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		location := ic.(interface{ Location() string }).Location()
+		location := ic.Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
 		versionID := "openshift-v4.19.0"
@@ -173,7 +169,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Sending a PUT request to create the cluster")
 		// Use the pre-configured clustersClient that has the systemData policy applied
-		createPoller, err := clustersClient.BeginCreateOrUpdate(ctx, resourceGroup, clusterName, clusterResource, nil)
+		createPoller, err := clustersClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterName, clusterResource, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
 		By("Waiting for the create poller to complete")
@@ -182,7 +178,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Polling until the cluster provisioning state is Succeeded")
 		Eventually(func(g Gomega) {
-			resp, err := clustersClient.Get(ctx, resourceGroup, clusterName, nil)
+			resp, err := clustersClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 			g.Expect(err).NotTo(HaveOccurred(), "failed to get cluster status during creation poll")
 			g.Expect(resp.Properties).NotTo(BeNil())
 			g.Expect(resp.Properties.ProvisioningState).NotTo(BeNil())
@@ -190,29 +186,26 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}).WithTimeout(30 * time.Minute).WithPolling(1 * time.Minute).Should(Succeed())
 
 		By("Sending a DELETE request for the cluster")
-		deletePoller, err := clustersClient.BeginDelete(ctx, resourceGroup, clusterName, nil)
+		deletePoller, err := clustersClient.BeginDelete(ctx, *resourceGroup.Name, clusterName, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to start cluster deletion")
 
 		_, err = deletePoller.PollUntilDone(ctx, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to poll for cluster deletion")
 
 		By("Verifying the cluster is not found after deletion")
-		_, err = clustersClient.Get(ctx, resourceGroup, clusterName, nil)
+		_, err = clustersClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
+		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, *resourceGroup.Name)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 		By("Cleaning up the resource group")
 		ic = framework.NewInvocationContext()
-		armResourcesClientFactory = ic.(interface {
-			GetARMResourcesClientFactoryOrDie(context.Context) *armresources.ClientFactory
-		}).GetARMResourcesClientFactoryOrDie(ctx)
-		resourceGroupClient = armResourcesClientFactory.NewResourceGroupsClient()
-		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, resourceGroup, 60*time.Minute)
+		resourceGroupClient := ic.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
+		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, *resourceGroup.Name, 60*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
 		By("Verifying the resource group is deleted")
-		_, err = resourceGroupClient.Get(ctx, resourceGroup, nil)
+		_, err = resourceGroupClient.Get(ctx, *resourceGroup.Name, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage = fmt.Sprintf("The resource group '%s' could not be found.", resourceGroup)
+		errMessage = fmt.Sprintf("The resource group '%s' could not be found.", *resourceGroup.Name)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 	})
 })
