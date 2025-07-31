@@ -59,9 +59,9 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/customer-infra.json"))
 
 		// Create deployment parameters for infra-only.bicep
-		deploymentParameters := map[string]string{
+		deploymentParameters := map[string]interface{}{
 			"clusterName":     clusterName,
-			"persistTagValue": "false",
+			"persistTagValue": false,
 		}
 
 		// Use the framework's CreateBicepTemplateAndWait function for consistency
