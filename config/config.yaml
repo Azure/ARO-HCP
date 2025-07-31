@@ -78,6 +78,12 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+    msft:
+      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
+      zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: true
+        days: 365
   # ACR Pull
   acrPull:
     image:
@@ -398,6 +404,21 @@ defaults:
       zoneRedundantMode: 'Auto'
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+  # Billing
+  billing:
+    aub:
+      accountName: ""
+      cloudSuffix: ""
+    pav2:
+      cloudName: ""
+    kusto:
+      clusterName: ""
+    cosmosDB:
+      name: ""
+    eventHub:
+      namespace: ""
+      subscriptionId: ""
+      resourceGroupName: ""
   # Mise
   mise:
     deploy: false
