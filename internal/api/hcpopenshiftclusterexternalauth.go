@@ -77,8 +77,8 @@ type ExternalAuthClientProfile struct {
  * Must have unique namespace/name pairs.
  */
 type ExternalAuthClientComponentProfile struct {
-	Name      string `json:"name"                   visibility:"read create update"     validate:"required,max=256"`
-	Namespace string `json:"authClientNamespace"    visibility:"read create update"     validate:"required,max=63"`
+	Name                string `json:"name"                   visibility:"read create update"     validate:"required,max=256"`
+	AuthClientNamespace string `json:"authClientNamespace"    visibility:"read create update"     validate:"required,max=63"`
 }
 
 /** External Auth claim profile */
@@ -156,7 +156,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code: arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf(
-						("External Auth Clients must have a unique combination of component.Name & component.Namespace. " +
+						("External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace. " +
 							"The following clientIds share the same unique combination '%s' and are invalid: \n '%s' "),
 						uniqueKey,
 						clientIds),
@@ -172,7 +172,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 
 // This combination is used later in the system as a unique identifier.
 func (c ExternalAuthClientProfile) generateUniqueIdentifier() string {
-	return c.Component.Name + c.Component.Namespace
+	return c.Component.Name + c.Component.AuthClientNamespace
 }
 
 func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
