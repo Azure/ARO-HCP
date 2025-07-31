@@ -12,6 +12,18 @@ param acrSku string
 @description('Toggle zone redundancy of ACR.')
 param zoneRedundant bool
 
+type retentionPolicyConfig = {
+  enabled: bool
+  days: int
+}
+
+@description('Retention policy configuration for untagged manifests')
+param retentionPolicy retentionPolicyConfig
+
+//
+//   A C R   R E S O U R C E
+//
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: acrName
   location: location
@@ -39,9 +51,17 @@ resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview'
         retentionDays: 7
         status: 'disabled'
       }
+      retentionPolicy: {
+        status: retentionPolicy.enabled ? 'enabled' : 'disabled'
+        days: retentionPolicy.days
+      }
     }
   }
 }
+
+//
+//   A C R   P U L L
+//
 
 // Assign the AcrPull Role to the ${acrName}-pull-identity
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'

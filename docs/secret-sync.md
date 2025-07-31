@@ -61,7 +61,7 @@ For MSFT environments, activating PIM or requesting a JIT is required to downloa
 To register a secret for a key vault instance, prepare a file that contains the secret content.
 
 ```sh
-./tooling/secret-sync register \
+./tooling/secret-sync/secret-sync register \
     --cloud public \
     --config-file dev-infrastructure/data/encryptedsecrets.yaml \
     --keyvault ${KEYVAULT} \
