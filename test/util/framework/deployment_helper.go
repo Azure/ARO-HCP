@@ -43,6 +43,22 @@ func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outpu
 	return ret, nil
 }
 
+func GetOutputValue(deploymentInfo *armresources.DeploymentExtended, outputName string) (interface{}, error) {
+	outputMap, ok := deploymentInfo.Properties.Outputs.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("failed to cast deployment outputs to map[string]interface{}, was %T", deploymentInfo.Properties.Outputs)
+	}
+
+	ret, found, err := unstructured.NestedFieldCopy(outputMap, outputName, "value")
+	if err != nil {
+		return "", fmt.Errorf("failed to get output value for %q: %w", outputName, err)
+	}
+	if !found {
+		return "", fmt.Errorf("output %q not found", outputName)
+	}
+	return ret, nil
+}
+
 // CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
 func CreateBicepTemplateAndWait(
 	ctx context.Context,
@@ -50,7 +66,7 @@ func CreateBicepTemplateAndWait(
 	resourceGroupName string,
 	deploymentName string,
 	bicepTemplateJSON []byte,
-	parameters map[string]string,
+	parameters map[string]interface{},
 	timeout time.Duration,
 ) (*armresources.DeploymentExtended, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
