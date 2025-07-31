@@ -58,3 +58,5 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   }
   identity: identityValue
 }
+
+output name string = clusterName
