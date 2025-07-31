@@ -56,9 +56,9 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
 
 		// Read the bicep template file converted to json from the correct location
-		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/customer-infra.json"))
+		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/infra-only.json"))
 
-		// Create deployment parameters for infra-only.bicep
+		// Create deployment parameters for infra-only.json
 		deploymentParameters := map[string]interface{}{
 			"clusterName":     clusterName,
 			"persistTagValue": false,
