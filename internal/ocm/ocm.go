@@ -69,16 +69,16 @@ type ClusterServiceClientSpec interface {
 	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
 	DeleteNodePool(ctx context.Context, internalID InternalID) error
 
-	// GetExternalAuth sends a GET request to fetch a node pool from Cluster Service.
+	// GetExternalAuth sends a GET request to fetch an external auth config from Cluster Service.
 	GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error)
 
-	// PostExternalAuth sends a POST request to create a node pool in Cluster Service.
+	// PostExternalAuth sends a POST request to create an external auth config in Cluster Service.
 	PostExternalAuth(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
 
-	// UpdateExternalAuth sends a PATCH request to update a node pool in Cluster Service.
+	// UpdateExternalAuth sends a PATCH request to update an external auth config in Cluster Service.
 	UpdateExternalAuth(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
 
-	// DeleteExternalAuth sends a DELETE request to delete a node pool from Cluster Service.
+	// DeleteExternalAuth sends a DELETE request to delete an external auth config from Cluster Service.
 	DeleteExternalAuth(ctx context.Context, internalID InternalID) error
 
 	// ListNodePools prepares a GET request with the given search expression. Call Items() on
