@@ -145,3 +145,6 @@ jobs:
     - name: 'Deploy Observability/Tracing'
       run: |
         make observability.tracing.deploy_pipeline
+    - name: 'Deploy Route Monitor Operator'
+      run: |
+        make route-monitor-operator.deploy_pipeline
