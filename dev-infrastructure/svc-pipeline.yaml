@@ -96,7 +96,7 @@ resourceGroups:
     issuer:
       value: OneCertV2-PublicCA
   # Create SVC cluster
-  - name: svc
+  - name: svc-cluster
     action: ARM
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
@@ -137,6 +137,17 @@ resourceGroups:
       step: svc-oncert-private-kv-issuer
     - resourceGroup: service
       step: svc-oncert-public-kv-issuer
+  - name: svc-cluster-output
+    action: ARM
+    template: templates/output-svc-cluster.bicep
+    parameters: configurations/output-svc-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: regional
+      step: output
+    - resourceGroup: service
+      step: svc-cluster
   # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
     aksCluster: '{{ .svc.aks.name }}'
@@ -177,9 +188,19 @@ resourceGroups:
       configRef: svc.rg
     - name: CLUSTER_NAME
       configRef: svc.aks.name
+    - name: DCR_REMOTE_WRITE_URL
+      input:
+        resourceGroup: service
+        step: svc-cluster-output
+        name: dcrRemoteWriteUrl
+    - name: PROMETHEUS_UAMI_CLIENT_ID
+      input:
+        resourceGroup: service
+        step: svc-cluster-output
+        name: prometheusUAMIClientId
     dependsOn:
     - resourceGroup: service
-      step: svc
+      step: svc-cluster
     shellIdentity:
       input:
         resourceGroup: global
@@ -301,7 +322,7 @@ resourceGroups:
       configRef: geneva.logs.environment
     dependsOn:
     - resourceGroup: service
-      step: svc
+      step: svc-cluster
     shellIdentity:
       input:
         resourceGroup: global

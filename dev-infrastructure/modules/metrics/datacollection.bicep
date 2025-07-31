@@ -8,6 +8,7 @@ param prometheusPrincipalId string
 
 var dceName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
+var hcpDcrName = safeTake('HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 
 resource dce 'Microsoft.Insights/dataCollectionEndpoints@2022-06-01' = {
   name: dceName
@@ -62,7 +63,7 @@ resource dcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
 }
 
 resource hcpDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (hcpAzureMonitoringWorkspaceId != '') {
-  name: safeTake('HCP-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
+  name: hcpDcrName
   location: azureMonitorWorkspaceLocation
   kind: 'Linux'
   tags: {
