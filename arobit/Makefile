@@ -2,6 +2,8 @@
 -include ../helm-cmd.mk
 
 deploy:
+	helm uninstall arobit --namespace mds || true && \
+	kubectl create namespace arobit --dry-run=client -o json | kubectl apply -f - && \
 	CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	${HELM_CMD} arobit \
