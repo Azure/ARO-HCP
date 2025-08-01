@@ -80,16 +80,20 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		deploymentOutputs := deploymentResult.Properties.Outputs
 		Expect(deploymentOutputs).NotTo(BeNil(), "deployment outputs should not be nil")
 
-		// Get deployment outputs to retrieve managed identity information
-		outputs := deploymentOutputs.(map[string]interface{})
+		// Extract identityValue and userAssignedIdentitiesValue from outputs using GetOutputValue
+		identityValueRaw, err := framework.GetOutputValue(deploymentResult, "identityValue")
+		Expect(err).NotTo(HaveOccurred(), "failed to get identityValue from deployment outputs")
+		identityValue := identityValueRaw.(map[string]interface{})
 
-		// Extract identityValue and userAssignedIdentitiesValue from outputs
-		identityValue := outputs["identityValue"].(map[string]interface{})
-		userAssignedIdentitiesValue := outputs["userAssignedIdentitiesValue"].(map[string]interface{})
+		userAssignedIdentitiesValueRaw, err := framework.GetOutputValue(deploymentResult, "userAssignedIdentitiesValue")
+		Expect(err).NotTo(HaveOccurred(), "failed to get userAssignedIdentitiesValue from deployment outputs")
+		userAssignedIdentitiesValue := userAssignedIdentitiesValueRaw.(map[string]interface{})
 
-		// Get subnet and NSG IDs from the main template outputs
-		subnetID := outputs["subnetId"].(map[string]interface{})["value"].(string)
-		nsgID := outputs["networkSecurityGroupId"].(map[string]interface{})["value"].(string)
+		// Get subnet and NSG IDs from the main template outputs using GetOutputValueString
+		subnetID, err := framework.GetOutputValueString(deploymentResult, "subnetId")
+		Expect(err).NotTo(HaveOccurred(), "failed to get subnetId from deployment outputs")
+		nsgID, err := framework.GetOutputValueString(deploymentResult, "networkSecurityGroupId")
+		Expect(err).NotTo(HaveOccurred(), "failed to get networkSecurityGroupId from deployment outputs")
 
 		By("Converting the UserAssignedIdentity map to a map of pointers")
 		// Use the identityValue from bicep deployment instead of customerEnv.IdentityUAMIs
