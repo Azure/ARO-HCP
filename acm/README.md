@@ -28,4 +28,4 @@ The RHACM version and MCE version have strict alignment, so we need set the valu
 For example, the `ACM_VERSION` is `2.13.1`, and the `ACM_OPERATOR_BUNDLE_IMAGE` should be `registry.redhat.io/rhacm2/acm-operator-bundle:v2.13.1-2`,
 the `MCE_OPERATOR_BUNDLE_IMAGE` should be `registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.8.1-12`
 
-Run `make helm-chart` to update all charts. Review and commit all changes to the `deploy/helm` directory.
+Run `make helm-charts` to update all charts. Review and commit all changes to the `deploy/helm` directory.

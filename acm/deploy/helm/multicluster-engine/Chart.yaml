@@ -7,6 +7,6 @@ keywords:
 - multiclusterengine
 name: multicluster-engine
 sources:
-- registry.redhat.io/multicluster-engine/mce-operator-bundle:v2.8.1-12
+- registry.redhat.io/multicluster-engine/mce-operator-bundle@sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
 type: application
 version: 2.8.1
