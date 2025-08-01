@@ -1,97 +1,73 @@
 ---
-{{- if .Values.forwarder.enabled }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "arobit.name" . }}-forwarder
-  {{- if .Values.forwarder.annotations }}
-  annotations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.annotations "context" $) | nindent 4 }}
-  {{- end }}
-  labels: {{- include "arobit.labels" . | nindent 4 }}
-    app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: arobit-forwarder
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
-    app: {{ include "arobit.name" . }}-forwarder
+    app: arobit-forwarder
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-      app.kubernetes.io/instance: {{ .Release.Name }}
-  updateStrategy: {{- toYaml .Values.forwarder.updateStrategy | nindent 4 }}
+      app.kubernetes.io/name: arobit-forwarder
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
-      labels: {{- include "arobit.labels" . | nindent 8 }}
-        app.kubernetes.io/name: {{ include "arobit.name" . }}-forwarder
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app: {{ include "arobit.name" . }}-forwarder
-        {{- if .Values.forwarder.podLabels }}
-        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podLabels "context" $) | nindent 8 }}
-        {{- end }}
-      annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/forwarder-configmap.yaml") . | sha256sum }}
-        {{- if .Values.forwarder.podAnnotations }}
-        {{- include "arobit.tplValue" (dict "value" .Values.forwarder.podAnnotations "context" $) | nindent 8 }}
-        {{- end }}
+      labels:
+        app.kubernetes.io/name: arobit-forwarder
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app: arobit-forwarder
     spec:
-      serviceAccountName: {{ template "arobit.forwarder.serviceAccountName" . }}
-      priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
-      {{- if .Values.imqePullSecrets }}
-      imagePullSecrets:  {{- toYaml .Values.imagePullSecrets | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.affinity }}
-      affinity: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.affinity "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.nodeSelector }}
-      nodeSelector: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.nodeSelector "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.tolerations }}
-      tolerations: {{- include "arobit.tplValue" (dict "value" .Values.forwarder.tolerations "context" $) | nindent 8 }}
-      {{- end }}
-      {{- if .Values.forwarder.securityContext.enabled }}
-      securityContext: {{- omit .Values.forwarder.securityContext "enabled" | toYaml | nindent 8 }}
-      {{- end }}
+      serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
       shareProcessNamespace: true
       containers:
         - name: fluentbit
           image: {{ .Values.forwarder.fluentbit.image.registry }}/{{ .Values.forwarder.fluentbit.image.repository }}@{{ .Values.forwarder.fluentbit.image.digest }}
-          imagePullPolicy: {{ .Values.forwarder.fluentbit.image.pullPolicy }}
+          imagePullPolicy: '{{ .Values.forwarder.fluentbit.image.pullPolicy }}'
           command:
             - /fluent-bit/bin/fluent-bit
           args:
             - -c
             - /forwarder/etc/fluent-bit.conf
           ports:
-            {{- if .Values.forwarder.fluentbit.containerPorts }}
-            {{- toYaml .Values.forwarder.fluentbit.containerPorts | nindent 12 }}
-            {{- end }}
-          {{- if .Values.forwarder.fluentbit.livenessProbe.enabled }}
+            - name: http
+              containerPort: 2020
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: forward
+              containerPort: 24224
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /api/v1/health
               port: http
-            initialDelaySeconds: {{ .Values.forwarder.fluentbit.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.forwarder.fluentbit.livenessProbe.timeoutSeconds }}
-            successThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.successThreshold }}
-            failureThreshold: {{ .Values.forwarder.fluentbit.livenessProbe.failureThreshold }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.readinessProbe.enabled }}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
           readinessProbe:
             httpGet:
               path: /api/v1/health
               port: http
-            initialDelaySeconds: {{ .Values.forwarder.fluentbit.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.forwarder.fluentbit.readinessProbe.timeoutSeconds }}
-            successThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.successThreshold }}
-            failureThreshold: {{ .Values.forwarder.fluentbit.readinessProbe.failureThreshold }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.resources }}
-          resources: {{- toYaml .Values.forwarder.fluentbit.resources | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.fluentbit.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.forwarder.fluentbit.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{ end }}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            successThreshold: 1
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
           volumeMounts:
             - name: varlog
               mountPath: /var/log
@@ -104,40 +80,176 @@ spec:
         {{- if .Values.forwarder.mdsd.enabled }}
         - name: mdsd
           image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
-          imagePullPolicy: {{ .Values.forwarder.mdsd.image.pullPolicy }}
-          command: {{- toYaml .Values.forwarder.mdsd.command | nindent 12 }}
-          args: {{- toYaml .Values.forwarder.mdsd.args | nindent 12 }}
-          ports:
-            {{- if .Values.forwarder.mdsd.containerPorts }}
-            {{- toYaml .Values.forwarder.mdsd.containerPorts | nindent 12 }}
-            {{- end }}
+          imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
+          command:
+              - /start_mdsd.sh
           env:
-            {{- range $key,$value := .Values.forwarder.mdsd.env }}
-            - name: {{ $key | upper | quote }}
-              value: {{ $value | quote }}
-            {{- end }}
-          {{- if .Values.forwarder.mdsd.lifecycle }}
-          lifecycle: {{- toYaml .Values.forwarder.mdsd.lifecycle | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.mdsd.resources }}
-          resources: {{- toYaml .Values.forwarder.mdsd.resources | nindent 12 }}
-          {{- end }}
-          {{- if .Values.forwarder.mdsd.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.forwarder.mdsd.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{ end }}
+            - name: MONITORING_GCS_AUTH_ID
+              value: '{{ .Values.forwarder.mdsd.geneva.rpSan }}'
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthKeyVault
+            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
+              value: /geneva/geneva_auth
+            - name: MONITORING_CONFIG_VERSION
+              value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
+            - name: MONITORING_GCS_ACCOUNT
+              value: '{{ .Values.forwarder.mdsd.geneva.rpAccountName }}'
+            - name: MONITORING_GCS_ENVIRONMENT
+              value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
+            - name: MONITORING_GCS_NAMESPACE
+              value: '{{ .Values.forwarder.mdsd.geneva.rpNamespace }}'
+            - name: MONITORING_GCS_REGION
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
+            - name: DOCKER_LOGGING
+              value: 'true'
+            - name: FLUENTD_PORT
+              value: '5001'
+            - name: GCS_AUTOMATIC_CONFIGURATION
+              value: '1'
+            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
+              value: '-A'
+            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
+              value: '5'
+            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
+              value: '1000'
+            - name: MDSD_COMPRESSION_ALGORITHM
+              value: 'lz4'
+            - name: MDSD_COMPRESSION_LEVEL
+              value: '4'
+            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
+              value: 'true'
+            - name: MDSD_DEBUG_LOG_FLAGS
+              value: '-T 0x00'
+            - name: MDSD_LOG_OPTIONS
+              value: '-D'
+            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_NESTING_LEVEL
+              value: '10'
+            - name: MDSD_MSGPACK_SEND_ACK
+              value: '0'
+            - name: MDSD_MSGPACK_SORT_COLUMNS
+              value: '1'
+            - name: MDSD_PORT
+              value: '0'
+            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
+              value: '1'
+            - name: MDSD_USE_LOCAL_PERSISTENCY
+              value: 'false'
+            - name: MONITORING_MAX_EVENT_RATE
+              value: '100000'
+          lifecycle: 
+            preStop:
+              exec:
+                command:
+                - "/bin/sleep"
+                - "60"
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              add: []
+              drop: []
           volumeMounts:
             - name: mdsd-run
               mountPath: /var/run/mdsd/
-            {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
-            - name: mdsd-logs
-              mountPath: /geneva/geneva_logs/
-            {{- end }}
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
               readOnly: true
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs
               readOnly: true
+        {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: mdsd-clusterlogs
+          image: {{ .Values.forwarder.mdsd.image.registry }}/{{ .Values.forwarder.mdsd.image.repository }}@{{ .Values.forwarder.mdsd.image.digest }}
+          imagePullPolicy: '{{ .Values.forwarder.mdsd.image.pullPolicy }}'
+          command:
+              - /start_mdsd.sh
+          env:
+            - name: MONITORING_GCS_AUTH_ID
+              value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsSan }}'
+            - name: MONITORING_GCS_AUTH_ID_TYPE
+              value: AuthKeyVault
+            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
+              value: /geneva/geneva_auth
+            - name: MONITORING_CONFIG_VERSION
+              value: '{{ .Values.forwarder.mdsd.geneva.configVersion }}'
+            - name: MONITORING_GCS_ACCOUNT
+              value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsAccountName }}'
+            - name: MONITORING_GCS_ENVIRONMENT
+              value: '{{ .Values.forwarder.mdsd.geneva.environment }}'
+            - name: MONITORING_GCS_NAMESPACE
+              value: '{{ .Values.forwarder.mdsd.geneva.clusterLogsNamespace }}'
+            - name: MONITORING_GCS_REGION
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
+            - name: DOCKER_LOGGING
+              value: 'true'
+            - name: FLUENTD_PORT
+              value: '5002'
+            - name: GCS_AUTOMATIC_CONFIGURATION
+              value: '1'
+            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
+              value: '-A'
+            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
+              value: '5'
+            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
+              value: '1000'
+            - name: MDSD_COMPRESSION_ALGORITHM
+              value: 'lz4'
+            - name: MDSD_COMPRESSION_LEVEL
+              value: '4'
+            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
+              value: 'true'
+            - name: MDSD_DEBUG_LOG_FLAGS
+              value: '-T 0x00'
+            - name: MDSD_LOG_OPTIONS
+              value: '-D'
+            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
+              value: '10480000'
+            - name: MDSD_MSGPACK_NESTING_LEVEL
+              value: '10'
+            - name: MDSD_MSGPACK_SEND_ACK
+              value: '0'
+            - name: MDSD_MSGPACK_SORT_COLUMNS
+              value: '1'
+            - name: MDSD_PORT
+              value: '0'
+            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
+              value: '1'
+            - name: MDSD_USE_LOCAL_PERSISTENCY
+              value: 'false'
+            - name: MONITORING_MAX_EVENT_RATE
+              value: '100000'
+          lifecycle: 
+            preStop:
+              exec:
+                command:
+                - "/bin/sleep"
+                - "60"
+          securityContext: 
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              add: []
+              drop: []
+          volumeMounts:
+            - name: mdsd-run-clusterlogs
+              mountPath: /var/run/mdsd/
+            - name: cacrt-host
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs-clusterlogs
+              readOnly: true
+        {{- end }}
         {{- end }}
       volumes:
         - name: sp-host
@@ -154,29 +266,29 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: geneva-certs
-          {{- if .Values.forwarder.secretProvider.enabled }}
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              # TODO: needs to be coordinated with MSFT to get the actual secret provider class name
-              secretProviderClass: {{ include "arobit.name" . }}-forwarder-secretprovider
-            {{- if .Values.forwarder.secretProvider.useNodePublishSecret }}
-            nodePublishSecretRef:
-              name: {{ include "arobit.name" . }}-forwarder-kv-creds
-            {{- end }}
-          secret:
-            secretName: {{ include "arobit.name" . }}-forwarder
-          {{- end }}
         - name: mdsd-run
           emptyDir: {}
-        {{- if ne .Values.forwarder.mdsd.env.MDSD_LOG_OPTIONS "-D" }}
-        - name: mdsd-logs
+        {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: mdsd-run-clusterlogs
           emptyDir: {}
         {{- end }}
         - name: flb-config
           configMap:
-            name: {{ include "arobit.name" . }}-forwarder
+            name: arobit-forwarder
             defaultMode: 0755
-{{- end }}
+        {{- if .Values.forwarder.mdsd.enabled }}
+        - name: geneva-certs
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: arobit-secretprovider
+          {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: geneva-certs-clusterlogs
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: arobit-secretprovider-clusterlogs
+          {{- end }}
+        {{- end }}

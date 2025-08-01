@@ -18,6 +18,7 @@ ignore:
 - 'arobit/deploy/templates/forwarder-configmap.yaml'
 - 'arobit/deploy/templates/forwarder-service.yaml'
 - 'arobit/deploy/templates/serviceaccount.yaml'
+- 'arobit/deploy/templates/forwarder-secretprovider.yaml'
 rules:
   brackets: enable
   colons: enable
