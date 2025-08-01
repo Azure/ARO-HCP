@@ -52,10 +52,14 @@ param maestroPostgresServerStorageSizeGB = {{ .maestro.postgres.serverStorageSiz
 param maestroPostgresDatabaseName = '{{ .maestro.postgres.databaseName }}'
 param deployMaestroPostgres = {{ .maestro.postgres.deploy }}
 param maestroPostgresZoneRedundantMode = '{{ .maestro.postgres.zoneRedundantMode }}'
+param maestroPostgresBackupRetentionDays = {{ .maestro.postgres.backupRetentionDays }}
+param maestroPostgresGeoRedundantBackup = {{ .maestro.postgres.geoRedundantBackup }}
 param maestroPostgresPrivate = {{ .maestro.postgres.private }}
 
 param csPostgresDeploy = {{ .clustersService.postgres.deploy }}
 param csPostgresZoneRedundantMode = '{{ .clustersService.postgres.zoneRedundantMode }}'
+param csPostgresBackupRetentionDays = {{ .clustersService.postgres.backupRetentionDays }}
+param csPostgresGeoRedundantBackup = {{ .clustersService.postgres.geoRedundantBackup }}
 param csPostgresServerName = '{{ .clustersService.postgres.name }}'
 param csPostgresServerMinTLSVersion = '{{ .clustersService.postgres.minTLSVersion }}'
 param csPostgresServerVersion = '{{ .clustersService.postgres.serverVersion }}'

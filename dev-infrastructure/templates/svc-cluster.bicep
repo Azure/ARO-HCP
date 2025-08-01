@@ -144,6 +144,12 @@ param csPostgresDeploy bool
 @description('The zone redundant mode of the Maestro Postgres Database')
 param csPostgresZoneRedundantMode string
 
+@description('The number of days to retain backups for the CS Postgres server')
+param csPostgresBackupRetentionDays int
+
+@description('Enable geo-redundant backups for the CS Postgres server')
+param csPostgresGeoRedundantBackup bool
+
 @description('The name of the Postgres server for CS')
 @maxLength(60)
 param csPostgresServerName string
@@ -168,6 +174,12 @@ param deployMaestroPostgres bool = true
 
 @description('The zone redundant mode of the Maestro Postgres Database')
 param maestroPostgresZoneRedundantMode string
+
+@description('The number of days to retain backups for the Maestro Postgres server')
+param maestroPostgresBackupRetentionDays int
+
+@description('Enable geo-redundant backups for the Maestro Postgres server')
+param maestroPostgresGeoRedundantBackup bool
 
 @description('If true, make the Maestro Postgres instance private')
 param maestroPostgresPrivate bool = true
@@ -551,6 +563,8 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, maestroPostgresZoneRedundantMode)
       ? 'ZoneRedundant'
       : 'SameZone'
+    postgresBackupRetentionDays: maestroPostgresBackupRetentionDays
+    postgresGeoRedundantBackup: maestroPostgresGeoRedundantBackup
     privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
     privateEndpointVnetId: svcCluster.outputs.aksVnetId
     privateEndpointResourceGroup: resourceGroup().name
@@ -606,6 +620,8 @@ module cs '../modules/cluster-service.bicep' = {
     postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
       ? 'ZoneRedundant'
       : 'SameZone'
+    postgresBackupRetentionDays: csPostgresBackupRetentionDays
+    postgresGeoRedundantBackup: csPostgresGeoRedundantBackup
     postgresServerPrivate: clusterServicePostgresPrivate
     clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
     clusterServiceManagedIdentityName: csMIName

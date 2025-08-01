@@ -48,7 +48,12 @@ type MaintenanceWindow = {
 param maintenanceWindow MaintenanceWindow
 
 @description('The number of days to retain backups for.')
-param backupRetentionDays int = 7
+@minValue(7)
+@maxValue(35)
+param backupRetentionDays int
+
+@description('Enable geo-redundant backups for the PostgreSQL server.')
+param geoRedundantBackup bool
 
 @allowed([
   32
@@ -105,7 +110,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
     }
     backup: {
       backupRetentionDays: backupRetentionDays
-      geoRedundantBackup: 'Disabled'
+      geoRedundantBackup: geoRedundantBackup ? 'Enabled' : 'Disabled'
     }
     dataEncryption: {
       type: 'SystemManaged'

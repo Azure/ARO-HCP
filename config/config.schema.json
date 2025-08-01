@@ -515,6 +515,14 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "backupRetentionDays": {
+          "type": "integer",
+          "description": "Number of days to retain backups for the PostgreSQL server."
+        },
+        "geoRedundantBackup": {
+          "type": "boolean",
+          "description": "Enable geo-redundant backups for the PostgreSQL server."
         }
       },
       "additionalProperties": false,
@@ -526,7 +534,9 @@
         "serverVersion",
         "minTLSVersion",
         "databaseName",
-        "zoneRedundantMode"
+        "zoneRedundantMode",
+        "backupRetentionDays",
+        "geoRedundantBackup"
       ]
     },
     "subscriptionMetadata": {
