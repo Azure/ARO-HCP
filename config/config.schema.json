@@ -607,6 +607,9 @@
         "mce": {
           "type": "object",
           "properties": {
+            "bundle": {
+              "$ref": "#/definitions/containerImage"
+            },
             "pauseReconciliation": {
               "type": "boolean",
               "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."

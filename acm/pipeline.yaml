@@ -27,6 +27,12 @@ resourceGroups:
       configRef: acr.svc.name
     - name: MCE_PAUSE_RECONCILIATION
       configRef: acm.mce.pauseReconciliation
+    - name: MCE_BUNDLE_REGISTRY
+      configRef: acm.mce.bundle.registry
+    - name: MCE_BUNDLE_REPOSITORY
+      configRef: acm.mce.bundle.repository
+    - name: MCE_BUNDLE_DIGEST
+      configRef: acm.mce.bundle.digest
     shellIdentity:
       input:
         step: global-output
