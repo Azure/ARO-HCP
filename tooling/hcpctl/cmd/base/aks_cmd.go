@@ -29,6 +29,7 @@ import (
 // ClusterConfig defines the configuration for a cluster command type
 type ClusterConfig struct {
 	CommandName         string
+	Aliases             []string
 	DisplayName         string
 	ShortName           string
 	CompleteBreakglass  func(context.Context, *ValidatedBreakglassAKSOptions) (*CompletedBreakglassAKSOptions, error)
@@ -41,6 +42,7 @@ type ClusterConfig struct {
 func NewClusterCommand(config ClusterConfig, group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     config.CommandName,
+		Aliases: config.Aliases,
 		Short:   fmt.Sprintf("%s (%s) operations", config.DisplayName, config.ShortName),
 		GroupID: group,
 		Long: fmt.Sprintf(`%s provides %s operations for ARO-HCP.

@@ -28,6 +28,7 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "hcp",
+		Aliases: []string{"hc", "h"},
 		Short:   "Hosted Control Plane (HCP) operations",
 		GroupID: group,
 		Long: `hcp provides emergency access operations for hosted control planes.
