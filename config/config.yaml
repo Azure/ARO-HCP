@@ -79,10 +79,10 @@ defaults:
         enabled: true
         days: 90
     msft:
-      name: 'aromsft{{ .ctx.environment }}' # [globally-unique]
-      zoneRedundantMode: Enabled
+      name: 'placeholder'
+      zoneRedundantMode: Disabled
       untaggedImagesRetention:
-        enabled: true
+        enabled: false
         days: 365
   # ACR Pull
   acrPull:

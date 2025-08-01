@@ -7,11 +7,11 @@ acm:
     pauseReconciliation: true
 acr:
   msft:
-    name: aromsftswft
+    name: placeholder
     untaggedImagesRetention:
       days: 365
-      enabled: true
-    zoneRedundantMode: Enabled
+      enabled: false
+    zoneRedundantMode: Disabled
   ocp:
     name: arohcpocpdev
     untaggedImagesRetention:
