@@ -258,8 +258,8 @@ logs:
       name: ""
       type: ""
     msiName: logs-mdsd
-    namespace: logs
-    serviceAccountName: genevabit-aggregator
+    namespace: arobit
+    serviceAccountName: arobit-forwarder
     subscriptions: []
 maestro:
   agent:
