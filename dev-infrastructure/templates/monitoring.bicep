@@ -57,8 +57,8 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
   }
 }
 
-var slActionGroups =  manageConnection ?  [actionGroups.outputs.actionGroupsSL] : []
-var sreActionGroups =  manageConnection ?  [actionGroups.outputs.actionGroupsSRE] : []
+var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
+var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
