@@ -74,6 +74,7 @@ billing:
     clusterName: ""
   pav2:
     cloudName: ""
+  rg: placeholder
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
@@ -192,6 +193,8 @@ geneva:
 genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
+  billing:
+    rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
     name: arohcpdev-global
