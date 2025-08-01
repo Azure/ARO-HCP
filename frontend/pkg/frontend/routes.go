@@ -101,6 +101,9 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
+		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.ClusterVersionTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
