@@ -80,12 +80,6 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
-    msft:
-      name: 'placeholder'
-      zoneRedundantMode: Disabled
-      untaggedImagesRetention:
-        enabled: false
-        days: 365
   # ACR Pull
   acrPull:
     image:
