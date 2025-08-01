@@ -33,7 +33,7 @@ param icmRoutingIdSL string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSL string
 
-resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSRE != '') {
+resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-sre'
   location: 'global'
   properties: {
@@ -57,7 +57,7 @@ resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmAc
   }
 }
 
-resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = if (icmActionGroupNameSL != '') {
+resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-sl'
   location: 'global'
   properties: {

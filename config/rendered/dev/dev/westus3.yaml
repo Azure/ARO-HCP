@@ -1,5 +1,9 @@
 acm:
   mce:
+    bundle:
+      digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
+      registry: registry.redhat.io
+      repository: multicluster-engine/mce-operator-bundle
     pauseReconciliation: true
 acr:
   msft:
@@ -412,6 +416,7 @@ monitoring:
     connectionId: ""
     connectionName: ""
     environment: ""
+    manageConnection: false
     sl:
       actionGroupName: ""
       actionGroupShortName: ""

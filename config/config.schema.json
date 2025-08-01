@@ -1575,6 +1575,9 @@
         "icm": {
           "type": "object",
           "properties": {
+            "manageConnection": {
+              "type": "boolean"
+            },
             "connectionName": {
               "type": "string",
               "description": "ICM connection Name"

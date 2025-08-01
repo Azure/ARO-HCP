@@ -37,7 +37,10 @@ param icmRoutingIdSL string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSL string
 
-module actionGroups '../modules/metrics/actiongroups.bicep' = {
+@description('Enable creating ICM action groups')
+param manageConnection bool
+
+module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
     icmEnvironment: icmEnvironment
@@ -54,11 +57,14 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = {
   }
 }
 
+var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
+var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
+
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
-    actionGroups: [actionGroups.outputs.actionGroupsSL]
+    actionGroups: slActionGroups
   }
 }
 
@@ -66,6 +72,6 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
-    actionGroups: [actionGroups.outputs.actionGroupsSRE]
+    actionGroups: sreActionGroups
   }
 }
