@@ -34,17 +34,17 @@ type HCPOpenShiftClusterExternalAuth struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState,omitempty"       visibility:"read"`
-	Condition         ExternalAuthCondition             `json:"condition,omitzero"                visibility:"read"`
-	Issuer            TokenIssuerProfile                `json:"issuer"                            visibility:"read create update"       validate:"required"`
-	Clients           []ExternalAuthClientProfile       `json:"clients,omitempty"                 visibility:"read create update"       validate:"max=20"`
-	Claim             ExternalAuthClaimProfile          `json:"claim"                             visibility:"read create update"       validate:"required"`
+	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
+	Condition         ExternalAuthCondition             `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
+	Issuer            TokenIssuerProfile                `json:"issuer"                  visibility:"read create update"       validate:"required"`
+	Clients           []ExternalAuthClientProfile       `json:"clients"                 visibility:"read create update"       validate:"max=20,omitempty"`
+	Claim             ExternalAuthClaimProfile          `json:"claim"                   visibility:"read create update"       validate:"required"`
 }
 
 /** Condition defines an observation of the external auth state. */
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"                   validate:"omitempty,enum_externalauthconditiontype"`
-	Status             ConditionStatusType       `json:"status"                 validate:"omitempty,enum_externalauthconditionstatustype"`
+	ConditionType      ExternalAuthConditionType `json:"type"                   validate:"enum_externalauthconditiontype"`
+	Status             ConditionStatusType       `json:"status"                 validate:"enum_externalauthconditionstatustype"`
 	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
 	Reason             string                    `json:"reason"`
 	Message            string                    `json:"message"`
@@ -69,7 +69,7 @@ type ExternalAuthClientProfile struct {
 	Component ExternalAuthClientComponentProfile `json:"component"                visibility:"read create update"       validate:"required"`
 	// TODO: The clientId must appear in the audience field of the TokenIssuerProfile.
 	ClientId                      string                 `json:"clientId"                       visibility:"read create update"       validate:"required"`
-	ExtraScopes                   []string               `json:"extraScopes,omitempty"          visibility:"read create update"`
+	ExtraScopes                   []string               `json:"extraScopes"                    visibility:"read create update"       validate:"omitempty"`
 	ExternalAuthClientProfileType ExternalAuthClientType `json:"enum_externalauthclienttype"    visibility:"read create update"       validate:"required"`
 }
 
@@ -91,8 +91,8 @@ type ExternalAuthClaimProfile struct {
  * At a minimum username or groups must be defined.
  */
 type TokenClaimMappingsProfile struct {
-	Username UsernameClaimProfile `json:"username"             visibility:"read create update"`
-	Groups   GroupClaimProfile    `json:"groups,omitzero"      visibility:"read create update"        validate:"omitempty"`
+	Username UsernameClaimProfile `json:"username"        visibility:"read create update"`
+	Groups   GroupClaimProfile    `json:"groups"          visibility:"read create update"        validate:"omitempty"`
 }
 
 /** External Auth claim profile
@@ -104,8 +104,8 @@ type TokenClaimMappingsProfile struct {
  * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
  */
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"                 visibility:"read create update"      validate:"required,max=256"`
-	Prefix string `json:"prefix,omitempty"      visibility:"read create update"`
+	Claim  string `json:"claim"         visibility:"read create update"      validate:"required,max=256"`
+	Prefix string `json:"prefix"        visibility:"read create update"      validate:"omitempty"`
 }
 
 /** External Auth claim profile
@@ -113,15 +113,15 @@ type GroupClaimProfile struct {
  * from the claims in a JWT token issued by the identity provider.
  */
 type UsernameClaimProfile struct {
-	Claim        string `json:"claim"                       visibility:"read create update"      validate:"required,max=256"`
-	Prefix       string `json:"prefix,omitempty"            visibility:"read create update"`
-	PrefixPolicy string `json:"prefixPolicy,omitempty"      visibility:"read create update"`
+	Claim        string `json:"claim"             visibility:"read create update"      validate:"required,max=256"`
+	Prefix       string `json:"prefix"            visibility:"read create update"      validate:"omitempty"`
+	PrefixPolicy string `json:"prefixPolicy"      visibility:"read create update"      validate:"omitempty"`
 }
 
 /** External Auth claim validation rule */
 type TokenClaimValidationRule struct {
-	TokenClaimValidationRuleType TokenValidationRuleType `json:"enum_tokenvalidationruletyperequiredclaim"       visibility:"read create update"       validate:"required"`
-	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim,omitempty"                         visibility:"read create update"`
+	TokenClaimValidationRuleType TokenValidationRuleType `json:"type"                visibility:"read create update"      validate:"required,enum_tokenvalidationruletyperequiredclaim"`
+	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim"       visibility:"read create update"      validate:"omitempty"`
 }
 
 /** Token required claim validation rule. */
