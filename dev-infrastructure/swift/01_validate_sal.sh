@@ -3,7 +3,7 @@
 set -o nounset
 set -o pipefail
 
-source sal_env_vars
+source swift_env_vars
 
 if ! is_service_principal; then
     echo "Logging in as service principal"

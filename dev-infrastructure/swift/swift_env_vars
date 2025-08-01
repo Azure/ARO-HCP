@@ -10,16 +10,18 @@ is_dev_subscription() {
 }
 
 is_redhat_user(){
-    return $(test "$(az account show --query user.name --output tsv)" = "jaharrin@redhat.com")
+    user=$(az account show --query user.name --output tsv)
+    regex=".*@redhat.com"
+    return $([[ "$user" =~ $regex ]])
 }
 
 is_service_principal(){
     return $(test "$(az account show --query user.type --output tsv)" = "servicePrincipal")
 }
 
-export resource_group=$USER-swiftv2-test-1
-export vnet_name=$USER-swiftv2-test-vnet-1
-export subnet_name=$USER-swiftv2-test-subnet-1
+export resource_group=$USER-swiftv2-test
+export vnet_name=$USER-swiftv2-test-vnet
+export subnet_name=$USER-swiftv2-test-subnet
 export subscription=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 export resource=RedHatOpenShift
 export linked_resource_type=Microsoft.RedHatOpenShift/hcpOpenShiftClusters

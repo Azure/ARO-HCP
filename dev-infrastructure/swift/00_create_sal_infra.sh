@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source sal_env_vars
+source swift_env_vars
 
 if ! is_dev_subscription; then
     error_msg "Check subscription you are logged into it should be: \"ARO SRE Team - INT (EA Subscription 3)\""

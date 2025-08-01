@@ -25,8 +25,6 @@ secondary_context_id=$(uuidgen)
 
 api_version=2021-08-01
 
-echo $location
-
 body=$( jq -n \
     --arg rn $resource \
     --arg lrt $linked_resource_type \
