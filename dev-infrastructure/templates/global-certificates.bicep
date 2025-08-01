@@ -7,7 +7,7 @@ param genevaManageCertificates bool
 param ev2MsiName string
 
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: ev2MsiName 
+  name: ev2MsiName
 }
 
 module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
@@ -17,8 +17,8 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     kvCertOfficerManagedIdentityResourceId: ev2MSI.id
     certDomain: genevaCertificateDomain
     certificateIssuer: genevaCertificateIssuer
-    hostName: genevaCertificateHostName 
+    hostName: genevaCertificateHostName
     keyVaultCertificateName: genevaLogsAccountAdmin
-    certificateAccessManagedIdentityPrincipalId: ev2MSI.properties.principalId 
+    certificateAccessManagedIdentityPrincipalId: ev2MSI.properties.principalId
   }
 }
