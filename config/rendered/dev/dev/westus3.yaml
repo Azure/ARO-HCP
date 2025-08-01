@@ -156,11 +156,12 @@ frontend:
     exporter: ""
 geneva:
   logs:
+    adminCertName: geneva-logs-admin-dev
     administrators:
       alias:
       - AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
-    certificateDomain: aro-hcp-dev.azure.com
+    certificateDomain: geneva.keyvault.aro-hcp-dev.azure.com
     certificateIssuer: Self
     cluster:
       accountName: placeholder

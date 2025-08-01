@@ -1007,6 +1007,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "adminCertName":{
+              "type": "string"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
