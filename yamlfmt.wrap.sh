@@ -5,13 +5,8 @@ set -o nounset
 set -o pipefail
 set -o xtrace
 
-source "hack/utils.sh"
-
+PROJECT_ROOT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+make -s -C "${PROJECT_ROOT_DIR}/tooling/yamlwrap" yamlwrap
 while IFS= read -r file; do
-  # Step 1: Wrap with quotes
-  os::util::sed -E "s/(:|-) \{\{\s*([^}]+)\s*\}\}$/\1 '{{ \2 }}'/g" "$file"
-  # Step 2: Remove leading spaces inside quotes
-  os::util::sed -E "s/'\\{\\{ +/'{{ /g" "$file"
-  # Step 3: Remove trailing spaces inside quotes
-  os::util::sed -E "s/ +\\}\\}'/ }}'/g" "$file"
+  tooling/yamlwrap/yamlwrap wrap --input "$file" --no-validate-result
 done < <(grep -r -l -E '(:|-) \{\{\s*[^}]+\s*\}\}$' --include '*.yaml' --include '*.yml' . || true)

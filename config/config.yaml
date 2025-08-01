@@ -69,9 +69,21 @@ defaults:
     svc:
       name: 'arohcpsvc{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: false
+        days: 365
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: true
+        days: 90
+    msft:
+      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
+      zoneRedundantMode: Enabled
+      untaggedImagesRetention:
+        enabled: true
+        days: 365
   # ACR Pull
   acrPull:
     image:
@@ -120,8 +132,10 @@ defaults:
         alias:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      adminCertName: "geneva-logs-admin-{{ .ctx.environment }}"
+      manageCertificates: true
       certificateIssuer: Self
-      certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"
+      certificateDomain: "geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
       typeName: ""
       environment: "Test"
       cluster:
@@ -149,9 +163,9 @@ defaults:
   # Log settings
   logs:
     mdsd:
-      namespace: logs
+      namespace: arobit
       msiName: logs-mdsd
-      serviceAccountName: genevabit-aggregator
+      serviceAccountName: arobit-forwarder
       cert:
         name: ""
         type: ""
@@ -171,6 +185,7 @@ defaults:
     svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
     icm:
+      manageConnection: true
       connectionName: ""
       connectionId: ""
       environment: ""
@@ -391,6 +406,21 @@ defaults:
       zoneRedundantMode: 'Auto'
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+  # Billing
+  billing:
+    aub:
+      accountName: ""
+      cloudSuffix: ""
+    pav2:
+      cloudName: ""
+    kusto:
+      clusterName: ""
+    cosmosDB:
+      name: ""
+    eventHub:
+      namespace: ""
+      subscriptionId: ""
+      resourceGroupName: ""
   # Mise
   mise:
     deploy: false
@@ -479,6 +509,10 @@ defaults:
       # - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1748436890103839
       # - https://redhat-internal.slack.com/archives/C057Y3D4E1J/p1749128475749979
       pauseReconciliation: true
+      bundle:
+        registry: registry.redhat.io
+        repository: multicluster-engine/mce-operator-bundle
+        digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef # v2.8.1-12
   # Cluster Service
   clustersService:
     image:
@@ -753,6 +787,8 @@ clouds:
           zoneRedundantMode: Disabled
       # Metrics
       monitoring:
+        icm:
+          manageConnection: false
         grafanaName: arohcp-dev
         grafanaMajorVersion: '11'
         grafanaZoneRedundantMode: Disabled
@@ -791,7 +827,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
+              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
@@ -827,6 +863,10 @@ clouds:
                 maxCount: 3
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
@@ -887,6 +927,10 @@ clouds:
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -907,7 +951,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.mds.svc.cluster.local:24224
+              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'

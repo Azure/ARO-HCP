@@ -1,12 +1,28 @@
 acm:
   mce:
+    bundle:
+      digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
+      registry: registry.redhat.io
+      repository: multicluster-engine/mce-operator-bundle
     pauseReconciliation: true
 acr:
+  msft:
+    name: arohcpocpntly
+    untaggedImagesRetention:
+      days: 365
+      enabled: true
+    zoneRedundantMode: Enabled
   ocp:
     name: arohcpocpdev
+    untaggedImagesRetention:
+      days: 90
+      enabled: true
     zoneRedundantMode: Disabled
   svc:
     name: arohcpsvcdev
+    untaggedImagesRetention:
+      days: 365
+      enabled: false
     zoneRedundantMode: Disabled
 acrPull:
   image:
@@ -44,6 +60,20 @@ backplaneAPI:
     digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
     registry: quay.io
     repository: app-sre/backplane-api
+billing:
+  aub:
+    accountName: ""
+    cloudSuffix: ""
+  cosmosDB:
+    name: ""
+  eventHub:
+    namespace: ""
+    resourceGroupName: ""
+    subscriptionId: ""
+  kusto:
+    clusterName: ""
+  pav2:
+    cloudName: ""
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
@@ -130,11 +160,12 @@ frontend:
     exporter: ""
 geneva:
   logs:
+    adminCertName: geneva-logs-admin-ntly
     administrators:
       alias:
       - AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
-    certificateDomain: aro-hcp-ntly.azure.com
+    certificateDomain: geneva.keyvault.aro-hcp-ntly.azure.com
     certificateIssuer: Self
     cluster:
       accountName: placeholder
@@ -143,6 +174,7 @@ geneva:
       san: ""
       secretName: clusterlogs
     environment: Test
+    manageCertificates: true
     rp:
       accountName: placeholder
       configVersion: "1"
@@ -226,8 +258,8 @@ logs:
       name: ""
       type: ""
     msiName: logs-mdsd
-    namespace: logs
-    serviceAccountName: genevabit-aggregator
+    namespace: arobit
+    serviceAccountName: arobit-forwarder
     subscriptions: []
 maestro:
   agent:
@@ -384,6 +416,7 @@ monitoring:
     connectionId: ""
     connectionName: ""
     environment: ""
+    manageConnection: false
     sl:
       actionGroupName: ""
       actionGroupShortName: ""

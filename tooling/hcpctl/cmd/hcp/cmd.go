@@ -28,6 +28,7 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "hcp",
+		Aliases: []string{"hc", "h"},
 		Short:   "Hosted Control Plane (HCP) operations",
 		GroupID: group,
 		Long: `hcp provides emergency access operations for hosted control planes.
@@ -62,8 +63,9 @@ func newBreakglassCommand() (*cobra.Command, error) {
 	opts := DefaultBreakglassHCPOptions()
 
 	cmd := &cobra.Command{
-		Use:   "breakglass CLUSTER",
-		Short: "Get emergency access to HCP clusters",
+		Use:     "breakglass CLUSTER",
+		Aliases: []string{"br"},
+		Short:   "Get emergency access to HCP clusters",
 		Long: `Get emergency break-glass access to hosted control plane clusters.
 
 This command provides temporary emergency access to HCP clusters.
@@ -94,8 +96,9 @@ func newListCommand() (*cobra.Command, error) {
 	listOpts := DefaultListHCPOptions()
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List available HCP clusters",
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List available HCP clusters",
 		Long: `List all hosted control plane clusters available on the current management cluster.
 
 This command displays clusters with their identifiers and resource information

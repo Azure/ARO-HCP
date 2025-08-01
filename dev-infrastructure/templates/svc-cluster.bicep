@@ -324,6 +324,9 @@ param genevaCertificateIssuer string = 'Self'
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
+@description('Should geneva certificates be managed')
+param genevaManageCertificates bool
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -762,8 +765,8 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
 //   G E N E V A   C E R T I F I C A T E
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = {
-  name: 'geneva-rp-certificate'
+module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+  name: 'geneva-rp-certificate-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName

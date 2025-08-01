@@ -214,12 +214,31 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "untaggedImagesRetention": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365,
+              "description": "Number of days to retain untagged images"
+            }
+          },
+          "required": [
+            "enabled",
+            "days"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
-        "zoneRedundantMode"
+        "zoneRedundantMode",
+        "untaggedImagesRetention"
       ]
     },
     "nsp": {
@@ -588,6 +607,9 @@
         "mce": {
           "type": "object",
           "properties": {
+            "bundle": {
+              "$ref": "#/definitions/containerImage"
+            },
             "pauseReconciliation": {
               "type": "boolean",
               "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."
@@ -836,6 +858,86 @@
         "tracing"
       ]
     },
+    "billing": {
+      "type": "object",
+      "properties": {
+        "aub": {
+          "type": "object",
+          "properties": {
+            "accountName": {
+              "type": "string"
+            },
+            "cloudSuffix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "accountName",
+            "cloudSuffix"
+          ]
+        },
+        "pav2": {
+          "type": "object",
+          "properties": {
+            "cloudName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "cloudName"
+          ]
+        },
+        "kusto": {
+          "type": "object",
+          "properties": {
+            "clusterName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "clusterName"
+          ]
+        },
+        "cosmosDB": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "eventHub": {
+          "type": "object",
+          "properties": {
+            "namespace": {
+              "type": "string"
+            },
+            "subscriptionId": {
+              "type": "string"
+            },
+            "resourceGroupName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "namespace",
+            "subscriptionId",
+            "resourceGroupName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "aub",
+        "pav2",
+        "kusto",
+        "cosmosDB",
+        "eventHub"
+      ]
+    },    
     "ev2": {
       "type": "object",
       "properties": {
@@ -908,6 +1010,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "adminCertName":{
+              "type": "string"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
@@ -923,6 +1028,9 @@
                 "alias",
                 "securityGroup"
               ]
+            },
+            "manageCertificates": {
+              "type": "boolean"
             },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1467,6 +1575,9 @@
         "icm": {
           "type": "object",
           "properties": {
+            "manageConnection": {
+              "type": "boolean"
+            },
             "connectionName": {
               "type": "string",
               "description": "ICM connection Name"
@@ -1785,12 +1896,16 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        }
+        },
+        "msft": {
+          "$ref": "#/definitions/acr"
+        }        
       },
       "additionalProperties": false,
       "required": [
         "svc",
-        "ocp"
+        "ocp",
+        "msft"
       ]
     },
     "releaseApprover": {
