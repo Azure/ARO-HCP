@@ -43,20 +43,26 @@ func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outpu
 	return ret, nil
 }
 
-func GetOutputValue(deploymentInfo *armresources.DeploymentExtended, outputName string) (interface{}, error) {
+func GetOutputValueBytes(deploymentInfo *armresources.DeploymentExtended, outputName string) ([]byte, error) {
 	outputMap, ok := deploymentInfo.Properties.Outputs.(map[string]interface{})
 	if !ok {
-		return "", fmt.Errorf("failed to cast deployment outputs to map[string]interface{}, was %T", deploymentInfo.Properties.Outputs)
+		return nil, fmt.Errorf("failed to cast deployment outputs to map[string]interface{}, was %T", deploymentInfo.Properties.Outputs)
 	}
 
-	ret, found, err := unstructured.NestedFieldCopy(outputMap, outputName, "value")
+	val, found, err := unstructured.NestedFieldNoCopy(outputMap, outputName, "value")
 	if err != nil {
-		return "", fmt.Errorf("failed to get output value for %q: %w", outputName, err)
+		return nil, fmt.Errorf("failed to get output value for %q: %w", outputName, err)
 	}
 	if !found {
-		return "", fmt.Errorf("output %q not found", outputName)
+		return nil, fmt.Errorf("output %q not found", outputName)
 	}
-	return ret, nil
+
+	bytes, err := json.Marshal(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal output value for %q: %w", outputName, err)
+	}
+
+	return bytes, nil
 }
 
 // CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
