@@ -156,6 +156,8 @@ frontend:
     exporter: otlp
 geneva:
   logs:
+    adminCertDomain: ""
+    adminCertName: geneva-logs-admin-pers
     administrators:
       alias:
       - AME\WEINONGW

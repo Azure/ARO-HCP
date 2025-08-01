@@ -156,6 +156,8 @@ frontend:
     exporter: ""
 geneva:
   logs:
+    adminCertDomain: ""
+    adminCertName: geneva-logs-admin-cspr
     administrators:
       alias:
       - AME\WEINONGW

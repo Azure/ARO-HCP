@@ -132,6 +132,8 @@ defaults:
         alias:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      adminCertName: "geneva-logs-admin-{{ .ctx.environment }}"
+      adminCertDomain: ""
       manageCertificates: true
       certificateIssuer: Self
       certificateDomain: "aro-hcp-{{ .ctx.environment }}.azure.com"

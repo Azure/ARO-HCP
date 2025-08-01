@@ -329,3 +329,5 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = {
     oidcMsiName: oidcMsiName
   }
 }
+
+output globalKeyVaultUrl string = globalKV.outputs.kvUrl
