@@ -79,7 +79,7 @@ defaults:
         enabled: true
         days: 90
     msft:
-      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
+      name: 'arohcpmsft{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
       untaggedImagesRetention:
         enabled: true
