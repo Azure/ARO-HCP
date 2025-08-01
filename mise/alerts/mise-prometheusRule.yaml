@@ -13,10 +13,7 @@ spec:
   - name: mise
     rules:
     - alert: MiseEnvoyScrapeDown
-      expr: |
-        absent(up{job="envoy-stats", namespace="mise"}) 
-        or 
-        (up{job="envoy-stats", namespace="mise"} == 0)
+      expr: "absent(up{job=\"envoy-stats\", namespace=\"mise\"}) \nor \n(up{job=\"envoy-stats\", namespace=\"mise\"} == 0)\n"
       for: 2m
       labels:
         severity: critical
