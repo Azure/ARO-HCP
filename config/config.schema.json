@@ -861,6 +861,9 @@
     "billing": {
       "type": "object",
       "properties": {
+        "rg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
         "aub": {
           "type": "object",
           "properties": {
@@ -931,6 +934,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "rg",
         "aub",
         "pav2",
         "kusto",
@@ -1206,6 +1210,18 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "billing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rg": {
+              "$ref": "#/definitions/resourceGroupName"
+            }
+          },
+          "required": [
+            "rg"
+          ]
+        },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
@@ -1230,6 +1246,7 @@
       },
       "required": [
         "rg",
+        "billing",
         "subscription",
         "region",
         "keyVault"

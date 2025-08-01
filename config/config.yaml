@@ -54,6 +54,8 @@ defaults:
           - name: IstioNativeSidecarModePreview
             poll: true
     rg: global-shared-resources
+    billing:
+      rg: "placeholder"
     globalMSIName: global-ev2-identity
     nsp:
       name: nsp-global
@@ -79,10 +81,10 @@ defaults:
         enabled: true
         days: 90
     msft:
-      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
-      zoneRedundantMode: Enabled
+      name: 'placeholder'
+      zoneRedundantMode: Disabled
       untaggedImagesRetention:
-        enabled: true
+        enabled: false
         days: 365
   # ACR Pull
   acrPull:
@@ -408,6 +410,7 @@ defaults:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Billing
   billing:
+    rg: "placeholder"
     aub:
       accountName: ""
       cloudSuffix: ""

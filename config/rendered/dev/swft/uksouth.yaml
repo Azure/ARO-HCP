@@ -7,11 +7,11 @@ acm:
     pauseReconciliation: true
 acr:
   msft:
-    name: arohcpocpswft
+    name: placeholder
     untaggedImagesRetention:
       days: 365
-      enabled: true
-    zoneRedundantMode: Enabled
+      enabled: false
+    zoneRedundantMode: Disabled
   ocp:
     name: arohcpocpdev
     untaggedImagesRetention:
@@ -74,6 +74,7 @@ billing:
     clusterName: ""
   pav2:
     cloudName: ""
+  rg: placeholder
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
@@ -192,6 +193,8 @@ geneva:
 genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
+  billing:
+    rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
     name: arohcpdev-global
