@@ -285,6 +285,9 @@ resourceGroups:
       configRef: region
     - name: GENEVA_ENVIRONMENT
       configRef: geneva.logs.environment
+    dependsOn:
+      - svc
+      - global-output
     shellIdentity:
       input:
         step: global-output
