@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
   - ../frontend/alerts/frontend-prometheusRule.yaml
+  - ../mise/alerts/mise-prometheusRule.yaml
   untestedRules:
   - ../observability/alerts/HCPkasMonitor-promehteusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep

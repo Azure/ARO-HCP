@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: mise-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: mise
+    rules:
+    - alert: MiseEnvoyScrapeDown
+      expr: |
+        absent(up{job="envoy-stats", namespace="mise"}) 
+        or 
+        (up{job="envoy-stats", namespace="mise"} == 0)
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Envoy scrape target down for namespace=mise"
+        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
