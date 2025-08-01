@@ -412,6 +412,7 @@ monitoring:
     connectionId: ""
     connectionName: ""
     environment: ""
+    manageConnection: false
     sl:
       actionGroupName: ""
       actionGroupShortName: ""

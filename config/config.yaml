@@ -185,6 +185,7 @@ defaults:
     svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
     icm:
+      manageConnection: false
       connectionName: ""
       connectionId: ""
       environment: ""
