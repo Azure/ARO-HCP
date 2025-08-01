@@ -333,7 +333,7 @@ func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
 	client, ok := internalID.GetNodePoolClient(csc.conn)
 	if !ok {
-		return fmt.Errorf("OCM path is not an external: %s", internalID)
+		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
 	_, err := client.Delete().SendContext(ctx)
 	return err
