@@ -38,7 +38,7 @@ const (
 var (
 	ClusterResourceType      = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
 	NodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterVersionTypeName+"/"+ExternalAuthResourceTypeName)
+	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
 )
