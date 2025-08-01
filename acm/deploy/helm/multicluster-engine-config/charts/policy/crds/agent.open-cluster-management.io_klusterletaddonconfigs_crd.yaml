@@ -1,8 +1,5 @@
 # Copyright (c) 2020 Red Hat, Inc.
-
 # Copyright Contributors to the Open Cluster Management project
-
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -80,8 +77,7 @@ spec:
                 description: DEPRECATED in release 2.11 and will be removed in the future since not used anymore.
                 properties:
                   enabled:
-                    description: Enabled is the flag to enable/disable the addon.
-                      default is false.
+                    description: Enabled is the flag to enable/disable the addon. default is false.
                     type: boolean
                   proxyPolicy:
                     description: |-
