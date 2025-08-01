@@ -7,7 +7,7 @@ acm:
     pauseReconciliation: true
 acr:
   msft:
-    name: arohcpmsftperf
+    name: aromsftperf
     untaggedImagesRetention:
       days: 365
       enabled: true
