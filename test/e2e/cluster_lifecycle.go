@@ -17,11 +17,13 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/uuid"
 
@@ -172,7 +174,14 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Sending a PUT request to create the cluster")
-		// Use the pre-configured clustersClient that has the systemData policy applied
+		// Initialize the clustersClient using the ARM client factory
+		clientFactory := ic.GetARMResourcesClientFactoryOrDie(ctx)
+		// Use reflection to access unexported fields
+		subscriptionID := reflect.ValueOf(clientFactory).Elem().FieldByName("subscriptionID").String()
+		credential := reflect.ValueOf(clientFactory).Elem().FieldByName("credential").Interface().(azcore.TokenCredential)
+		clustersClient, err = api.NewHcpOpenShiftClustersClient(subscriptionID, credential, nil)
+		Expect(err).NotTo(HaveOccurred(), "failed to create clustersClient")
+
 		createPoller, err := clustersClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterName, clusterResource, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to start cluster creation")
 
