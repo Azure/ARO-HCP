@@ -43,11 +43,11 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 
 /** Condition defines an observation of the external auth state. */
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"                         visibility:"read"     validate:"omitempty,enum_externalauthconditiontype"`
-	Status             ConditionStatusType       `json:"status"                       visibility:"read"     validate:"omitempty,enum_externalauthconditionstatustype"`
-	LastTransitionTime time.Time                 `json:"lastTransitionTime"           visibility:"read"`
-	Reason             string                    `json:"reason"                       visibility:"read"`
-	Message            string                    `json:"message"                      visibility:"read"`
+	ConditionType      ExternalAuthConditionType `json:"type"                   validate:"omitempty,enum_externalauthconditiontype"`
+	Status             ConditionStatusType       `json:"status"                 validate:"omitempty,enum_externalauthconditionstatustype"`
+	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
+	Reason             string                    `json:"reason"`
+	Message            string                    `json:"message"`
 }
 
 /** Token issuer profile
@@ -83,8 +83,8 @@ type ExternalAuthClientComponentProfile struct {
 
 /** External Auth claim profile */
 type ExternalAuthClaimProfile struct {
-	Mappings        TokenClaimMappingsProfile  `json:"mappings"                     visibility:"read create update"`
-	ValidationRules []TokenClaimValidationRule `json:"validationRules,omitempty"    visibility:"read create update"`
+	Mappings        TokenClaimMappingsProfile  `json:"mappings"           visibility:"read create update"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules"    visibility:"read create update"        validate:"omitempty"`
 }
 
 /** External Auth claim mappings profile.
