@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source sal_env_vars
+source swift_env_vars
 
 PFX=fpa.pfx
 CRT=fpa.crt
