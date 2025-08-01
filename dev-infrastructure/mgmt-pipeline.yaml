@@ -306,6 +306,20 @@ resourceGroups:
       configRef: geneva.logs.cluster.namespace
     - name: AROBIT_CLUSTER_TYPE
       value: "mgmt"
+    - name: AROBIT_SECRET_PROVIDER_KEY_VAULT
+      configRef: mgmtKeyVault.name
+    - name: AROBIT_SECRET_PROVIDER_TENANT_ID
+      configRef: tenantId
+    - name: MI_NAME
+      configRef: logs.mdsd.msiName
+    - name: RESOURCEGROUP
+      configRef: mgmt.rg
+    - name: REGION
+      configRef: region
+    - name: GENEVA_ENVIRONMENT
+      configRef: geneva.logs.environment
+    dependsOn:
+    - mgmt-cluster
     shellIdentity:
       input:
         step: global-output
