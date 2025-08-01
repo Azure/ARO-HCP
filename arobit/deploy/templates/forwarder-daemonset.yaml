@@ -242,7 +242,7 @@ spec:
               add: []
               drop: []
           volumeMounts:
-            - name: mdsd-run
+            - name: mdsd-run-clusterlogs
               mountPath: /var/run/mdsd/
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
@@ -269,6 +269,10 @@ spec:
             path: /etc/ssl/certs/ca-certificates.crt
         - name: mdsd-run
           emptyDir: {}
+        {{- if .Values.forwarder.clusterType | eq "mgmt" }}
+        - name: mdsd-run-clusterlogs
+          emptyDir: {}
+        {{- end }}
         - name: flb-config
           configMap:
             name: arobit-forwarder

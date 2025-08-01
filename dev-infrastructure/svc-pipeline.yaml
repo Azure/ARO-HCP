@@ -273,9 +273,18 @@ resourceGroups:
       configRef: geneva.logs.rp.namespace
     - name: AROBIT_CLUSTER_TYPE
       value: "svc"
-    dependsOn:
-    - svc
-    - global-output
+    - name: AROBIT_SECRET_PROVIDER_KEY_VAULT
+      configRef: serviceKeyVault.name
+    - name: AROBIT_SECRET_PROVIDER_TENANT_ID
+      configRef: tenantId
+    - name: MI_NAME
+      configRef: logs.mdsd.msiName
+    - name: RESOURCEGROUP
+      configRef: svc.rg
+    - name: REGION
+      configRef: region
+    - name: GENEVA_ENVIRONMENT
+      configRef: geneva.logs.environment
     shellIdentity:
       input:
         step: global-output

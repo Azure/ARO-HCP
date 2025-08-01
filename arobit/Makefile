@@ -2,6 +2,8 @@
 -include ../helm-cmd.mk
 
 deploy:
+	CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	helm template arobit \
 		deploy/ \
 		--namespace mds \
@@ -11,8 +13,13 @@ deploy:
 		--set forwarder.mdsd.image.registry=${AROBIT_MDSD_REGISTRY} \
 		--set forwarder.mdsd.image.repository=${AROBIT_MDSD_REPOSITORY} \
 		--set forwarder.mdsd.image.digest=${AROBIT_MDSD_DIGEST} \
+		--set forwarder.mdsd.geneva.region=${REGION} \
+		--set forwarder.mdsd.geneva.environment=${GENEVA_ENVIRONMENT} \
 		--set forwarder.clusterType=${AROBIT_CLUSTER_TYPE} \
 		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED} \
+		--set forwarder.secretProvider.keyVault=${AROBIT_SECRET_PROVIDER_KEY_VAULT} \
+		--set forwarder.secretProvider.msiClientId=$${CLIENT_ID} \
+		--set forwarder.secretProvider.tenantId=$${TENANT_ID} \
 		--set forwarder.mdsd.geneva.rpAccountName=${AROBIT_GENEVA_RP_ACCOUNT_NAME} \
 		--set forwarder.mdsd.geneva.rpSecretName=${AROBIT_GENEVA_RP_SECRET_NAME} \
 		--set forwarder.mdsd.geneva.rpSan=${AROBIT_GENEVA_RP_SAN} \
