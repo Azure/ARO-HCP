@@ -29,6 +29,7 @@ import (
 // ClusterConfig defines the configuration for a cluster command type
 type ClusterConfig struct {
 	CommandName         string
+	Aliases             []string
 	DisplayName         string
 	ShortName           string
 	CompleteBreakglass  func(context.Context, *ValidatedBreakglassAKSOptions) (*CompletedBreakglassAKSOptions, error)
@@ -41,6 +42,7 @@ type ClusterConfig struct {
 func NewClusterCommand(config ClusterConfig, group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     config.CommandName,
+		Aliases: config.Aliases,
 		Short:   fmt.Sprintf("%s (%s) operations", config.DisplayName, config.ShortName),
 		GroupID: group,
 		Long: fmt.Sprintf(`%s provides %s operations for ARO-HCP.
@@ -75,8 +77,9 @@ func newBreakglassCommand(config ClusterConfig) (*cobra.Command, error) {
 	opts := DefaultBreakglassAKSOptions()
 
 	cmd := &cobra.Command{
-		Use:   "breakglass AKS_NAME",
-		Short: fmt.Sprintf("Get access to a %s", config.DisplayName),
+		Use:     "breakglass AKS_NAME",
+		Aliases: []string{"br"},
+		Short:   fmt.Sprintf("Get access to a %s", config.DisplayName),
 		Long: fmt.Sprintf(`Get access to an AKS %s for operational tasks.
 
 %s
@@ -114,8 +117,9 @@ func newListCommand(config ClusterConfig) (*cobra.Command, error) {
 	listOpts := DefaultListAKSOptions()
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: fmt.Sprintf("List available %ss", config.DisplayName),
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   fmt.Sprintf("List available %ss", config.DisplayName),
 		Long: fmt.Sprintf(`List all AKS %ss available for operational access.
 
 This command searches across all Azure subscriptions for the AKS clusters that

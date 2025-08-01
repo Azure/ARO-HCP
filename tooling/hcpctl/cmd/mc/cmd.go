@@ -23,6 +23,7 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	config := base.ClusterConfig{
 		CommandName:         "mc",
+		Aliases:             []string{"m"},
 		DisplayName:         "Management Cluster",
 		ShortName:           "MC",
 		CompleteBreakglass:  CompleteBreakglassMC,
