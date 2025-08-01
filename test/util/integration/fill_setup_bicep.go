@@ -41,7 +41,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 	nodepoolName := "nodepool-1"
 
 	// 2. Pass as parameters to bicep
-	parameters := map[string]string{
+	parameters := map[string]interface{}{
 		"clusterName": clusterName,
 	}
 
@@ -96,30 +96,30 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 	}
 
 	// Extract outputs
-	userAssignedIdentitiesValueStr, err := framework.GetOutputValueString(deploymentResult, "userAssignedIdentitiesValue")
+	userAssignedIdentitiesValueBytes, err := framework.GetOutputValueBytes(deploymentResult, "userAssignedIdentitiesValue")
 	if err != nil {
 		log.Logger.Warnf("Failed to extract userAssignedIdentitiesValue from deployment outputs: %v", err)
 	}
-	identityValueStr, err := framework.GetOutputValueString(deploymentResult, "identityValue")
+	identityValueBytes, err := framework.GetOutputValueBytes(deploymentResult, "identityValue")
 	if err != nil {
 		log.Logger.Warnf("Failed to extract identityValue from deployment outputs: %v", err)
 	}
 
-	// Convert userAssignedIdentitiesValueStr to api.UserAssignedIdentitiesProfile
+	// Convert userAssignedIdentitiesValue to api.UserAssignedIdentitiesProfile
 	var uamis api.UserAssignedIdentitiesProfile
-	if userAssignedIdentitiesValueStr != "" {
-		err := json.Unmarshal([]byte(userAssignedIdentitiesValueStr), &uamis)
+	if userAssignedIdentitiesValueBytes != nil {
+		err := json.Unmarshal(userAssignedIdentitiesValueBytes, &uamis)
 		if err != nil {
-			log.Logger.Warnf("Failed to unmarshal userAssignedIdentitiesValueStr: %v", err)
+			log.Logger.Warnf("Failed to unmarshal userAssignedIdentitiesValue: %v", err)
 		}
 	}
 
-	// Convert identityValueStr to map[string]api.UserAssignedIdentity
-	identityUAMIs := map[string]api.UserAssignedIdentity{}
-	if identityValueStr != "" {
-		err := json.Unmarshal([]byte(identityValueStr), &identityUAMIs)
+	// Convert identityValue to api.ManagedServiceIdentity
+	identityUAMIs := api.ManagedServiceIdentity{}
+	if identityValueBytes != nil {
+		err := json.Unmarshal(identityValueBytes, &identityUAMIs)
 		if err != nil {
-			log.Logger.Warnf("Failed to unmarshal identityValueStr: %v", err)
+			log.Logger.Warnf("Failed to unmarshal identityValue: %v", err)
 		}
 	}
 
