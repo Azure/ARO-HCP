@@ -23,7 +23,6 @@ spec:
         app: arobit-forwarder
     spec:
       serviceAccountName: {{ .Values.forwarder.serviceAccountName }}
-      priorityClassName: {{ .Values.forwarder.priorityClassName | quote }}
       shareProcessNamespace: true
       containers:
         - name: fluentbit
