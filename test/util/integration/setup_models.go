@@ -34,11 +34,11 @@ type E2ESetup struct {
 }
 
 type CustomerEnv struct {
-	CustomerRGName   string                                    `json:"customer_rg_name,omitempty"`
-	CustomerVNetName string                                    `json:"customer_vnet_name,omitempty"`
-	CustomerNSGName  string                                    `json:"customer_nsg_name,omitempty"`
-	UAMIs            generated.UserAssignedIdentitiesProfile   `json:"uamis,omitempty"`
-	IdentityUAMIs    map[string]generated.UserAssignedIdentity `json:"identity_uamis,omitempty"`
+	CustomerRGName   string                                  `json:"customer_rg_name,omitempty"`
+	CustomerVNetName string                                  `json:"customer_vnet_name,omitempty"`
+	CustomerNSGName  string                                  `json:"customer_nsg_name,omitempty"`
+	UAMIs            generated.UserAssignedIdentitiesProfile `json:"uamis,omitempty"`
+	IdentityUAMIs    generated.ManagedServiceIdentity        `json:"identity_uamis,omitempty"`
 }
 
 type Cluster struct {

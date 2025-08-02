@@ -22,6 +22,14 @@ The test suite depends on a JSON file with a deterministic structure. Provide th
 - customer environment
 - cluster and its nodepools
 
+### Fallback to Bicep Setup
+
+If you want the E2E Test Suite to use a Bicep file as a fallback for setup, set the environment variable **FALLBACK_TO_BICEP** to the name of the Bicep file (without the `.bicep` extension) you wish to use (e.g., `demo` for `demo.bicep`).
+
+**Important:**  
+- When using `FALLBACK_TO_BICEP`, you must run the `bicep-build` Makefile rule before running the E2E Test Suite to ensure the Bicep file is properly built and available.
+- If `FALLBACK_TO_BICEP` is set, the `SETUP_FILEPATH` variable must either be unset or set to a non-existent `e2e-setup.json` file. This ensures the test suite will trigger the fallback logic and use the Bicep file for setup.
+
 ### Build Tag
 To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
 
@@ -45,6 +53,29 @@ Run all test cases: `ginkgo --tags E2Etests ./`
 Run specific test case: `ginkgo --tags E2Etests --focus "<regex>" ./`
 
 Run in debug mode: `ginkgo --tags E2Etests --vv ./`
+
+## Run E2E tests locally against integration environment using Bicep fallback
+
+Fallback to Bicep setup is only supported when running against the integration or higher environment. The following steps describe how to run the E2E test suite locally with Bicep fallback:
+
+1. Login with AZ CLI
+2. Export environment variables LOCAL_DEVELOPMENT, AROHCP_ENV, CUSTOMER_SUBSCRIPTION, and FALLBACK_TO_BICEP (do not set SETUP_FILEPATH, or set it to a non-existent file):
+
+```bash
+export LOCAL_DEVELOPMENT=true
+export AROHCP_ENV=integration
+export CUSTOMER_SUBSCRIPTION=<subscriptionId>
+export FALLBACK_TO_BICEP=demo  # for demo.bicep
+unset SETUP_FILEPATH  # or: export SETUP_FILEPATH=nonexistent-e2e-setup.json
+```
+
+3. Build the Bicep file before running tests:
+
+```bash
+make bicep-build
+```
+
+4. Run test suite
 
 ## Writing E2E test with ginkgo
 
