@@ -418,6 +418,10 @@
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
     },
+    "csv": {
+      "type": "string",
+      "pattern": "^$|^[\\w-\\.]+(,[\\w-\\.]+)*$"
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
@@ -604,9 +608,34 @@
     "acm": {
       "type": "object",
       "properties": {
+        "operator": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "mirrorAdditionalVersions": {
+              "$ref": "#/definitions/csv"
+            },
+            "bundle": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "required": [
+            "version",
+            "mirrorAdditionalVersions",
+            "bundle"
+          ]
+        },
         "mce": {
           "type": "object",
           "properties": {
+            "version": {
+              "type": "string"
+            },
+            "mirrorAdditionalVersions": {
+              "$ref": "#/definitions/csv"
+            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             },
@@ -617,12 +646,16 @@
           },
           "additionalProperties": false,
           "required": [
+            "version",
+            "mirrorAdditionalVersions",
+            "bundle",
             "pauseReconciliation"
           ]
         }
       },
       "additionalProperties": false,
       "required": [
+        "operator",
         "mce"
       ]
     },
