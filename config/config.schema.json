@@ -1913,16 +1913,12 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        },
-        "msft": {
-          "$ref": "#/definitions/acr"
-        }        
+        }       
       },
       "additionalProperties": false,
       "required": [
         "svc",
-        "ocp",
-        "msft"
+        "ocp"
       ]
     },
     "releaseApprover": {

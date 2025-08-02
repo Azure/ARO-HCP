@@ -6,12 +6,6 @@ acm:
       repository: multicluster-engine/mce-operator-bundle
     pauseReconciliation: true
 acr:
-  msft:
-    name: placeholder
-    untaggedImagesRetention:
-      days: 365
-      enabled: false
-    zoneRedundantMode: Disabled
   ocp:
     name: arohcpocpdev
     untaggedImagesRetention:
