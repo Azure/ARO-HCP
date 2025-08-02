@@ -43,6 +43,8 @@ const (
 	azureNodePoolEncryptionAtHostDisabled string = "disabled"
 	azureNodePoolEncryptionAtHostEnabled  string = "enabled"
 	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
+	csImageRegistryStateDisabled          string = "disabled"
+	csImageRegistryStateEnabled           string = "enabled"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -91,6 +93,19 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 	}
 
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
+}
+
+func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) *arohcpv1alpha1.ClusterImageRegistryBuilder {
+	var state string
+	if in.State != nil {
+		switch *in.State {
+		case api.ClusterImageRegistryProfileStateDisabled:
+			state = csImageRegistryStateDisabled
+		case api.ClusterImageRegistryProfileStateEnabled:
+			state = csImageRegistryStateEnabled
+		}
+	}
+	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
 }
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
@@ -150,7 +165,6 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 // func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
 // 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode))
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 // 	if in.DataEncryption.CustomerManaged.Kms != nil || in.DataEncryption.CustomerManaged.EncryptionType != "" {
 // 		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
 // 		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
@@ -162,6 +176,22 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 // }
 
+func convertClusterImageRegistryStateCSToRP(in *arohcpv1alpha1.Cluster) *api.ClusterImageRegistryProfileState {
+	var registryState *api.ClusterImageRegistryProfileState
+	if clusterImageRegistry, ok := in.GetImageRegistry(); ok {
+		if state, ok := clusterImageRegistry.GetState(); ok {
+			switch state {
+			case csImageRegistryStateDisabled:
+				registryState = api.Ptr(api.ClusterImageRegistryProfileStateDisabled)
+			case csImageRegistryStateEnabled:
+				registryState = api.Ptr(api.ClusterImageRegistryProfileStateEnabled)
+			}
+		}
+	}
+	return registryState
+}
+
+// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
@@ -211,6 +241,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
+			ClusterImageRegistry: api.ClusterImageRegistryProfile{
+				State: convertClusterImageRegistryStateCSToRP(cluster),
+			},
 		},
 	}
 
@@ -340,8 +373,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility)))
-
+			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
+		ImageRegistry(convertClusterImageRegistryToCSBuilder(hcpCluster.Properties.ClusterImageRegistry))
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(subscriptionID).

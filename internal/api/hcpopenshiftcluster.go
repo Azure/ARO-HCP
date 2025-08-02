@@ -35,16 +35,17 @@ type HCPOpenShiftCluster struct {
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
-	ProvisioningState       arm.ProvisioningState     `json:"provisioningState,omitempty"       visibility:"read"`
-	Version                 VersionProfile            `json:"version,omitempty"`
-	DNS                     DNSProfile                `json:"dns,omitempty"`
-	Network                 NetworkProfile            `json:"network,omitempty"                 visibility:"read create"`
-	Console                 ConsoleProfile            `json:"console,omitempty"                 visibility:"read"`
-	API                     APIProfile                `json:"api,omitempty"`
-	Platform                PlatformProfile           `json:"platform,omitempty"                visibility:"read create"`
-	Autoscaling             ClusterAutoscalingProfile `json:"autoscaling,omitempty"             visibility:"read create update"`
-	NodeDrainTimeoutMinutes int32                     `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
-	Etcd                    EtcdProfile               `json:"etcd,omitempty"                   visibility:"read create"`
+	ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
+	Version                 VersionProfile              `json:"version,omitempty"`
+	DNS                     DNSProfile                  `json:"dns,omitempty"`
+	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
+	Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
+	API                     APIProfile                  `json:"api,omitempty"`
+	Platform                PlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
+	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
+	Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
+	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -146,6 +147,15 @@ type UserAssignedIdentitiesProfile struct {
 	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+}
+
+// ClusterImageRegistryProfile - OpenShift cluster image registry
+type ClusterImageRegistryProfile struct {
+	// state indicates the desired ImageStream-backed cluster image registry installation mode. This can only be set during cluster
+	// creation and cannot be changed after cluster creation. Enabled means the
+	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
+	// image registry will not be present in the cluster. The default is Enabled.
+	State *ClusterImageRegistryProfileState `json:"state,omitempty" validate:"omitempty,enum_clusterimageregistryprofilestate"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

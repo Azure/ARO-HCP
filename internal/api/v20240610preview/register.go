@@ -57,4 +57,5 @@ func init() {
 	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
 	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+	validate.RegisterAlias("enum_clusterimageregistryprofilestate", api.EnumValidateTag(generated.PossibleClusterImageRegistryProfileStateValues()...))
 }

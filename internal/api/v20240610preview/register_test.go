@@ -112,6 +112,8 @@ func TestClusterStructTagMap(t *testing.T) {
 		"Properties.Autoscaling.MaxNodeProvisionTimeSeconds":                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Autoscaling.PodPriorityThreshold":                            api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.NodeDrainTimeoutMinutes":                                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.ClusterImageRegistry":                                        api.VisibilityRead | api.VisibilityCreate,
+		"Properties.ClusterImageRegistry.State":                                  api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Etcd":                                                        skip,
 		"Properties.Etcd.DataEncryption":                                         skip,
 		"Properties.Etcd.DataEncryption.CustomerManaged":                         skip,

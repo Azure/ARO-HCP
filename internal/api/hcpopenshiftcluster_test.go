@@ -266,6 +266,22 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "Bad enum_clusterimageregistryprofilestate",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					ClusterImageRegistry: ClusterImageRegistryProfile{
+						State: Ptr(ClusterImageRegistryProfileState("not enabled")),
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'not enabled' for field 'state' (must be one of: Enabled Disabled)",
+					Target:  "properties.clusterImageRegistry.state",
+				},
+			},
+		},
+		{
 			name: "Base domain prefix is too long",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
