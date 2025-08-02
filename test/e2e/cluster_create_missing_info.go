@@ -29,6 +29,7 @@ import (
 var _ = Describe("Customer", func() {
 	BeforeEach(func() {
 		// do nothing.  per test initialization usually ages better than shared.
+		// trigger CI
 	})
 
 	for _, version := range []string{
