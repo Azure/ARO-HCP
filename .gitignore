@@ -18,4 +18,4 @@ tooling/bin
 **/__pycache__
 **/charts/*.tgz
 /vendor/
-**/*.sha256
+**/*.sha256.env
