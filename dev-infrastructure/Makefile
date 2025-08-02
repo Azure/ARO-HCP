@@ -29,7 +29,7 @@ INT_TESTING_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
 STAGE_TESTING_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
 
 # Environments where automation accounts are deployed
-AUTOMATION_ACCOUNT_ENVS = dev stage #int pending some permission updates
+AUTOMATION_ACCOUNT_ENVS = dev stage int
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
