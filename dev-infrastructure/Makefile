@@ -138,6 +138,13 @@ create-mock-identities:
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
+	APPLICATION_NAME=aro-dev-msi-mock2 \
+	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	CERTIFICATE_NAME=msiMockCert2 \
+	ROLE_DEFINITION_NAME='Azure Red Hat OpenShift KMS Plugin - Dev' \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
+
 .PHONY: create-mock-identities
 
 #
