@@ -2,7 +2,7 @@
 -include ../helm-cmd.mk
 
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
-ARO_HCP_IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)$(shell git status --porcelain --untracked-files=no | grep --quiet . && echo -dirty)
+ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_BACKEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
 
@@ -10,7 +10,6 @@ ARO_HCP_BACKEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:$
 
 backend:
 	go build -ldflags="-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_IMAGE_TAG}" -o aro-hcp-backend .
-.PHONY: backend
 
 run:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
@@ -40,8 +39,14 @@ push: image
 	docker push ${ARO_HCP_BACKEND_IMAGE}
 .PHONY: push
 
-deploy:
+config:
 	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	yq --inplace '.clouds.*.environments.*.defaults.backend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
+	git diff
+.PHONY: config
+
+deploy:
+	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n backend \
