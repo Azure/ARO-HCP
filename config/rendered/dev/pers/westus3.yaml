@@ -4,7 +4,16 @@ acm:
       digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
       registry: registry.redhat.io
       repository: multicluster-engine/mce-operator-bundle
+    mirrorAdditionalVersions: 2.8.2,2.9.0
     pauseReconciliation: true
+    version: 2.8.1
+  operator:
+    bundle:
+      digest: sha256:ee0dcef1c136bb88ff9c6face87b3f07b22ca8e03896dc66b5f086e69657748d
+      registry: registry.redhat.io
+      repository: rhacm2/acm-operator-bundle
+    mirrorAdditionalVersions: 2.12.0,2.14.0
+    version: 2.13.0
 acr:
   ocp:
     name: arohcpocpdev

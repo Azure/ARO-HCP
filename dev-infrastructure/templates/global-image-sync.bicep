@@ -43,6 +43,18 @@ param ocMirrorEnabled bool
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
 
+@description('The current version of the ACM operator')
+param acmVersion string
+
+@description('The versions of the ACM operator to mirror')
+param acmAdditionalVersionsToMirror string
+
+@description('The current version of the MCE operator')
+param mceVersion string
+
+@description('The ersions of the MCE operator to mirror')
+param mceAdditionalVersionsToMirror string
+
 resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: keyVaultName
 }
@@ -225,7 +237,18 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 //
 
 // this is v2alpha1 syntax for oc-mirror 4.16, which we use until 4.18+ offers
-// a way to not rebuild the catalogs, which fails in ACA
+// a way to not rebuild the catalogs, which fails in Azure Container App
+
+var acmBundlesToMirror = [
+  for version in concat([acmVersion], csvToArray(acmAdditionalVersionsToMirror)): {
+    name: 'advanced-cluster-management.v${version}'
+  }
+]
+var mceBundlesToMirror = [
+  for version in concat([mceVersion], csvToArray(mceAdditionalVersionsToMirror)): {
+    name: 'multicluster-engine.v${version}'
+  }
+]
 
 var operatorMirrorJobConfiguration = [
   {
@@ -244,31 +267,11 @@ var operatorMirrorJobConfiguration = [
             packages: [
               {
                 name: 'multicluster-engine'
-                bundles: [
-                  {
-                    name: 'multicluster-engine.v2.7.0'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.0'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.1'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.2'
-                  }
-                ]
+                bundles: mceBundlesToMirror
               }
               {
                 name: 'advanced-cluster-management'
-                bundles: [
-                  {
-                    name: 'advanced-cluster-management.v2.12.0'
-                  }
-                  {
-                    name: 'advanced-cluster-management.v2.13.0'
-                  }
-                ]
+                bundles: acmBundlesToMirror
               }
             ]
           }
