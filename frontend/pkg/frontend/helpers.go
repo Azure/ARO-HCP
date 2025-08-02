@@ -251,6 +251,21 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		return responseBody, nil
 	}
 
+	if strings.EqualFold(resourceID.ResourceType.String(), api.OperatorIdentityRoleSetResourceType.String()) {
+		hcpOperatorIdentityRoleSetName := resourceID.Name
+		managedIdentitiesRequirements, err := f.clusterServiceClient.GetManagedIdentitiesRequirements(ctx, hcpOperatorIdentityRoleSetName)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, CSErrorToCloudError(err, resourceID)
+		}
+		responseBody, err = marshalCSManagedIdentitiesRequirements(*resourceID, managedIdentitiesRequirements, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+		return responseBody, nil
+	}
+
 	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil {
 		logger.Error(err.Error())

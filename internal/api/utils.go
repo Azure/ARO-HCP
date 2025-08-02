@@ -15,6 +15,7 @@
 package api
 
 import (
+	"fmt"
 	"iter"
 	"reflect"
 	"slices"
@@ -60,6 +61,18 @@ func PtrOrNil[T any](p T) *T {
 // OpenShift prefix ("openshift-"), and returns a new Version.
 func NewOpenShiftVersion(v string) (*semver.Version, error) {
 	return semver.NewVersion(strings.Replace(v, OpenShiftVersionPrefix, "", 1))
+}
+
+func GetMinorOpenShiftVersion(v string) (string, error) {
+	version, err := semver.NewVersion(strings.Replace(v, OpenShiftVersionPrefix, "", 1))
+	if err != nil {
+		return "", err
+	}
+	minorVersion := version.Segments()
+	if len(minorVersion) < 2 {
+		return "", fmt.Errorf("invalid OpenShift version: %s", v)
+	}
+	return fmt.Sprintf("%d.%d", minorVersion[0], minorVersion[1]), nil
 }
 
 // DeleteNilsFromPtrSlice returns a slice with nil pointers removed.
