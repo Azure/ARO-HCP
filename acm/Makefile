@@ -1,26 +1,25 @@
 -include ../setup-env.mk
 -include ../helm-cmd.mk
 
+ACM_OPERATOR_BUNDLE_IMAGE ?= ${ACM_BUNDLE_REGISTRY}/${ACM_BUNDLE_REPOSITORY}@${ACM_BUNDLE_DIGEST}
 MCE_OPERATOR_BUNDLE_IMAGE ?= ${MCE_BUNDLE_REGISTRY}/${MCE_BUNDLE_REPOSITORY}@${MCE_BUNDLE_DIGEST}
 REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
 MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
-POLICY_CHART_DIR = ${HELM_BASE_DIR}/policies
-MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
 POLICY_NS = open-cluster-management-policies
-POLICY_HELM_REPO = https://github.com/stolostron/mce-install-kube.git
-POLICY_HELM_REPO_BRANCH = release-2.12
+
 
 export MCE_NS
 export MCE_CHART_DIR
-export MCE_CONFIG_DIR
 export MCE_PAUSE_RECONCILIATION
 export REGISTRY
 export DRY_RUN
 export HELM_CMD
+export ACM_VERSION
+export ACM_OPERATOR_BUNDLE_IMAGE
 
 deploy:
 	./deploy.sh
@@ -43,7 +42,11 @@ deploy-policies:
 		policy ${POLICY_CHART_DIR} \
 		--namespace ${POLICY_NS}
 
-helm-chart:
+policy-helm-chart:
+	./update-policy-chart.sh
+	make -C ../ yamlfmt
+
+mce-helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@podman save -o ${MCE_OPERATOR_BUNDLE_FILE} ${MCE_OPERATOR_BUNDLE_IMAGE}
 	rm -rf ${MCE_CHART_DIR}
@@ -53,14 +56,8 @@ helm-chart:
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
+	make -C ../ yamlfmt
 
-	@echo "Cloning remote mce-install-kube repository..."
-	TMP_DIR=$$(mktemp -d) && \
-	git clone --branch ${POLICY_HELM_REPO_BRANCH} ${POLICY_HELM_REPO} $$TMP_DIR && \
-	rm -rf ${MCE_CONFIG_DIR}/charts && \
-	mkdir -p ${MCE_CONFIG_DIR}/charts && \
-	cp -r $$TMP_DIR/policy ${MCE_CONFIG_DIR}/charts && \
-	rm -rf $$TMP_DIR
-	@echo "Helm chart imported successfully."
+helm-charts: mce-helm-chart policy-helm-chart
 
-.PHONY: deploy helm-chart
+.PHONY: deploy deploy-policies scale helm-charts mce-helm-chart policy-helm-chart
