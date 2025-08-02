@@ -178,6 +178,17 @@ resourceGroups:
     dependsOn:
     - mgmt-cluster
     - mgmt-infra
+  - name: mgmt-datacollection-output
+    action: ARM
+    template: templates/output-datacollection.bicep
+    parameters: configurations/output-datacollection.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    variables:
+    - name: outputHcpDcr
+      value: "true"
+    dependsOn:
+    - region-output
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -219,8 +230,21 @@ resourceGroups:
       configRef: mgmt.aks.name
     - name: CS_ENVIRONMENT
       configRef: clustersService.environment
+    - name: DCR_REMOTE_WRITE_URL
+      input:
+        step: mgmt-datacollection-output
+        name: dcrRemoteWriteUrl
+    - name: HCP_DCR_REMOTE_WRITE_URL
+      input:
+        step: mgmt-datacollection-output
+        name: hcpDcrRemoteWriteUrl
+    - name: PROMETHEUS_WI_CLIENT_ID
+      input:
+        step: mgmt-datacollection-output
+        name: prometheusWIClientId
     dependsOn:
     - mgmt-cluster
+    - mgmt-datacollection-output
     shellIdentity:
       input:
         step: global-output
