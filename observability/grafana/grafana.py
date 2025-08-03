@@ -1,6 +1,3 @@
-from base64 import b64decode
-
-
 import json
 import os
 import subprocess
@@ -10,7 +7,9 @@ import tempfile
 def run_command(command):
     if os.getenv("PRINT_COMMANDS"):
         print(f"calling '{command}'")
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    result = subprocess.run(
+        command, shell=True, capture_output=True, text=True, check=False
+    )
     if result.returncode != 0:
         print(f"Command failed: {command}\nError: {result.stderr}")
         exit(result.returncode)
@@ -19,7 +18,9 @@ def run_command(command):
 
 def yq_to_json(yaml_file: str) -> str:
     command = f"yq -o=json '.' {yaml_file}"
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    result = subprocess.run(
+        command, shell=True, capture_output=True, text=True, check=False
+    )
     if result.returncode != 0:
         print(f"Command failed: {command}\nError: {result.stderr}")
         exit(result.returncode)
@@ -81,7 +82,7 @@ def fs_get_dashboards(folder: str) -> list[dict[str, any]]:
     return_array = []
     files = [f for f in os.listdir(folder) if f.endswith(".json")]
     for f in files:
-        with open(os.path.join(folder, f)) as dashboard_file:
+        with open(os.path.join(folder, f), encoding="utf-8") as dashboard_file:
             dashboard = json.load(dashboard_file)
             if "dashboard" in dashboard:
                 return_array.append(dashboard)
@@ -104,7 +105,7 @@ def create_dashboard(
     existing_dashboards: list[dict[str, any]],
     g: GrafanaRunner,
 ) -> None:
-    with open(temp_file, "w") as f:
+    with open(temp_file, "w", encoding="utf-8") as f:
         dashboard["folderUid"] = folder_uid
         json.dump(dashboard, f)
 
