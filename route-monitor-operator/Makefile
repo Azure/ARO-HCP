@@ -37,7 +37,8 @@ helm-chart:
 		-c olm-bundle-repkg-config.yaml \
 		-s scaffold \
 		-o ${HELM_BASE_DIR}
+	rm -rf ${BUNDLE_TMP_PATH}
 	# TMP Fix: Add runAsUser to route-monitor-operator-controller-manager Deployment
 	yq eval '.spec.template.spec.containers[0].securityContext.runAsUser = 65532' \
 		-i ${RMO_CHART_DIR}/templates/route-monitor-operator-controller-manager.deployment.yaml
-	rm -rf ${BUNDLE_TMP_PATH}
+	make -C .. yamlfmt
