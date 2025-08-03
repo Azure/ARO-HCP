@@ -41,7 +41,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return buildChart(
 				outputDir, olmBundle, sourceLink, scaffoldDir,
-				configFile, chartName, chartDescription,
+				configFile, chartName, chartDescription, crdChartName,
 			)
 		},
 	}
@@ -52,19 +52,21 @@ var (
 	configFile       string
 	chartName        string
 	chartDescription string
+	crdChartName     string
 )
 
 func main() {
 	// Original flags
 	cmd.Flags().StringVarP(&olmBundle, "olm-bundle", "b", "", "OLM bundle input with protocol prefix: oci:// for bundle images, file:// for manifest directories")
 	cmd.Flags().StringVarP(&scaffoldDir, "scaffold-dir", "s", "", "Directory containing additional templates to be added to the generated Helm Chart")
-	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Chart")
+	cmd.Flags().StringVarP(&outputDir, "output-dir", "o", "", "Output directory for the generated Helm Charts")
 	cmd.Flags().StringVarP(&sourceLink, "source-link", "l", "", "Link to the Bundle image that is repackaged")
 
 	// Configuration flags
 	cmd.Flags().StringVarP(&configFile, "config", "c", "", "Path to configuration file (YAML)")
 	cmd.Flags().StringVar(&chartName, "chart-name", "", "Override chart name")
 	cmd.Flags().StringVar(&chartDescription, "chart-description", "", "Override chart description")
+	cmd.Flags().StringVar(&crdChartName, "crd-chart-name", "", "Name for a separate CRD chart (if not specified, CRDs will be included in the main chart)")
 
 	err := cmd.MarkFlagRequired("olm-bundle")
 	if err != nil {
@@ -85,7 +87,7 @@ func main() {
 	}
 }
 
-func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chartName, chartDescription string) error {
+func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chartName, chartDescription, crdChartName string) error {
 	ctx := context.Background()
 
 	// Load bundle configuration
@@ -153,41 +155,98 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 		return fmt.Errorf("failed to customize manifests: %v", err)
 	}
 
-	// build chart
-	operatorChart := &chart.Chart{
-		Metadata: &chart.Metadata{
-			APIVersion:  "v2",
-			Name:        config.ChartName,
-			Description: config.ChartDescription,
-			Version:     reg.CSV.Spec.Version.String(),
-			AppVersion:  reg.CSV.Spec.Version.String(),
-			Type:        "application",
-			Sources:     []string{sourceLink},
-			Keywords:    reg.CSV.Spec.Keywords,
-		},
+	// separate CRDs from other manifests
+	var crdManifests []unstructured.Unstructured
+	var nonCRDManifests []unstructured.Unstructured
+
+	for _, manifest := range customizedManifests {
+		if manifest.GetKind() == "CustomResourceDefinition" {
+			crdManifests = append(crdManifests, manifest)
+		} else {
+			nonCRDManifests = append(nonCRDManifests, manifest)
+		}
 	}
+
+	if crdChartName != "" && len(crdManifests) > 0 {
+		// Create dedicated CRD chart
+		err = createCRDChart(outputDir, config, reg, sourceLink, crdManifests, crdChartName)
+		if err != nil {
+			return fmt.Errorf("failed to create CRD chart: %v", err)
+		}
+	}
+
+	// Create main chart with appropriate manifests
+	var mainChartManifests []unstructured.Unstructured
+	if crdChartName != "" {
+		// Only include non-CRD manifests if using dedicated CRD chart
+		mainChartManifests = nonCRDManifests
+	} else {
+		// Include all manifests if not using dedicated CRD chart
+		mainChartManifests = customizedManifests
+	}
+
+	err = createChart(
+		config.ChartName,
+		config.ChartDescription,
+		reg.CSV.Spec.Version.String(),
+		sourceLink,
+		reg.CSV.Spec.Keywords,
+		mainChartManifests,
+		values,
+		outputDir,
+		false, // don't add CRDs as templates
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create main chart: %v", err)
+	}
+
+	return nil
+}
+
+// createChart creates a Helm chart with the given parameters
+func createChart(name, description, version, sourceLink string, keywords []string, manifests []unstructured.Unstructured, values interface{}, outputDir string, crdsAsTemplates bool) error {
+	// Create chart metadata
+	chartMeta := &chart.Metadata{
+		APIVersion:  "v2",
+		Name:        name,
+		Description: description,
+		Version:     version,
+		AppVersion:  version,
+		Type:        "application",
+		Sources:     []string{sourceLink},
+		Keywords:    keywords,
+	}
+
+	helmChart := &chart.Chart{
+		Metadata: chartMeta,
+	}
+
 	var chartFiles []*chart.File
 
-	// add values file
-	valuesYaml, err := yaml.Marshal(values)
+	// Add values file
+	valuesData, err := yaml.Marshal(values)
 	if err != nil {
 		return fmt.Errorf("failed to marshal values to YAML: %v", err)
 	}
 	chartFiles = append(chartFiles, &chart.File{
 		Name: "values.yaml",
-		Data: valuesYaml,
+		Data: valuesData,
 	})
 
-	// add manifests and CRDs
-	for _, manifest := range customizedManifests {
+	// Add manifests
+	for _, manifest := range manifests {
 		yamlData, err := yaml.Marshal(manifest.Object)
-
 		if err != nil {
-			return fmt.Errorf("failed to marshal object to YAML: %v", err)
+			return fmt.Errorf("failed to marshal manifest to YAML: %v", err)
 		}
 
-		path := fmt.Sprintf("templates/%s.%s.yaml", manifest.GetName(), strings.ToLower(manifest.GetKind()))
-		if manifest.GetKind() == "CustomResourceDefinition" {
+		var path string
+		if crdsAsTemplates || manifest.GetKind() != "CustomResourceDefinition" {
+			// For CRD chart, all manifests go to templates/
+			// For regular chart, non-CRD manifests go to templates/
+			path = fmt.Sprintf("templates/%s.%s.yaml", manifest.GetName(), strings.ToLower(manifest.GetKind()))
+		} else {
+			// For regular chart, CRDs go to crds/
 			path = fmt.Sprintf("crds/%s.yaml", manifest.GetName())
 		}
 
@@ -196,13 +255,31 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 			Data: yamlData,
 		})
 	}
-	operatorChart.Templates = chartFiles
 
-	// store chart
-	err = chartutil.SaveDir(operatorChart, outputDir)
+	helmChart.Templates = chartFiles
+
+	// Save chart
+	err = chartutil.SaveDir(helmChart, outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to save chart to directory: %v", err)
 	}
 
 	return nil
+}
+
+func createCRDChart(outputDir string, config *customize.BundleConfig, reg convert.RegistryV1, sourceLink string, crdManifests []unstructured.Unstructured, crdChartName string) error {
+	crdChartDescription := config.ChartDescription + " - CRDs"
+	crdValues := map[string]interface{}{}
+
+	return createChart(
+		crdChartName,
+		crdChartDescription,
+		reg.CSV.Spec.Version.String(),
+		sourceLink,
+		reg.CSV.Spec.Keywords,
+		crdManifests,
+		crdValues,
+		outputDir,
+		true, // add CRDs as templates
+	)
 }

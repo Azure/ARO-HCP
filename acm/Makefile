@@ -63,4 +63,6 @@ helm-chart:
 	rm -rf $$TMP_DIR
 	@echo "Helm chart imported successfully."
 
+	@make -C .. yamlfmt
+
 .PHONY: deploy helm-chart
