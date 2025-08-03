@@ -8,6 +8,7 @@ REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 MCE_OPERATOR_BUNDLE_FILE = mce-operator-bundle.tgz
 HELM_BASE_DIR = deploy/helm
 MCE_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine
+MCE_CRD_CHART_DIR = ${HELM_BASE_DIR}/multicluster-engine-crds
 MCE_CONFIG_DIR = ${HELM_BASE_DIR}/multicluster-engine-config
 MCE_NS = multicluster-engine
 POLICY_NS = open-cluster-management-policies
@@ -15,6 +16,7 @@ POLICY_NS = open-cluster-management-policies
 
 export MCE_NS
 export MCE_CHART_DIR
+export MCE_CRD_CHART_DIR
 export MCE_CONFIG_DIR
 export MCE_PAUSE_RECONCILIATION
 export REGISTRY
@@ -43,7 +45,7 @@ deploy-policies:
 	../hack/helm.sh policy deploy/helm/policies ${POLICY_NS}
 
 policy-helm-chart:
-	./update-policy-chart.sh
+	./update-policy-chart.sh "${MCE_CONFIG_DIR}/charts/policy"
 	make -C ../ yamlfmt
 
 mce-helm-chart:
@@ -51,6 +53,7 @@ mce-helm-chart:
 	@podman save -o ${MCE_OPERATOR_BUNDLE_FILE} ${MCE_OPERATOR_BUNDLE_IMAGE}
 	rm -rf ${MCE_CHART_DIR}
 	go run ../tooling/olm-bundle-repkg/main.go \
+		--crd-chart-name multicluster-engine-crds \
 		-c olm-bundle-repkg-config.yaml \
 		-b oci://${MCE_OPERATOR_BUNDLE_FILE} \
 		-o ${HELM_BASE_DIR} -s scaffold \

@@ -4,13 +4,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+POLICY_HELM_CHART_BASE_DIR=$1
 
 TMP_DIR=$(mktemp -d)
 
-policy_helm_charts_base_dir="$PROJECT_ROOT/acm/deploy/helm/multicluster-engine-config/charts/policy"
-policy_helm_charts_dir="$policy_helm_charts_base_dir/charts"
+policy_helm_charts_dir="$POLICY_HELM_CHART_BASE_DIR/charts"
 
 # Check required environment variables
 if [[ -z "${ACM_VERSION:-}" ]]; then
@@ -53,7 +51,7 @@ crd_files=(
 
 for file in "${crd_files[@]}"; do
  if [[ -f "$file" ]]; then
-    cp "$file" "$policy_helm_charts_base_dir/crds/"
+    cp "$file" "$POLICY_HELM_CHART_BASE_DIR/crds/"
   else
     echo "Error: CRD file not found: $file"
     exit 1
@@ -69,9 +67,9 @@ grc_files=(
   "grc-role.yaml"
 )
 
-for file in "${grc_files[@]}"; do 
+for file in "${grc_files[@]}"; do
   if [[ -f "$grc_chart_dir/templates/$file" ]]; then
-    cp "$grc_chart_dir/templates/$file" "$policy_helm_charts_dir/grc/templates/" 
+    cp "$grc_chart_dir/templates/$file" "$policy_helm_charts_dir/grc/templates/"
     sed -E '/^[[:space:]]*(chart:|release:|app.kubernetes.io)/d' "$policy_helm_charts_dir/grc/templates/$file" > tmp && mv tmp "$policy_helm_charts_dir/grc/templates/$file"
   else
     echo "Error: the grc file not found: $grc_chart_dir/templates/$file"
@@ -84,7 +82,7 @@ grc_clusterrole_files=(
   "$policy_helm_charts_dir/grc/templates/grc-clusterrole.yaml"
   "$policy_helm_charts_dir/grc/templates/grc-policy-addon-clusterrole.yaml"
 )
-for file in "${grc_clusterrole_files[@]}"; do 
+for file in "${grc_clusterrole_files[@]}"; do
   if [[ -f "$file" ]]; then
     sed -E '/^[[:space:]]*(namespace:)/d' "$file" > tmp && mv tmp "$file"
   else
@@ -97,10 +95,10 @@ echo "## Update the cluster-lifecycle sub-chart."
 cluster_lifecycle_dir="$TMP_DIR/multiclusterhub-operator/pkg/templates/charts/toggle/cluster-lifecycle"
 cluster_lifecycle_files=(
   "$cluster_lifecycle_dir/templates/klusterlet-addon-role.yaml"
-  "$cluster_lifecycle_dir/templates/klusterlet-addon-role_binding.yaml" 
+  "$cluster_lifecycle_dir/templates/klusterlet-addon-role_binding.yaml"
   "$cluster_lifecycle_dir/templates/klusterlet-addon-deployment.yaml"
 )
-for file in "${cluster_lifecycle_files[@]}"; do 
+for file in "${cluster_lifecycle_files[@]}"; do
   if [[ -f "$file" ]]; then
     cp "$file" "$policy_helm_charts_dir/cluster-lifecycle/templates/"
   else
@@ -116,7 +114,7 @@ rm -f "$policy_helm_charts_dir/cluster-lifecycle/templates/klusterlet-addon-depl
 
 echo "## Update version in policy chart."
 chart_files=(
-  "$policy_helm_charts_base_dir/Chart.yaml"
+  "$POLICY_HELM_CHART_BASE_DIR/Chart.yaml"
   "$policy_helm_charts_dir/grc/Chart.yaml"
   "$policy_helm_charts_dir/cluster-lifecycle/Chart.yaml"
 )
@@ -171,7 +169,7 @@ $OCI_TOOL cp "temp_acm_bundle:/extras/$image_json_file" "$TMP_DIR/"
 echo "## Remove the temporary container temp_acm_bundle."
 $OCI_TOOL rm -f temp_acm_bundle
 
-values_file="$policy_helm_charts_base_dir/values.yaml"
+values_file="$POLICY_HELM_CHART_BASE_DIR/values.yaml"
 
 echo "## Update the images in the $values_file "
 keys=$(yq e '.global.imageOverrides | keys | .[]' "$values_file")
