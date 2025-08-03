@@ -9,7 +9,7 @@
 
 ## Register the subscription with the RP
 
-The RP needs to know the subscription in order to be able to create cluters in it.
+The RP needs to know the subscription in order to be able to create clusters in it.
 Run the following command `once` to make the subscription known to the RP.
 
 ```bash
@@ -24,7 +24,7 @@ We provision HCPs with BYO VNET, so we need to create the VNET, Subnet and NSG u
 ./02-customer-infra.sh
 ```
 
-The resources are created in a resourcegroup named `$USER-net-rg`.
+The resources are created in a resource group named `$USER-net-rg`.
 
 ## Create cluster
 

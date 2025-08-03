@@ -480,7 +480,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       dataEncryption: {
         keyManagementMode: 'PlatformManaged'
       }
-    }    
+    }
     api: {
       visibility: 'Public'
     }
@@ -495,6 +495,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
             'cluster-api-azure': clusterApiAzureMi.id
             'control-plane': controlPlaneMi.id
             'cloud-controller-manager': cloudControllerManagerMi.id
+            #disable-next-line prefer-unquoted-property-names
             'ingress': ingressMi.id
             'disk-csi-driver': diskCsiDriverMi.id
             'file-csi-driver': fileCsiDriverMi.id
