@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -201,7 +200,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Sending a PUT request to create the cluster")
 		// Initialize the clustersClient using environment subscription ID
-		subscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
+		// subscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
 		Expect(subscriptionID).NotTo(BeEmpty(), "CUSTOMER_SUBSCRIPTION environment variable must be set")
 		// Create a new credential
 		credential, err := azidentity.NewDefaultAzureCredential(nil)
