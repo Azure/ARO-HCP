@@ -62,6 +62,9 @@ param azureFrontDoorSkuName string
 param keyVaultAdminPrincipalId string
 param oidcMsiName string
 
+@description('KV certificate officer principal ID')
+param kvCertOfficerPrincipalId string
+
 //
 //  G L O B A L   M S I
 //
@@ -100,6 +103,24 @@ module globalMSIKVCryptoUser '../modules/keyvault/keyvault-secret-access.bicep' 
     keyVaultName: keyVaultName
     roleName: 'Key Vault Crypto Officer'
     managedIdentityPrincipalId: globalMSI.properties.principalId
+  }
+}
+
+module kvCertOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(kvCertOfficerPrincipalId, globalKV.name, 'cert-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Certificates Officer'
+    managedIdentityPrincipalId: kvCertOfficerPrincipalId
+  }
+}
+
+module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(kvCertOfficerPrincipalId, globalKV.name, 'secrets-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: kvCertOfficerPrincipalId
   }
 }
 
