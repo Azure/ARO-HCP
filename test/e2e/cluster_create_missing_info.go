@@ -46,7 +46,7 @@ var _ = Describe("Customer", func() {
 					customerVnetSubnetName           = "customer-vnet-subnet1"
 					customerClusterName              = "illegal-hcp-cluster"
 				)
-				ic := framework.NewInvocationContext()
+				ic := framework.NewTestContext()
 
 				By("creating a resource group")
 				resourceGroup, err := ic.NewResourceGroup(ctx, "illegal-ocp-version", ic.Location())

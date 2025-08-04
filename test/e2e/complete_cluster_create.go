@@ -46,7 +46,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
 			)
-			ic := framework.NewInvocationContext()
+			ic := framework.NewTestContext()
 
 			By("creating a resource group")
 			resourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
