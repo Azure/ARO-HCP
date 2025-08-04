@@ -27,6 +27,14 @@ const (
 	DiskStorageAccountTypeStandard_LRS    DiskStorageAccountType = "Standard_LRS"
 )
 
+// Persistence types for the OS Disks of the Nodes in the Node Pool
+type PersistenceType string
+
+const (
+	PersistenceTypePersistent PersistenceType = "persistent"
+	PersistenceTypeEphemeral  PersistenceType = "ephemeral"
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 
