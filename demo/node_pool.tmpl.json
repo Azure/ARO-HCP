@@ -10,7 +10,8 @@
       "vmSize": "Standard_D8s_v3",
       "osDisk": {
         "sizeGiB": 64,
-        "diskStorageAccountType": "StandardSSD_LRS"
+        "diskStorageAccountType": "StandardSSD_LRS",
+        "persistence": "persistent"
       }
     },
     "replicas": 2
