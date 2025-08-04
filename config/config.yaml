@@ -887,6 +887,9 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          hypershift:
+            image:
+              digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
