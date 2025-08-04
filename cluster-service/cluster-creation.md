@@ -265,9 +265,11 @@ cat <<EOF > nodepool-test.json
     "azure_node_pool": {
         "resource_name": "$NAME",
         "vm_size": "Standard_D8s_v3",
-        "os_disk_size_gibibytes": 30,
-        "os_disk_storage_account_type": "StandardSSD_LRS",
-        "ephemeral_os_disk_enabled": false
+        "os_disk": {
+            "size_gibibytes": 64,
+            "storage_account_type": "StandardSSD_LRS",
+            "persistence": "persistent"
+        }
     }
 }
 EOF
