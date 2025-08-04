@@ -86,6 +86,8 @@ func NewTestValidator() *validator.Validate {
 		arm.ManagedServiceIdentityTypeSystemAssigned,
 		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
 		arm.ManagedServiceIdentityTypeUserAssigned))
+	validate.RegisterAlias("enum_persistence", EnumValidateTag(
+		PersistenceTypePersistent, PersistenceTypeEphemeral))
 
 	return validate
 }
