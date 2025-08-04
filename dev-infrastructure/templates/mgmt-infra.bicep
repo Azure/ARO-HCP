@@ -78,7 +78,7 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
 //
 
 module cxKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-cx-kv'
+  name: 'cx-kv-${uniqueString(cxKeyVaultName)}'
   params: {
     location: location
     keyVaultName: cxKeyVaultName
@@ -110,7 +110,7 @@ module cxKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
 output cxKeyVaultUrl string = cxKeyVault.outputs.kvUrl
 
 module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-msi-kv'
+  name: 'msi-kv-${uniqueString(msiKeyVaultName)}'
   params: {
     location: location
     keyVaultName: msiKeyVaultName
@@ -125,7 +125,7 @@ module msiKeyVault '../modules/keyvault/keyvault.bicep' = {
 output msiKeyVaultUrl string = msiKeyVault.outputs.kvUrl
 
 module mgmtKeyVault '../modules/keyvault/keyvault.bicep' = {
-  name: '${deployment().name}-mgmt-kv'
+  name: 'mgmt-kv-${uniqueString(mgmtKeyVaultName)}'
   params: {
     location: location
     keyVaultName: mgmtKeyVaultName

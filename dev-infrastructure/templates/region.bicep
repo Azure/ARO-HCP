@@ -146,7 +146,7 @@ module svcAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegi
 //
 
 module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
-  name: '${deployment().name}-maestro'
+  name: 'maestro-infra-deployment'
   params: {
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location

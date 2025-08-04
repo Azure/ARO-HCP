@@ -81,7 +81,7 @@ param regionalResourceGroup string
 import * as res from '../resource.bicep'
 
 module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
-  name: '${deployment().name}-postgres'
+  name: 'maestro-postgres-deployment'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     name: postgresServerName
@@ -131,7 +131,7 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
 }
 
 module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if (deployPostgres) {
-  name: '${deployment().name}-maestro-db-access'
+  name: 'maestro-db-access'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     postgresServerName: postgresServerName
@@ -150,7 +150,7 @@ module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' 
 //
 
 module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
-  name: '${deployment().name}-eg-crt-${uniqueString(mqttClientName)}'
+  name: 'maestro-eg-crt-${uniqueString(mqttClientName)}'
   scope: resourceGroup(certKeyVaultResourceGroup)
   params: {
     keyVaultName: certKeyVaultName
@@ -164,7 +164,7 @@ module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
 }
 
 module evengGridAccess 'maestro-eventgrid-access.bicep' = {
-  name: '${deployment().name}-eg-access'
+  name: 'maestro-eg-access-${uniqueString(mqttClientName)}'
   scope: resourceGroup(maestroInfraResourceGroup)
   params: {
     eventGridNamespaceName: maestroEventGridNamespaceName

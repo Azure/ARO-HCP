@@ -17,7 +17,7 @@ param maestroCertificateDomain string
 param maestroCertificateIssuer string
 
 module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
-  name: '${deployment().name}-eg-crt-${uniqueString(maestroConsumerName)}'
+  name: 'maestro-eg-crt-${uniqueString(maestroConsumerName)}'
   params: {
     keyVaultName: certKeyVaultName
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
@@ -34,7 +34,7 @@ import * as res from '../resource.bicep'
 var eventGridNamespaceRef = res.eventgridNamespaceRefFromId(maestroEventGridNamespaceId)
 
 module evengGridAccess 'maestro-eventgrid-access.bicep' = {
-  name: '${deployment().name}-eg-access'
+  name: 'eg-access-${uniqueString(maestroConsumerName)}'
   scope: resourceGroup(eventGridNamespaceRef.resourceGroup.subscriptionId, eventGridNamespaceRef.resourceGroup.name)
   params: {
     eventGridNamespaceName: eventGridNamespaceRef.name
