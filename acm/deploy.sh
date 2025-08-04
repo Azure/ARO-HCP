@@ -44,8 +44,7 @@ echo "Deploying MCE (${MCE_CHART_DIR}) into ${MCE_NS} namespace"
     --set imageRegistry="${REGISTRY}"
 
 echo "Deploying MCE Config (${MCE_CONFIG_DIR}) into ${MCE_NS} namespace"
-../hack/helm.sh mce-config "./${MCE_CONFIG_DIR}" "${MCE_NS}" \
-    --timeout 1200s \
+HELM_TIMEOUT=1200s ../hack/helm.sh mce-config "./${MCE_CONFIG_DIR}" "${MCE_NS}" \
     --set global.registryOverride="${REGISTRY}/rhacm2"
 
 if [ "${DRY_RUN}" != "true" ]; then
