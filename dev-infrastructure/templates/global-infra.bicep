@@ -65,7 +65,6 @@ param oidcMsiName string
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
 
-
 //
 //  G L O B A L   M S I
 //
@@ -74,8 +73,6 @@ resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
   name: globalMSIName
   location: location
 }
-
-
 
 //   G L O B A L    K V
 
