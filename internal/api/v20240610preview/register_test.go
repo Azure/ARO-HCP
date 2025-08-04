@@ -164,6 +164,7 @@ func TestNodePoolStructTagMap(t *testing.T) {
 		"Properties.Platform.OSDisk.SizeGiB":                     api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.OSDisk.DiskStorageAccountType":      api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.OSDisk.EncryptionSetId":             api.VisibilityRead | api.VisibilityCreate,
+		"Properties.Platform.OSDisk.Persistence":                 api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.AvailabilityZone":                   api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Replicas":                                    api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.AutoRepair":                                  api.VisibilityRead | api.VisibilityCreate,
