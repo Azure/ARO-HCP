@@ -442,8 +442,9 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				VMSize:                 np.AzureNodePool().VMSize(),
 				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == azureNodePoolEncryptionAtHostEnabled,
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                int32(np.AzureNodePool().OSDiskSizeGibibytes()),
-					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OSDiskStorageAccountType()),
+					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
+					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
+					Persistence:            api.PersistenceType(np.AzureNodePool().OsDisk().Persistence()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
@@ -499,9 +500,10 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
-				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
-				OSDiskStorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType))).
+				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+				SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+				StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
+				Persistence(string(nodePool.Properties.Platform.OSDisk.Persistence)))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
