@@ -140,6 +140,10 @@ spec:
               value: 'false'
             - name: MONITORING_MAX_EVENT_RATE
               value: '100000'
+            - name: MONITORING_ROLE
+              value: '{{ .Values.forwarder.mdsd.geneva.role }}'
+            - name: MONITORING_TENANT
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
           lifecycle: 
             preStop:
               exec:
@@ -226,6 +230,10 @@ spec:
               value: 'false'
             - name: MONITORING_MAX_EVENT_RATE
               value: '100000'
+            - name: MONITORING_ROLE
+              value: '{{ .Values.forwarder.mdsd.geneva.role }}'
+            - name: MONITORING_TENANT
+              value: '{{ .Values.forwarder.mdsd.geneva.region }}'
           lifecycle: 
             preStop:
               exec:

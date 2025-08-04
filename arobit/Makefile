@@ -30,7 +30,8 @@ deploy:
 		--set forwarder.mdsd.geneva.clusterLogsAccountName=${AROBIT_GENEVA_CLUSTER_LOGS_ACCOUNT_NAME} \
 		--set forwarder.mdsd.geneva.clusterLogsSecretName=${AROBIT_GENEVA_CLUSTER_LOGS_SECRET_NAME} \
 		--set forwarder.mdsd.geneva.clusterLogsSan=${AROBIT_GENEVA_CLUSTER_LOGS_SAN} \
-		--set forwarder.mdsd.geneva.clusterLogsNamespace=${AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE}
+		--set forwarder.mdsd.geneva.clusterLogsNamespace=${AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE} \
+		--set forwarder.mdsd.geneva.role=${RESOURCEGROUP}
 .PHONY: deploy
 
 undeploy:
