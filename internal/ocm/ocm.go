@@ -446,10 +446,9 @@ func ConvertOpenshiftVersionNoPrefix(v string) string {
 }
 
 // ConvertOpenshiftVersionAddPrefix adds openshift-v prefix
-func ConvertOpenshiftVersionAddPrefix(v string) (string, error) {
-	parts := strings.Split(v, ".")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("version %q must be X.Y.Z", v)
+func ConvertOpenshiftVersionAddPrefix(v string) string {
+	if !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
+		return api.OpenShiftVersionPrefix + v
 	}
-	return fmt.Sprintf("%s%s.%s.%s", api.OpenShiftVersionPrefix, parts[0], parts[1], parts[2]), nil
+	return v
 }

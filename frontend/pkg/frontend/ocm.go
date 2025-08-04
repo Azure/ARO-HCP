@@ -468,12 +468,14 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
 	npBuilder := arohcpv1alpha1.NewNodePool()
 
+	nodepoolCSversion := ocm.ConvertOpenshiftVersionAddPrefix(nodePool.Properties.Version.ID)
+
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(nodePool.Properties.Version.ID).
+				ID(nodepoolCSversion).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
@@ -509,13 +511,6 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			Unit(azureNodePoolNodeDrainGracePeriodUnit).
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
-
-	nodepoolVersion := nodePool.Properties.Version.ID
-	nodepoolCSversion, err := ocm.ConvertOpenshiftVersionAddPrefix(nodepoolVersion)
-	if err != nil {
-		return nil, err
-	}
-	nodePool.Properties.Version.ID = nodepoolCSversion
 
 	return npBuilder.Build()
 }
