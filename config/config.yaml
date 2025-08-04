@@ -671,7 +671,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
+          digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -698,7 +698,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+          digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
       # Backplane API
       backplaneAPI:
         image:
@@ -887,9 +887,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-          hypershift:
-            image:
-              digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
