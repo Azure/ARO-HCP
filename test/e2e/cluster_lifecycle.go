@@ -17,14 +17,14 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"reflect"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
 
 	//"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -33,6 +33,19 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
+
+// extractStringSafely safely extracts a string value from nested map structure
+func extractStringSafely(data map[string]interface{}, parentKey, childKey string) string {
+	parent, ok := data[parentKey].(map[string]interface{})
+	if !ok {
+		Fail(fmt.Sprintf("parent key '%s' not found or not a map in deployment outputs", parentKey))
+	}
+	value, ok := parent[childKey].(string)
+	if !ok {
+		Fail(fmt.Sprintf("child key '%s' not found or not a string in deployment outputs under '%s'", childKey, parentKey))
+	}
+	return value
+}
 
 var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 	var (
@@ -78,7 +91,8 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		)
 		Expect(err).NotTo(HaveOccurred(), "failed to complete bicep deployment")
 
-		// Get deployment outputs to retrieve managed identity information
+		// Extract and validate deployment outputs to retrieve managed identity information
+		// This section uses safe extraction patterns to avoid panics and provide clear error messages
 		deploymentOutputs := deploymentResult.Properties.Outputs
 		Expect(deploymentOutputs).NotTo(BeNil(), "deployment outputs should not be nil")
 
@@ -90,6 +104,11 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		userAssignedIdentitiesValueRaw, err := framework.GetOutputValue(deploymentResult, "userAssignedIdentitiesValue")
 		Expect(err).NotTo(HaveOccurred(), "failed to get userAssignedIdentitiesValue from deployment outputs")
 		userAssignedIdentitiesValue := userAssignedIdentitiesValueRaw.(map[string]interface{})
+
+		// Validate that required nested structures exist
+		Expect(userAssignedIdentitiesValue).To(HaveKey("controlPlaneOperators"), "controlPlaneOperators not found in deployment outputs")
+		Expect(userAssignedIdentitiesValue).To(HaveKey("dataPlaneOperators"), "dataPlaneOperators not found in deployment outputs")
+		Expect(userAssignedIdentitiesValue).To(HaveKey("serviceManagedIdentity"), "serviceManagedIdentity not found in deployment outputs")
 
 		// Get subnet and NSG IDs from the main template outputs using GetOutputValueString
 		subnetID, err := framework.GetOutputValueString(deploymentResult, "subnetId")
@@ -120,8 +139,15 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		visibility := api.VisibilityPublic
 		identityType := api.ManagedServiceIdentityTypeUserAssigned
 
-		// Extract service managed identity from the deployment outputs
-		serviceManagedIdentity := userAssignedIdentitiesValue["serviceManagedIdentity"].(string)
+		// Extract service managed identity from the deployment outputs with safe extraction
+		serviceManagedIdentityRaw, ok := userAssignedIdentitiesValue["serviceManagedIdentity"]
+		if !ok {
+			Fail("serviceManagedIdentity not found in deployment outputs")
+		}
+		serviceManagedIdentity, ok := serviceManagedIdentityRaw.(string)
+		if !ok {
+			Fail("serviceManagedIdentity is not a string in deployment outputs")
+		}
 
 		clusterResource := api.HcpOpenShiftCluster{
 			Location: &location,
@@ -132,19 +158,19 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 					OperatorsAuthentication: &api.OperatorsAuthenticationProfile{
 						UserAssignedIdentities: &api.UserAssignedIdentitiesProfile{
 							ControlPlaneOperators: map[string]*string{
-								"cluster-api-azure":        to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cluster-api-azure"].(string)),
-								"control-plane":            to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["control-plane"].(string)),
-								"cloud-controller-manager": to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cloud-controller-manager"].(string)),
-								"ingress":                  to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["ingress"].(string)),
-								"disk-csi-driver":          to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["disk-csi-driver"].(string)),
-								"file-csi-driver":          to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["file-csi-driver"].(string)),
-								"image-registry":           to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["image-registry"].(string)),
-								"cloud-network-config":     to.Ptr(userAssignedIdentitiesValue["controlPlaneOperators"].(map[string]interface{})["cloud-network-config"].(string)),
+								"cluster-api-azure":        to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "cluster-api-azure")),
+								"control-plane":            to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "control-plane")),
+								"cloud-controller-manager": to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "cloud-controller-manager")),
+								"ingress":                  to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "ingress")),
+								"disk-csi-driver":          to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "disk-csi-driver")),
+								"file-csi-driver":          to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "file-csi-driver")),
+								"image-registry":           to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "image-registry")),
+								"cloud-network-config":     to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "controlPlaneOperators", "cloud-network-config")),
 							},
 							DataPlaneOperators: map[string]*string{
-								"disk-csi-driver": to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["disk-csi-driver"].(string)),
-								"file-csi-driver": to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["file-csi-driver"].(string)),
-								"image-registry":  to.Ptr(userAssignedIdentitiesValue["dataPlaneOperators"].(map[string]interface{})["image-registry"].(string)),
+								"disk-csi-driver": to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "dataPlaneOperators", "disk-csi-driver")),
+								"file-csi-driver": to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "dataPlaneOperators", "file-csi-driver")),
+								"image-registry":  to.Ptr(extractStringSafely(userAssignedIdentitiesValue, "dataPlaneOperators", "image-registry")),
 							},
 							ServiceManagedIdentity: &serviceManagedIdentity,
 						},
@@ -174,11 +200,12 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Sending a PUT request to create the cluster")
-		// Initialize the clustersClient using the ARM client factory
-		clientFactory := ic.GetARMResourcesClientFactoryOrDie(ctx)
-		// Use reflection to access unexported fields
-		subscriptionID := reflect.ValueOf(clientFactory).Elem().FieldByName("subscriptionID").String()
-		credential := reflect.ValueOf(clientFactory).Elem().FieldByName("credential").Interface().(azcore.TokenCredential)
+		// Initialize the clustersClient using environment subscription ID
+		subscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
+		Expect(subscriptionID).NotTo(BeEmpty(), "AZURE_SUBSCRIPTION_ID environment variable must be set")
+		// Create a new credential
+		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		Expect(err).NotTo(HaveOccurred(), "failed to create credential")
 		clustersClient, err = api.NewHcpOpenShiftClustersClient(subscriptionID, credential, nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to create clustersClient")
 
