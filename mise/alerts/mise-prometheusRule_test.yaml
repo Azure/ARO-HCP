@@ -5,7 +5,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'up{job="envoy-stats", namespace="mise"}'
-    values: 1x0
+    values: '0 0 0 0'
   alert_rule_test:
   - eval_time: 1m
     alertname: MiseEnvoyScrapeDown
