@@ -20,6 +20,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
+
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -27,18 +29,17 @@ import (
 
 var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 	var (
-		NodePoolsClient *api.NodePoolsClient
-		customerEnv     *integration.CustomerEnv
+		customerEnv *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
-		By("Preparing HCP nodepools client")
-		NodePoolsClient = clients.NewNodePoolsClient()
 		By("Preparing customer environment values")
 		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	It("Attempts to create a nodepool for a non-existant HCPOpenshiftCluster", labels.RequireHappyPathInfra, labels.Medium, labels.Negative, func(ctx context.Context) {
+		tc := framework.NewTestContext()
+
 		var (
 			nodePoolName     = "mynodepool"
 			clusterName      = "non-existing_cluster"
@@ -47,7 +48,7 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 		)
 
 		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster")
-		_, err := NodePoolsClient.BeginCreateOrUpdate(ctx, customerEnv.CustomerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
+		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient().BeginCreateOrUpdate(ctx, customerEnv.CustomerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
 		Expect(err).ToNot(BeNil())
 		errMessage := "RESPONSE 500: 500 Internal Server Error"
 		Expect(err.Error()).To(ContainSubstring(errMessage))

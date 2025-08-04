@@ -21,23 +21,23 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/test/util/framework"
+
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 var _ = Describe("ARO-HCP Cluster Deletion", func() {
 	var clusterName string
 	var resourceGroup string
-	var hcpClients *api.ClientFactory
 
 	BeforeEach(func() {
 		clusterName = e2eSetup.Cluster.Name
 		resourceGroup = e2eSetup.CustomerEnv.CustomerRGName
-		hcpClients = clients
 	})
 
 	It("should confirm the HCP cluster is deleted (not found)", labels.TeardownValidation, labels.Critical, func(ctx context.Context) {
-		hcpClient := hcpClients.NewHcpOpenShiftClustersClient()
+		tc := framework.NewTestContext()
+		hcpClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 		By("checking that the HCP cluster is not present")
 		_, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
 		Expect(err).ToNot(BeNil())
