@@ -17,7 +17,7 @@ param maestroCertificateDomain string
 param maestroCertificateIssuer string
 
 module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
-  name: 'maesro-eg-crt-${uniqueString(maestroConsumerName)}'
+  name: 'maestro-eg-crt-${uniqueString(maestroConsumerName)}'
   params: {
     keyVaultName: certKeyVaultName
     kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
