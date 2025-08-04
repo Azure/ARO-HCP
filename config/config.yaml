@@ -93,7 +93,7 @@ defaults:
         repository: oss/fluent/fluent-bit
         digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
     mdsd:
-      enabled: false
+      enabled: true
       image:
         registry: linuxgeneva-microsoft.azurecr.io
         repository: genevamdsd
@@ -611,6 +611,9 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      arobit:
+        mdsd:
+          enabled: false
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
