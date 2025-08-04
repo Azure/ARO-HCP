@@ -40,7 +40,7 @@ push: image
 
 config:
 	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
-	yq --inplace '.clouds.*.environments.*.defauts.frontend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
+	yq --inplace '.clouds.*.environments.*.defaults.frontend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
 	git diff
 .PHONY: config
 
