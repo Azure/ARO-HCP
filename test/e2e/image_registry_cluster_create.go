@@ -41,15 +41,15 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "disabled-image-registry-hcp-cluster"
 			)
-			ic := framework.NewInvocationContext()
+			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := ic.NewResourceGroup(ctx, "disabled-image-registry", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "disabled-image-registry", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a prereqs in the resource group")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"infra",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
@@ -65,7 +65,7 @@ var _ = Describe("Customer", func() {
 			By("creating the hcp cluster with the image registry disabled")
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/image-registry/disabled-image-registry-cluster.json")),

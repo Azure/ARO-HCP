@@ -145,6 +145,15 @@ func sharedDir() string {
 	return os.Getenv("SHARED_DIR")
 }
 
+// We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
+// here to cleanup and debug testing resources.
+func sharedDir() string {
+	// can't use gomega in this method since it is used outside of It()
+	return os.Getenv("SHARED_DIR")
+}
+
+// subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
+>>>>>>> 43fc66de (use the shared_dir for backup cleanup from e2e)
 func subscriptionName() string {
 	return os.Getenv("CUSTOMER_SUBSCRIPTION")
 }
