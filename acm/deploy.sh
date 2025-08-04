@@ -40,7 +40,8 @@ echo "Deploying MCE CRDs (${MCE_CRD_CHART_DIR}) into ${MCE_NS} namespace"
 HELM_ADOPT=true ../hack/helm.sh mce-crds "./${MCE_CRD_CHART_DIR}" "${MCE_NS}"
 
 echo "Deploying MCE (${MCE_CHART_DIR}) into ${MCE_NS} namespace"
-../hack/helm.sh mce "./${MCE_CHART_DIR}" "${MCE_NS}" \
+# we can get rid of the HELM_DRY_RUN_MODE override once pausing is disabled
+HELM_DRY_RUN_MODE=client ../hack/helm.sh mce "./${MCE_CHART_DIR}" "${MCE_NS}" \
     --set imageRegistry="${REGISTRY}"
 
 echo "Deploying MCE Config (${MCE_CONFIG_DIR}) into ${MCE_NS} namespace"
