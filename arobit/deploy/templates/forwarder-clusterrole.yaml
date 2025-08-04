@@ -1,19 +1,18 @@
----
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: arobit-forwarder
-  labels: 
+  labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: '{{ .Release.Name }}'
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - "namespaces"
-      - "services"
-      - "pods"
-    verbs:
-      - "get"
-      - "watch"
-      - "list"
+- apiGroups:
+  - ""
+  resources:
+  - "namespaces"
+  - "services"
+  - "pods"
+  verbs:
+  - "get"
+  - "watch"
+  - "list"

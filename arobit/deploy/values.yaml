@@ -55,7 +55,6 @@ forwarder:
             Format              json
             Time_Key            time
             Time_Format         %Y-%m-%dT%H:%M:%S.%L
-
       input.conf: |
         [INPUT]
             Name              tail
@@ -148,7 +147,6 @@ forwarder:
             Rule            namespace_name ^ocm-.* ocm.logs false
             Rule            namespace_name ^(?!ocm-).* other.logs false
             Emitter_Name    re_emitted
-
       output.conf: |
         [OUTPUT]
             Name       opentelemetry
@@ -188,7 +186,6 @@ forwarder:
             Host  127.0.0.1
             Port  5002
             Tag   akskubesystem
-
   mdsd:
     # Geneva Config
     geneva:
