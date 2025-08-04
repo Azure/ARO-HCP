@@ -165,11 +165,12 @@ frontend:
 geneva:
   logs:
     adminCertName: geneva-logs-admin-perf
+    adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
       - AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
-    certificateDomain: geneva.keyvault.aro-hcp-perf.azure.com
+    certificateDomain: geneva.keyvault.aro-hcp.azure.com
     certificateIssuer: Self
     cluster:
       accountName: placeholder

@@ -1050,6 +1050,9 @@
             "adminCertName":{
               "type": "string"
             },
+            "adminCertificateDomain": {
+              "type": "string"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
