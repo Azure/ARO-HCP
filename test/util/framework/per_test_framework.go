@@ -261,7 +261,7 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := armsubscriptions.NewClientFactory(creds, nil)
+	clientFactory, err := armsubscriptions.NewClientFactory(creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx c
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := armresources.NewClientFactory(subscriptionID, creds, nil)
+	clientFactory, err := armresources.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := hcpapi20240610.NewClientFactory(subscriptionID, creds, nil)
+	clientFactory, err := hcpapi20240610.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
