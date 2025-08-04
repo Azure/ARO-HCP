@@ -29,6 +29,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 const (
@@ -212,7 +213,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
-				ID:           cluster.Version().ID(),
+				ID:           ocm.NewOpenShiftVersionXY(cluster.Version().ID()),
 				ChannelGroup: cluster.Version().ChannelGroup(),
 			},
 			DNS: api.DNSProfile{
@@ -321,6 +322,9 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	if tenantID == "" {
 		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
+
+	versionCSformat := ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)
+	hcpCluster.Properties.Version.ID = versionCSformat
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
@@ -445,7 +449,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID:           np.Version().ID(),
+				ID:           ocm.ConvertOpenshiftVersionNoPrefix(np.Version().ID()),
 				ChannelGroup: np.Version().ChannelGroup(),
 			},
 			Platform: api.NodePoolPlatformProfile{
@@ -497,12 +501,14 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
 	npBuilder := arohcpv1alpha1.NewNodePool()
 
+	nodepoolCSversion := ocm.ConvertOpenshiftVersionAddPrefix(nodePool.Properties.Version.ID)
+
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(nodePool.Properties.Version.ID).
+				ID(nodepoolCSversion).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
