@@ -46,7 +46,6 @@ deploy-policies:
 
 policy-helm-chart:
 	./update-policy-chart.sh "${MCE_CONFIG_DIR}/charts/policy"
-	make -C ../ yamlfmt
 
 mce-helm-chart:
 	@podman pull --arch amd64 ${MCE_OPERATOR_BUNDLE_IMAGE}
@@ -59,8 +58,8 @@ mce-helm-chart:
 		-o ${HELM_BASE_DIR} -s scaffold \
 		-l ${MCE_OPERATOR_BUNDLE_IMAGE}
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
-	make -C ../ yamlfmt
 
 helm-charts: mce-helm-chart policy-helm-chart
+	make -C ../ yamlfmt
 
 .PHONY: deploy deploy-policies scale helm-charts mce-helm-chart policy-helm-chart
