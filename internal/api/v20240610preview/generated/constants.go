@@ -303,6 +303,25 @@ func PossibleOutboundTypeValues() []OutboundType {
 	}
 }
 
+// PersistenceType - Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool. Valid values are: persistent
+// and ephemeral. If not specified, Persistent OS Disks are used.
+type PersistenceType string
+
+const (
+	// PersistenceTypeEphemeral - Ephemeral OS Disks of the Nodes in the Node Pool
+	PersistenceTypeEphemeral PersistenceType = "ephemeral"
+	// PersistenceTypePersistent - Persistent OS Disks of the Nodes in the Node Pool
+	PersistenceTypePersistent PersistenceType = "persistent"
+)
+
+// PossiblePersistenceTypeValues returns the possible values for the PersistenceType const type.
+func PossiblePersistenceTypeValues() []PersistenceType {
+	return []PersistenceType{
+		PersistenceTypeEphemeral,
+		PersistenceTypePersistent,
+	}
+}
+
 // ProvisioningState - The resource provisioning state.
 type ProvisioningState string
 

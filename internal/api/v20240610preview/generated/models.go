@@ -796,6 +796,10 @@ type OsDiskProfile struct {
 	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
+	// Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool. Valid values are: persistent and ephemeral.
+	// If not specified, Persistent OS Disks are used.
+	Persistence *PersistenceType
+
 	// The OS disk size in GiB
 	SizeGiB *int32
 }
