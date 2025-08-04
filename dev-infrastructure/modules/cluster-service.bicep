@@ -77,7 +77,7 @@ param postgresZoneRedundantMode string
 import * as res from 'resource.bicep'
 
 module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
-  name: '${deployment().name}-postgres'
+  name: 'cs-postgres-deployment'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     name: postgresServerName
@@ -130,7 +130,7 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
 //
 
 module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (deployPostgres) {
-  name: '${deployment().name}-cs-db-access'
+  name: 'cs-db-access'
   scope: resourceGroup(regionalResourceGroup)
   params: {
     postgresServerName: postgresServerName

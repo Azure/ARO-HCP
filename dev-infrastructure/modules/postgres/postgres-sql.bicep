@@ -19,7 +19,7 @@ param forceUpdateTag string = guid('${sqlScript}/${postgresServerName}/${databas
 import * as res from '../resource.bicep'
 
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: deployment().name
+  name: 'postgres-sql-${uniqueString(postgresServerName, databaseName, deployment().name)}'
   location: resourceGroup().location
   kind: 'AzureCLI'
   identity: {

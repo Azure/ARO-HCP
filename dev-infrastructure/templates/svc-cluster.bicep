@@ -511,7 +511,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
 }
 
 module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
-  name: '${deployment().name}-rp-pe'
+  name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
     subnetIds: [svcCluster.outputs.aksNodeSubnetId]
