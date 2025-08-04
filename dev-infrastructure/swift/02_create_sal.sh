@@ -1,10 +1,10 @@
-#!/bin/bash -x
+#!/bin/bash
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
-source sal_env_vars
+source swift_env_vars
 if ! is_redhat_user; then
     az login
     parent_guid=$(az network vnet list -g $resource_group | jq -r '.[].resourceGuid')
