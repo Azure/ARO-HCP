@@ -1,5 +1,4 @@
 ---
-{{- if and .Values.forwarder.enabled .Values.forwarder.rbac.create }}
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -18,4 +17,3 @@ rules:
       - "get"
       - "watch"
       - "list"
-{{- end }}
