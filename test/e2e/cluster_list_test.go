@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -30,22 +31,21 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 	defer GinkgoRecover()
 
 	var (
-		clustersClient *api.HcpOpenShiftClustersClient
-		customerEnv    *integration.CustomerEnv
+		customerEnv *integration.CustomerEnv
 	)
 
 	BeforeEach(func() {
-		By("Preparing HCP clusters client")
-		clustersClient = clients.NewHcpOpenShiftClustersClient()
 		By("Preparing customer environment values")
 		customerEnv = &e2eSetup.CustomerEnv
 	})
 
 	Context("Positive", func() {
 		It("Successfully lists clusters filtered by subscription ID", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
+			ic := framework.NewInvocationContext()
+
 			By("Preparing pager to list clusters")
 			listOptions := &api.HcpOpenShiftClustersClientListBySubscriptionOptions{}
-			pager := clustersClient.NewListBySubscriptionPager(listOptions)
+			pager := ic.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(listOptions)
 			By("Accessing IDs of all fetched clusters")
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)
@@ -59,8 +59,10 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 		})
 
 		It("Successfully lists clusters filtered by resource group name", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, func(ctx context.Context) {
+			ic := framework.NewInvocationContext()
+
 			By("Preparing pager to list clusters")
-			pager := clustersClient.NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
+			pager := ic.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListByResourceGroupPager(customerEnv.CustomerRGName, nil)
 			By("Accessing IDs of all fetched clusters")
 			for pager.More() {
 				clusterList, err := pager.NextPage(ctx)

@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -27,7 +28,6 @@ import (
 
 var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	var (
-		NodePoolsClient *api.NodePoolsClient
 		clusterEnv      *integration.Cluster
 		nodePoolOptions *api.NodePoolsClientGetOptions
 		customerEnv     *integration.CustomerEnv
@@ -35,8 +35,6 @@ var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	)
 
 	BeforeEach(func() {
-		By("Prepare HCPOpenshiftCluster nodepool client")
-		NodePoolsClient = clients.NewNodePoolsClient()
 		By("Prepare customer environment values")
 		customerEnv = &e2eSetup.CustomerEnv
 		nodePools = &e2eSetup.Nodepools
@@ -45,11 +43,13 @@ var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 
 	Context("Positive", func() {
 		It("Get each nodepool from HCPOpenShiftCluster", labels.RequireHappyPathInfra, labels.Medium, labels.Positive, labels.SetupValidation, func(ctx context.Context) {
+			ic := framework.NewInvocationContext()
+
 			if nodePools != nil {
 				nps := *nodePools
 				for np := range nps {
 					By("Send get request for nodepool")
-					clusterNodePool, err := NodePoolsClient.Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
+					clusterNodePool, err := ic.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient().Get(ctx, customerEnv.CustomerRGName, clusterEnv.Name, nps[np].Name, nodePoolOptions)
 					Expect(err).To(BeNil())
 					Expect(clusterNodePool).ToNot(BeNil())
 					By("Check to see nodepool exists and is successfully provisioned")

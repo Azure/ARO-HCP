@@ -17,83 +17,20 @@ package e2e
 import (
 	"context"
 	"os"
-	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
-	"github.com/Azure/ARO-HCP/test/util/environment"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 )
 
 var (
-	clients        *api.ClientFactory
-	subscriptionID string
-	e2eSetup       integration.SetupModel
-	testEnv        environment.Environment
+	e2eSetup integration.SetupModel
 )
-
-func prepareEnvironmentConf(testEnv environment.Environment) azcore.ClientOptions {
-	c := cloud.AzurePublic
-	if environment.Development.Compare(testEnv) {
-		c = cloud.Configuration{
-			ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-				cloud.ResourceManager: {
-					Audience: "https://management.core.windows.net/",
-					Endpoint: testEnv.Url(),
-				},
-			},
-		}
-	}
-	opts := azcore.ClientOptions{
-		Cloud:                           c,
-		InsecureAllowCredentialWithHTTP: environment.Development.Compare(testEnv),
-	}
-
-	return opts
-}
 
 func setup(ctx context.Context) error {
 	var (
-		found bool
-		creds azcore.TokenCredential
-		err   error
-		opts  azcore.ClientOptions
+		err error
 	)
 
-	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
-		subscriptionID = "00000000-0000-0000-0000-000000000000"
-	}
 	e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
-	if err != nil {
-		return err
-	}
-	testEnv = environment.Environment(strings.ToLower(os.Getenv("AROHCP_ENV")))
-	if testEnv == "" {
-		testEnv = environment.Development
-	}
-
-	opts = prepareEnvironmentConf(testEnv)
-	envOptions := &azidentity.EnvironmentCredentialOptions{
-		ClientOptions: opts,
-	}
-	creds, err = azidentity.NewEnvironmentCredential(envOptions)
-
-	if _, found := os.LookupEnv("LOCAL_DEVELOPMENT"); found {
-		creds, err = azidentity.NewAzureCLICredential(nil)
-	}
-	if err != nil {
-		return err
-	}
-
-	armOptions := &azcorearm.ClientOptions{
-		ClientOptions: opts,
-	}
-	clients, err = api.NewClientFactory(subscriptionID, creds, armOptions)
 	if err != nil {
 		return err
 	}
