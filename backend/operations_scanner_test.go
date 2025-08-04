@@ -422,6 +422,14 @@ func TestConvertClusterStatus(t *testing.T) {
 			expectConversionError:    false,
 		},
 		{
+			name:                     "Convert ClusterStateUpdating",
+			clusterState:             arohcpv1alpha1.ClusterStateUpdating,
+			currentProvisioningState: arm.ProvisioningStateAccepted,
+			updatedProvisioningState: arm.ProvisioningStateUpdating,
+			expectCloudError:         false,
+			expectConversionError:    false,
+		},
+		{
 			name:                     "Convert ClusterStateResuming",
 			clusterState:             arohcpv1alpha1.ClusterStateResuming,
 			currentProvisioningState: arm.ProvisioningStateAccepted,
