@@ -120,7 +120,7 @@ func TestExternalAuthValidate(t *testing.T) {
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
-							Groups: GroupClaimProfile{
+							Groups: &GroupClaimProfile{
 								Claim: TooLongClaim,
 							},
 						},
