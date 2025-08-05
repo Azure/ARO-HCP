@@ -37,6 +37,8 @@ resourceGroups:
       input:
         step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
   - name: svc-acr-replication
     action: Shell
     command: scripts/manage-acr-replication.sh
@@ -53,6 +55,8 @@ resourceGroups:
       input:
         step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
@@ -64,6 +68,8 @@ resourceGroups:
       name: globalMSIId
     dependsOn:
     - global-output
+    - svc-acr-replication
+    - ocp-acr-replication
   - name: region
     action: ARM
     template: templates/region.bicep
