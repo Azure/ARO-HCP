@@ -691,6 +691,13 @@
           "minLength": 1,
           "maxLength": 10
         },
+        "denyAssignments": {
+          "type": "string",
+          "enum": [
+            "enabled",
+            "disabled"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -767,6 +774,7 @@
       "additionalProperties": false,
       "required": [
         "environment",
+        "denyAssignments",
         "image",
         "managedIdentityName",
         "k8s",

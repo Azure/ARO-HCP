@@ -133,6 +133,8 @@ resourceGroups:
       configRef: clustersService.k8s.serviceAccountName
     - name: ENVIRONMENT
       configRef: clustersService.environment
+    - name: DENYASSIGNMENTS
+      configRef: clustersService.denyAssignments
     - name: MI_DATAPLANE_AUDIENCE_RESOURCE
       configRef: msiRp.dataPlaneAudienceResource
     - name: OCP_ACR_RESOURCE_ID

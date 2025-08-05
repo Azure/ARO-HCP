@@ -170,6 +170,8 @@ oidcIssuerBaseUrl: ""
 tlsCertificatesIssuer: ""
 # tls certificates enabled  indicates whether TLS certificates are enabled or disabled for Ingress and Kube API Server.
 tlsCertificatesEnabled: true
+# Temporary deny assignment feature flag
+denyAssignments: "disabled"
 # The client id of the service principal that represents the ARM Helper Identity.
 azureArmHelperIdentityClientId: ""
 # The name of the secret that contains the ARM Helper Indentity certificate bundle.

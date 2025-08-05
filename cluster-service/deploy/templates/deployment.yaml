@@ -110,6 +110,9 @@ spec:
       - name: service
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
         imagePullPolicy: IfNotPresent
+        env:
+        - name: DENYASSIGNMENTS
+          value: {{ .Values.denyAssignments }}
         volumeMounts:
         - name: service
           mountPath: /secrets/service
