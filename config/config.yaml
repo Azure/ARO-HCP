@@ -554,6 +554,7 @@ defaults:
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
+      jobNamePrefix: '{{ .ctx.environment }}-'
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror

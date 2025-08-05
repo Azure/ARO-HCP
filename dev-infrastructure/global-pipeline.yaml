@@ -20,15 +20,23 @@ resourceGroups:
 - name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  # creates global infra
-  # * the parent DNS zones for the ARO HCP services
-  # * the global KV
-  # * the global Grafana instance
   - name: global-infra
     action: ARM
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: global-housekeeping
+    action: Shell
+    command: scripts/global-housekeeping.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: GLOBAL_RESOURCE_GROUP
+      configRef: global.rg
+    dependsOn:
+    - global-infra
   - name: global-onecert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:

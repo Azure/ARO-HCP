@@ -1346,6 +1346,9 @@
             "enabled": {
               "type": "boolean"
             },
+            "jobNamePrefix": {
+              "type": "string"
+            },
             "image": {
               "$ref": "#/definitions/containerImage"
             },
