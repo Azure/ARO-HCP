@@ -34,7 +34,7 @@ const (
 	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern      = aroHcpV1Alpha1Pattern + "/clusters/*"
 	aroHcpV1Alpha1NodePoolPattern     = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
-	aroHcpV1Alpha1ExternalAuthPattern = aroHcpV1Alpha1ClusterPattern + "/external_auths/*"
+	aroHcpV1Alpha1ExternalAuthPattern = aroHcpV1Alpha1ClusterPattern + "/external_auth_config/external_auths/*"
 )
 
 func GenerateClusterHREF(clusterName string) string {
