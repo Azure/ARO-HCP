@@ -87,7 +87,7 @@ func TestInternalID(t *testing.T) {
 		},
 		{
 			name:      "parse aro_hcp v1alpha1 externalAuth",
-			path:      "/api/aro_hcp/v1alpha1/clusters/abc/external_auths/def",
+			path:      "/api/aro_hcp/v1alpha1/clusters/abc/external_auth_config/external_auths/def",
 			kind:      arohcpv1alpha1.ExternalAuthKind,
 			id:        "def",
 			clusterID: "abc",
