@@ -27,7 +27,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
   - name: global-housekeeping
     action: Shell
-    command: scripts/global-tidying.sh
+    command: scripts/global-housekeeping.sh
     dryRun:
       variables:
       - name: DRY_RUN
