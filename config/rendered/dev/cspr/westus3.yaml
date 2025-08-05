@@ -387,6 +387,8 @@ mgmt:
         - name: IstioNativeSidecarModePreview
           poll: true
         poll: true
+      Microsoft.Insights:
+        poll: true
       Microsoft.Network:
         features:
         - name: AllowBringYourOwnPublicIpAddress
@@ -598,6 +600,8 @@ svc:
           poll: true
         poll: true
       Microsoft.Dashboard:
+        poll: true
+      Microsoft.Insights:
         poll: true
       Microsoft.Network:
         features:
