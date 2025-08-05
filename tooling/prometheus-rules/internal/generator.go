@@ -71,6 +71,11 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 	if err := yaml.Unmarshal(rawRules, &rules); err != nil {
 		return nil, fmt.Errorf("failed to parse input rules: %v", err)
 	}
+
+	if rules.Spec.Groups == nil {
+		return nil, fmt.Errorf("no groups found in rules file %s", filename)
+	}
+
 	return &rules, nil
 }
 
