@@ -599,6 +599,8 @@ svc:
         poll: true
       Microsoft.Dashboard:
         poll: true
+      Microsoft.Insights:
+        poll: true
       Microsoft.Network:
         features:
         - name: AllowBringYourOwnPublicIpAddress
