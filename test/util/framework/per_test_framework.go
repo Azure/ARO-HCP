@@ -351,3 +351,7 @@ func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Cont
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }
+
+func (tc *perItOrDescribeTestContext) GetSubscriptionID(ctx context.Context) (string, error) {
+	return tc.getSubscriptionIDUnlocked(ctx)
+}

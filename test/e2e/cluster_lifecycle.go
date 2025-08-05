@@ -200,8 +200,8 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Sending a PUT request to create the cluster")
 		// Initialize the clustersClient using environment subscription ID
-		// subscriptionID := os.Getenv("CUSTOMER_SUBSCRIPTION")
-		Expect(subscriptionID).NotTo(BeEmpty(), "CUSTOMER_SUBSCRIPTION environment variable must be set")
+		subscriptionID, err := ic.GetSubscriptionID(ctx)
+		Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
 		// Create a new credential
 		credential, err := azidentity.NewDefaultAzureCredential(nil)
 		Expect(err).NotTo(HaveOccurred(), "failed to create credential")
