@@ -547,7 +547,7 @@ defaults:
       namespace: clusters-service
       serviceAccountName: clusters-service
     azureRuntimeConfig:
-      tlsCertificatesIssuer: OneCertV2-Public
+      tlsCertificatesIssuer: OneCertV2-PublicCA
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
