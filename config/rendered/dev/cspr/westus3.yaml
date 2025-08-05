@@ -99,6 +99,8 @@ clustersService:
       roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
     kms:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+  azureRuntimeConfig:
+    tlsCertificatesIssuer: Self
   environment: arohcpdev
   image:
     digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d

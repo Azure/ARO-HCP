@@ -546,6 +546,8 @@ defaults:
     k8s:
       namespace: clusters-service
       serviceAccountName: clusters-service
+    azureRuntimeConfig:
+      tlsCertificatesIssuer: OneCertV2-Public
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
@@ -699,6 +701,8 @@ clouds:
             roleNames: Azure Red Hat OpenShift Network Operator - Dev
           kms:
             roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+        azureRuntimeConfig:
+          tlsCertificatesIssuer: Self
       # Hypershift Operator
       hypershift:
         image:

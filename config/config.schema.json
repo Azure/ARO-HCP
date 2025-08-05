@@ -746,6 +746,18 @@
             "cloudNetworkConfig",
             "kms"
           ]
+        },
+        "azureRuntimeConfig" : {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
         }
       },
       "additionalProperties": false,
@@ -756,7 +768,8 @@
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing"
+        "tracing",
+        "azureRuntimeConfig"
       ]
     },
     "cxKeyVault": {

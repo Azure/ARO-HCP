@@ -166,6 +166,10 @@ databaseAuthMethod: "az-entra"
 oidcIssuerBlobServiceUrl: ""
 # OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
 oidcIssuerBaseUrl: ""
+# tls certificates issuer specifies the issuer of the TLS certificate for Ingress and Kube API Server - either Self or OneCertV2-PublicCA.
+tlsCertificatesIssuer: ""
+# tls certificates enabled  indicates whether TLS certificates are enabled or disabled for Ingress and Kube API Server.
+tlsCertificatesEnabled: true
 # The client id of the service principal that represents the ARM Helper Identity.
 azureArmHelperIdentityClientId: ""
 # The name of the secret that contains the ARM Helper Indentity certificate bundle.
