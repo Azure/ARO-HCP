@@ -24,12 +24,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/ARO-HCP/test/util/labels"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-var _ = Describe("External Auth API Access", Label(labels.Integration, labels.ExternalAuth), func() {
+var labelsCombined = append(labels.Integration, labels.ExternalAuth...)
+
+var _ = Describe("External Auth API Access", Labels(labelsCombined), func() {
 	var (
 		ctx          context.Context
 		cancel       context.CancelFunc
