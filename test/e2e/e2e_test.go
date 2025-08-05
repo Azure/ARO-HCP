@@ -18,16 +18,10 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"testing"
-	"time"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 func TestE2E(t *testing.T) {
@@ -42,24 +36,5 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	// Only attempt deletion of HCP cluster if a cluster was actually created
-	if e2eSetup.Cluster.Name == "" || e2eSetup.CustomerEnv.CustomerRGName == "" {
-		return
-	}
-	log.Logger.Infof("Starting deletion of cluster %s in resource group %s...", e2eSetup.Cluster.Name, e2eSetup.CustomerEnv.CustomerRGName)
-	ctxDel, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
-	defer cancel()
-	hcpClient := clients.NewHcpOpenShiftClustersClient()
-	clusterName := e2eSetup.Cluster.Name
-	resourceGroup := e2eSetup.CustomerEnv.CustomerRGName
-	poller, err := hcpClient.BeginDelete(ctxDel, resourceGroup, clusterName, nil)
-	if err != nil {
-		panic(fmt.Sprintf("Cluster deletion should succeed (begin): %v", err))
-	}
-	_, err = poller.PollUntilDone(ctxDel, &runtime.PollUntilDoneOptions{
-		Frequency: 10 * time.Second,
-	})
-	if err != nil {
-		panic(fmt.Sprintf("Cluster deletion should succeed (poll): %v", err))
-	}
+	// Cleanup is done by Resource Group DeferCleanup
 })

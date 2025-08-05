@@ -45,26 +45,22 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		"clusterName": clusterName,
 	}
 
-	// 3. Create a resource group name
+	// 3. Create a resource group
 	location := os.Getenv("LOCATION")
 	if location == "" {
 		location = "uksouth" // default fallback
 	}
-	resourceGroupName := "e2e-bicep-" + rand.String(12)
-
-	log.Logger.Infof("Using resource group: %s, cluster name: %s", resourceGroupName, clusterName)
-
-	// 4. Create the resource group using Azure SDK
-	resourceGroupsClient, err := armresources.NewResourceGroupsClient(subscriptionID, creds, nil)
-	if err != nil {
-		return setup, fmt.Errorf("failed to create resource groups client: %w", err)
-	}
-	_, err = framework.CreateResourceGroup(ctx, resourceGroupsClient, resourceGroupName, location, 20*time.Minute)
+	// Use framework's invocation context for resource group creation
+	ic := framework.NewInvocationContext()
+	resourceGroup, err := ic.NewResourceGroup(ctx, "e2e-bicep", location)
 	if err != nil {
 		return setup, fmt.Errorf("failed to create resource group: %w", err)
 	}
+	resourceGroupName := *resourceGroup.Name
 
-	// 5. Read the pre-built ARM template JSON from test-artifacts (relative to e2e directory)
+	log.Logger.Infof("Using resource group: %s, cluster name: %s", resourceGroupName, clusterName)
+
+	// 4. Read the pre-built ARM template JSON from test-artifacts (relative to e2e directory)
 	var jsonFile string
 	if bicepJSONFileName != "" {
 		jsonFile = bicepJSONFileName + ".json"
@@ -77,7 +73,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		return setup, fmt.Errorf("failed to read pre-built ARM template: %w", err)
 	}
 
-	// 6. Deploy the ARM template using the Azure SDK
+	// 5. Deploy the ARM template using the Azure SDK
+	deploymentName := "aro-hcp-e2e-setup"
 	deploymentsClient, err := armresources.NewDeploymentsClient(subscriptionID, creds, nil)
 	if err != nil {
 		return setup, fmt.Errorf("failed to create deployments client: %w", err)
@@ -86,13 +83,29 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		ctx,
 		deploymentsClient,
 		resourceGroupName,
-		"aro-hcp-e2e-setup",
+		deploymentName,
 		templateBytes,
 		parameters,
 		45*time.Minute,
 	)
 	if err != nil {
 		return setup, fmt.Errorf("failed to deploy ARM template: %w", err)
+	}
+
+	// Get bicep deployment info and write to test-artifacts/bicep-deployment-dump.json
+	deployment, err := deploymentsClient.Get(ctx, resourceGroupName, deploymentName, nil)
+	if err != nil {
+		log.Logger.Warnf("Failed to get deployment info: %v", err)
+	} else {
+		data, err := json.MarshalIndent(deployment, "", "  ")
+		if err != nil {
+			log.Logger.Warnf("Failed to marshal deployment info: %v", err)
+		} else {
+			err = os.WriteFile("test-artifacts/bicep-deployment-dump.json", data, 0644)
+			if err != nil {
+				log.Logger.Warnf("Failed to write deployment dump to file: %v", err)
+			}
+		}
 	}
 
 	// Extract outputs

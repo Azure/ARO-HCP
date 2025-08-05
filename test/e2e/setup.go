@@ -26,8 +26,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/environment"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
@@ -63,15 +66,17 @@ func prepareEnvironmentConf(testEnv environment.Environment) azcore.ClientOption
 
 func setup(ctx context.Context) error {
 	var (
-		found bool
-		err   error
-		opts  azcore.ClientOptions
-		creds azcore.TokenCredential
+		found            bool
+		err              error
+		opts             azcore.ClientOptions
+		creds            azcore.TokenCredential
+		subscriptionName string
 	)
 
-	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
-		subscriptionID = "00000000-0000-0000-0000-000000000000"
+	if subscriptionName, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
+		subscriptionName = "FallbackSubscription"
 	}
+
 	testEnv = environment.Environment(strings.ToLower(os.Getenv("AROHCP_ENV")))
 	if testEnv == "" {
 		testEnv = environment.Development
@@ -92,6 +97,15 @@ func setup(ctx context.Context) error {
 
 	armOptions := &azcorearm.ClientOptions{
 		ClientOptions: opts,
+	}
+	// Create a new armsubscriptions.Client from Azure SDK for Go
+	armSubscriptionsClient, err := armsubscriptions.NewClient(creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create armsubscriptions.Client: %w", err)
+	}
+	subscriptionID, err = framework.GetSubscriptionID(ctx, armSubscriptionsClient, subscriptionName)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
 	clients, err = api.NewClientFactory(subscriptionID, creds, armOptions)
 	if err != nil {
