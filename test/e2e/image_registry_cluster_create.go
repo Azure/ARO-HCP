@@ -20,7 +20,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
 
+	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -80,6 +82,23 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			// TODO get creds and actually inspect the cluster for an image registry
+			actualHCPCluster, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil())
+			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil())
+			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpapi20240610.ClusterImageRegistryProfileStateDisabled))
+
+			By("getting credentials")
+			adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = framework.VerifyHCPCluster(ctx, adminRESTConfig, framework.VerifyImageRegistryDisabled())
+			Expect(err).NotTo(HaveOccurred())
 		})
 })

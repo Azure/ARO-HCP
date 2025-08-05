@@ -59,6 +59,14 @@ func (v verifyImageRegistryDisabled) Verify(ctx context.Context, adminRESTConfig
 		return fmt.Errorf("wrong type of error: %T, %v", err, err)
 	}
 
+	_, err = kubeClient.AppsV1().Deployments("openshift-image-registry").Get(ctx, "image-registry", metav1.GetOptions{})
+	if err == nil {
+		return fmt.Errorf("image-registry deployment should not exist, but it does")
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("wrong type of error: %T, %v", err, err)
+	}
+
 	return nil
 }
 
