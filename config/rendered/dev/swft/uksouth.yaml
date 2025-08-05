@@ -166,7 +166,7 @@ frontend:
     exporter: ""
 geneva:
   logs:
-    adminCertName: geneva-logs-admin-swft
+    adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:

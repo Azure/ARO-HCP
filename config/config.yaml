@@ -129,7 +129,7 @@ defaults:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
-      adminCertName: "geneva-logs-admin-{{ .ctx.environment }}"
+      adminCertName: "geneva-logs-admin"
       manageCertificates: true
       certificateIssuer: Self
       certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
