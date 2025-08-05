@@ -67,7 +67,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 	} else {
 		jsonFile = "demo.json"
 	}
-	jsonPath := filepath.Join("test-artifacts", "generated-test-artifacts", jsonFile)
+	jsonPath := filepath.Join("bicep-templates", jsonFile)
 	templateBytes, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return setup, fmt.Errorf("failed to read pre-built ARM template: %w", err)

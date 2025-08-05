@@ -10,4 +10,5 @@ FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-no
 WORKDIR /
 ENV SETUP_FILEPATH=/test-artifacts/e2e-setup.json
 COPY --from=builder /app/test/e2e/e2e.test /e2e.test
+COPY --from=builder /app/test/e2e/bicep-templates /app/bicep-templates
 ENTRYPOINT ["/e2e.test", "--ginkgo.timeout", "1h", "--ginkgo.junit-report", "/test-artifacts/junit-report.xml", "--ginkgo.trace"]
