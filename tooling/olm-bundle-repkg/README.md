@@ -70,9 +70,10 @@ Flags:
       --chart-description string   Override chart description
       --chart-name string          Override chart name
   -c, --config string              Path to configuration file (YAML) [REQUIRED]
+      --crd-chart-name string      Name for a separate CRD chart (if not specified, CRDs will be included in the main chart)
   -h, --help                       help for olm-bundle-repkg
   -b, --olm-bundle string          OLM bundle input with protocol prefix: oci:// for bundle images, file:// for manifest directories [REQUIRED]
-  -o, --output-dir string          Output directory for the generated Helm Chart [REQUIRED]
+  -o, --output-dir string          Output directory for the generated Helm Charts [REQUIRED]
   -s, --scaffold-dir string        Directory containing additional templates to be added to the generated Helm Chart
   -l, --source-link string         Link to the Bundle image that is repackaged
 ```

@@ -117,6 +117,17 @@ func newKmsKey(from *api.KmsKey) *generated.KmsKey {
 		Version:   api.PtrOrNil(from.Version),
 	}
 }
+
+func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) *generated.ClusterImageRegistryProfile {
+	profile := &generated.ClusterImageRegistryProfile{
+		State: nil,
+	}
+	if from.State != nil {
+		profile.State = api.Ptr(generated.ClusterImageRegistryProfileState(*from.State))
+	}
+	return profile
+}
+
 func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) *generated.OperatorsAuthenticationProfile {
 	return &generated.OperatorsAuthenticationProfile{
 		UserAssignedIdentities: newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities),
@@ -160,6 +171,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Platform:                newPlatformProfile(&from.Properties.Platform),
 				Autoscaling:             newClusterAutoscalingProfile(&from.Properties.Autoscaling),
 				NodeDrainTimeoutMinutes: api.PtrOrNil(from.Properties.NodeDrainTimeoutMinutes),
+				ClusterImageRegistry:    newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry),
 				Etcd:                    newEtcdProfile(&from.Properties.Etcd),
 			},
 		},
@@ -263,6 +275,9 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.NodeDrainTimeoutMinutes != nil {
 				out.Properties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
+			}
+			if c.Properties.ClusterImageRegistry != nil {
+				normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.Properties.ClusterImageRegistry)
 			}
 			if c.Properties.Etcd != nil {
 				normalizeEtcd(c.Properties.Etcd, &out.Properties.Etcd)
@@ -411,6 +426,12 @@ func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
 	}
 	if p.Version != nil {
 		out.Version = *p.Version
+	}
+}
+
+func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *api.ClusterImageRegistryProfile) {
+	if p.State != nil {
+		out.State = api.PtrOrNil(api.ClusterImageRegistryProfileState(*p.State))
 	}
 }
 

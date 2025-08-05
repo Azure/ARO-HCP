@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
+HACK_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
 HELM_RELEASE_NAME="$1"
 CHART="$2"
 NAMESPACE="$3"
@@ -11,9 +17,14 @@ if ! kubectl get namespace "${NAMESPACE}" &>/dev/null; then
     exit 1
 fi
 
-if [ "${DRY_RUN}" == "true" ]; then
+if [ "${DRY_RUN:-false}" == "true" ]; then
   helm diff upgrade --install --dry-run=server --suppress-secrets --three-way-merge "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
 else
+  if [ "${HELM_ADOPT:-false}" == "true" ]; then
+    echo "Adopting Helm release ${HELM_RELEASE_NAME} in namespace ${NAMESPACE}"
+    "${HACK_DIR}/helm-adopt.sh" "${HELM_RELEASE_NAME}" "${CHART}" "${NAMESPACE}" "$@"
+  fi
+
   echo "Run Helm upgrade with release name ${HELM_RELEASE_NAME} in namespace ${NAMESPACE}"
   helm upgrade --install --wait --wait-for-jobs "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
   HELM_EXIT_CODE=$?
@@ -24,7 +35,6 @@ else
   fi
 
   # run diagnostics
-  HACK_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
   "${HACK_DIR}"/deployment-diagnostics.sh "${HELM_RELEASE_NAME}" "${NAMESPACE}"
 
   # exit with the original exit code

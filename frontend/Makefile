@@ -1,7 +1,7 @@
 -include ../setup-env.mk
 
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
-ARO_HCP_IMAGE_TAG ?= $(shell git rev-parse --short=7 HEAD)$(shell git status --porcelain --untracked-files=no | grep --quiet . && echo -dirty)
+ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ARO_HCP_FRONTEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
 
@@ -22,8 +22,6 @@ clean:
 	rm -f aro-hcp-frontend
 .PHONY: clean
 
-build-push: image push
-
 image:
 	@bash -c "set -e; pushd .. > /dev/null; \
 	          trap 'rm --force image-environment && popd > /dev/null' EXIT; \
@@ -38,9 +36,16 @@ image:
 push: image
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ARO_HCP_FRONTEND_IMAGE}
+.PHONY: push
+
+config:
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	yq --inplace '.clouds.*.environments.*.defaults.frontend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
+	git diff
+.PHONY: config
 
 deploy:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \

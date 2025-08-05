@@ -418,6 +418,10 @@
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
     },
+    "csv": {
+      "type": "string",
+      "pattern": "^$|^[\\w-\\.]+(,[\\w-\\.]+)*$"
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
@@ -604,9 +608,34 @@
     "acm": {
       "type": "object",
       "properties": {
+        "operator": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "mirrorAdditionalVersions": {
+              "$ref": "#/definitions/csv"
+            },
+            "bundle": {
+              "$ref": "#/definitions/containerImage"
+            }
+          },
+          "required": [
+            "version",
+            "mirrorAdditionalVersions",
+            "bundle"
+          ]
+        },
         "mce": {
           "type": "object",
           "properties": {
+            "version": {
+              "type": "string"
+            },
+            "mirrorAdditionalVersions": {
+              "$ref": "#/definitions/csv"
+            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             },
@@ -617,12 +646,16 @@
           },
           "additionalProperties": false,
           "required": [
+            "version",
+            "mirrorAdditionalVersions",
+            "bundle",
             "pauseReconciliation"
           ]
         }
       },
       "additionalProperties": false,
       "required": [
+        "operator",
         "mce"
       ]
     },
@@ -713,6 +746,18 @@
             "cloudNetworkConfig",
             "kms"
           ]
+        },
+        "azureRuntimeConfig" : {
+          "type": "object",
+          "properties": {
+            "tlsCertificatesIssuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tlsCertificatesIssuer"
+          ]
         }
       },
       "additionalProperties": false,
@@ -723,7 +768,8 @@
         "k8s",
         "azureOperatorsManagedIdentities",
         "postgres",
-        "tracing"
+        "tracing",
+        "azureRuntimeConfig"
       ]
     },
     "cxKeyVault": {
@@ -861,6 +907,9 @@
     "billing": {
       "type": "object",
       "properties": {
+        "rg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
         "aub": {
           "type": "object",
           "properties": {
@@ -931,6 +980,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "rg",
         "aub",
         "pav2",
         "kusto",
@@ -1011,6 +1061,9 @@
           "additionalProperties": false,
           "properties": {
             "adminCertName":{
+              "type": "string"
+            },
+            "adminCertificateDomain": {
               "type": "string"
             },
             "administrators": {
@@ -1206,6 +1259,18 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "billing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rg": {
+              "$ref": "#/definitions/resourceGroupName"
+            }
+          },
+          "required": [
+            "rg"
+          ]
+        },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
@@ -1230,6 +1295,7 @@
       },
       "required": [
         "rg",
+        "billing",
         "subscription",
         "region",
         "keyVault"
@@ -1292,6 +1358,9 @@
           "properties": {
             "enabled": {
               "type": "boolean"
+            },
+            "jobNamePrefix": {
+              "type": "string"
             },
             "image": {
               "$ref": "#/definitions/containerImage"
@@ -1896,16 +1965,12 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        },
-        "msft": {
-          "$ref": "#/definitions/acr"
-        }        
+        }       
       },
       "additionalProperties": false,
       "required": [
         "svc",
-        "ocp",
-        "msft"
+        "ocp"
       ]
     },
     "releaseApprover": {

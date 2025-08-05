@@ -27,15 +27,6 @@ param svcParentZoneResourceId string
 
 param regionalDNSSubdomain string
 
-param globalRegion string
-param regionalRegion string
-
-@description('The resource ID of the OCP ACR')
-param ocpAcrResourceId string
-
-@description('The resource ID of the SVC ACR')
-param svcAcrResourceId string
-
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
@@ -114,39 +105,11 @@ module regionalSvcZoneDelegation '../modules/dns/zone-delegation.bicep' = {
 }
 
 //
-// R E G I O N A L   A C R   R E P L I C A T I O N
-//
-
-var ocpAcrRef = res.acrRefFromId(ocpAcrResourceId)
-var ocpAcrReplicationName = '${ocpAcrRef.name}${location}replica'
-module ocpAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
-  name: ocpAcrReplicationName
-  scope: resourceGroup(ocpAcrRef.resourceGroup.subscriptionId, ocpAcrRef.resourceGroup.name)
-  params: {
-    acrReplicationLocation: location
-    acrReplicationParentAcrName: ocpAcrRef.name
-    acrReplicationReplicaName: ocpAcrReplicationName
-  }
-}
-
-var svcAcrRef = res.acrRefFromId(svcAcrResourceId)
-var svcAcrReplicationName = '${svcAcrRef.name}${location}replica'
-module svcAcrReplication '../modules/acr/acr-replication.bicep' = if (globalRegion != regionalRegion) {
-  name: svcAcrReplicationName
-  scope: resourceGroup(svcAcrRef.resourceGroup.subscriptionId, svcAcrRef.resourceGroup.name)
-  params: {
-    acrReplicationLocation: location
-    acrReplicationParentAcrName: svcAcrRef.name
-    acrReplicationReplicaName: svcAcrReplicationName
-  }
-}
-
-//
 // M A E S T R O
 //
 
 module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
-  name: '${deployment().name}-maestro'
+  name: 'maestro-infra-deployment'
   params: {
     eventGridNamespaceName: maestroEventGridNamespacesName
     location: location

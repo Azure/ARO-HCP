@@ -418,3 +418,37 @@ func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 	versionsListRequest := csc.conn.AroHCP().V1alpha1().Versions().List()
 	return VersionsListIterator{request: versionsListRequest}
 }
+
+// NewOpenShiftVersionXY parses the given version, stripping off any
+// OpenShift prefix ("openshift-"), and returns a new Version X.Y.
+func NewOpenShiftVersionXY(v string) string {
+	v = ConvertOpenshiftVersionNoPrefix(v)
+	parts := strings.Split(v, ".")
+	if len(parts) >= 2 {
+		v = parts[0] + "." + parts[1]
+	}
+	return v
+}
+
+// NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
+func NewOpenShiftVersionXYZ(v string) string {
+	parts := strings.Split(v, ".")
+	if len(parts) == 1 {
+		parts = append(parts, "0")
+	}
+	parts = append(parts[:2], "0")
+	return api.OpenShiftVersionPrefix + strings.Join(parts, ".")
+}
+
+// ConvertOpenshiftVersionNoPrefix strips off openshift-v prefix
+func ConvertOpenshiftVersionNoPrefix(v string) string {
+	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
+}
+
+// ConvertOpenshiftVersionAddPrefix adds openshift-v prefix
+func ConvertOpenshiftVersionAddPrefix(v string) string {
+	if !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
+		return api.OpenShiftVersionPrefix + v
+	}
+	return v
+}

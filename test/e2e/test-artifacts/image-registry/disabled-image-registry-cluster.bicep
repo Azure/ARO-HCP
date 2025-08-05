@@ -467,6 +467,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       id: 'openshift-v4.19.0'
       channelGroup: 'stable'
     }
+    clusterImageRegistry: {
+      state: 'Disabled'
+    }
     dns: {}
     network: {
       networkType: 'OVNKubernetes'

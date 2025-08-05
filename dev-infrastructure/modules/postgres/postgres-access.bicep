@@ -44,7 +44,7 @@ var sqlScriptLines = [
 ]
 
 module managedIdentityDatabaseAccess 'postgres-sql.bicep' = {
-  name: '${deployment().name}-db-access'
+  name: 'db-mi-access-${uniqueString(databaseName)}'
   params: {
     postgresServerName: postgres.properties.fullyQualifiedDomainName
     databaseName: 'postgres' // access configuration is managed in the postgres DB

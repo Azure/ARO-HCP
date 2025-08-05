@@ -54,3 +54,6 @@ convert_bicep_to_json "${project_root}/demo/bicep/nodepool.bicep" "${OUTPUT_DIR}
 
 convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
 convert_bicep_to_json "${project_root}/test/e2e-setup/bicep/infra-only.bicep" "${OUTPUT_DIR}/cluster-lifecycle/infra-only.json"
+
+convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
+

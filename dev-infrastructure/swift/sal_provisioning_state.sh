@@ -1,7 +1,9 @@
 #!/bin/bash
 
-source sal_env_vars
+source swift_env_vars
 
-parent_guid=$(az network vnet list -g $resource_group | jq -r '.[].resourceGuid')
+if ! is_redhat_user; then
+    az login
+fi
 
-az network vnet subnet show -g $resource_group -n $subnet_name --vnet-name $vnet_name | jq '.serviceAssociationLinks[]'
+az network vnet subnet show -g $resource_group -n $subnet_name --vnet-name $vnet_name

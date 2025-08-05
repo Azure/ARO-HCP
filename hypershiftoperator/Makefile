@@ -10,7 +10,7 @@ deploy:
 		--namespace ${HYPERSHIFT_NAMESPACE} \
 		--set image=${ARO_HCP_SVC_ACR}.azurecr.io/${HO_IMAGE_REPOSITORY} \
 		--set imageDigest=${HO_IMAGE_DIGEST} \
-		--set registryOverrides="quay.io/openshift-release-dev/ocp-v4.0-art-dev=${ARO_HCP_OCP_ACR}.azurecr.io/openshift/release\,quay.io/openshift-release-dev/ocp-release=${ARO_HCP_OCP_ACR}.azurecr.io/openshift/release-images\,registry.redhat.io/redhat=${ARO_HCP_OCP_ACR}.azurecr.io/redhat" \
+		--set registryOverrides="quay.io/openshift-release-dev/ocp-v4.0-art-dev=${ARO_HCP_OCP_ACR}.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev\,quay.io/openshift-release-dev/ocp-release=${ARO_HCP_OCP_ACR}.azurecr.io/openshift-release-dev/ocp-release\,registry.redhat.io/redhat=${ARO_HCP_OCP_ACR}.azurecr.io/redhat" \
 		--set additionalArgs="${HO_ADDITIONAL_INSTALL_ARG}" \
 		--set azureKeyVaultClientId=$${CSI_SECRET_STORE_CLIENT_ID}
 

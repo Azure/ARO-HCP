@@ -65,6 +65,11 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     permissions: [
       {
         actions: [
+          'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/delete'
+          'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/write'
+          'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/read'
+          'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/details/read'
+          'Microsoft.Network/virtualNetworks/subnets/serviceAssociationLinks/validate/action'
           'Microsoft.Resources/subscriptions/resourceGroups/read'
           'Microsoft.Resources/subscriptions/resourceGroups/write'
           'Microsoft.Authorization/*/action'

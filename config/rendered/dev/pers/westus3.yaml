@@ -4,14 +4,17 @@ acm:
       digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
       registry: registry.redhat.io
       repository: multicluster-engine/mce-operator-bundle
+    mirrorAdditionalVersions: 2.8.2,2.9.0
     pauseReconciliation: true
+    version: 2.8.1
+  operator:
+    bundle:
+      digest: sha256:ee0dcef1c136bb88ff9c6face87b3f07b22ca8e03896dc66b5f086e69657748d
+      registry: registry.redhat.io
+      repository: rhacm2/acm-operator-bundle
+    mirrorAdditionalVersions: 2.12.0,2.14.0
+    version: 2.13.0
 acr:
-  msft:
-    name: arohcpocppers
-    untaggedImagesRetention:
-      days: 365
-      enabled: true
-    zoneRedundantMode: Enabled
   ocp:
     name: arohcpocpdev
     untaggedImagesRetention:
@@ -74,6 +77,7 @@ billing:
     clusterName: ""
   pav2:
     cloudName: ""
+  rg: placeholder
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
@@ -95,9 +99,11 @@ clustersService:
       roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
     kms:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+  azureRuntimeConfig:
+    tlsCertificatesIssuer: Self
   environment: arohcpdev
   image:
-    digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
+    digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -161,11 +167,12 @@ frontend:
 geneva:
   logs:
     adminCertName: geneva-logs-admin-pers
+    adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
       - AME\WEINONGW
       securityGroup: AME\TM-AzureRedHatOpenShift-Leads
-    certificateDomain: geneva.keyvault.aro-hcp-pers.azure.com
+    certificateDomain: geneva.keyvault.aro-hcp.azure.com
     certificateIssuer: Self
     cluster:
       accountName: placeholder
@@ -192,6 +199,8 @@ geneva:
 genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
+  billing:
+    rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
     name: arohcpdev-global
@@ -229,7 +238,7 @@ global:
 hypershift:
   additionalInstallArg: ""
   image:
-    digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+    digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -241,6 +250,7 @@ imageSync:
       digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
+    jobNamePrefix: pers-
     pullSecretName: ocmirror-pull-secret
   ondemandSync:
     pullSecretName: component-sync-pull-secret
@@ -381,6 +391,8 @@ mgmt:
         features:
         - name: IstioNativeSidecarModePreview
           poll: true
+        poll: true
+      Microsoft.Insights:
         poll: true
       Microsoft.Network:
         features:
@@ -595,6 +607,8 @@ svc:
           poll: true
         poll: true
       Microsoft.Dashboard:
+        poll: true
+      Microsoft.Insights:
         poll: true
       Microsoft.Network:
         features:

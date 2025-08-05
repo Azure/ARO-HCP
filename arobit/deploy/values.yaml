@@ -50,16 +50,11 @@ forwarder:
             HC_Retry_Failure_Count    5
             HC_Period                 60
       parsers_custom.conf: |
-        # Previously, docker parser would parse the container log as record["log"].
-        # With the default cri parser, the container log will be parsed as record["message"].
-        # For backward compat with docker implementation, use the following parser.
         [PARSER]
-            Name        cri-o
-            Format      regex
-            Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
-            Time_Key    time
-            Time_Format %Y-%m-%dT%H:%M:%S.%L%z
-            Time_Keep   On
+            Name                nested_time_field
+            Format              json
+            Time_Key            time
+            Time_Format         %Y-%m-%dT%H:%M:%S.%L
       input.conf: |
         [INPUT]
             Name              tail
@@ -125,26 +120,32 @@ forwarder:
             Port   4318
       filter.conf: |
         [FILTER]
-            Name   lua
-            Alias  lua.reassemble_cri
-            Match  kubernetes.var.log.containers.*
-            script /forwarder/etc/reassemble_cri.lua
-            call   reassemble_cri
-
-        [FILTER]
             Name                kubernetes
             Alias               filter.kubernetes
             Match               kubernetes.var.log.containers.*
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
-      filter-ocm.conf: |
+
+        [FILTER]
+            Name          nest
+            Match         kubernetes.*
+            Operation     lift
+            Nested_under  kubernetes
+
+        [FILTER]
+            Name          parser
+            Alias         parser.nested_time_field
+            Match         kubernetes.*
+            Parser        nested_time_field
+            Key_Name      log
+
         [FILTER]
             Name            rewrite_tag
             Alias           filter.namespace_router
             Match           kubernetes.var.log.containers.*
-            Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
-            Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+            Rule            namespace_name ^ocm-.* ocm.logs false
+            Rule            namespace_name ^(?!ocm-).* other.logs false
             Emitter_Name    re_emitted
       output.conf: |
         [OUTPUT]
@@ -168,7 +169,7 @@ forwarder:
             Match other.logs
             Host  127.0.0.1
             Port  5001
-            Tag   kubernetes
+            Tag   akskubesystem
 
         [OUTPUT]
             Name  prometheus_exporter
@@ -184,24 +185,11 @@ forwarder:
             Match ocm.logs
             Host  127.0.0.1
             Port  5002
-            Tag   ocm.kubernetes
-      reassemble_cri.lua: |
-        local reassemble_state = {}
-        function reassemble_cri(tag, timestamp, record)
-          local reassemble_key = tag
-          -- if partial line, accumulate
-          if record.logtag == 'P' then
-            reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-            return -1, 0, 0
-          end
-          -- otherwise, it's a full line, concatenate with accumulated partial lines if any
-          record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-          reassemble_state[reassemble_key] = nil
-          return 1, timestamp, record
-        end
+            Tag   akskubesystem
   mdsd:
     # Geneva Config
     geneva:
+      role: ""
       rpAccountName: ""
       rpSecretName: ""
       rpSan: ""

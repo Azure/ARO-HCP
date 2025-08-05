@@ -54,6 +54,8 @@ defaults:
           - name: IstioNativeSidecarModePreview
             poll: true
     rg: global-shared-resources
+    billing:
+      rg: "placeholder"
     globalMSIName: global-ev2-identity
     nsp:
       name: nsp-global
@@ -78,12 +80,6 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
-    msft:
-      name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
-      zoneRedundantMode: Enabled
-      untaggedImagesRetention:
-        enabled: true
-        days: 365
   # ACR Pull
   acrPull:
     image:
@@ -97,7 +93,7 @@ defaults:
         repository: oss/fluent/fluent-bit
         digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
     mdsd:
-      enabled: false
+      enabled: true
       image:
         registry: linuxgeneva-microsoft.azurecr.io
         repository: genevamdsd
@@ -132,10 +128,11 @@ defaults:
         alias:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
+      adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
       adminCertName: "geneva-logs-admin-{{ .ctx.environment }}"
       manageCertificates: true
       certificateIssuer: Self
-      certificateDomain: "geneva.keyvault.aro-hcp-{{ .ctx.environment }}.azure.com"
+      certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
       typeName: ""
       environment: "Test"
       cluster:
@@ -220,6 +217,8 @@ defaults:
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - SVC"
       providers:
+        'Microsoft.Insights':
+          poll: true
         'Microsoft.Dashboard':
           poll: true
         'Microsoft.Network':
@@ -306,6 +305,8 @@ defaults:
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
       providers:
+        'Microsoft.Insights':
+          poll: true
         'Microsoft.Storage':
           poll: true
         'Microsoft.Network':
@@ -408,6 +409,7 @@ defaults:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Billing
   billing:
+    rg: "placeholder"
     aub:
       accountName: ""
       cloudSuffix: ""
@@ -504,7 +506,16 @@ defaults:
       digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
   # ACM
   acm:
+    operator:
+      version: "2.13.0"
+      mirrorAdditionalVersions: "2.12.0,2.14.0"
+      bundle:
+        registry: registry.redhat.io
+        repository: rhacm2/acm-operator-bundle
+        digest: sha256:ee0dcef1c136bb88ff9c6face87b3f07b22ca8e03896dc66b5f086e69657748d # v2.13.1-2
     mce:
+      version: "2.8.1"
+      mirrorAdditionalVersions: "2.8.2,2.9.0"
       # pause to mitigate the CAPI CRD issue
       # - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1748436890103839
       # - https://redhat-internal.slack.com/archives/C057Y3D4E1J/p1749128475749979
@@ -535,6 +546,8 @@ defaults:
     k8s:
       namespace: clusters-service
       serviceAccountName: clusters-service
+    azureRuntimeConfig:
+      tlsCertificatesIssuer: OneCertV2-PublicCA
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
@@ -543,6 +556,7 @@ defaults:
       pullSecretName: component-sync-pull-secret
     ocMirror:
       enabled: true
+      jobNamePrefix: '{{ .ctx.environment }}-'
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
@@ -605,6 +619,9 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      arobit:
+        mdsd:
+          enabled: false
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
@@ -662,7 +679,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:8b2e9af554ad3422f5c30830e383eddffdeac37f64677359d6913f53a4a2abfb
+          digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -684,12 +701,14 @@ clouds:
             roleNames: Azure Red Hat OpenShift Network Operator - Dev
           kms:
             roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+        azureRuntimeConfig:
+          tlsCertificatesIssuer: Self
       # Hypershift Operator
       hypershift:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:caa1da4abd381492c07951575b8e64c6cce499252b697e3f6fade575803b2bcf
+          digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
       # Backplane API
       backplaneAPI:
         image:

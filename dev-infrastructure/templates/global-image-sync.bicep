@@ -10,6 +10,9 @@ param location string
 @description('Specifies the name of the container app environment.')
 param containerAppEnvName string
 
+@description('Prefix for the job name')
+param jobNamePrefix string
+
 @description('Container app public IP service tags')
 param containerAppOutboundServiceTags string
 var containerAppOutboundServiceTagsArray = [
@@ -42,6 +45,18 @@ param ocMirrorEnabled bool
 
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
+
+@description('The current version of the ACM operator')
+param acmVersion string
+
+@description('The versions of the ACM operator to mirror')
+param acmAdditionalVersionsToMirror string
+
+@description('The current version of the MCE operator')
+param mceVersion string
+
+@description('The ersions of the MCE operator to mirror')
+param mceAdditionalVersionsToMirror string
 
 resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: keyVaultName
@@ -225,7 +240,18 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 //
 
 // this is v2alpha1 syntax for oc-mirror 4.16, which we use until 4.18+ offers
-// a way to not rebuild the catalogs, which fails in ACA
+// a way to not rebuild the catalogs, which fails in Azure Container App
+
+var acmBundlesToMirror = [
+  for version in concat([acmVersion], csvToArray(acmAdditionalVersionsToMirror)): {
+    name: 'advanced-cluster-management.v${version}'
+  }
+]
+var mceBundlesToMirror = [
+  for version in concat([mceVersion], csvToArray(mceAdditionalVersionsToMirror)): {
+    name: 'multicluster-engine.v${version}'
+  }
+]
 
 var operatorMirrorJobConfiguration = [
   {
@@ -244,31 +270,11 @@ var operatorMirrorJobConfiguration = [
             packages: [
               {
                 name: 'multicluster-engine'
-                bundles: [
-                  {
-                    name: 'multicluster-engine.v2.7.0'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.0'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.1'
-                  }
-                  {
-                    name: 'multicluster-engine.v2.8.2'
-                  }
-                ]
+                bundles: mceBundlesToMirror
               }
               {
                 name: 'advanced-cluster-management'
-                bundles: [
-                  {
-                    name: 'advanced-cluster-management.v2.12.0'
-                  }
-                  {
-                    name: 'advanced-cluster-management.v2.13.0'
-                  }
-                ]
+                bundles: acmBundlesToMirror
               }
             ]
           }
@@ -279,70 +285,11 @@ var operatorMirrorJobConfiguration = [
   }
 ]
 
-//
-//  O C P   M I R R O R   J O B
-//
-
-var ocpMirrorDefinitions = [
-  {
-    name: 'oc-mirror-4-18'
-    major: '4.18'
-    channels: [
-      {
-        name: 'stable-4.18'
-        type: 'ocp'
-        full: true
-        minVersion: '4.18.1'
-        maxVersion: '4.18.9'
-      }
-    ]
-  }
-  {
-    name: 'oc-mirror-4-19'
-    major: '4.19'
-    channels: [
-      {
-        name: 'stable-4.19'
-        type: 'ocp'
-        full: true
-        minVersion: '4.19.0'
-      }
-    ]
-  }
-]
-var ocpMirrorJobConfiguration = [
-  for job in ocpMirrorDefinitions: {
-    name: job.name
-    cron: '0 * * * *'
-    timeout: 4 * 60 * 60
-    retryLimit: 3
-    targetRegistry: ocpAcrName
-    imageSetConfig: {
-      kind: 'ImageSetConfiguration'
-      apiVersion: 'mirror.openshift.io/v2alpha1'
-      mirror: {
-        platform: {
-          architectures: ['multi', 'amd64', 'arm64']
-          channels: job.channels
-          graph: true
-        }
-        additionalImages: [
-          { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }
-        ]
-      }
-    }
-    compatibility: 'LATEST'
-  }
-]
-
-var ocMirrorJobConfiguration = ocMirrorEnabled ? union(ocpMirrorJobConfiguration, operatorMirrorJobConfiguration) : []
+var ocMirrorJobConfiguration = ocMirrorEnabled ? operatorMirrorJobConfiguration : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {
-    name: ocMirrorJobConfiguration[i].name
+    name: '${jobNamePrefix}${ocMirrorJobConfiguration[i].name}'
     location: location
     identity: {
       type: 'UserAssigned'
