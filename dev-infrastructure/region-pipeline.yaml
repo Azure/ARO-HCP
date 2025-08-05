@@ -33,6 +33,10 @@ resourceGroups:
       configRef: acr.ocp.name
     - name: REPLICATION_REGION
       configRef: region
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
   - name: svc-acr-replication
     action: Shell
     command: scripts/manage-acr-replication.sh
@@ -45,6 +49,10 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:

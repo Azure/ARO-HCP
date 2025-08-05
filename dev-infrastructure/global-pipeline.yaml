@@ -37,6 +37,10 @@ resourceGroups:
       configRef: global.rg
     dependsOn:
     - global-infra
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
   - name: global-onecert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
