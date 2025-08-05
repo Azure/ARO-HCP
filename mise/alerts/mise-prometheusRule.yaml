@@ -8,15 +8,15 @@ metadata:
     role: alert-rules
   name: mise-monitoring-rules
   namespace: monitoring
-spec:
-  groups:
-  - name: mise
-    rules:
-    - alert: MiseEnvoyScrapeDown
-      expr: "absent(up{job=\"envoy-stats\", namespace=\"mise\"}) \nor \n(up{job=\"envoy-stats\", namespace=\"mise\"} == 0)\n"
-      for: 2m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+groups:
+- name: mise
+  rules:
+  - alert: MiseEnvoyScrapeDown
+    expr: absent(up{job="envoy-stats", namespace="mise"}) or (up{job="envoy-stats", namespace="mise"} == 0)
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Envoy scrape target down for namespace=mise"
+      description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+      runbook_url: 'TBD'
