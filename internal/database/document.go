@@ -117,6 +117,7 @@ func (doc ResourceDocument) GetValidTypes() []string {
 	return []string{
 		api.ClusterResourceType.String(),
 		api.NodePoolResourceType.String(),
+		api.ExternalAuthResourceType.String(),
 	}
 }
 
