@@ -135,7 +135,7 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
 }
 
-// artifactDir returns the value of ARTIFACT_DIR environment variable, which is spot to save info in CI
+// artifactDir returns the value of ARTIFACT_DIR environment variable
 func artifactDir() string {
 	return os.Getenv("ARTIFACT_DIR")
 }
@@ -153,7 +153,6 @@ func sharedDir() string {
 }
 
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable
->>>>>>> 43fc66de (use the shared_dir for backup cleanup from e2e)
 func subscriptionName() string {
 	return os.Getenv("CUSTOMER_SUBSCRIPTION")
 }
