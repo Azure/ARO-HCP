@@ -28,6 +28,7 @@ const (
 	ProviderNamespaceDisplay        = "Azure Red Hat OpenShift"
 	ClusterResourceTypeName         = "hcpOpenShiftClusters"
 	NodePoolResourceTypeName        = "nodePools"
+	ExternalAuthResourceTypeName    = "externalAuths"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
@@ -35,10 +36,11 @@ const (
 )
 
 var (
-	ClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	NodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	PreflightResourceType = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType   = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
+	ClusterResourceType      = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
+	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {
@@ -51,6 +53,11 @@ type VersionedHCPOpenShiftClusterNodePool interface {
 	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
+type VersionedHCPOpenShiftClusterExternalAuth interface {
+	Normalize(*HCPOpenShiftClusterExternalAuth)
+	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
+}
+
 type Version interface {
 	fmt.Stringer
 
@@ -58,10 +65,12 @@ type Version interface {
 	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
+	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
 
 	// Response Marshaling
 	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
 	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
+	MarshalHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) ([]byte, error)
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 	MarshalHCPOpenShiftVersion(*HCPOpenShiftVersion) ([]byte, error)
 }

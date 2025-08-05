@@ -41,6 +41,7 @@ const (
 	TestResourceGroupName        = "testResourceGroup"
 	TestClusterName              = "testCluster"
 	TestNodePoolName             = "testNodePool"
+	TestExternalAuthName         = "testExternalAuth"
 	TestDeploymentName           = "testDeployment"
 	TestNetworkSecurityGroupName = "testNetworkSecurityGroup"
 	TestVirtualNetworkName       = "testVirtualNetwork"
@@ -52,6 +53,7 @@ var (
 	TestResourceGroupResourceID        = path.Join(TestSubscriptionResourceID, "resourceGroups", TestResourceGroupName)
 	TestClusterResourceID              = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, ClusterResourceTypeName, TestClusterName)
 	TestNodePoolResourceID             = path.Join(TestClusterResourceID, NodePoolResourceTypeName, TestNodePoolName)
+	TestExternalAuthResourceID         = path.Join(TestClusterResourceID, ExternalAuthResourceTypeName, TestExternalAuthName)
 	TestDeploymentResourceID           = path.Join(TestResourceGroupResourceID, "providers", ProviderNamespace, "deployments", TestDeploymentName)
 	TestNetworkSecurityGroupResourceID = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
 	TestVirtualNetworkResourceID       = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
@@ -89,6 +91,23 @@ func NewTestValidator() *validator.Validate {
 	validate.RegisterAlias("enum_clusterimageregistryprofilestate", EnumValidateTag(
 		ClusterImageRegistryProfileStateEnabled,
 		ClusterImageRegistryProfileStateDisabled))
+	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	))
+	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
+		TokenValidationRuleTypeRequiredClaim,
+	))
+	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	))
+	validate.RegisterAlias("enum_externalauthconditionstatustype", EnumValidateTag(
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeUnknown,
+	))
 
 	return validate
 }
@@ -122,6 +141,26 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 	nodePool := MinimumValidNodePoolTestCase()
 	require.NoError(t, mergo.Merge(nodePool, tweaks, mergo.WithOverride))
 	return nodePool
+}
+
+func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
+	resource := NewDefaultHCPOpenShiftClusterExternalAuth()
+	resource.Properties.Issuer = TokenIssuerProfile{
+		Url:       "https://www.redhat.com",
+		Audiences: []string{"audience1"},
+	}
+	resource.Properties.Claim.Mappings = TokenClaimMappingsProfile{
+		Username: UsernameClaimProfile{
+			Claim: "my-cool-claim",
+		},
+	}
+	return resource
+}
+
+func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth) *HCPOpenShiftClusterExternalAuth {
+	externalAuth := MinimumValidExternalAuthTestCase()
+	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
+	return externalAuth
 }
 
 // AssertJSONPath ensures path is valid for struct type T by following

@@ -1115,6 +1115,32 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			// Perform static validation as if for a node pool creation request.
 			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, request)
 
+		case strings.ToLower(api.ExternalAuthResourceType.String()):
+			// This is just "preliminary" validation to ensure all the base resource
+			// fields are present and the API version is valid.
+			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			if len(resourceErrors) > 0 {
+				// Preflight is best-effort: a malformed resource is not a validation failure.
+				logger.Warn(
+					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+					"details", resourceErrors)
+				continue
+			}
+
+			// API version is already validated by this point.
+			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+
+			err = preflightResource.Convert(versionedExternalAuth)
+			if err != nil {
+				// Preflight is best effort: failure to parse a resource is not a validation failure.
+				logger.Warn(fmt.Sprintf("Failed to unmarshal %s resource named '%s': %s", preflightResource.Type, preflightResource.Name, err))
+				continue
+			}
+
+			// Perform static validation as if for an external auth creation request.
+			cloudError = versionedExternalAuth.ValidateStatic(versionedExternalAuth, false, request)
+
 		default:
 			// Disregard foreign resource types.
 			continue
