@@ -99,6 +99,39 @@ IDENTITY_UAMIS_JSON_MAP=$(echo -n "${IDENTITY_UAMIS_JSON_MAP}" | jq \
 
 }
 
+initialize_etcd_encryption_json_map() {
+  ETCD_ENCRYPTION_JSON_MAP=$(cat << 'EOF'
+    {
+      "dataEncryption": {
+        "keyManagementMode": "CustomerManaged",
+        "customerManaged": {
+          "encryptionType": "kms",
+          "kms": {
+            "activeKey": {
+              "vaultName": "",
+              "name": "",
+              "version": ""
+            }
+          }
+        }
+      }
+    }
+EOF
+)
+
+  KEY_VAULT_KEY_VERSION=$(az keyvault key show --vault-name ${CUSTOMER_KV_NAME} --name "${ETCD_ENCRYPTION_KEY_NAME}" | jq .key.kid -r | awk -F'/' '{print $NF}')
+  ETCD_ENCRYPTION_JSON_MAP=$(echo -n "${ETCD_ENCRYPTION_JSON_MAP}" | jq \
+    --arg vault_name "$CUSTOMER_KV_NAME" \
+    --arg key_name "$ETCD_ENCRYPTION_KEY_NAME" \
+    --arg key_version "$KEY_VAULT_KEY_VERSION" \
+    '
+      .dataEncryption.customerManaged.kms.activeKey.vaultName = $vault_name |
+      .dataEncryption.customerManaged.kms.activeKey.name = $key_name |
+      .dataEncryption.customerManaged.kms.activeKey.version = $key_version
+    '
+  )
+}
+
 create_azure_managed_identities_for_cluster() {
   for uami_name in "${CONTROL_PLANE_IDENTITIES_UAMIS_NAMES[@]}"
   do
@@ -149,6 +182,7 @@ main() {
     "file-csi-driver"
     "image-registry"
     "cloud-network-config"
+    "kms"
   )
 
   # data plane operator names required for OCP 4.19.
@@ -189,6 +223,9 @@ main() {
 
   create_azure_managed_identities_for_cluster
 
+  ETCD_ENCRYPTION_JSON_MAP=""
+  initialize_etcd_encryption_json_map
+
   jq \
     --arg location "$LOCATION" \
     --arg managed_rg "$MANAGED_RESOURCE_GROUP" \
@@ -196,13 +233,15 @@ main() {
     --arg nsg_id "$NSG_ID" \
     --argjson uamis_json_map "$UAMIS_JSON_MAP" \
     --argjson identity_uamis_json_map "$IDENTITY_UAMIS_JSON_MAP" \
+    --argjson etcd_encryption_json_map "$ETCD_ENCRYPTION_JSON_MAP" \
     '
       .location = $location |
       .properties.platform.managedResourceGroup = $managed_rg |
       .properties.platform.subnetId = $subnet_id |
       .properties.platform.networkSecurityGroupId = $nsg_id |
       .properties.platform.operatorsAuthentication.userAssignedIdentities = $uamis_json_map |
-      .identity.userAssignedIdentities = $identity_uamis_json_map
+      .identity.userAssignedIdentities = $identity_uamis_json_map |
+      .properties.etcd = $etcd_encryption_json_map
     ' "${CLUSTER_TMPL_FILE}" > ${CLUSTER_FILE}
 
   rp_put_request "${CLUSTER_RESOURCE_ID}" "@${CLUSTER_FILE}"

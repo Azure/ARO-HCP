@@ -16,9 +16,19 @@
     "console": {},
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "keyManagementMode": "CustomerManaged",
+        "customerManaged": {
+          "encryptionType": "kms",
+          "kms": {
+            "activeKey": {
+              "vaultName": "customer-kv",
+              "name": "etcd-encryption-key-name",
+              "version": "etcd-encryption-key-version"
+            }
+          }
+        }
       }
-    },    
+    },
     "api": {
       "visibility": "Public"
     },
