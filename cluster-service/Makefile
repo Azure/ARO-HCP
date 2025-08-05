@@ -39,6 +39,7 @@ deploy:
 	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \
 	  --set tlsCertificatesIssuer=$${TLS_CERTIFICATES_ISSUER} \
 	  --set tlsCertificatesEnabled=$(TLS_CERTIFICATES_ENABLED) \
+	  --set denyAssignments=$(DENYASSIGNMENTS) \
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \

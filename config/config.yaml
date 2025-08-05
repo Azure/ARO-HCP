@@ -533,6 +533,7 @@ defaults:
       address: ""
       exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
+    denyAssignments: "disabled"
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
