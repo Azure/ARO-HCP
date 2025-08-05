@@ -905,6 +905,74 @@ func TestRevokeCredentials(t *testing.T) {
 	}
 }
 
+func TestHcpOperatorIdentityRoleSetGet(t *testing.T) {
+	type testCase struct {
+		name               string
+		expectedStatusCode int
+		want               api.HcpOperatorIdentityRoleSet
+	}
+
+	tests := []testCase{
+		{
+			name:               "Success",
+			expectedStatusCode: http.StatusOK,
+			want:               api.HcpOperatorIdentityRoleSetTestCase(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockDBClient := mocks.NewMockDBClient(ctrl)
+			mockCSClient := mocks.NewMockClusterServiceClientSpec(ctrl)
+			reg := prometheus.NewRegistry()
+
+			f := NewFrontend(
+				api.NewTestLogger(),
+				nil,
+				nil,
+				reg,
+				mockDBClient,
+				"",
+				mockCSClient,
+				newNoopAuditClient(t),
+			)
+
+			// MiddlewareValidateSubscriptionState and MetricsMiddleware
+			mockDBClient.EXPECT().
+				GetSubscriptionDoc(gomock.Any(), api.TestSubscriptionID).
+				Return(&arm.Subscription{
+					State: arm.SubscriptionStateRegistered,
+				}, nil).
+				MaxTimes(2)
+
+			mockCSClient.EXPECT().GetManagedIdentitiesRequirements(gomock.Any(), api.TestHcpOperatorIdentityRoleSetName).Return(api.CSManagedIdentitiesRequirementsTestCase(t), nil)
+
+			subs := map[string]*arm.Subscription{
+				api.TestSubscriptionID: {
+					State: arm.SubscriptionStateRegistered,
+				},
+			}
+			ts := newHTTPServer(f, ctrl, mockDBClient, subs)
+
+			rs, err := ts.Client().Get(ts.URL + api.TestHcpOperatorIdentityRoleSet + "?api-version=" + api.TestAPIVersion)
+			require.NoError(t, err)
+
+			defer rs.Body.Close()
+			body, err := io.ReadAll(rs.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedStatusCode, rs.StatusCode)
+			var resp api.HcpOperatorIdentityRoleSet
+			err = json.Unmarshal(body, &resp)
+			require.NoError(t, err)
+
+			assert.Equalf(t, tt.want, resp, "unexpected response body")
+			lintMetrics(t, reg)
+		})
+	}
+}
+
 func lintMetrics(t *testing.T, r prometheus.Gatherer) {
 	t.Helper()
 
