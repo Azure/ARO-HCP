@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-breakglass
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: postgres-breakglass
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: postgres-breakglass
+  template:
+    metadata:
+      labels:
+        app: postgres-breakglass
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccount: '{{ .Values.maestro.serviceAccount }}'
+      serviceAccountName: '{{ .Values.maestro.serviceAccount }}'
+      initContainers:
+      - name: init
+        image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          echo "PostgreSQL breakglass init container started at $(date)"
+
+          # Check required environment variables
+          if [ -z "${AZURE_FEDERATED_TOKEN_FILE:-}" ]; then
+            echo "Error: AZURE_FEDERATED_TOKEN_FILE environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+          if [ -z "${AZURE_CLIENT_ID:-}" ]; then
+            echo "Error: AZURE_CLIENT_ID environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+          if [ -z "${AZURE_TENANT_ID:-}" ]; then
+            echo "Error: AZURE_TENANT_ID environment variable is not set, check workload identity settings"
+            exit 1
+          fi
+
+          echo "Logging into Azure using workload identity..."
+          FEDERATED_TOKEN="$(cat $AZURE_FEDERATED_TOKEN_FILE)"
+          az login --federated-token "$FEDERATED_TOKEN" --service-principal -u $AZURE_CLIENT_ID -t $AZURE_TENANT_ID
+
+          echo "Getting PostgreSQL access token..."
+          ACCESS_TOKEN=$(az account get-access-token --resource-type oss-rdbms -o json | jq .accessToken -r)
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to get access token"
+            exit 1
+          fi
+
+          echo "Writing access token and connect script to shared volume..."
+          {
+            echo "#!/bin/sh"
+            echo "export PGPASSWORD=$ACCESS_TOKEN"
+            echo "exec psql"
+          } > /breakglass/connect.sh
+          chmod +x /breakglass/connect.sh
+
+          echo "Access token and script written successfully"
+          echo "Init container completed at $(date)"
+        volumeMounts:
+        - name: breakglass
+          mountPath: /breakglass
+      containers:
+      - name: postgres
+        image: mcr.microsoft.com/cbl-mariner/base/postgres:14
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Create welcome message for both bash and sh users
+          {
+            echo '# PostgreSQL Breakglass Access'
+            echo 'echo ""'
+            echo 'echo "PostgreSQL Breakglass Access Ready"'
+            echo 'echo "To connect to PostgreSQL, run: connect"'
+            echo 'echo ""'
+            echo ''
+            echo '# Connection alias'
+            echo 'alias connect="/breakglass/connect.sh"'
+          } > ~/.bashrc
+
+          # Copy to .profile for /bin/sh users
+          cp ~/.bashrc ~/.profile
+
+          echo "PostgreSQL breakglass container ready at $(date)"
+          sleep infinity
+        env:
+        - name: PGUSER
+          value: "{{ .Values.database.user }}"
+        - name: PGDATABASE
+          value: "{{ .Values.database.name }}"
+        - name: PGHOST
+          value: "{{ .Values.database.host }}"
+        - name: PGPORT
+          value: "5432"
+        volumeMounts:
+        - name: breakglass
+          mountPath: /breakglass
+      volumes:
+      - name: breakglass
+        emptyDir: {}
