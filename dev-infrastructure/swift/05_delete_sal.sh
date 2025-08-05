@@ -4,10 +4,10 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source sal_env_vars
+source swift_env_vars
 
 if ! is_service_principal; then
-    error_msg "Logged in as incorrect user, expecting Service Principal"
+    source login_fpa.sh
 fi
 
 api_version=2021-08-01
