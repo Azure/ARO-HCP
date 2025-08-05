@@ -573,6 +573,10 @@
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
     },
+    "kvCertAccessPrincipalId": {
+      "type": "string",
+      "description": "The principal ID of the cert officer that will be used to access KV certificate"
+    },
     "dns": {
       "type": "object",
       "properties": {
