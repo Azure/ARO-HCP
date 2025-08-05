@@ -570,13 +570,17 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
 						PrefixPolicy: csExternalAuth.Claim().Mappings().UserName().PrefixPolicy(),
 					},
-					Groups: api.GroupClaimProfile{
-						Claim:  csExternalAuth.Claim().Mappings().Groups().Claim(),
-						Prefix: csExternalAuth.Claim().Mappings().Groups().Prefix(),
-					},
 				},
 			},
 		},
+	}
+
+	if groups, ok := csExternalAuth.Claim().Mappings().GetGroups(); ok {
+		externalAuth.Properties.Claim.Mappings.Groups = &api.GroupClaimProfile{
+			Claim:  groups.Claim(),
+			Prefix: groups.Prefix(),
+		}
+
 	}
 
 	clients := make([]api.ExternalAuthClientProfile, 0, len(csExternalAuth.Clients()))
@@ -594,15 +598,17 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	externalAuth.Properties.Clients = clients
 
 	validationRules := make([]api.TokenClaimValidationRule, 0, len(csExternalAuth.Claim().ValidationRules()))
-	for _, validationRule := range csExternalAuth.Claim().ValidationRules() {
-		validationRules = append(validationRules, api.TokenClaimValidationRule{
-			// We hard code the type here because CS only supports this type currently and doesn't reference the type.
-			TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
-			RequiredClaim: api.TokenRequiredClaim{
-				Claim:         validationRule.Claim(),
-				RequiredValue: validationRule.RequiredValue(),
-			},
-		})
+	if csExternalAuth.Claim().ValidationRules() != nil {
+		for _, validationRule := range csExternalAuth.Claim().ValidationRules() {
+			validationRules = append(validationRules, api.TokenClaimValidationRule{
+				// We hard code the type here because CS only supports this type currently and doesn't reference the type.
+				TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+				RequiredClaim: api.TokenRequiredClaim{
+					Claim:         validationRule.Claim(),
+					RequiredValue: validationRule.RequiredValue(),
+				},
+			})
+		}
 	}
 	externalAuth.Properties.Claim.ValidationRules = validationRules
 
@@ -620,10 +626,12 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	tokenClaimValidationRuleBuilder := arohcpv1alpha1.NewTokenClaimValidationRule()
 
-	for _, t := range externalAuth.Properties.Claim.ValidationRules {
-		tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
-			Claim(t.RequiredClaim.Claim).
-			RequiredValue(t.RequiredClaim.RequiredValue)
+	if externalAuth.Properties.Claim.ValidationRules != nil {
+		for _, t := range externalAuth.Properties.Claim.ValidationRules {
+			tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
+				Claim(t.RequiredClaim.Claim).
+				RequiredValue(t.RequiredClaim.RequiredValue)
+		}
 	}
 
 	externalAuthBuilder.
@@ -637,14 +645,27 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
 					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
 					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
-				).
+				),
+			),
+		)
+
+	if externalAuth.Properties.Claim.Mappings.Groups != nil {
+		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				Groups(arohcpv1alpha1.NewGroupsClaim().
 					Claim(externalAuth.Properties.Claim.Mappings.Groups.Claim).
 					Prefix(externalAuth.Properties.Claim.Mappings.Groups.Prefix),
 				),
-			).
+			),
+		)
+	}
+
+	if len(externalAuth.Properties.Claim.ValidationRules) > 0 {
+		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			ValidationRules(tokenClaimValidationRuleBuilder),
 		)
+
+	}
 
 	for _, t := range externalAuth.Properties.Clients {
 		externalAuthBuilder = externalAuthBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
