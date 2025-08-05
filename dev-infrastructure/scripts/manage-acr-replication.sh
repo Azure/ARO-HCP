@@ -35,6 +35,23 @@ if [ -z "${REPLICATION_REGION:-}" ]; then
     usage
 fi
 
+# Check if DRY_RUN mode is enabled
+if [ -n "${DRY_RUN:-}" ]; then
+    echo "DRY_RUN mode enabled - will only show what would be deleted, not actually delete anything"
+    DRY_RUN_MODE=true
+else
+    DRY_RUN_MODE=false
+fi
+
+# Function to execute or just log a command based on DRY_RUN mode
+execute() {
+    if [ "$DRY_RUN_MODE" = true ]; then
+        echo "[DRY_RUN] Command: $*"
+    else
+        "$@"
+    fi
+}
+
 echo "Managing ACR replication for $ACR_NAME in region $REPLICATION_REGION..."
 
 # Get the resource group and location for the ACR
@@ -46,8 +63,7 @@ echo "ACR $ACR_NAME is in resource group: $RESOURCE_GROUP, home region: $ACR_HOM
 
 # Check if target region is the same as ACR home region
 if [ "$REPLICATION_REGION" = "$ACR_HOME_REGION" ]; then
-    echo "Error: Cannot create replication in the same region ($REPLICATION_REGION) as the ACR's home region"
-    echo "The ACR already exists in region $ACR_HOME_REGION - replication is only needed for different regions"
+    echo "The ACR is homed in the region $REPLICATION_REGION - replication is only needed for different regions"
     exit 0
 fi
 
@@ -64,7 +80,7 @@ if [ -n "$FAILED_REPLICATION" ]; then
     echo "Found failed replication: $FAILED_REPLICATION_NAME"
 
     echo "Deleting failed replication $FAILED_REPLICATION_NAME for ACR $ACR_NAME in region $REPLICATION_REGION..."
-    az acr replication delete \
+    execute az acr replication delete \
         --registry "$ACR_NAME" \
         --resource-group "$RESOURCE_GROUP" \
         --name "$FAILED_REPLICATION_NAME"
@@ -86,7 +102,7 @@ if [ -z "$EXISTING_REPLICATION" ]; then
 
     # Create new replication
     echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
-    az acr replication create \
+    execute az acr replication create \
         --registry "$ACR_NAME" \
         --resource-group "$RESOURCE_GROUP" \
         --location "$REPLICATION_REGION" \
@@ -98,4 +114,4 @@ else
     EXISTING_NAME=$(echo "$EXISTING_REPLICATION" | jq -r '.name')
     EXISTING_STATE=$(echo "$EXISTING_REPLICATION" | jq -r '.provisioningState')
     echo "Replication already exists: $EXISTING_NAME (state: $EXISTING_STATE)"
-fi 
+fi

@@ -24,6 +24,10 @@ resourceGroups:
   - name: ocp-acr-replication
     action: Shell
     command: scripts/manage-acr-replication.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     variables:
     - name: ACR_NAME
       configRef: acr.ocp.name
@@ -37,6 +41,10 @@ resourceGroups:
       configRef: acr.svc.name
     - name: REPLICATION_REGION
       configRef: region
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
