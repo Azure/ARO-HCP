@@ -186,8 +186,8 @@ defaults:
     # Our yaml formatter does not allow >- when there is no value, so remember
     # to chage "" to >- when you add a value.
     grafanaRoles: ""
-    svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
-    hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
+    svcWorkspaceName: 'services-{{ .ctx.region }}'
+    hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     icm:
       manageConnection: true
       connectionName: ""
@@ -860,6 +860,8 @@ clouds:
         grafanaZoneRedundantMode: Disabled
         grafanaRoles: >-
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
+        svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
+        hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessRoleId: ""
