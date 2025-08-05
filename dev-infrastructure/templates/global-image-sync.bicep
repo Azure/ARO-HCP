@@ -10,6 +10,9 @@ param location string
 @description('Specifies the name of the container app environment.')
 param containerAppEnvName string
 
+@description('Prefix for the job name')
+param jobNamePrefix string
+
 @description('Container app public IP service tags')
 param containerAppOutboundServiceTags string
 var containerAppOutboundServiceTagsArray = [
@@ -282,70 +285,11 @@ var operatorMirrorJobConfiguration = [
   }
 ]
 
-//
-//  O C P   M I R R O R   J O B
-//
-
-var ocpMirrorDefinitions = [
-  {
-    name: 'oc-mirror-4-18'
-    major: '4.18'
-    channels: [
-      {
-        name: 'stable-4.18'
-        type: 'ocp'
-        full: true
-        minVersion: '4.18.1'
-        maxVersion: '4.18.9'
-      }
-    ]
-  }
-  {
-    name: 'oc-mirror-4-19'
-    major: '4.19'
-    channels: [
-      {
-        name: 'stable-4.19'
-        type: 'ocp'
-        full: true
-        minVersion: '4.19.0'
-      }
-    ]
-  }
-]
-var ocpMirrorJobConfiguration = [
-  for job in ocpMirrorDefinitions: {
-    name: job.name
-    cron: '0 * * * *'
-    timeout: 4 * 60 * 60
-    retryLimit: 3
-    targetRegistry: ocpAcrName
-    imageSetConfig: {
-      kind: 'ImageSetConfiguration'
-      apiVersion: 'mirror.openshift.io/v2alpha1'
-      mirror: {
-        platform: {
-          architectures: ['multi', 'amd64', 'arm64']
-          channels: job.channels
-          graph: true
-        }
-        additionalImages: [
-          { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
-          { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }
-        ]
-      }
-    }
-    compatibility: 'LATEST'
-  }
-]
-
-var ocMirrorJobConfiguration = ocMirrorEnabled ? union(ocpMirrorJobConfiguration, operatorMirrorJobConfiguration) : []
+var ocMirrorJobConfiguration = ocMirrorEnabled ? operatorMirrorJobConfiguration : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {
-    name: ocMirrorJobConfiguration[i].name
+    name: '${jobNamePrefix}${ocMirrorJobConfiguration[i].name}'
     location: location
     identity: {
       type: 'UserAssigned'
