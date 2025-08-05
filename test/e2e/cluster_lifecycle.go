@@ -245,7 +245,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		By("Verifying the resource group is deleted")
 		_, err = resourceGroupClient.Get(ctx, *resourceGroup.Name, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage = fmt.Sprintf("The resource group '%s' could not be found.", *resourceGroup.Name)
+		errMessage = fmt.Sprintf("'%s' could not be found", *resourceGroup.Name)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 	})
 })
