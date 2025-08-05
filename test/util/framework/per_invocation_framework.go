@@ -31,6 +31,7 @@ import (
 
 type perBinaryInvocationTestContext struct {
 	artifactDir      string
+	sharedDir        string
 	subscriptionName string
 	tenantID         string
 	testUserClientID string
@@ -61,6 +62,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:      artifactDir(),
+			sharedDir:        sharedDir(),
 			subscriptionName: subscriptionName(),
 			tenantID:         tenantID(),
 			testUserClientID: testUserClientID(),
@@ -128,6 +130,14 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 func artifactDir() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("ARTIFACT_DIR")
+}
+
+// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
+// We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
+// here to cleanup and debug testing resources.
+func sharedDir() string {
+	// can't use gomega in this method since it is used outside of It()
+	return os.Getenv("SHARED_DIR")
 }
 
 // subscriptionName returns the value of CUSTOMER_SUBSCRIPTION environment variable

@@ -46,15 +46,15 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
 			)
-			ic := framework.NewInvocationContext()
+			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := ic.NewResourceGroup(ctx, "basic-create", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "basic-create", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a prereqs in the resource group")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"infra",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
@@ -70,7 +70,7 @@ var _ = Describe("Customer", func() {
 			By("creating the hcp cluster")
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
@@ -87,7 +87,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating the node pool")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"node-pool",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
