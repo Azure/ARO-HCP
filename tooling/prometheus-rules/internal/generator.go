@@ -291,7 +291,9 @@ param actionGroups array
 }
 
 func writeGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
-	tmpl, err := template.New("prometheusRuleGroup").Parse(`
+	tmpl, err := template.New("prometheusRuleGroup").Funcs(
+		map[string]any{"contains": strings.Contains},
+	).Parse(`
 resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: '{{.groups.Name}}'
   location: resourceGroup().location
@@ -312,7 +314,11 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 {{- if .Annotations}}
         annotations: {
 {{- range $key, $value := .Annotations}}
+          {{- if contains $value "\n" }}
+          {{$key}}: '''{{$value}}'''
+          {{- else }}
           {{$key}}: '{{$value}}'
+          {{- end }}
 {{- end }}
         }
 {{- end }}

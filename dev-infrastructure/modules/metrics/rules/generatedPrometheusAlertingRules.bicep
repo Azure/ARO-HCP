@@ -1023,10 +1023,10 @@ resource prometheusSloRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           severity: 'critical'
         }
         annotations: {
-          description: 'Prometheus has not been reachable for the past 5 minutes.
+          description: '''Prometheus has not been reachable for the past 5 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
-'
+'''
           runbook_url: 'TBD'
           summary: 'Prometheus is unreachable for 5 minutes.'
         }
@@ -1042,10 +1042,10 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           severity: 'critical'
         }
         annotations: {
-          description: 'Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
-'
+'''
           runbook_url: 'TBD'
           summary: 'Prometheus is unreachable for 1 day.'
         }
@@ -1061,12 +1061,12 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           severity: 'critical'
         }
         annotations: {
-          description: 'The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+          description: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
 This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
 a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
 If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
 Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
-'
+'''
           runbook_url: 'TBD'
           summary: 'Prometheus pending sample rate is above 40%.'
         }
@@ -1082,12 +1082,12 @@ Investigate the health and performance of the remote storage endpoint, network l
           severity: 'critical'
         }
         annotations: {
-          description: 'The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
 This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
 issues with the remote write endpoint, network instability, or Prometheus resource constraints.
 Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
 Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-'
+'''
           runbook_url: 'TBD'
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
