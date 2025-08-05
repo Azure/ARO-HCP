@@ -25,22 +25,6 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-  - name: global-housekeeping
-    action: Shell
-    command: scripts/global-housekeeping.sh
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: GLOBAL_RESOURCE_GROUP
-      configRef: global.rg
-    dependsOn:
-    - global-infra
-    shellIdentity:
-      input:
-        step: global-output
-        name: globalMSIId
   - name: global-onecert-private-kv-issuer
     action: SetCertificateIssuer
     dependsOn:
@@ -72,10 +56,27 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - global-infra
+  - name: global-housekeeping
+    action: Shell
+    command: scripts/global-housekeeping.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: GLOBAL_RESOURCE_GROUP
+      configRef: global.rg
+    dependsOn:
+    - global-output
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh
     dependsOn:
+    - global-housekeeping
     - global-infra
     - global-output
     dryRun:
