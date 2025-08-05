@@ -57,6 +57,7 @@ const (
 	processOperationsLabel         = "process_operations"
 	pollClusterOperationLabel      = "poll_cluster"
 	pollNodePoolOperationLabel     = "poll_node_pool"
+	pollExternalAuthOperationLabel = "poll_external_auth"
 	pollBreakGlassCredential       = "poll_break_glass_credential"
 	pollBreakGlassCredentialRevoke = "poll_break_glass_credential_revoke"
 
@@ -100,6 +101,7 @@ func listOperationLabelValues() iter.Seq[string] {
 		processOperationsLabel,
 		pollClusterOperationLabel,
 		pollNodePoolOperationLabel,
+		pollExternalAuthOperationLabel,
 		pollBreakGlassCredential,
 		pollBreakGlassCredentialRevoke,
 	})
@@ -470,6 +472,8 @@ func (s *OperationsScanner) processOperation(ctx context.Context, op operation) 
 		}
 	case arohcpv1alpha1.NodePoolKind:
 		s.pollNodePoolOperation(ctx, op)
+	case cmv1.ExternalAuthKind:
+		s.pollExternalAuthOperation(ctx, op)
 	case cmv1.BreakGlassCredentialKind:
 		s.pollBreakGlassCredential(ctx, op)
 	}
@@ -579,6 +583,20 @@ func (s *OperationsScanner) pollNodePoolOperation(ctx context.Context, op operat
 	}
 
 	err = s.updateOperationStatus(ctx, op, opStatus, opError)
+	if err != nil {
+		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
+		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
+	}
+}
+
+// pollExternalAuthOperation updates the status of an external auth operation.
+func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op operation) {
+	ctx, span := startChildSpan(ctx, "pollExternalAuthOperation")
+	defer span.End()
+	defer s.updateOperationMetrics(pollExternalAuthOperationLabel)()
+	op.setSpanAttributes(span)
+
+	err := s.updateOperationStatus(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
 		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
