@@ -368,7 +368,6 @@ func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID
 }
 
 func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
-	// client, ok := clusterInternalID.GetExternalAuthClient(csc.conn)
 	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
