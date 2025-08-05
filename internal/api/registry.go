@@ -24,21 +24,24 @@ import (
 )
 
 const (
-	ProviderNamespace               = "Microsoft.RedHatOpenShift"
-	ProviderNamespaceDisplay        = "Azure Red Hat OpenShift"
-	ClusterResourceTypeName         = "hcpOpenShiftClusters"
-	NodePoolResourceTypeName        = "nodePools"
-	OperationResultResourceTypeName = "hcpOperationResults"
-	OperationStatusResourceTypeName = "hcpOperationStatuses"
-	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
-	ClusterVersionTypeName          = "hcpOpenShiftVersions"
+	ProviderNamespace                       = "Microsoft.RedHatOpenShift"
+	ProviderNamespaceDisplay                = "Azure Red Hat OpenShift"
+	ClusterResourceTypeName                 = "hcpOpenShiftClusters"
+	NodePoolResourceTypeName                = "nodePools"
+	OperationResultResourceTypeName         = "hcpOperationResults"
+	OperationStatusResourceTypeName         = "hcpOperationStatuses"
+	LocationResourceTypeName                = "locations"
+	ResourceTypeDisplay                     = "Hosted Control Plane (HCP) OpenShift Clusters"
+	ClusterVersionTypeName                  = "hcpOpenShiftVersions"
+	OperatorIdentityRoleSetResourceTypeName = "hcpOperatorIdentityRoleSets"
 )
 
 var (
-	ClusterResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	NodePoolResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	PreflightResourceType = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType   = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
+	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	NodePoolResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	PreflightResourceType               = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType                 = azcorearm.NewResourceType(ProviderNamespace, LocationResourceTypeName+"/"+ClusterVersionTypeName)
+	OperatorIdentityRoleSetResourceType = azcorearm.NewResourceType(ProviderNamespace, LocationResourceTypeName+"/"+OperatorIdentityRoleSetResourceTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {
@@ -64,6 +67,7 @@ type Version interface {
 	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 	MarshalHCPOpenShiftVersion(*HCPOpenShiftVersion) ([]byte, error)
+	MarshalHcpOperatorIdentityRoleSet(*HcpOperatorIdentityRoleSet) ([]byte, error)
 }
 
 // apiRegistry is the map of registered API versions

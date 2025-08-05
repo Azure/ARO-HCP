@@ -24,6 +24,7 @@ import (
 
 	"dario.cat/mergo"
 	validator "github.com/go-playground/validator/v10"
+	"github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,18 +34,21 @@ import (
 // The definitions in this file are meant for unit tests.
 
 const (
-	TestLocation                 = "westus3"
-	TestAPIVersion               = "2024-06-10-preview"
-	TestTenantID                 = "00000000-0000-0000-0000-000000000000"
-	TestSubscriptionID           = "11111111-1111-1111-1111-111111111111"
-	TestAltSubscriptionID        = "22222222-2222-2222-2222-222222222222"
-	TestResourceGroupName        = "testResourceGroup"
-	TestClusterName              = "testCluster"
-	TestNodePoolName             = "testNodePool"
-	TestDeploymentName           = "testDeployment"
-	TestNetworkSecurityGroupName = "testNetworkSecurityGroup"
-	TestVirtualNetworkName       = "testVirtualNetwork"
-	TestSubnetName               = "testSubnet"
+	TestLocation                       = "westus3"
+	TestAPIVersion                     = "2024-06-10-preview"
+	TestTenantID                       = "00000000-0000-0000-0000-000000000000"
+	TestSubscriptionID                 = "11111111-1111-1111-1111-111111111111"
+	TestAltSubscriptionID              = "22222222-2222-2222-2222-222222222222"
+	TestResourceGroupName              = "testResourceGroup"
+	TestClusterName                    = "testCluster"
+	TestNodePoolName                   = "testNodePool"
+	TestDeploymentName                 = "testDeployment"
+	TestNetworkSecurityGroupName       = "testNetworkSecurityGroup"
+	TestVirtualNetworkName             = "testVirtualNetwork"
+	TestSubnetName                     = "testSubnet"
+	TestHcpOperatorIdentityRoleSetName = "testHcpOperatorIdentityRoleSet"
+	TestControlPlaneOperatorName       = "testControlPlaneOperator"
+	TestDataPlaneOperatorName          = "testDataPlaneOperator"
 )
 
 var (
@@ -56,6 +60,7 @@ var (
 	TestNetworkSecurityGroupResourceID = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "networkSecurityGroups", TestNetworkSecurityGroupName)
 	TestVirtualNetworkResourceID       = path.Join(TestResourceGroupResourceID, "providers", "Microsoft.Network", "virtualNetworks", TestVirtualNetworkName)
 	TestSubnetResourceID               = path.Join(TestVirtualNetworkResourceID, "subnets", TestSubnetName)
+	TestHcpOperatorIdentityRoleSet     = path.Join(TestSubscriptionResourceID, "providers", ProviderNamespace, LocationResourceTypeName, TestLocation, OperatorIdentityRoleSetResourceTypeName, TestHcpOperatorIdentityRoleSetName)
 )
 
 func NewTestLogger() *slog.Logger {
@@ -122,6 +127,69 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 	nodePool := MinimumValidNodePoolTestCase()
 	require.NoError(t, mergo.Merge(nodePool, tweaks, mergo.WithOverride))
 	return nodePool
+}
+
+func CSManagedIdentitiesRequirementsTestCase(t *testing.T) *v1alpha1.ManagedIdentitiesRequirements {
+	roleDefinitionOperatorIdentityRequirements := v1alpha1.NewRoleDefinitionOperatorIdentityRequirement()
+	roleDefinitionOperatorIdentityRequirements.Name("mockRoleDefinition")
+	roleDefinitionOperatorIdentityRequirements.ResourceId("mockResourceID")
+
+	controlPlaneOperatorIdentityRequirements := v1alpha1.NewControlPlaneOperatorIdentityRequirement()
+	controlPlaneOperatorIdentityRequirements.OperatorName(TestControlPlaneOperatorName)
+	controlPlaneOperatorIdentityRequirements.Required("true")
+	controlPlaneOperatorIdentityRequirements.RoleDefinitions(roleDefinitionOperatorIdentityRequirements)
+
+	dataPlaneOperatorIdentityRequirements := v1alpha1.NewDataPlaneOperatorIdentityRequirement()
+	dataPlaneOperatorIdentityRequirements.OperatorName(TestDataPlaneOperatorName)
+	dataPlaneOperatorIdentityRequirements.Required("false")
+	dataPlaneOperatorIdentityRequirements.RoleDefinitions(roleDefinitionOperatorIdentityRequirements)
+
+	managedIdentitiesRequirements := v1alpha1.NewManagedIdentitiesRequirements()
+	managedIdentitiesRequirements.ID(TestHcpOperatorIdentityRoleSetName)
+	managedIdentitiesRequirements.ControlPlaneOperatorsIdentities(controlPlaneOperatorIdentityRequirements)
+	managedIdentitiesRequirements.DataPlaneOperatorsIdentities(dataPlaneOperatorIdentityRequirements)
+
+	requirements, err := managedIdentitiesRequirements.Build()
+	require.NoError(t, err)
+	return requirements
+}
+
+func HcpOperatorIdentityRoleSetTestCase() HcpOperatorIdentityRoleSet {
+	return HcpOperatorIdentityRoleSet{
+		ProxyResource: arm.ProxyResource{
+			Resource: arm.Resource{
+				ID:   TestHcpOperatorIdentityRoleSet,
+				Name: TestHcpOperatorIdentityRoleSetName,
+				Type: OperatorIdentityRoleSetResourceType.String(),
+			},
+		},
+		Properties: HcpOperatorIdentityRoleSetProperties{
+			ControlPlaneOperators: []OperatorIdentityRoles{
+				{
+					Name:     TestControlPlaneOperatorName,
+					Required: "true",
+					RoleDefinitions: []RoleDefinition{
+						{
+							Name:       "mockRoleDefinition",
+							ResourceID: "mockResourceID",
+						},
+					},
+				},
+			},
+			DataPlaneOperators: []OperatorIdentityRoles{
+				{
+					Name:     TestDataPlaneOperatorName,
+					Required: "false",
+					RoleDefinitions: []RoleDefinition{
+						{
+							Name:       "mockRoleDefinition",
+							ResourceID: "mockResourceID",
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 // AssertJSONPath ensures path is valid for struct type T by following
