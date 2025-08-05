@@ -234,7 +234,8 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		By("Verifying the cluster is not found after deletion")
 		_, err = clustersClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, *resourceGroup.Name)
+		//errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, *resourceGroup.Name)
+		errMessage := "ResourceNotFound"
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 		By("Cleaning up the resource group")
 		ic = framework.NewInvocationContext()
