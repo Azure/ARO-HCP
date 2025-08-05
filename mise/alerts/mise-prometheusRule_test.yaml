@@ -7,10 +7,11 @@ tests:
   - series: 'up{job="envoy-stats", namespace="mise"}'
     values: '0 0 0 0'
   alert_rule_test:
-  - eval_time: 1m
+  - eval_time: 3m
     alertname: MiseEnvoyScrapeDown
     exp_alerts:
     - exp_labels:
+        alertname: MiseEnvoyScrapeDown
         severity: critical
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
