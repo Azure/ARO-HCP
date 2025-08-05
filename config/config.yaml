@@ -305,6 +305,8 @@ defaults:
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
       providers:
+        'Microsoft.Insights':
+          poll: true
         'Microsoft.Storage':
           poll: true
         'Microsoft.Network':
