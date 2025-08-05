@@ -166,7 +166,7 @@ frontend:
     exporter: otlp
 geneva:
   logs:
-    adminCertName: geneva-logs-admin-pers
+    adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
