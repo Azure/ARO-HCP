@@ -65,6 +65,9 @@ param oidcMsiName string
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
 
+@description('SP for EV2 certificate access, i.e. geneva log access')
+param kvCertAccessPrincipalId string
+
 //
 //  G L O B A L   M S I
 //
@@ -121,6 +124,24 @@ module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
     keyVaultName: keyVaultName
     roleName: 'Key Vault Secrets Officer'
     managedIdentityPrincipalId: kvCertOfficerPrincipalId
+  }
+}
+
+module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(kvCertAccessPrincipalId, globalKV.name, 'secrets-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Certificates Officer'
+    managedIdentityPrincipalId: kvCertAccessPrincipalId
+  }
+}
+
+module ev2SecretsAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: guid(kvCertAccessPrincipalId, globalKV.name, 'certificate-officer')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Key Vault Secrets Officer'
+    managedIdentityPrincipalId: kvCertAccessPrincipalId
   }
 }
 
