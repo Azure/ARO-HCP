@@ -1,13 +1,5 @@
 using '../templates/region.bicep'
 
-// general
-param globalRegion = '{{ .global.region }}'
-param regionalRegion = '{{ .region }}'
-
-// acr
-param ocpAcrResourceId = '__ocpAcrResourceId__'
-param svcAcrResourceId = '__svcAcrResourceId__'
-
 // dns
 param cxParentZoneResourceId = '__cxParentZoneResourceId__'
 param svcParentZoneResourceId = '__svcParentZoneResourceId__'

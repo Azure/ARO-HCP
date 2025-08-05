@@ -21,6 +21,30 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: ocp-acr-replication
+    action: Shell
+    command: scripts/manage-acr-replication.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ACR_NAME
+      configRef: acr.ocp.name
+    - name: REPLICATION_REGION
+      configRef: region
+  - name: svc-acr-replication
+    action: Shell
+    command: scripts/manage-acr-replication.sh
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: REPLICATION_REGION
+      configRef: region
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
 - name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
@@ -42,14 +66,6 @@ resourceGroups:
       input:
         step: global-output
         name: globalMSIId
-    - name: ocpAcrResourceId
-      input:
-        step: global-output
-        name: ocpAcrResourceId
-    - name: svcAcrResourceId
-      input:
-        step: global-output
-        name: svcAcrResourceId
     - name: cxParentZoneResourceId
       input:
         step: global-output
