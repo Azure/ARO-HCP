@@ -598,7 +598,7 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 
 	err := s.updateOperationStatus(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
-		s.recordOperationError(ctx, pollNodePoolOperationLabel, err)
+		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))
 	}
 }
