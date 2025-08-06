@@ -125,7 +125,7 @@ In order to access Clusters Service for debugging purposes, you can port forward
 Keep in mind that the port-forwarded service does not require authentication and does not enforce authorization!
 
 ```sh
-kubectl port-forward -n cluster-service svc/clusters-service 8001:8000
+kubectl port-forward -n clusters-service svc/clusters-service 8001:8000
 ```
 
 ### Query the State of an HCP
