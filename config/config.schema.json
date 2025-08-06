@@ -965,11 +965,15 @@
         "kusto": {
           "type": "object",
           "properties": {
+            "sku": {
+              "type": "string"
+            },
             "clusterName": {
               "type": "string"
             }
           },
           "required": [
+            "sku",
             "clusterName"
           ]
         },

@@ -416,6 +416,7 @@ defaults:
     pav2:
       cloudName: ""
     kusto:
+      sku: ""
       clusterName: ""
     eventHub:
       namespace: ""
