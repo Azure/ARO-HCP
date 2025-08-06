@@ -2,7 +2,7 @@
   "location": "$location",
   "properties": {
     "version": {
-      "id": "openshift-v4.19.0",
+      "id": "4.19.0",
       "channelGroup": "stable"
     },
     "dns": {},
@@ -14,6 +14,9 @@
       "hostPrefix": 23
     },
     "console": {},
+    "clusterImageRegistry": {
+      "state": "Enabled"
+    },
     "etcd": {
       "dataEncryption": {
         "keyManagementMode": "PlatformManaged"
