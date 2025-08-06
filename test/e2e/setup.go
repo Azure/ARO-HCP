@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -23,10 +24,16 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	. "github.com/onsi/ginkgo/v2"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/environment"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/integration"
+	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 var (
@@ -59,19 +66,17 @@ func prepareEnvironmentConf(testEnv environment.Environment) azcore.ClientOption
 
 func setup(ctx context.Context) error {
 	var (
-		found bool
-		creds azcore.TokenCredential
-		err   error
-		opts  azcore.ClientOptions
+		found            bool
+		err              error
+		opts             azcore.ClientOptions
+		creds            azcore.TokenCredential
+		subscriptionName string
 	)
 
-	if subscriptionID, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
-		subscriptionID = "00000000-0000-0000-0000-000000000000"
+	if subscriptionName, found = os.LookupEnv("CUSTOMER_SUBSCRIPTION"); !found {
+		subscriptionName = "FallbackSubscription"
 	}
-	e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
-	if err != nil {
-		return err
-	}
+
 	testEnv = environment.Environment(strings.ToLower(os.Getenv("AROHCP_ENV")))
 	if testEnv == "" {
 		testEnv = environment.Development
@@ -93,9 +98,39 @@ func setup(ctx context.Context) error {
 	armOptions := &azcorearm.ClientOptions{
 		ClientOptions: opts,
 	}
+	// Create a new armsubscriptions.Client from Azure SDK for Go
+	armSubscriptionsClient, err := armsubscriptions.NewClient(creds, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create armsubscriptions.Client: %w", err)
+	}
+	subscriptionID, err = framework.GetSubscriptionID(ctx, armSubscriptionsClient, subscriptionName)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
 	clients, err = api.NewClientFactory(subscriptionID, creds, armOptions)
 	if err != nil {
 		return err
+	}
+
+	// Use GinkgoLabelFilter to check for the 'requirenothing' label
+	labelFilter := GinkgoLabelFilter()
+	if labels.RequireNothing.MatchesLabelFilter(labelFilter) {
+		// Skip loading the e2esetup file
+		e2eSetup = integration.SetupModel{} // zero value
+	} else {
+		e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
+		if err != nil {
+			if bicepName, found := os.LookupEnv("FALLBACK_TO_BICEP"); found {
+				// Fallback: create a complete HCP cluster using bicep
+				log.Logger.Warnf("Failed to load e2e setup file: %v. Falling back to bicep deployment.", err)
+				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, subscriptionID, creds, clients, bicepName)
+				if err != nil {
+					return fmt.Errorf("failed to create cluster with bicep fallback: %w", err)
+				}
+			} else {
+				return fmt.Errorf("failed to load e2e setup file and FALLBACK_TO_BICEP is not set: %w", err)
+			}
+		}
 	}
 
 	return nil

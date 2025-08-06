@@ -34,3 +34,7 @@ var _ = BeforeSuite(func() {
 		panic(err)
 	}
 })
+
+var _ = AfterSuite(func() {
+	// Cleanup is done by Resource Group DeferCleanup
+})
