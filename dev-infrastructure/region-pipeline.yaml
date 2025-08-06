@@ -152,6 +152,19 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+  - name: housekeeping
+    action: Shell
+    command: scripts/regional-housekeeping.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: REGIONAL_RESOURCE_GROUP
+      configRef: regionRG
+    dependsOn:
+    - resourceGroup: regional
+      step: infra
   - name: output
     action: ARM
     template: templates/output-region.bicep
@@ -160,4 +173,4 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - resourceGroup: regional
-      step: infra
+      step: housekeeping
