@@ -22,3 +22,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 // bicep file directly for this to be more visible
 output userAssignedIdentitiesValue object = managedIdentities.outputs.userAssignedIdentitiesValue
 output identityValue object = managedIdentities.outputs.identityValue
+
+// Expose subnet and NSG IDs from the customer-infra module
+output subnetId string = customerInfra.outputs.subnetId
+output networkSecurityGroupId string = customerInfra.outputs.networkSecurityGroupId
