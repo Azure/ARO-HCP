@@ -577,6 +577,10 @@
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to access KV certificate"
     },
+    "kvCertAccessRoleId": {
+      "type": "string",
+      "description": "The Role ID used for cert access"
+    },
     "dns": {
       "type": "object",
       "properties": {

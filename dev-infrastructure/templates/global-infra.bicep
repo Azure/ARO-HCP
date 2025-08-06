@@ -68,6 +68,9 @@ param kvCertOfficerPrincipalId string
 @description('SP for EV2 certificate access, i.e. geneva log access')
 param kvCertAccessPrincipalId string
 
+@description('Roles used for EV2 KeyVault access, i.e. geneva log access')
+param kvCertAccessRoleId string
+
 //
 //  G L O B A L   M S I
 //
@@ -133,6 +136,16 @@ module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
     keyVaultName: keyVaultName
     roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
     managedIdentityPrincipalId: kvCertAccessPrincipalId
+  }
+}
+
+resource keyVaultAccessPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kvCertAccessRoleId != '') {
+  scope: resourceGroup()
+  name: guid(kvCertAccessPrincipalId, globalKV.name, 'asd-secrets-user')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', kvCertAccessRoleId)
+    principalId: kvCertAccessPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
