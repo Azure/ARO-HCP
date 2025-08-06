@@ -46,6 +46,7 @@ const (
 	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
 	csImageRegistryStateDisabled          string = "disabled"
 	csImageRegistryStateEnabled           string = "enabled"
+	csPlatformOutboundType                string = "load_balancer"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -70,7 +71,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1
 
 func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
 	switch outboundTypeCS {
-	case "load_balancer":
+	case csPlatformOutboundType:
 		outboundTypeRP = api.OutboundTypeLoadBalancer
 	}
 	return
@@ -79,7 +80,7 @@ func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.Outbou
 func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		outboundTypeCS = "load_balancer"
+		outboundTypeCS = csPlatformOutboundType
 	}
 	return
 }
@@ -98,15 +99,24 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 
 func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) *arohcpv1alpha1.ClusterImageRegistryBuilder {
 	var state string
-	if in.State != nil {
-		switch *in.State {
-		case api.ClusterImageRegistryProfileStateDisabled:
-			state = csImageRegistryStateDisabled
-		case api.ClusterImageRegistryProfileStateEnabled:
-			state = csImageRegistryStateEnabled
-		}
+	switch in.State {
+	case api.ClusterImageRegistryProfileStateDisabled:
+		state = csImageRegistryStateDisabled
+	case api.ClusterImageRegistryProfileStateEnabled:
+		state = csImageRegistryStateEnabled
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
+}
+func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
+	var registryState api.ClusterImageRegistryProfileState
+	switch state {
+	case csImageRegistryStateDisabled:
+		registryState = api.ClusterImageRegistryProfileStateDisabled
+	case csImageRegistryStateEnabled:
+		registryState = api.ClusterImageRegistryProfileStateEnabled
+	}
+
+	return registryState
 }
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
@@ -177,21 +187,6 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 // }
 
-func convertClusterImageRegistryStateCSToRP(in *arohcpv1alpha1.Cluster) *api.ClusterImageRegistryProfileState {
-	var registryState *api.ClusterImageRegistryProfileState
-	if clusterImageRegistry, ok := in.GetImageRegistry(); ok {
-		if state, ok := clusterImageRegistry.GetState(); ok {
-			switch state {
-			case csImageRegistryStateDisabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateDisabled)
-			case csImageRegistryStateEnabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateEnabled)
-			}
-		}
-	}
-	return registryState
-}
-
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
@@ -243,7 +238,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: convertClusterImageRegistryStateCSToRP(cluster),
+				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
 	}

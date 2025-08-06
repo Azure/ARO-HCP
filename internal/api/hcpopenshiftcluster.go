@@ -155,7 +155,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State *ClusterImageRegistryProfileState `json:"state,omitempty" validate:"omitempty,enum_clusterimageregistryprofilestate"`
+	State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"omitempty,enum_clusterimageregistryprofilestate"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
@@ -191,6 +191,9 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 				DataEncryption: EtcdDataEncryptionProfile{
 					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 				},
+			},
+			ClusterImageRegistry: ClusterImageRegistryProfile{
+				State: ClusterImageRegistryProfileStateEnabled,
 			},
 		},
 	}
