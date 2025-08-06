@@ -11,7 +11,7 @@ param networkSecurityGroupId string
 param subnetId string
 
 @description('OpenShift Version ID to use')
-param openshiftVersionId string = 'openshift-v4.19.0'
+param openshiftVersionId string = '4.19.0'
 
 @description('Cluster Managed Identities: ')
 param userAssignedIdentitiesValue object
@@ -45,6 +45,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     api: {
       visibility: 'Public'
+    }
+    clusterImageRegistry: {
+      state: 'Enabled'
     }
     platform: {
       managedResourceGroup: managedResourceGroupName

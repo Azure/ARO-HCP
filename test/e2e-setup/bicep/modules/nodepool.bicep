@@ -8,7 +8,7 @@ param nodePoolName string
 param replicas int = 2
 
 @description('OpenShift Version ID to use')
-param openshiftVersionId string = 'openshift-v4.19.0'
+param openshiftVersionId string = '4.19.0'
 
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' existing = {
   name: clusterName
