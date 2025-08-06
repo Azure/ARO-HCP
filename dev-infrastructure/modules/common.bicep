@@ -70,10 +70,7 @@ var _locationAvailabilityZones = {
     ]
   }
   centraluseuap: {
-    availabilityZones: [
-      '1'
-      '2'
-    ]
+    availabilityZones: []
   }
   centralusstage: {
     availabilityZones: []
