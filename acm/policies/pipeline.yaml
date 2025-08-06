@@ -1,0 +1,42 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.ACM.Policies
+rolloutName: ACM Policies Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    regions:
+    - uksouth
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: deploy-policies
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: cd .. && make deploy-policies
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: ARO_HCP_IMAGE_ACR
+      configRef: acr.svc.name
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: output

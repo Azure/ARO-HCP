@@ -13,6 +13,7 @@ The tree of pipelines making up the ARO HCP service are documented here from the
     - Microsoft.Azure.ARO.HCP.Management.Infra ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/mgmt-pipeline.yaml)): Deploy a management cluster and backing infrastructure. (Management Cluster)
       - Microsoft.Azure.ARO.HCP.SecretSyncController ([ref](https://github.com/Azure/ARO-HCP/tree/main/secret-sync-controller/pipeline.yaml)): Deploy the Secret Sync Controller.
       - Microsoft.Azure.ARO.HCP.ACM ([ref](https://github.com/Azure/ARO-HCP/tree/main/acm/pipeline.yaml)): Deploy Advanced Cluster Management and Multi-Cluster Engine.
+        - Microsoft.Azure.ARO.HCP.ACM.Policies ([ref](https://github.com/Azure/ARO-HCP/tree/main/acm/policies/pipeline.yaml)): Deploy ACM Policies independently.
       - Microsoft.Azure.ARO.HCP.RP.HypershiftOperator ([ref](https://github.com/Azure/ARO-HCP/tree/main/hypershiftoperator/pipeline.yaml)): Deploy the HyperShift operator.
       - Microsoft.Azure.ARO.HCP.PKO ([ref](https://github.com/Azure/ARO-HCP/tree/main/pko/pipeline.yaml)): Deploy the Package Operator.
       - Microsoft.Azure.ARO.HCP.Maestro.Agent ([ref](https://github.com/Azure/ARO-HCP/tree/main/maestro/agent/pipeline.yaml)): Deploy the Maestro Agent and register it with the MQTT stream.

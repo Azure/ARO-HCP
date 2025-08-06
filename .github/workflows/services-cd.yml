@@ -130,6 +130,9 @@ jobs:
     - name: 'Deploy ACM'
       run: |
         make acm.deploy_pipeline
+    - name: 'Deploy ACM Policies'
+      run: |
+        make acm.policies.deploy_pipeline
     - name: 'Deploy PKO'
       run: |
         make pko.deploy_pipeline
