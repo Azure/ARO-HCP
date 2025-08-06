@@ -44,10 +44,6 @@ var roleResourceIds = {
     'Microsoft.Authorization/roleDefinitions/',
     '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
   )
-  'Azure Service Deploy Release Management Key Vault Secrets User': subscriptionResourceId(
-    'Microsoft.Authorization/roleDefinitions/',
-    '260691e6-68c2-47cf-bd4a-97d5fd4dbcd5'
-  )
 }
 
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
