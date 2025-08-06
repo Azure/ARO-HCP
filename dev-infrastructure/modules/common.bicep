@@ -102,6 +102,7 @@ var _locationAvailabilityZones = {
   eastus2euap: {
     availabilityZones: [
       '1'
+      // '2' Not available in EV2
       '3'
       '4'
     ]
