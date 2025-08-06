@@ -98,13 +98,11 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 
 func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) *arohcpv1alpha1.ClusterImageRegistryBuilder {
 	var state string
-	if in.State != nil {
-		switch *in.State {
-		case api.ClusterImageRegistryProfileStateDisabled:
-			state = csImageRegistryStateDisabled
-		case api.ClusterImageRegistryProfileStateEnabled:
-			state = csImageRegistryStateEnabled
-		}
+	switch in.State {
+	case api.ClusterImageRegistryProfileStateDisabled:
+		state = csImageRegistryStateDisabled
+	case api.ClusterImageRegistryProfileStateEnabled:
+		state = csImageRegistryStateEnabled
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
 }
@@ -177,21 +175,6 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 // }
 
-func convertClusterImageRegistryStateCSToRP(in *arohcpv1alpha1.Cluster) *api.ClusterImageRegistryProfileState {
-	var registryState *api.ClusterImageRegistryProfileState
-	if clusterImageRegistry, ok := in.GetImageRegistry(); ok {
-		if state, ok := clusterImageRegistry.GetState(); ok {
-			switch state {
-			case csImageRegistryStateDisabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateDisabled)
-			case csImageRegistryStateEnabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateEnabled)
-			}
-		}
-	}
-	return registryState
-}
-
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
@@ -243,7 +226,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: convertClusterImageRegistryStateCSToRP(cluster),
+				State: api.ClusterImageRegistryProfileState(cluster.ImageRegistry().State()),
 			},
 		},
 	}
