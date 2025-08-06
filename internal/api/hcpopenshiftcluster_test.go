@@ -270,7 +270,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					ClusterImageRegistry: ClusterImageRegistryProfile{
-						State: Ptr(ClusterImageRegistryProfileState("not enabled")),
+						State: ClusterImageRegistryProfileState("not enabled"),
 					},
 				},
 			},
