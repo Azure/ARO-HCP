@@ -2,10 +2,11 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
 rolloutName: RP HypershiftOperator Rollout
 resourceGroups:
-- name: '{{ .global.rg }}'
+- name: global
+  resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: global-output
+  - name: output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -27,11 +28,11 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
-    dependsOn:
-    - global-output
-- name: '{{ .mgmt.rg }}'
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
@@ -43,8 +44,8 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     dependsOn:
-    - mirror-image
-    - global-output
+    - resourceGroup: global
+      step: mirror-image
     variables:
     - name: ARO_HCP_SVC_ACR
       configRef: acr.svc.name
@@ -64,5 +65,6 @@ resourceGroups:
       configRef: hypershift.additionalInstallArg
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId

@@ -2,28 +2,31 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra.Solo
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: '{{ .global.rg }}'
+- name: global
+  resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: global-output
+  - name: output
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .regionRG }}'
+- name: regional
+  resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: region-output
+  - name: output
     action: ARM
     template: templates/output-region.bicep
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .mgmt.rg }}'
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: mgmt-infra
+  - name: infra
     action: ARM
     template: templates/mgmt-infra.bicep
     parameters: configurations/mgmt-infra.tmpl.bicepparam
@@ -34,7 +37,8 @@ resourceGroups:
       value: "-"
     - name: logAnalyticsWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: logAnalyticsWorkspaceId
   # Build the MC
   - name: mgmt-cluster
@@ -45,28 +49,32 @@ resourceGroups:
     variables:
     - name: ocpAcrResourceId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: ocpAcrResourceId
     - name: svcAcrResourceId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: svcAcrResourceId
     - name: azureMonitoringWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: azureMonitoringWorkspaceId
     - name: maestroEventGridNamespaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: maestroEventGridNamespaceId
     - name: logAnalyticsWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: logAnalyticsWorkspaceId
     dependsOn:
-    - mgmt-infra
-    - region-output
-    - global-output
+    - resourceGroup: management
+      step: infra
   # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
@@ -84,7 +92,8 @@ resourceGroups:
     - name: ACRPULL_REGISTRY
       configRef: acrPull.image.registry
     dependsOn:
-    - mgmt-cluster
+    - resourceGroup: management
+      step: mgmt-cluster
   # Install cluster patches
   - name: mgmt-fixes
     aksCluster: '{{ .mgmt.aks.name }}'
@@ -98,4 +107,5 @@ resourceGroups:
     - name: APPLY_KUBELET_FIXES
       configRef: mgmt.applyKubeletFixes
     dependsOn:
-    - mgmt-cluster
+    - resourceGroup: management
+      step: mgmt-cluster

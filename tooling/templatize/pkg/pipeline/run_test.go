@@ -36,31 +36,33 @@ func TestStepRun(t *testing.T) {
 
 func TestResourceGroupRun(t *testing.T) {
 	rg := &types.ResourceGroup{
+		Name: "rg",
 		Steps: []types.Step{
 			types.NewShellStep("step", "echo hello"),
 		},
 	}
-	o := make(map[string]Output)
+	o := make(Outputs)
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, o)
 	assert.NoError(t, err)
-	oValue, err := o["step"].GetValue("output")
+	oValue, err := o["rg"]["step"].GetValue("output")
 	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
 
 func TestResourceGroupError(t *testing.T) {
 	rg := &types.ResourceGroup{
+		Name: "rg",
 		Steps: []types.Step{
 			types.NewShellStep("step1", "echo hello"),
 			types.NewShellStep("step2", "faaaaafffaa"),
 			types.NewShellStep("step3", "echo hallo"),
 		},
 	}
-	o := make(map[string]Output)
+	o := make(Outputs)
 	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &executionTargetImpl{}, o)
 	assert.ErrorContains(t, err, "faaaaafffaa: command not found\n exit status 127")
 	// Test processing ends after first error
-	oValue, err := o["step1"].GetValue("output")
+	oValue, err := o["rg"]["step1"].GetValue("output")
 	assert.NoError(t, err)
 	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
@@ -78,7 +80,7 @@ func (t *testExecutionTarget) GetRegion() string         { return "test" }
 
 func TestResourceGroupRunRequireKubeconfig(t *testing.T) {
 	rg := &types.ResourceGroup{Steps: []types.Step{}}
-	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(map[string]Output))
+	err := RunResourceGroup(rg, context.Background(), &PipelineRunOptions{}, &testExecutionTarget{}, make(Outputs))
 	assert.NoError(t, err)
 }
 
@@ -86,8 +88,9 @@ func TestPipelineRun(t *testing.T) {
 	pipeline := &types.Pipeline{
 		ResourceGroups: []*types.ResourceGroup{
 			{
-				Name:         "test",
-				Subscription: "test",
+				Name:          "test",
+				ResourceGroup: "test",
+				Subscription:  "test",
 				Steps: []types.Step{
 					types.NewShellStep("step", "echo hello"),
 				},
@@ -102,7 +105,7 @@ func TestPipelineRun(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	oValue, err := output["step"].GetValue("output")
+	oValue, err := output["test"]["step"].GetValue("output")
 	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
@@ -125,18 +128,20 @@ func TestAddInputVars(t *testing.T) {
 	testCases := []struct {
 		name          string
 		cfg           config.Configuration
-		input         map[string]Output
+		input         Outputs
 		stepVariables []types.Variable
 		expected      map[string]any
 		err           string
 	}{
 		{
 			name: "output chaining",
-			input: map[string]Output{
-				"step1": ArmOutput{
-					"output1": map[string]any{
-						"type":  "String",
-						"value": "bar",
+			input: Outputs{
+				"rg": map[string]Output{
+					"step1": ArmOutput{
+						"output1": map[string]any{
+							"type":  "String",
+							"value": "bar",
+						},
 					},
 				},
 			},
@@ -146,7 +151,10 @@ func TestAddInputVars(t *testing.T) {
 					Value: types.Value{
 						Input: &types.Input{
 							Name: "output1",
-							Step: "step1",
+							StepDependency: types.StepDependency{
+								ResourceGroup: "rg",
+								Step:          "step1",
+							},
 						},
 					},
 				},
@@ -155,11 +163,13 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "output chaining missing step",
-			input: map[string]Output{
-				"step1": ArmOutput{
-					"output1": map[string]any{
-						"type":  "String",
-						"value": "bar",
+			input: Outputs{
+				"rg": map[string]Output{
+					"step1": ArmOutput{
+						"output1": map[string]any{
+							"type":  "String",
+							"value": "bar",
+						},
 					},
 				},
 			},
@@ -169,7 +179,10 @@ func TestAddInputVars(t *testing.T) {
 					Value: types.Value{
 						Input: &types.Input{
 							Name: "output1",
-							Step: "missingstep",
+							StepDependency: types.StepDependency{
+								ResourceGroup: "rg",
+								Step:          "missingstep",
+							},
 						},
 					},
 				},
@@ -178,11 +191,13 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "output chaining missing variable",
-			input: map[string]Output{
-				"step1": ArmOutput{
-					"output1": map[string]any{
-						"type":  "String",
-						"value": "bar",
+			input: Outputs{
+				"rg": map[string]Output{
+					"step1": ArmOutput{
+						"output1": map[string]any{
+							"type":  "String",
+							"value": "bar",
+						},
 					},
 				},
 			},
@@ -192,7 +207,10 @@ func TestAddInputVars(t *testing.T) {
 					Value: types.Value{
 						Input: &types.Input{
 							Name: "missingvar",
-							Step: "step1",
+							StepDependency: types.StepDependency{
+								ResourceGroup: "rg",
+								Step:          "step1",
+							},
 						},
 					},
 				},
