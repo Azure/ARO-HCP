@@ -11,6 +11,7 @@ param secretName string = ''
   'Key Vault Certificate User'
   'Key Vault Certificates Officer'
   'Key Vault Crypto Officer'
+  'Azure Service Deploy Release Management Key Vault Secrets User'
 ])
 param roleName string
 
@@ -42,6 +43,10 @@ var roleResourceIds = {
   'Key Vault Crypto Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+  )
+  'Azure Service Deploy Release Management Key Vault Secrets User': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    '260691e6-68c2-47cf-bd4a-97d5fd4dbcd5'
   )
 }
 

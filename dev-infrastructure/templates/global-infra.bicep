@@ -128,19 +128,10 @@ module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
 }
 
 module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(kvCertAccessPrincipalId, globalKV.name, 'secrets-officer')
+  name: guid(kvCertAccessPrincipalId, globalKV.name, 'asd-secrets-user')
   params: {
     keyVaultName: keyVaultName
-    roleName: 'Key Vault Certificates Officer'
-    managedIdentityPrincipalId: kvCertAccessPrincipalId
-  }
-}
-
-module ev2SecretsAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(kvCertAccessPrincipalId, globalKV.name, 'certificate-officer')
-  params: {
-    keyVaultName: keyVaultName
-    roleName: 'Key Vault Secrets Officer'
+    roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
     managedIdentityPrincipalId: kvCertAccessPrincipalId
   }
 }
