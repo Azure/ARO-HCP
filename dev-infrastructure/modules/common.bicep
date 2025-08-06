@@ -102,8 +102,8 @@ var _locationAvailabilityZones = {
   eastus2euap: {
     availabilityZones: [
       '1'
-      '2'
       '3'
+      '4'
     ]
   }
   eastus2stage: {
