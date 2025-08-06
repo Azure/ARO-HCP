@@ -51,8 +51,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		location = "uksouth" // default fallback
 	}
 	// Use framework's invocation context for resource group creation
-	ic := framework.NewInvocationContext()
-	resourceGroup, err := ic.NewResourceGroup(ctx, "e2e-bicep", location)
+	tc := framework.NewTestContext()
+	resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-bicep", location)
 	if err != nil {
 		return setup, fmt.Errorf("failed to create resource group: %w", err)
 	}
