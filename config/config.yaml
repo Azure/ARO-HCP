@@ -417,8 +417,6 @@ defaults:
       cloudName: ""
     kusto:
       clusterName: ""
-    cosmosDB:
-      name: ""
     eventHub:
       namespace: ""
       subscriptionId: ""

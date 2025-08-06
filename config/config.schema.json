@@ -973,17 +973,6 @@
             "clusterName"
           ]
         },
-        "cosmosDB": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ]
-        },
         "eventHub": {
           "type": "object",
           "properties": {
@@ -1010,7 +999,6 @@
         "aub",
         "pav2",
         "kusto",
-        "cosmosDB",
         "eventHub"
       ]
     },
