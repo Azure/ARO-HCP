@@ -75,8 +75,11 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 	}, nil
 }
 
-func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (map[string]Output, error) {
-	outPuts := make(map[string]Output)
+// Outputs stores output values indexed by resource group name and step name.
+type Outputs map[string]map[string]Output
+
+func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions) (Outputs, error) {
+	outPuts := make(Outputs)
 	for _, rg := range pipeline.ResourceGroups {
 		// prepare execution context
 		subscriptionID, err := options.SubsciptionLookupFunc(ctx, rg.Subscription)
@@ -87,7 +90,7 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 			subscriptionName: rg.Subscription,
 			subscriptionID:   subscriptionID,
 			region:           options.Region,
-			resourceGroup:    rg.Name,
+			resourceGroup:    rg.ResourceGroup,
 		}
 		err = RunResourceGroup(rg, ctx, options, &executionTarget, outPuts)
 		if err != nil {
@@ -97,7 +100,7 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 	return outPuts, nil
 }
 
-func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs map[string]Output) error {
+func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, outputs Outputs) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	for _, step := range rg.Steps {
@@ -119,14 +122,16 @@ func RunResourceGroup(rg *types.ResourceGroup, ctx context.Context, options *Pip
 			return err
 		}
 		if output != nil {
-
-			outputs[step.StepName()] = output
+			if _, exists := outputs[rg.Name]; !exists {
+				outputs[rg.Name] = map[string]Output{}
+			}
+			outputs[rg.Name][step.StepName()] = output
 		}
 	}
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts map[string]Output) (Output, error) {
+func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	if options.Step != "" && s.StepName() != options.Step {
@@ -198,23 +203,27 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	}
 }
 
-func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]any, error) {
+func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
-			if v, found := inputs[i.Input.Step]; found {
+			group, exists := inputs[i.Input.ResourceGroup]
+			if !exists {
+				return nil, fmt.Errorf("variable %s invalid: refers to missing group %q", i.Name, i.Input.ResourceGroup)
+			}
+			if v, found := group[i.Input.Step]; found {
 				value, err := v.GetValue(i.Input.Name)
 				if err != nil {
-					return nil, fmt.Errorf("failed to get value for input %s.%s: %w", i.Input.Step, i.Input.Name, err)
+					return nil, fmt.Errorf("variable %s invalid: failed to get value for input %s.%s: %w", i.Name, i.Input.Step, i.Input.Name, err)
 				}
 				values[i.Name] = value.Value
 			} else {
-				return nil, fmt.Errorf("step %s not found in provided outputs", i.Input.Step)
+				return nil, fmt.Errorf("variable %s invalid: resource group %s has no step %s", i.Name, i.Input.ResourceGroup, i.Input.Step)
 			}
 		} else if i.ConfigRef != "" {
 			value, err := cfg.GetByPath(i.ConfigRef)
 			if err != nil {
-				return nil, fmt.Errorf("failed to lookup config reference %s for %s: %w", i.ConfigRef, i.Name, err)
+				return nil, fmt.Errorf("variable %s invalid: failed to lookup config reference %s for %s: %w", i.Name, i.ConfigRef, i.Name, err)
 			}
 			values[i.Name] = value
 		} else {

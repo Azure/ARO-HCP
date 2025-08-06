@@ -17,30 +17,33 @@ serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
-- name: '{{ .global.rg }}'
+- name: global
+  resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: global-output
+  - name: output
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
-- name: '{{ .regionRG }}'
+- name: regional
+  resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: region-output
+  - name: output
     action: ARM
     template: templates/output-region.bicep
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: '{{ .svc.rg }}'
+- name: service
+  resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
   # Create SVC KV
-  - name: svc-infra
+  - name: infra
     action: ARM
     template: templates/svc-infra.bicep
     parameters: configurations/svc-infra.tmpl.bicepparam
@@ -48,20 +51,17 @@ resourceGroups:
     variables:
     - name: globalMSIId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
     - name: logAnalyticsWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: logAnalyticsWorkspaceId
-    dependsOn:
-    - global-output
-    - region-output
   # Configure certificate issuers for the SVC KV
   - name: svc-oncert-private-kv-issuer
     action: SetCertificateIssuer
-    dependsOn:
-    - svc-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -70,14 +70,13 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
+        resourceGroup: service
+        step: infra
         name: svcKeyVaultUrl
-        step: svc-infra
     issuer:
       value: OneCertV2-PrivateCA
   - name: svc-oncert-public-kv-issuer
     action: SetCertificateIssuer
-    dependsOn:
-    - svc-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -86,8 +85,9 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
+        resourceGroup: service
+        step: infra
         name: svcKeyVaultUrl
-        step: svc-infra
     issuer:
       value: OneCertV2-PublicCA
   # Create SVC cluster
@@ -99,33 +99,39 @@ resourceGroups:
     variables:
     - name: globalMSIId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
     - name: ocpAcrResourceId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: ocpAcrResourceId
     - name: svcAcrResourceId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: svcAcrResourceId
     - name: azureMonitoringWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: azureMonitoringWorkspaceId
     - name: logAnalyticsWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: logAnalyticsWorkspaceId
     - name: azureFrontDoorResourceId
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: azureFrontDoorResourceId
     dependsOn:
-    - svc-oncert-private-kv-issuer
-    - svc-oncert-public-kv-issuer
-    - global-output
-    - region-output
+    - resourceGroup: service
+      step: svc-oncert-private-kv-issuer
+    - resourceGroup: service
+      step: svc-oncert-public-kv-issuer
   # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
     aksCluster: '{{ .svc.aks.name }}'
@@ -167,11 +173,12 @@ resourceGroups:
     - name: CLUSTER_NAME
       configRef: svc.aks.name
     dependsOn:
-    - svc
-    - global-output
+    - resourceGroup: service
+      step: svc
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
         # configure istio
   - name: istio-config
@@ -186,11 +193,12 @@ resourceGroups:
     - name: ISTIO_VERSIONS
       configRef: svc.istio.versions
     dependsOn:
-    - prometheus
-    - global-output
+    - resourceGroup: service
+      step: prometheus
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
         # - updates workload to use istio on version svc.istio.targetVersion
         # - configures istio IP tag usage
@@ -210,11 +218,12 @@ resourceGroups:
     - name: REGION_RESOURCEGROUP
       configRef: regionRG
     dependsOn:
-    - istio-config
-    - global-output
+    - resourceGroup: service
+      step: istio-config
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
         # Install ACRpull
   - name: acrpull
@@ -233,12 +242,12 @@ resourceGroups:
     - name: ACRPULL_REGISTRY
       configRef: acrPull.image.registry
     dependsOn:
-    - prometheus
-    - svc
-    - global-output
+    - resourceGroup: service
+      step: prometheus
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
   - name: arobit
     aksCluster: '{{ .svc.aks.name }}'
@@ -286,9 +295,10 @@ resourceGroups:
     - name: GENEVA_ENVIRONMENT
       configRef: geneva.logs.environment
     dependsOn:
-    - svc
-    - global-output
+    - resourceGroup: service
+      step: svc
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId

@@ -1,11 +1,12 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: '{{ .rg }}'
+- name: rg
+  resourceGroup: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: readInput
     action: Shell
     command: /bin/echo ${PWD} > env.txt
     shellIdentity:
-      Value: "test"
+      value: "test"
