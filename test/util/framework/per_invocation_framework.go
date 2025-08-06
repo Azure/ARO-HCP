@@ -31,6 +31,7 @@ import (
 
 type perBinaryInvocationTestContext struct {
 	artifactDir      string
+	sharedDir        string
 	subscriptionName string
 	tenantID         string
 	testUserClientID string
@@ -61,6 +62,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:      artifactDir(),
+			sharedDir:        sharedDir(),
 			subscriptionName: subscriptionName(),
 			tenantID:         tenantID(),
 			testUserClientID: testUserClientID(),
@@ -133,9 +135,14 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
 }
 
-// artifactDir returns the value of ARTIFACT_DIR environment variable
+// artifactDir returns the value of ARTIFACT_DIR environment variable, which is spot to save info in CI
 func artifactDir() string {
 	return os.Getenv("ARTIFACT_DIR")
+}
+
+// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
+func sharedDir() string {
+	return os.Getenv("SHARED_DIR")
 }
 
 func subscriptionName() string {
