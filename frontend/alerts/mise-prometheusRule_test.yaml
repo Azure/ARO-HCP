@@ -37,3 +37,13 @@ tests:
             summary: "Envoy scrape target down for namespace=mise"
             description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
             runbook_url: 'TBD'
+
+# Test: Envoy up and healthy for 10 minutes (no alert should fire)
+- interval: 1s
+  input_series:
+    - series: 'up{job="envoy-stats", namespace="mise"}'
+      values: '1x600'
+  alert_rule_test:
+    - eval_time: 600s
+      alertname: MiseEnvoyScrapeDown
+      exp_alerts: []
