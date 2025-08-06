@@ -70,10 +70,7 @@ var _locationAvailabilityZones = {
     ]
   }
   centraluseuap: {
-    availabilityZones: [
-      '1'
-      '2'
-    ]
+    availabilityZones: []
   }
   centralusstage: {
     availabilityZones: []
@@ -105,8 +102,9 @@ var _locationAvailabilityZones = {
   eastus2euap: {
     availabilityZones: [
       '1'
-      '2'
+      // '2' Not available in EV2
       '3'
+      '4'
     ]
   }
   eastus2stage: {
