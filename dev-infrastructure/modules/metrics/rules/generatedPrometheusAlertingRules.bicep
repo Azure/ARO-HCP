@@ -354,7 +354,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}   / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)   > 0.9 < 1'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -370,7 +370,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}   / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)   == 1'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -402,7 +402,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace)   / sum(increase(container_cpu_cfs_periods_total{}[5m])) by (cluster, container, pod, namespace)   > ( 25 / 100 )'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
@@ -430,7 +430,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '(   kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}     /   kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -462,7 +462,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '(   kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}     /   kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -494,7 +494,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -568,7 +568,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -586,7 +586,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -666,7 +666,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -713,7 +713,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="apiserver"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -789,7 +789,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'count by(cluster, node) (   (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) (   kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -867,7 +867,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -897,7 +897,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -945,7 +945,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'absent(up{job="kubelet", metrics_path="/metrics"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -973,7 +973,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="kube-scheduler"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1001,7 +1001,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'absent(up{job="kube-controller-manager"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1032,7 +1032,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1051,7 +1051,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1072,7 +1072,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '(   prometheus_remote_storage_samples_pending   /   prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1093,7 +1093,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '(   rate(prometheus_remote_storage_samples_failed_total[5m])   /   rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1121,7 +1121,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1153,7 +1153,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1169,7 +1169,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]

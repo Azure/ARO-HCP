@@ -43,8 +43,9 @@ type alertingRuleFile struct {
 }
 
 type Options struct {
-	outputBicep string
-	ruleFiles   []alertingRuleFile
+	forceInfoSeverity bool
+	outputBicep       string
+	ruleFiles         []alertingRuleFile
 }
 
 type PrometheusRulesConfig struct {
@@ -79,7 +80,10 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 	return &rules, nil
 }
 
-func (o *Options) Complete(configFilePath string) error {
+func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error {
+
+	o.forceInfoSeverity = forceInfoSeverity
+
 	o.ruleFiles = make([]alertingRuleFile, 0)
 
 	cfgRaw, err := os.ReadFile(configFilePath)
@@ -274,7 +278,7 @@ param actionGroups array
 								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
 							),
 						),
-						Severity: severityFor(labels),
+						Severity: severityFor(labels, o.forceInfoSeverity),
 					})
 				}
 			}
@@ -391,7 +395,12 @@ func formatDuration(d *monitoringv1.Duration) *string {
 	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
 }
 
-func severityFor(labels map[string]*string) *int32 {
+func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
+	if forceInfoSeverity {
+		logrus.Warnf("Ignoring severity label due to --force-info-severity flag; severity set to 'info'")
+		return ptr.To(int32(3))
+	}
+
 	severity, ok := labels["severity"]
 	if !ok || severity == nil {
 		return nil
@@ -399,13 +408,13 @@ func severityFor(labels map[string]*string) *int32 {
 
 	switch *severity {
 	case "critical":
-		return ptr.To(int32(2))
+		return ptr.To(int32(1)) // Sev 1 - Critical
 	case "warning":
-		return ptr.To(int32(3))
+		return ptr.To(int32(2)) // Sev 2 - Warning
 	case "info":
-		return ptr.To(int32(4))
+		return ptr.To(int32(3)) // Sev 3 - Info
 	default:
-		logrus.Warnf("unknown severity label %q", *severity)
-		return ptr.To(int32(5))
+		logrus.Warnf("unknown severity label %q, defaulting to verbose", *severity)
+		return ptr.To(int32(4)) // Sev 4 - Verbose
 	}
 }

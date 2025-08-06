@@ -35,10 +35,10 @@ func Validate(args []string, configFilePath string) error {
 	return nil
 }
 
-func runGenerator(configFilePath string) error {
+func runGenerator(configFilePath string, forceInfoSeverity bool) error {
 	o := internal.NewOptions()
 
-	if err := o.Complete(configFilePath); err != nil {
+	if err := o.Complete(configFilePath, forceInfoSeverity); err != nil {
 		return fmt.Errorf("could not complete options, %w", err)
 	}
 	if err := o.RunTests(); err != nil {
@@ -47,6 +47,7 @@ func runGenerator(configFilePath string) error {
 	if err := o.Generate(); err != nil {
 		return fmt.Errorf("failed to generate bicep %w", err)
 	}
+
 	return nil
 }
 
@@ -55,15 +56,17 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 	var configFilePath string
+	var forceInfoSeverity bool
 
 	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration ")
+	flag.CommandLine.BoolVar(&forceInfoSeverity, "force-info-severity", false, "Path to configuration ")
 	flag.Parse()
 
 	if err := Validate(flag.Args(), configFilePath); err != nil {
 		logrus.WithError(err).Fatal("invalid options")
 	}
 
-	if err := runGenerator(configFilePath); err != nil {
+	if err := runGenerator(configFilePath, forceInfoSeverity); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
 

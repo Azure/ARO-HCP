@@ -8,9 +8,11 @@ kubernetesControlPlane-prometheusRule:
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
 .PHONY: kubernetesControlPlane-prometheusRule
 
+GENERATOR_FLASG='--force-info-severity'
+
 alerts: kubernetesControlPlane-prometheusRule
-	make -C ../tooling/prometheus-rules run
+	EXTRA_FLAGS=$(GENERATOR_FLASG) make -C ../tooling/prometheus-rules run
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability.yaml)
-	make -C ../tooling/prometheus-rules run-hcp
+	EXTRA_FLAGS=$(GENERATOR_FLASG) make -C ../tooling/prometheus-rules run-hcp
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp.yaml)
 .PHONY: alerts
