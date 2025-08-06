@@ -1,0 +1,74 @@
+#
+# Purpose: Manage management cluster and supporting infra for its services
+# Managed Resources:
+# * Registers the MGMT cluster with CS and Maestro
+#
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Management.Registration
+rolloutName: Management Cluster Registration
+resourceGroups:
+- name: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-output
+    action: ARM
+    template: ../dev-infrastructure/templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: mgmt-output
+    action: ARM
+    template: ../dev-infrastructure/templates/output-mgmt.bicep
+    parameters: ../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: registration-with-cs
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: NAMESPACE
+      configRef: clustersService.k8s.namespace
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: clustersService.k8s.serviceAccountName
+    - name: REGIONAL_DNS_SUBDOMAIN
+      configRef: dns.regionalSubdomain
+    - name: CX_PARENT_DNS_ZONE_NAME
+      configRef: dns.cxParentZoneName
+    - name: REGIONAL_RESOURCEGROUP
+      configRef: regionRG
+    - name: CX_SECRETS_KV_NAME
+      configRef: cxKeyVault.name
+    - name: CX_MI_KV_NAME
+      configRef: msiKeyVault.name
+    - name: CX_SECRETS_KV_MI_CLIENT_ID
+      input:
+        step: mgmt-output
+        name: azureKeyvaultSecretsProviderIdentityClientId
+    - name: CONSUMER_NAME
+      configRef: maestro.agent.consumerName
+    - name: REGION
+      configRef: region
+    - name: AKS_OUTBOUND_IP_RESOURCE_ID
+      input:
+        step: mgmt-output
+        name: aksOutboundIPResourceID
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
+    dependsOn:
+    - global-output
+    - mgmt-output
+    # TODO: move maestro agent registration here as well
+    # TODO: once CS registration API is ready, call the API instead of creating a secret (which is just a POC)

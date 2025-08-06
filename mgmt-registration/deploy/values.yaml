@@ -1,0 +1,15 @@
+pythonImage: "mcr.microsoft.com/cbl-mariner/base/python:3.9"
+clustersService:
+  provisioningShardSecretName: "provision-shards"
+  serviceAccountName: "clusters-service"
+shard:
+  id: ""
+  consumerName: ""
+  zoneResourceId: ""
+  cxSecretsKeyVaultUrl: ""
+  cxMiKeyVaultUrl: ""
+  cxSecretsKeyVaultMiClientId: ""
+  maestroRestUrl: ""
+  maestroGrpUrl: ""
+  region: ""
+  outboundIP: ""
