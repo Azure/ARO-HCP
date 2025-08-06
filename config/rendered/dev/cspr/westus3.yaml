@@ -112,8 +112,10 @@ clustersService:
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
+    backupRetentionDays: 7
     databaseName: clusters-service
     deploy: true
+    geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-cspr-dbcs-usw3
     private: false
@@ -294,8 +296,10 @@ maestro:
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
+    backupRetentionDays: 7
     databaseName: maestro
     deploy: true
+    geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-cspr-dbmaestro-usw3
     private: false
