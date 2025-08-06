@@ -816,6 +816,7 @@ clouds:
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
+      kvCertAccessRoleId: ""
     environments:
       dev:
         # this is the integrated DEV environment
