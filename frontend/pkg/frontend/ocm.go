@@ -46,6 +46,7 @@ const (
 	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
 	csImageRegistryStateDisabled          string = "disabled"
 	csImageRegistryStateEnabled           string = "enabled"
+	csPlatformOutboundType                string = "load_balancer"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -70,7 +71,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1
 
 func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
 	switch outboundTypeCS {
-	case "load_balancer":
+	case csPlatformOutboundType:
 		outboundTypeRP = api.OutboundTypeLoadBalancer
 	}
 	return
@@ -79,7 +80,7 @@ func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.Outbou
 func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		outboundTypeCS = "load_balancer"
+		outboundTypeCS = csPlatformOutboundType
 	}
 	return
 }
@@ -105,6 +106,17 @@ func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) 
 		state = csImageRegistryStateEnabled
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
+}
+func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
+	var registryState api.ClusterImageRegistryProfileState
+	switch state {
+	case csImageRegistryStateDisabled:
+		registryState = api.ClusterImageRegistryProfileStateDisabled
+	case csImageRegistryStateEnabled:
+		registryState = api.ClusterImageRegistryProfileStateEnabled
+	}
+
+	return registryState
 }
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
@@ -226,7 +238,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: api.ClusterImageRegistryProfileState(cluster.ImageRegistry().State()),
+				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
 	}
