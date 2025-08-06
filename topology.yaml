@@ -61,6 +61,9 @@ services:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
       pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
       purpose: Deploy the Monitoring resources
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Registration
+      pipelinePath: mgmt-registration/pipeline.yaml
+      purpose: Register the management cluster with the service cluster.
     pipelinePath: dev-infrastructure/region-pipeline.yaml
     purpose: Deploy regional shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml

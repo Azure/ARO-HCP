@@ -1,6 +1,3 @@
--include ../setup-env.mk
-
-
 ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 
 deploy:
@@ -12,7 +9,7 @@ deploy:
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
 	OUTBOUND_IP=$(shell az resource show --ids ${AKS_OUTBOUND_IP_RESOURCE_ID} --query "properties.ipAddress" -o tsv) && \
-	../../hack/helm.sh ${CONSUMER_NAME} deploy ${NAMESPACE} \
+	../../hack/helm.sh ${CONSUMER_NAME} cs ${NAMESPACE} \
 	    --set serviceAccountName.serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 		--set shard.id=1 \
 		--set shard.consumerName=${CONSUMER_NAME} \

@@ -3,6 +3,8 @@
 # Managed Resources:
 # * Registers the MGMT cluster with CS and Maestro
 #
+# TODO: once CS registration API is ready, call the API instead of creating a secret (which is just a POC)
+#
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Registration
 rolloutName: Management Cluster Registration
@@ -28,10 +30,29 @@ resourceGroups:
 - name: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: registration-with-maestro
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make -C maestro deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: CONSUMER_NAME
+      configRef: maestro.agent.consumerName
+    - name: NAMESPACE
+      configRef: maestro.server.k8s.namespace
+    dependsOn:
+    - global-output
+    shellIdentity:
+      input:
+        step: global-output
+        name: globalMSIId
   - name: registration-with-cs
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: make deploy
+    command: make -C cs deploy
     dryRun:
       variables:
       - name: DRY_RUN
@@ -70,5 +91,4 @@ resourceGroups:
     dependsOn:
     - global-output
     - mgmt-output
-    # TODO: move maestro agent registration here as well
-    # TODO: once CS registration API is ready, call the API instead of creating a secret (which is just a POC)
+    - registration-with-maestro

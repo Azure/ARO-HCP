@@ -130,3 +130,6 @@ jobs:
     - name: 'Dry Run Observability/Tracing'
       run: |
         make observability.tracing.dry_run
+    - name: 'Dry Run Management Cluster Registration'
+      run: |
+        make mgmt-registration.dry_run
