@@ -2,7 +2,7 @@
   "location": "$location",
   "properties": {
     "version": {
-      "id": "openshift-v4.19.0",
+      "id": "4.19.0",
       "channelGroup": "stable"
     },
     "dns": {},
@@ -18,9 +18,12 @@
       "dataEncryption": {
         "keyManagementMode": "PlatformManaged"
       }
-    },    
+    },
     "api": {
       "visibility": "Public"
+    },
+    "clusterImageRegistry": {
+      "state": "Enabled"
     },
     "platform": {
       "managedResourceGroup": "$managed-resource-group",
