@@ -149,3 +149,19 @@ func ListProvisioningStates() iter.Seq[ProvisioningState] {
 		ProvisioningStateUpdating,
 	})
 }
+
+type ExternalAuthProvisioningState string
+
+const (
+	// Terminal states, defined by ARM
+	ExternalAuthProvisioningStateCanceled  ExternalAuthProvisioningState = "Canceled"
+	ExternalAuthProvisioningStateFailed    ExternalAuthProvisioningState = "Failed"
+	ExternalAuthProvisioningStateSucceeded ExternalAuthProvisioningState = "Succeeded"
+
+	// Non-terminal states, defined by ARO-HCP
+	ExternalAuthProvisioningStateAccepted       ExternalAuthProvisioningState = "Accepted"
+	ExternalAuthProvisioningStateAwaitingSecret ExternalAuthProvisioningState = "AwaitingSecret"
+	ExternalAuthProvisioningStateDeleting       ExternalAuthProvisioningState = "Deleting"
+	ExternalAuthProvisioningStateProvisioning   ExternalAuthProvisioningState = "Provisioning"
+	ExternalAuthProvisioningStateUpdating       ExternalAuthProvisioningState = "Updating"
+)

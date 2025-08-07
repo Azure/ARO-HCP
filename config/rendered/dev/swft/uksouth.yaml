@@ -101,6 +101,7 @@ clustersService:
       roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  denyAssignments: disabled
   environment: arohcpdev
   image:
     digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d
@@ -111,8 +112,10 @@ clustersService:
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
+    backupRetentionDays: 7
     databaseName: clusters-service
     deploy: false
+    geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbcs-lnstest
     private: false
@@ -166,7 +169,7 @@ frontend:
     exporter: ""
 geneva:
   logs:
-    adminCertName: geneva-logs-admin-swft
+    adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
@@ -258,6 +261,8 @@ imageSync:
 kusto:
   cluster: ""
   resourceGroup: ""
+kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
+kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
   loganalytics:
@@ -291,8 +296,10 @@ maestro:
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
+    backupRetentionDays: 7
     databaseName: maestro
     deploy: false
+    geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbmaestro-lnstest
     private: false

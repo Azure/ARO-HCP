@@ -46,6 +46,7 @@ const (
 	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
 	csImageRegistryStateDisabled          string = "disabled"
 	csImageRegistryStateEnabled           string = "enabled"
+	csPlatformOutboundType                string = "load_balancer"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -70,7 +71,7 @@ func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1
 
 func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
 	switch outboundTypeCS {
-	case "load_balancer":
+	case csPlatformOutboundType:
 		outboundTypeRP = api.OutboundTypeLoadBalancer
 	}
 	return
@@ -79,7 +80,7 @@ func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.Outbou
 func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		outboundTypeCS = "load_balancer"
+		outboundTypeCS = csPlatformOutboundType
 	}
 	return
 }
@@ -98,15 +99,24 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 
 func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) *arohcpv1alpha1.ClusterImageRegistryBuilder {
 	var state string
-	if in.State != nil {
-		switch *in.State {
-		case api.ClusterImageRegistryProfileStateDisabled:
-			state = csImageRegistryStateDisabled
-		case api.ClusterImageRegistryProfileStateEnabled:
-			state = csImageRegistryStateEnabled
-		}
+	switch in.State {
+	case api.ClusterImageRegistryProfileStateDisabled:
+		state = csImageRegistryStateDisabled
+	case api.ClusterImageRegistryProfileStateEnabled:
+		state = csImageRegistryStateEnabled
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
+}
+func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
+	var registryState api.ClusterImageRegistryProfileState
+	switch state {
+	case csImageRegistryStateDisabled:
+		registryState = api.ClusterImageRegistryProfileStateDisabled
+	case csImageRegistryStateEnabled:
+		registryState = api.ClusterImageRegistryProfileStateEnabled
+	}
+
+	return registryState
 }
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
@@ -177,21 +187,6 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 // }
 
-func convertClusterImageRegistryStateCSToRP(in *arohcpv1alpha1.Cluster) *api.ClusterImageRegistryProfileState {
-	var registryState *api.ClusterImageRegistryProfileState
-	if clusterImageRegistry, ok := in.GetImageRegistry(); ok {
-		if state, ok := clusterImageRegistry.GetState(); ok {
-			switch state {
-			case csImageRegistryStateDisabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateDisabled)
-			case csImageRegistryStateEnabled:
-				registryState = api.Ptr(api.ClusterImageRegistryProfileStateEnabled)
-			}
-		}
-	}
-	return registryState
-}
-
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
 	// A word about ProvisioningState:
@@ -243,7 +238,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: convertClusterImageRegistryStateCSToRP(cluster),
+				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
 	}
@@ -327,9 +322,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	hcpCluster.Properties.Version.ID = versionCSformat
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
-
-	// FIXME HcpOpenShiftCluster attributes not being passed:
-	//       ExternalAuth                        (TODO, complicated)
 
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
@@ -546,6 +538,142 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	}
 
 	return npBuilder.Build()
+}
+
+// ConvertCStoExternalAuth converts a CS External Auth object into HCPOpenShiftClusterExternalAuth object
+func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+		ProxyResource: arm.ProxyResource{
+			Resource: arm.Resource{
+				ID:   resourceID.String(),
+				Name: resourceID.Name,
+				Type: resourceID.ResourceType.String(),
+			},
+		},
+		Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+			// TODO fill these out later when CS supports Conditions fully
+			// Condition: api.ExternalAuthCondition{},
+			Issuer: api.TokenIssuerProfile{
+				Url:       csExternalAuth.Issuer().URL(),
+				Ca:        csExternalAuth.Issuer().CA(),
+				Audiences: csExternalAuth.Issuer().Audiences(),
+			},
+			Claim: api.ExternalAuthClaimProfile{
+				Mappings: api.TokenClaimMappingsProfile{
+					Username: api.UsernameClaimProfile{
+						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
+						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
+						PrefixPolicy: csExternalAuth.Claim().Mappings().UserName().PrefixPolicy(),
+					},
+				},
+			},
+		},
+	}
+
+	if groups, ok := csExternalAuth.Claim().Mappings().GetGroups(); ok {
+		externalAuth.Properties.Claim.Mappings.Groups = &api.GroupClaimProfile{
+			Claim:  groups.Claim(),
+			Prefix: groups.Prefix(),
+		}
+
+	}
+
+	clients := make([]api.ExternalAuthClientProfile, 0, len(csExternalAuth.Clients()))
+	for _, client := range csExternalAuth.Clients() {
+		clients = append(clients, api.ExternalAuthClientProfile{
+			Component: api.ExternalAuthClientComponentProfile{
+				Name:                client.Component().Name(),
+				AuthClientNamespace: client.Component().Namespace(),
+			},
+			ClientId:                      client.ID(),
+			ExtraScopes:                   client.ExtraScopes(),
+			ExternalAuthClientProfileType: api.ExternalAuthClientType(client.Type()),
+		})
+	}
+	externalAuth.Properties.Clients = clients
+
+	validationRules := make([]api.TokenClaimValidationRule, 0, len(csExternalAuth.Claim().ValidationRules()))
+	if csExternalAuth.Claim().ValidationRules() != nil {
+		for _, validationRule := range csExternalAuth.Claim().ValidationRules() {
+			validationRules = append(validationRules, api.TokenClaimValidationRule{
+				// We hard code the type here because CS only supports this type currently and doesn't reference the type.
+				TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+				RequiredClaim: api.TokenRequiredClaim{
+					Claim:         validationRule.Claim(),
+					RequiredValue: validationRule.RequiredValue(),
+				},
+			})
+		}
+	}
+	externalAuth.Properties.Claim.ValidationRules = validationRules
+
+	return externalAuth
+}
+
+// BuildCSExternalAuth creates a CS External Auth object from an HCPOpenShiftClusterExternalAuth object
+func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuth, error) {
+	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
+
+	// These attributes cannot be updated after node pool creation.
+	if !updating {
+		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
+	}
+
+	tokenClaimValidationRuleBuilder := arohcpv1alpha1.NewTokenClaimValidationRule()
+
+	if externalAuth.Properties.Claim.ValidationRules != nil {
+		for _, t := range externalAuth.Properties.Claim.ValidationRules {
+			tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
+				Claim(t.RequiredClaim.Claim).
+				RequiredValue(t.RequiredClaim.RequiredValue)
+		}
+	}
+
+	externalAuthBuilder.
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(externalAuth.Properties.Issuer.Url).
+			Audiences(externalAuth.Properties.Issuer.Audiences...).
+			CA(externalAuth.Properties.Issuer.Ca)).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
+					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
+					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
+				),
+			),
+		)
+
+	if externalAuth.Properties.Claim.Mappings.Groups != nil {
+		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				Groups(arohcpv1alpha1.NewGroupsClaim().
+					Claim(externalAuth.Properties.Claim.Mappings.Groups.Claim).
+					Prefix(externalAuth.Properties.Claim.Mappings.Groups.Prefix),
+				),
+			),
+		)
+	}
+
+	if len(externalAuth.Properties.Claim.ValidationRules) > 0 {
+		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			ValidationRules(tokenClaimValidationRuleBuilder),
+		)
+
+	}
+
+	for _, t := range externalAuth.Properties.Clients {
+		externalAuthBuilder = externalAuthBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
+			ID(t.ClientId).
+			Component(arohcpv1alpha1.NewClientComponent().
+				Name(t.Component.Name).
+				Namespace(t.Component.AuthClientNamespace),
+			).
+			ExtraScopes(t.ExtraScopes...).
+			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))
+	}
+
+	return externalAuthBuilder.Build()
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential.

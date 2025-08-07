@@ -122,9 +122,7 @@ func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) *gene
 	profile := &generated.ClusterImageRegistryProfile{
 		State: nil,
 	}
-	if from.State != nil {
-		profile.State = api.Ptr(generated.ClusterImageRegistryProfileState(*from.State))
-	}
+	profile.State = api.Ptr(generated.ClusterImageRegistryProfileState(from.State))
 	return profile
 }
 
@@ -431,7 +429,7 @@ func normalizeActiveKey(p *generated.KmsKey, out *api.KmsKey) {
 
 func normalizeClusterImageRegistry(p *generated.ClusterImageRegistryProfile, out *api.ClusterImageRegistryProfile) {
 	if p.State != nil {
-		out.State = api.PtrOrNil(api.ClusterImageRegistryProfileState(*p.State))
+		out.State = api.ClusterImageRegistryProfileState(*p.State)
 	}
 }
 

@@ -116,3 +116,21 @@ Delete node pool
 ```bash
 curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/nodePools/dev-nodepool?api-version=2024-06-10-preview"
 ```
+
+External Auth operations:
+
+Create external auth
+```bash
+curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview" \
+  -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" --json @external_auth.json
+```
+
+Get external auth
+```bash
+curl "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview"
+```
+
+Delete external auth
+```bash
+curl -X DELETE "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster/externalAuths/entra?api-version=2024-06-10-preview"
+```

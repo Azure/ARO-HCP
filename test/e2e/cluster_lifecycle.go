@@ -61,17 +61,17 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Create a new resource group for the cluster")
 		// Use the framework's test context for resource group operations since they don't need the systemData policy
-		ic := framework.NewInvocationContext()
+		tc := framework.NewTestContext()
 		rgPrefix := "cluster_lifecycle"
-		resourceGroup, err := ic.NewResourceGroup(ctx, rgPrefix, ic.Location())
+		resourceGroup, err := tc.NewResourceGroup(ctx, rgPrefix, tc.Location())
 		Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
 
 		By("Deploying the infrastructure only bicep template")
 		deploymentName := fmt.Sprintf("e2e-lifecycle-%s-deployment", uuid.NewString()[:4])
 
 		// Read the bicep template file converted to json from the correct location
-		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/infra-only.json"))
-
+		//templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-lifecycle/infra-only.json"))
+		templateContent := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/bicep-templates/infra-only.json"))
 		// Create deployment parameters for infra-only.json
 		deploymentParameters := map[string]interface{}{
 			"clusterName":     clusterName,
@@ -81,7 +81,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		// Use the framework's CreateBicepTemplateAndWait function for consistency
 		deploymentResult, err := framework.CreateBicepTemplateAndWait(
 			ctx,
-			ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 			*resourceGroup.Name,
 			deploymentName,
 			templateContent,
@@ -125,7 +125,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		}
 
 		By("Defining a new cluster resource for creation")
-		location := ic.Location()
+		location := tc.Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
 		versionID := "openshift-v4.19.0"
@@ -200,7 +200,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 
 		By("Sending a PUT request to create the cluster")
 		// Initialize the clustersClient using environment subscription ID
-		subscriptionID, err := ic.GetSubscriptionID(ctx)
+		subscriptionID, err := tc.GetSubscriptionID(ctx)
 		Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
 		// Create a new credential
 		credential, err := azidentity.NewDefaultAzureCredential(nil)
@@ -238,8 +238,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		errMessage := "ResourceNotFound"
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 		By("Cleaning up the resource group")
-		ic = framework.NewInvocationContext()
-		resourceGroupClient := ic.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
+		resourceGroupClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
 		err = framework.DeleteResourceGroup(ctx, resourceGroupClient, *resourceGroup.Name, 60*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete resource group during cleanup")
 		By("Verifying the resource group is deleted")

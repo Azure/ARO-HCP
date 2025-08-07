@@ -59,6 +59,28 @@ func GetOutputValue(deploymentInfo *armresources.DeploymentExtended, outputName 
 	return ret, nil
 }
 
+func GetOutputValueBytes(deploymentInfo *armresources.DeploymentExtended, outputName string) ([]byte, error) {
+	outputMap, ok := deploymentInfo.Properties.Outputs.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("failed to cast deployment outputs to map[string]interface{}, was %T", deploymentInfo.Properties.Outputs)
+	}
+
+	val, found, err := unstructured.NestedFieldNoCopy(outputMap, outputName, "value")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get output value for %q: %w", outputName, err)
+	}
+	if !found {
+		return nil, fmt.Errorf("output %q not found", outputName)
+	}
+
+	bytes, err := json.Marshal(val)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal output value for %q: %w", outputName, err)
+	}
+
+	return bytes, nil
+}
+
 // CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
 func CreateBicepTemplateAndWait(
 	ctx context.Context,

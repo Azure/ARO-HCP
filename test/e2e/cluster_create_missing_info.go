@@ -46,15 +46,15 @@ var _ = Describe("Customer", func() {
 					customerVnetSubnetName           = "customer-vnet-subnet1"
 					customerClusterName              = "illegal-hcp-cluster"
 				)
-				ic := framework.NewInvocationContext()
+				tc := framework.NewTestContext()
 
 				By("creating a resource group")
-				resourceGroup, err := ic.NewResourceGroup(ctx, "illegal-ocp-version", ic.Location())
+				resourceGroup, err := tc.NewResourceGroup(ctx, "illegal-ocp-version", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a prereqs in the resource group")
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"infra",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
@@ -74,7 +74,7 @@ var _ = Describe("Customer", func() {
 				clusterTemplate = bytes.ReplaceAll(clusterTemplate, []byte("VERSION_REPLACE_ME"), []byte(version))
 
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"illegal-cluster",
 					clusterTemplate,

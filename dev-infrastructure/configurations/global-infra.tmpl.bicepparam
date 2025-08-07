@@ -34,3 +34,7 @@ param oidcMsiName = '{{ .oidc.frontdoor.msiName }}'
 
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
+
+// SP for EV2 certificate access, i.e. geneva log access
+param kvCertAccessPrincipalId = '{{ .kvCertAccessPrincipalId }}'
+param kvCertAccessRoleId = '{{ .kvCertAccessRoleId }}'

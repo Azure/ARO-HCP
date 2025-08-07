@@ -159,6 +159,9 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	case arohcpv1alpha1.NodePoolKind:
 		err = f.clusterServiceClient.DeleteNodePool(ctx, resourceDoc.InternalID)
 
+	case arohcpv1alpha1.ExternalAuthKind:
+		err = f.clusterServiceClient.DeleteExternalAuth(ctx, resourceDoc.InternalID)
+
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
 		return "", arm.NewInternalServerError()
@@ -282,6 +285,18 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			return nil, CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+
+	case arohcpv1alpha1.ExternalAuthKind:
+		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, doc.InternalID)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, CSErrorToCloudError(err, resourceID)
+		}
+		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()

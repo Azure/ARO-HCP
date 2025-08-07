@@ -11,6 +11,7 @@ param secretName string = ''
   'Key Vault Certificate User'
   'Key Vault Certificates Officer'
   'Key Vault Crypto Officer'
+  'Azure Service Deploy Release Management Key Vault Secrets User'
 ])
 param roleName string
 

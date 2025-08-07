@@ -129,7 +129,7 @@ defaults:
         - AME\WEINONGW
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
-      adminCertName: "geneva-logs-admin-{{ .ctx.environment }}"
+      adminCertName: "geneva-logs-admin"
       manageCertificates: true
       certificateIssuer: Self
       certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
@@ -485,6 +485,8 @@ defaults:
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
       zoneRedundantMode: 'Auto'
+      backupRetentionDays: 7
+      geoRedundantBackup: false
     restrictIstioIngress: true
     certDomain: ""
     image:
@@ -533,6 +535,7 @@ defaults:
       address: ""
       exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
+    denyAssignments: "disabled"
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
@@ -542,6 +545,8 @@ defaults:
       serverStorageSizeGB: 128
       databaseName: clusters-service
       zoneRedundantMode: 'Auto'
+      backupRetentionDays: 7
+      geoRedundantBackup: false
     managedIdentityName: clusters-service
     k8s:
       namespace: clusters-service
@@ -814,6 +819,8 @@ clouds:
         grafanaRoles: >-
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
+      kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
+      kvCertAccessRoleId: ""
     environments:
       dev:
         # this is the integrated DEV environment

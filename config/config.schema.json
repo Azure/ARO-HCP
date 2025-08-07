@@ -519,6 +519,14 @@
         },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "backupRetentionDays": {
+          "type": "integer",
+          "description": "Number of days to retain backups for the PostgreSQL server."
+        },
+        "geoRedundantBackup": {
+          "type": "boolean",
+          "description": "Enable geo-redundant backups for the PostgreSQL server."
         }
       },
       "additionalProperties": false,
@@ -530,7 +538,9 @@
         "serverVersion",
         "minTLSVersion",
         "databaseName",
-        "zoneRedundantMode"
+        "zoneRedundantMode",
+        "backupRetentionDays",
+        "geoRedundantBackup"
       ]
     },
     "subscriptionMetadata": {
@@ -572,6 +582,14 @@
     "kvCertOfficerPrincipalId": {
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
+    },
+    "kvCertAccessPrincipalId": {
+      "type": "string",
+      "description": "The principal ID of the cert officer that will be used to access KV certificate"
+    },
+    "kvCertAccessRoleId": {
+      "type": "string",
+      "description": "The Role ID used for cert access"
     },
     "dns": {
       "type": "object",
@@ -687,6 +705,13 @@
           "minLength": 1,
           "maxLength": 10
         },
+        "denyAssignments": {
+          "type": "string",
+          "enum": [
+            "enabled",
+            "disabled"
+          ]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -763,6 +788,7 @@
       "additionalProperties": false,
       "required": [
         "environment",
+        "denyAssignments",
         "image",
         "managedIdentityName",
         "k8s",

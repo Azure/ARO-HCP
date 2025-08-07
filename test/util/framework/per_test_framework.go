@@ -45,7 +45,7 @@ type perItOrDescribeTestContext struct {
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 }
 
-func NewInvocationContext() *perItOrDescribeTestContext {
+func NewTestContext() *perItOrDescribeTestContext {
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
 	}
@@ -132,6 +132,13 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 		tc.knownResourceGroups = append(tc.knownResourceGroups, resourceGroupName)
 	}()
 	ginkgo.GinkgoLogr.Info("creating resource group", "resourceGroup", resourceGroupName)
+
+	if len(tc.perBinaryInvocationTestContext.sharedDir) > 0 {
+		resourceGroupCleanupFilename := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "tracked-resource-group_"+resourceGroupName)
+		if err := os.WriteFile(resourceGroupCleanupFilename, []byte{}, 0644); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed writing resource group cleanup file", "resourceGroup", resourceGroupName)
+		}
+	}
 
 	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 20*time.Minute)
 	if err != nil {
