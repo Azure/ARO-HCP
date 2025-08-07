@@ -135,9 +135,6 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
-		// //--------------------------------
-		// // Complex field validation
-		// //--------------------------------
 		{
 			name: "Bad properties.issuer.ca",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
@@ -154,7 +151,52 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
-		// New test cases for ClientId in Audiences validation
+		{
+			name: "Bad properties.issuer.url - InvalidURL",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url: "aaa",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'aaa' for field 'url' (must be a URL)",
+					Target:  "properties.issuer.url",
+				},
+			},
+		},
+		{
+			name: "Bad properties.issuer.url - Not  starting with https://",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url: "http://microsoft.com",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'http://microsoft.com' for field 'url' (must start with 'https://')",
+					Target:  "properties.issuer.url",
+				},
+			},
+		},
+		{
+			name: "Bad properties.issuer.audiences",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Audiences: []string{"omitempty"},
+					},
+				},
+			},
+			expectErrors: nil,
+		},
+		// //--------------------------------
+		// // Complex field validation
+		// //--------------------------------
 		{
 			name: "Valid ClientId in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
