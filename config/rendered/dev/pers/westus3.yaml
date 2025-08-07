@@ -486,6 +486,7 @@ oidc:
     useManagedCertificates: true
   storageAccount:
     name: arohcppersoidcusw3test
+    privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
 pko:

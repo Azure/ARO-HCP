@@ -1822,6 +1822,10 @@
             "public": {
               "type": "boolean",
               "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
+            },
+            "privateLinkLocation": {
+              "type": "string",
+              "description": "The location of the storage account private link. Not every region supports private links so we need to be able to override the default location."
             }
           },
           "additionalProperties": false,
