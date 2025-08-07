@@ -14,9 +14,6 @@
       "hostPrefix": 23
     },
     "console": {},
-    "clusterImageRegistry": {
-      "state": "Enabled"
-    },
     "etcd": {
       "dataEncryption": {
         "keyManagementMode": "CustomerManaged",
@@ -34,9 +31,6 @@
     },
     "api": {
       "visibility": "Public"
-    },
-    "clusterImageRegistry": {
-      "state": "Enabled"
     },
     "platform": {
       "managedResourceGroup": "$managed-resource-group",
