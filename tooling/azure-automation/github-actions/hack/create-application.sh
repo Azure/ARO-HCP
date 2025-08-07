@@ -84,27 +84,37 @@ for env in "${AUTOMATION_ACCOUNT_ENVS[@]}"; do
     done
 done
 
-az ad app federated-credential create --id "${APP_ID}" --parameters \
-'{
-    "audiences": [
-        "api://AzureADTokenExchange"
-    ],
-    "description": "https://github.com/Azure/ARO-HCP runner",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "name": "aro-hcp-pr-runner",
-    "subject": "repo:Azure/ARO-HCP:pull_request"
-}'
+# Create federated credential for PRs only if it doesn't already exist
+if ! az ad app federated-credential list --id "${APP_ID}" --query "[?name=='aro-hcp-pr-runner']" | grep -q 'aro-hcp-pr-runner'; then
+    az ad app federated-credential create --id "${APP_ID}" --parameters \
+    '{
+      "audiences": [
+          "api://AzureADTokenExchange"
+      ],
+      "description": "https://github.com/Azure/ARO-HCP runner",
+      "issuer": "https://token.actions.githubusercontent.com",
+      "name": "aro-hcp-pr-runner",
+      "subject": "repo:Azure/ARO-HCP:pull_request"
+    }'
+else
+    echo "Federated credential 'aro-hcp-pr-runner' already exists for app ${APP_ID}"
+fi
 
-az ad app federated-credential create --id "${APP_ID}" --parameters \
-'{
-    "audiences": [
-        "api://AzureADTokenExchange"
-    ],
-    "description": "https://github.com/Azure/ARO-HCP runner",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "name": "aro-hcp-main",
-    "subject": "repo:Azure/ARO-HCP:ref:refs/heads/main"
-}'
+# Create federated credential for main branch only if it doesn't already exist
+if ! az ad app federated-credential list --id "${APP_ID}" --query "[?name=='aro-hcp-main']" | grep -q 'aro-hcp-main'; then
+    az ad app federated-credential create --id "${APP_ID}" --parameters \
+    '{
+        "audiences": [
+            "api://AzureADTokenExchange"
+        ],
+        "description": "https://github.com/Azure/ARO-HCP runner",
+        "issuer": "https://token.actions.githubusercontent.com",
+        "name": "aro-hcp-main",
+        "subject": "repo:Azure/ARO-HCP:ref:refs/heads/main"
+    }'
+else
+    echo "Federated credential 'aro-hcp-main' already exists for app ${APP_ID}"
+fi
 
 echo "----------- Configure GitHub with the below secrets -----------"
 echo "AZURE_CLIENT_ID: ${APP_ID}"
