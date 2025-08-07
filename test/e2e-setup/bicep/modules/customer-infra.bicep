@@ -47,5 +47,15 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   }
 }
 
-output subnetId string = customerVnet.properties.subnets[0].id
-output networkSecurityGroupId string = customerNsg.id
+//
+// outputs
+// 
+
+@description('Network Security Group Name')
+output nsgName string = customerNsgName
+
+@description('Virtual Network Name')
+output vnetName string = customerVnetName
+
+@description('Subnet Name')
+output vnetSubnetName string = customerVnetSubnetName

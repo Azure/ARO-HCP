@@ -4,11 +4,14 @@ param clusterName string
 @description('The Hypershift cluster managed resource group name')
 param managedResourceGroupName string = '${clusterName}-rg'
 
-@description('The Network security group ID for the hcp cluster resources')
-param networkSecurityGroupId string
+@description('The Network security group name for the hcp cluster resources')
+param nsgName string
 
-@description('The subnet id for deploying hcp cluster resources.')
-param subnetId string
+@description('The virtual network name for the hcp cluster resources')
+param vnetName string
+
+@description('The subnet name for deploying hcp cluster resources.')
+param subnetName string
 
 @description('OpenShift Version ID to use')
 param openshiftVersionId string = '4.19.0'
@@ -20,6 +23,27 @@ param userAssignedIdentitiesValue object
 param identityValue object
 
 var randomSuffix = toLower(uniqueString(resourceGroup().id))
+
+//
+// E X I S T I N G   R E S O U R C E S
+//
+
+resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' existing = {
+  name: vnetName
+}
+
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: subnetName
+  parent: vnet
+}
+
+resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
+  name: nsgName
+}
+
+//
+// Hosted cluster
+//
 
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
   name: clusterName
@@ -51,9 +75,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     platform: {
       managedResourceGroup: managedResourceGroupName
-      subnetId: subnetId
+      subnetId: subnet.id
       outboundType: 'LoadBalancer'
-      networkSecurityGroupId: networkSecurityGroupId
+      networkSecurityGroupId: nsg.id 
       operatorsAuthentication: {
         userAssignedIdentities: userAssignedIdentitiesValue
       }
