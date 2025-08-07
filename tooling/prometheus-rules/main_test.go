@@ -55,7 +55,7 @@ func TestPrometheusRules(t *testing.T) {
 		"./testdata/alerts/testing-prometheusRule.yaml"} {
 		assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
-	err := runGenerator(filepath.Join(tmpDir, "config.yaml"))
+	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
 	assert.NoError(t, err)
 
 	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated.bicep"))
@@ -75,6 +75,6 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 		"./testdata/alerts/testing-prometheusRule.yaml"} {
 		assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
-	err := runGenerator(filepath.Join(tmpDir, "config.yaml"))
+	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
 	assert.ErrorContains(t, err, "missing testfile")
 }
