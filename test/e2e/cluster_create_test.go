@@ -41,8 +41,7 @@ var _ = Describe("Put HCPOpenShiftCluster", func() {
 		By("Sending put request to create HCPOpenshiftCluster")
 		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
 		Expect(err).ToNot(BeNil())
-		// Confirm error message ?
-		errMessage := "location parameter is required"
+		errMessage := "The location property is required"
 		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
 	})
 })
