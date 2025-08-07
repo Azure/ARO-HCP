@@ -221,6 +221,9 @@ param serviceKeyVaultResourceGroup string = resourceGroup().name
 @description('OIDC Storage Account name')
 param oidcStorageAccountName string
 
+@description('The location of the OIDC storage account private link')
+param oidcStoragePrivateLinkLocation string
+
 @description('Whether the OIDC storage account is public or private. If private, it can only be accessed via Azure Front Door')
 param oidcStorageAccountPublic bool
 
@@ -656,7 +659,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     routeName: azureFrontDoorRegionalSubdomain
     originGroupName: azureFrontDoorRegionalSubdomain
     originName: azureFrontDoorRegionalSubdomain
-    privateLinkLocation: location
+    privateLinkLocation: oidcStoragePrivateLinkLocation
     storageAccountAccessPrincipalId: csManagedIdentityPrincipalId
     skuName: determineZoneRedundancy(locationAvailabilityZoneList, oidcZoneRedundantMode)
       ? 'Standard_ZRS'

@@ -83,6 +83,7 @@ param svcAcrResourceId = '__svcAcrResourceId__'
 
 // OIDC
 param oidcStorageAccountName = '{{ .oidc.storageAccount.name }}'
+param oidcStoragePrivateLinkLocation = '{{ .oidc.storageAccount.privateLinkLocation }}'
 param oidcZoneRedundantMode = '{{ .oidc.storageAccount.zoneRedundantMode }}'
 param oidcStorageAccountPublic = {{ .oidc.storageAccount.public }}
 param azureFrontDoorResourceId = '__azureFrontDoorResourceId__'

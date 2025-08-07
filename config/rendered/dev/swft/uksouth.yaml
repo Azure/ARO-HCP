@@ -486,6 +486,7 @@ oidc:
     useManagedCertificates: true
   storageAccount:
     name: arohcpswftoidclnstest
+    privateLinkLocation: uksouth
     public: true
     zoneRedundantMode: Auto
 pko:
