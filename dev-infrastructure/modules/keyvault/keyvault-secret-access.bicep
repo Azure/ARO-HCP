@@ -18,6 +18,9 @@ param roleName string
 @description('The principal id of the managed identity that will be assigned access to the secret in KV')
 param managedIdentityPrincipalId string
 
+@description('Roles used for EV2 KeyVault access, i.e. geneva log access')
+param kvCertAccessRoleId string = ''
+
 var roleResourceIds = {
   // Perform any action on the secrets of a key vault, except manage permissions.
   'Key Vault Secrets User': subscriptionResourceId(
@@ -43,6 +46,11 @@ var roleResourceIds = {
   'Key Vault Crypto Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+  )
+  // Used for EV2 KeyVault access, i.e. geneva log access
+  'Azure Service Deploy Release Management Key Vault Secrets User': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    kvCertAccessRoleId
   )
 }
 
