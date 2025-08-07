@@ -66,6 +66,10 @@ spec:
               imagePullSecret:
                 description: Override pull secret for accessing MultiClusterEngine operand and endpoint images
                 type: string
+              localClusterName:
+                default: local-cluster
+                description: The name of the local-cluster resource
+                type: string
               nodeSelector:
                 additionalProperties:
                   type: string

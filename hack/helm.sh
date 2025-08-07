@@ -18,7 +18,19 @@ if ! kubectl get namespace "${NAMESPACE}" &>/dev/null; then
 fi
 
 if [ "${DRY_RUN:-false}" == "true" ]; then
-  helm diff upgrade --install --dry-run=server --suppress-secrets --three-way-merge "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
+  if [ "${HELM_ADOPT:-false}" == "false" ]; then
+    HELM_DRY_RUN_MODE_VALUE="${HELM_DRY_RUN_MODE:-server}"
+    echo "Run Helm diff with --dry-run=${HELM_DRY_RUN_MODE_VALUE} ..."
+
+    HELM_ARGS="--install --dry-run=${HELM_DRY_RUN_MODE_VALUE} --suppress-secrets"
+    if [ "${HELM_DRY_RUN_MODE_VALUE}" == "server" ]; then
+      HELM_ARGS="${HELM_ARGS} --three-way-merge"
+    fi
+
+    helm diff upgrade ${HELM_ARGS} "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
+  else
+    echo "Skipping Helm diff for dry-run check because Helm adopt mode is enabled"
+  fi
 else
   if [ "${HELM_ADOPT:-false}" == "true" ]; then
     echo "Adopting Helm release ${HELM_RELEASE_NAME} in namespace ${NAMESPACE}"
@@ -26,7 +38,7 @@ else
   fi
 
   echo "Run Helm upgrade with release name ${HELM_RELEASE_NAME} in namespace ${NAMESPACE}"
-  helm upgrade --install --wait --wait-for-jobs "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
+  helm upgrade --install --timeout="${HELM_TIMEOUT:-600s}" --wait --wait-for-jobs "${HELM_RELEASE_NAME}" "${CHART}" --namespace "${NAMESPACE}" "$@"
   HELM_EXIT_CODE=$?
   if [ "${HELM_EXIT_CODE}" -eq 0 ]; then
       echo "Helm upgrade succeeded with exit code: ${HELM_EXIT_CODE}"
