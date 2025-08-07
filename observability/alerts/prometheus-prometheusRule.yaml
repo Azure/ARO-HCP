@@ -10,7 +10,7 @@ metadata:
   namespace: prometheus
 spec:
   groups:
-  - name: prometheus-slo-rules
+  - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
       expr: min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0

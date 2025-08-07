@@ -1010,8 +1010,8 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
   }
 }
 
-resource prometheusSloRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'prometheus-slo-rules'
+resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prometheus-wip-rules'
   location: resourceGroup().location
   properties: {
     rules: [
