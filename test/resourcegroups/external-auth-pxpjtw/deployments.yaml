@@ -1,0 +1,513 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster
+  name: hcp-cluster
+  properties:
+    correlationId: 27ccc736-5e56-445c-8f9d-86356759eacd
+    debugSetting:
+      detailLevel: RequestContent
+    dependencies:
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+      resourceName: c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ddb18c25-6b55-5420-ab75-24b66a07e639
+      resourceName: ddb18c25-6b55-5420-ab75-24b66a07e639
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/c5d7188f-834e-53cc-b313-da75f2ecfb62
+      resourceName: c5d7188f-834e-53cc-b313-da75f2ecfb62
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/c7490f71-0df3-5eeb-8b35-3a5a00419230
+      resourceName: c7490f71-0df3-5eeb-8b35-3a5a00419230
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/95dc9e55-faa0-56af-8f57-448bade6973a
+      resourceName: 95dc9e55-faa0-56af-8f57-448bade6973a
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+      resourceName: e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/d207336c-e08e-5e2e-a114-405175a4f3a8
+      resourceName: d207336c-e08e-5e2e-a114-405175a4f3a8
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/8abc9312-1842-5c08-928c-617224eef277
+      resourceName: 8abc9312-1842-5c08-928c-617224eef277
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+      resourceName: 0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ee9ce038-a475-504b-b7d7-ab2758c2798a
+      resourceName: ee9ce038-a475-504b-b7d7-ab2758c2798a
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+      resourceName: 734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/64b2af51-2c7b-5102-96d9-d6f17ed12200
+      resourceName: 64b2af51-2c7b-5102-96d9-d6f17ed12200
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/46202ac5-9dd3-5213-aea3-fae50c2649e9
+      resourceName: 46202ac5-9dd3-5213-aea3-fae50c2649e9
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/3329192c-44c1-5d02-91bb-e37c54d86acf
+      resourceName: 3329192c-44c1-5d02-91bb-e37c54d86acf
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/11a1da80-6f1b-5683-ae66-70a56750ae82
+      resourceName: 11a1da80-6f1b-5683-ae66-70a56750ae82
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+      resourceName: 442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+      resourceName: cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+      resourceName: fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/a4346609-7e31-56ce-bcfd-260823317e35
+      resourceName: a4346609-7e31-56ce-bcfd-260823317e35
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/08ea67f5-e281-525b-91ce-adf8049824cc
+      resourceName: 08ea67f5-e281-525b-91ce-adf8049824cc
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/673801df-8396-5960-bd7f-a73809428825
+      resourceName: 673801df-8396-5960-bd7f-a73809428825
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/90e04d1f-650b-5d80-9ee4-8690821691d9
+      resourceName: 90e04d1f-650b-5d80-9ee4-8690821691d9
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ba835be7-fcc3-518b-a65f-a9e8794df3a8
+      resourceName: ba835be7-fcc3-518b-a65f-a9e8794df3a8
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/ddd39adb-ff84-52d3-b41b-44481c0536dd
+      resourceName: ddd39adb-ff84-52d3-b41b-44481c0536dd
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+      resourceName: 7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/e15fe783-76bf-58ee-a184-593204f2d455
+      resourceName: e15fe783-76bf-58ee-a184-593204f2d455
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/d207336c-e08e-5e2e-a114-405175a4f3a8
+        resourceName: d207336c-e08e-5e2e-a114-405175a4f3a8
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+        resourceName: e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/a4346609-7e31-56ce-bcfd-260823317e35
+        resourceName: a4346609-7e31-56ce-bcfd-260823317e35
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/90e04d1f-650b-5d80-9ee4-8690821691d9
+        resourceName: 90e04d1f-650b-5d80-9ee4-8690821691d9
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/673801df-8396-5960-bd7f-a73809428825
+        resourceName: 673801df-8396-5960-bd7f-a73809428825
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/08ea67f5-e281-525b-91ce-adf8049824cc
+        resourceName: 08ea67f5-e281-525b-91ce-adf8049824cc
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ba835be7-fcc3-518b-a65f-a9e8794df3a8
+        resourceName: ba835be7-fcc3-518b-a65f-a9e8794df3a8
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/46202ac5-9dd3-5213-aea3-fae50c2649e9
+        resourceName: 46202ac5-9dd3-5213-aea3-fae50c2649e9
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/64b2af51-2c7b-5102-96d9-d6f17ed12200
+        resourceName: 64b2af51-2c7b-5102-96d9-d6f17ed12200
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+        resourceName: c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/c7490f71-0df3-5eeb-8b35-3a5a00419230
+        resourceName: c7490f71-0df3-5eeb-8b35-3a5a00419230
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/c5d7188f-834e-53cc-b313-da75f2ecfb62
+        resourceName: c5d7188f-834e-53cc-b313-da75f2ecfb62
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+        resourceName: 0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+        resourceName: 442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+        resourceName: cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/8abc9312-1842-5c08-928c-617224eef277
+        resourceName: 8abc9312-1842-5c08-928c-617224eef277
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+        resourceName: fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ddb18c25-6b55-5420-ab75-24b66a07e639
+        resourceName: ddb18c25-6b55-5420-ab75-24b66a07e639
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/95dc9e55-faa0-56af-8f57-448bade6973a
+        resourceName: 95dc9e55-faa0-56af-8f57-448bade6973a
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+        resourceName: 734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/3329192c-44c1-5d02-91bb-e37c54d86acf
+        resourceName: 3329192c-44c1-5d02-91bb-e37c54d86acf
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/11a1da80-6f1b-5683-ae66-70a56750ae82
+        resourceName: 11a1da80-6f1b-5683-ae66-70a56750ae82
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ee9ce038-a475-504b-b7d7-ab2758c2798a
+        resourceName: ee9ce038-a475-504b-b7d7-ab2758c2798a
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/e15fe783-76bf-58ee-a184-593204f2d455
+        resourceName: e15fe783-76bf-58ee-a184-593204f2d455
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+        resourceName: 7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+        resourceType: Microsoft.Authorization/roleAssignments
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/ddd39adb-ff84-52d3-b41b-44481c0536dd
+        resourceName: ddd39adb-ff84-52d3-b41b-44481c0536dd
+        resourceType: Microsoft.Authorization/roleAssignments
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/external-auth-cluster
+      resourceName: external-auth-cluster
+      resourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+    duration: PT9.5640393S
+    error:
+      code: DeploymentFailed
+      details:
+      - code: InvalidRequestContent
+        message: Image Registry state '' is not valid, valid values are ['enabled','disabled']
+      message: At least one resource deployment operation failed. Please list deployment
+        operations for details. Please see https://aka.ms/arm-deployment-operations
+        for usage details.
+    mode: Incremental
+    parameters:
+      clusterName:
+        type: String
+        value: external-auth-cluster
+      managedResourceGroupName:
+        type: String
+        value: external-auth-pxpjtw--managed
+      nsgName:
+        type: String
+        value: customer-nsg-name
+      subnetName:
+        type: String
+        value: customer-vnet-subnet1
+      vnetName:
+        type: String
+        value: customer-vnet-name
+    providers:
+    - namespace: Microsoft.ManagedIdentity
+      resourceTypes:
+      - locations:
+        - uksouth
+        resourceType: userAssignedIdentities
+    - namespace: Microsoft.Authorization
+      resourceTypes:
+      - locations:
+        - null
+        resourceType: roleAssignments
+    - namespace: Microsoft.RedHatOpenShift
+      resourceTypes:
+      - locations:
+        - uksouth
+        resourceType: hcpOpenShiftClusters
+    provisioningState: Failed
+    templateHash: "7176892101941509152"
+    timestamp: "2025-08-07T08:48:01.8551887Z"
+  type: Microsoft.Resources/deployments
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/infra
+  name: infra
+  properties:
+    correlationId: 08e1695c-cc1b-410a-a7e1-bbc539090c41
+    debugSetting:
+      detailLevel: RequestContent
+    dependencies:
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+        resourceName: customer-nsg-name
+        resourceType: Microsoft.Network/networkSecurityGroups
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+      resourceName: customer-vnet-name
+      resourceType: Microsoft.Network/virtualNetworks
+    duration: PT6.821556S
+    mode: Incremental
+    outputResources:
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+    outputs:
+      networkSecurityGroupId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+      subnetId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1
+    parameters:
+      customerNsgName:
+        type: String
+        value: customer-nsg-name
+      customerVnetName:
+        type: String
+        value: customer-vnet-name
+      customerVnetSubnetName:
+        type: String
+        value: customer-vnet-subnet1
+    providers:
+    - namespace: Microsoft.Network
+      resourceTypes:
+      - locations:
+        - uksouth
+        resourceType: networkSecurityGroups
+      - locations:
+        - uksouth
+        resourceType: virtualNetworks
+    provisioningState: Succeeded
+    templateHash: "5901671209430640079"
+    timestamp: "2025-08-07T08:47:45.5074541Z"
+  type: Microsoft.Resources/deployments

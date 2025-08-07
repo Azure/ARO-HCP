@@ -34,7 +34,7 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 	It("creates a full HCP cluster and applies ExternalAuth config",
 		labels.RequireNothing, labels.Critical, labels.Positive,
 		func(ctx context.Context) {
-			ic := framework.NewInvocationContext()
+		  tc := framework.NewTestContext()
 
 			const (
 				region                    = "uksouth"
@@ -43,9 +43,9 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 				customerVnetSubnetName    = "customer-vnet-subnet1"
 				customerClusterName       = "external-auth-cluster"
 				customerNodePoolName      = "np-1"
-				externalAuthID            = "entra"
-				issuerURL                 = "https://login.microsoftonline.com/fa5d3dd8-b8ec-4407-a55c-ced639f1c8c5/v2.0"
-				cliAudience               = "<client-id>"
+				externalAuthID            = "backplane-api"
+				issuerURL                 = "https://login.microsoftonline.com/034d47fe-1dfa-4892-a2f7-c168f15d156c/v2.0"
+				cliAudience               = "034d47fe-1dfa-4892-a2f7-c168f15d156c"
 				usernameClaim             = "email"
 				groupsClaim               = "groups"
 				externalAuthComponentName = "console"
@@ -55,12 +55,12 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 			)
 
 			By("creating resource group")
-			resourceGroup, err := ic.NewResourceGroup(ctx, "external-auth", region)
+			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth", region)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("provisioning infra")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name, "infra",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
 				map[string]interface{}{
@@ -73,7 +73,7 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 			By("creating HCP cluster")
 			managedRG := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name, "hcp-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
 				map[string]interface{}{
@@ -87,7 +87,7 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 
 			By("creating node pool")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				ic.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name, "node-pool",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
 				map[string]interface{}{

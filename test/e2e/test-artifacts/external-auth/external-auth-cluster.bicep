@@ -470,8 +470,11 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   location: resourceGroup().location
   properties: {
     version: {
-      id: 'VERSION_REPLACE_ME'
+      id: 'v4.19.0'
       channelGroup: 'stable'
+    }
+    clusterImageRegistry: {
+      state: 'Enabled'
     }
     dns: {}
     network: {

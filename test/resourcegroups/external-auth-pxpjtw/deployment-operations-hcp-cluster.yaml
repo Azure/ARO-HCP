@@ -1,0 +1,823 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/D4FB02726602AB86
+  operationId: D4FB02726602AB86
+  properties:
+    duration: PT0.8796515S
+    provisioningOperation: Create
+    provisioningState: Failed
+    request:
+      content:
+        identity:
+          type: UserAssigned
+          userAssignedIdentities:
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+            : {}
+        location: uksouth
+        properties:
+          api:
+            visibility: Public
+          console: {}
+          dns: {}
+          etcd:
+            dataEncryption:
+              keyManagementMode: PlatformManaged
+          network:
+            hostPrefix: 23
+            machineCidr: 10.0.0.0/16
+            networkType: OVNKubernetes
+            podCidr: 10.128.0.0/14
+            serviceCidr: 172.30.0.0/16
+          platform:
+            managedResourceGroup: external-auth-pxpjtw--managed
+            networkSecurityGroupId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+            operatorsAuthentication:
+              userAssignedIdentities:
+                controlPlaneOperators:
+                  cloud-controller-manager: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+                  cloud-network-config: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+                  cluster-api-azure: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+                  control-plane: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+                  disk-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+                  file-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+                  image-registry: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+                  ingress: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+                dataPlaneOperators:
+                  disk-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+                  file-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+                  image-registry: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+                serviceManagedIdentity: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+            outboundType: LoadBalancer
+            subnetId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1
+          version:
+            channelGroup: stable
+            id: openshift-v4.19.0
+    statusCode: BadRequest
+    statusMessage:
+      error:
+        code: InvalidRequestContent
+        message: Image Registry state '' is not valid, valid values are ['enabled','disabled']
+      status: Failed
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/external-auth-cluster
+      resourceName: external-auth-cluster
+      resourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
+    timestamp: "2025-08-07T08:48:00.6942796Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/4282295D7953E67D
+  operationId: 4282295D7953E67D
+  properties:
+    duration: PT3.0760986S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 2de327fa-b597-4b0a-96f9-db2da2bd1776
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+      resourceName: c2b5d175-4416-5cf0-90c6-bfb40fd1fd3f
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.5446935Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/3A0A66C537B941BD
+  operationId: 3A0A66C537B941BD
+  properties:
+    duration: PT2.8141564S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/ef318e2a-8334-4a05-9e4a-295a196c6a6e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ba835be7-fcc3-518b-a65f-a9e8794df3a8
+      resourceName: ba835be7-fcc3-518b-a65f-a9e8794df3a8
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.6035132Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/7BD59A2839E05986
+  operationId: 7BD59A2839E05986
+  properties:
+    duration: PT2.6334028S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 250c16df-2caf-45ef-93ec-ff2f675cc97d
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/64b2af51-2c7b-5102-96d9-d6f17ed12200
+      resourceName: 64b2af51-2c7b-5102-96d9-d6f17ed12200
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.7686322Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6BF313E40F990B1B
+  operationId: 6BF313E40F990B1B
+  properties:
+    duration: PT2.764842S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 8b6b6845-24e5-45ff-892d-a865e33296d5
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+      resourceName: 442dd276-7e0b-5583-9ce1-5dfe8ec4a4e9
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.6059431Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/A9CAC4CC7759BCFC
+  operationId: A9CAC4CC7759BCFC
+  properties:
+    duration: PT2.9616866S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/ef318e2a-8334-4a05-9e4a-295a196c6a6e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/a4346609-7e31-56ce-bcfd-260823317e35
+      resourceName: a4346609-7e31-56ce-bcfd-260823317e35
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/64DF88EB58143E8B
+  operationId: 64DF88EB58143E8B
+  properties:
+    duration: PT2.8421747S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 250c16df-2caf-45ef-93ec-ff2f675cc97d
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/46202ac5-9dd3-5213-aea3-fae50c2649e9
+      resourceName: 46202ac5-9dd3-5213-aea3-fae50c2649e9
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.5286104Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6F79DDB2BBC38BEA
+  operationId: 6F79DDB2BBC38BEA
+  properties:
+    duration: PT2.9304326S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+      resourceName: 734a0bb9-dd1d-5a91-ac1c-425b9c3aa791
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/E901B7EB64018755
+  operationId: E901B7EB64018755
+  properties:
+    duration: PT2.2278051S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/11a1da80-6f1b-5683-ae66-70a56750ae82
+      resourceName: 11a1da80-6f1b-5683-ae66-70a56750ae82
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:58.0804847Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/04ADBA82ACE778F4
+  operationId: 04ADBA82ACE778F4
+  properties:
+    duration: PT2.7635963S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ddb18c25-6b55-5420-ab75-24b66a07e639
+      resourceName: ddb18c25-6b55-5420-ab75-24b66a07e639
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.5446935Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/E52EA4D8B33159E1
+  operationId: E52EA4D8B33159E1
+  properties:
+    duration: PT2.7171815S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/3329192c-44c1-5d02-91bb-e37c54d86acf
+      resourceName: 3329192c-44c1-5d02-91bb-e37c54d86acf
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.5286104Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/35E72D8C264FD5BE
+  operationId: 35E72D8C264FD5BE
+  properties:
+    duration: PT2.7898603S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/ddd39adb-ff84-52d3-b41b-44481c0536dd
+      resourceName: ddd39adb-ff84-52d3-b41b-44481c0536dd
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/509725674B9B74AF
+  operationId: 509725674B9B74AF
+  properties:
+    duration: PT2.7586151S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/95dc9e55-faa0-56af-8f57-448bade6973a
+      resourceName: 95dc9e55-faa0-56af-8f57-448bade6973a
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/B71B39CB0F5ADE2C
+  operationId: B71B39CB0F5ADE2C
+  properties:
+    duration: PT2.7430748S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+      resourceName: 7e48c1a1-0970-512b-85ca-cd87bb91f9e4
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6A0AC6E8FE88717D
+  operationId: 6A0AC6E8FE88717D
+  properties:
+    duration: PT2.7441632S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 8b6b6845-24e5-45ff-892d-a865e33296d5
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+      resourceName: cf06bdc9-a1ad-556c-b3e5-12de4b81bb14
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.3922427Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6CA999E32FAA9A7A
+  operationId: 6CA999E32FAA9A7A
+  properties:
+    duration: PT3.0383575S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 98a9f3c4-28ac-4d17-8037-256e435f29ff
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+      resourceName: e54ae701-add6-53f1-8ee2-a4ef3a46cdb8
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.0668047Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/FBF663C4852B1B4B
+  operationId: FBF663C4852B1B4B
+  properties:
+    duration: PT2.6336524S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+      resourceName: fe5a2d88-d16c-5359-8e7e-c05f05c1609d
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/C901BC722DB14BE2
+  operationId: C901BC722DB14BE2
+  properties:
+    duration: PT2.6023058S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/ee9ce038-a475-504b-b7d7-ab2758c2798a
+      resourceName: ee9ce038-a475-504b-b7d7-ab2758c2798a
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/B2512B00ED53E925
+  operationId: B2512B00ED53E925
+  properties:
+    duration: PT2.5867313S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/8abc9312-1842-5c08-928c-617224eef277
+      resourceName: 8abc9312-1842-5c08-928c-617224eef277
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/BED10BA48CD7F0BE
+  operationId: BED10BA48CD7F0BE
+  properties:
+    duration: PT2.5867313S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/e15fe783-76bf-58ee-a184-593204f2d455
+      resourceName: e15fe783-76bf-58ee-a184-593204f2d455
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/F0CB0A2820817D9C
+  operationId: F0CB0A2820817D9C
+  properties:
+    duration: PT2.5398026S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: dbde8c9c-477d-4d3d-a0db-adbaef401934
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/ef318e2a-8334-4a05-9e4a-295a196c6a6e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi/providers/Microsoft.Authorization/roleAssignments/08ea67f5-e281-525b-91ce-adf8049824cc
+      resourceName: 08ea67f5-e281-525b-91ce-adf8049824cc
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.4090985Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/F7C543D53B63176B
+  operationId: F7C543D53B63176B
+  properties:
+    duration: PT2.7442855S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: b25201d0-54b7-4876-b64f-895668921cce
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/c5d7188f-834e-53cc-b313-da75f2ecfb62
+      resourceName: c5d7188f-834e-53cc-b313-da75f2ecfb62
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.1889904Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/FD9450354594FED6
+  operationId: FD9450354594FED6
+  properties:
+    duration: PT2.6392509S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: 98a9f3c4-28ac-4d17-8037-256e435f29ff
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/d207336c-e08e-5e2e-a114-405175a4f3a8
+      resourceName: d207336c-e08e-5e2e-a114-405175a4f3a8
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.294025Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/A3EBD6D4444086E2
+  operationId: A3EBD6D4444086E2
+  properties:
+    duration: PT2.9461344S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: bafecf73-58d5-4761-b4ff-5f568418d605
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/673801df-8396-5960-bd7f-a73809428825
+      resourceName: 673801df-8396-5960-bd7f-a73809428825
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:56.9246987Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/EA6D97AE2639BEE8
+  operationId: EA6D97AE2639BEE8
+  properties:
+    duration: PT2.9327343S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: b25201d0-54b7-4876-b64f-895668921cce
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/c7490f71-0df3-5eeb-8b35-3a5a00419230
+      resourceName: c7490f71-0df3-5eeb-8b35-3a5a00419230
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:56.9380988Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/E15B2738855E1C55
+  operationId: E15B2738855E1C55
+  properties:
+    duration: PT2.6420403S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: bafecf73-58d5-4761-b4ff-5f568418d605
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/90e04d1f-650b-5d80-9ee4-8690821691d9
+      resourceName: 90e04d1f-650b-5d80-9ee4-8690821691d9
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:57.1975338Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/8FB5A543311C2F55
+  operationId: 8FB5A543311C2F55
+  properties:
+    duration: PT2.9054156S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          principalId: e9f8d6bb-89f8-4c95-9edc-e32fe919bfc0
+          principalType: ServicePrincipal
+          roleDefinitionId: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+      resourceName: 0d5524cf-589b-5234-aaa3-fb0a5f9bfc4b
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-08-07T08:47:56.9185339Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/5126557EB6BCC4E0
+  operationId: 5126557EB6BCC4E0
+  properties:
+    duration: PT0.951055S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:57.5446935Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/D84A8F461B64CCC6
+  operationId: D84A8F461B64CCC6
+  properties:
+    duration: PT3.2285812S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-image-registry-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/536F5AF00C8CF12E
+  operationId: 536F5AF00C8CF12E
+  properties:
+    duration: PT0.1233724S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:57.5286104Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6E2A47139B2902B4
+  operationId: 6E2A47139B2902B4
+  properties:
+    duration: PT2.7598155S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-dp-image-registry-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/87D8A4536B948603
+  operationId: 87D8A4536B948603
+  properties:
+    duration: PT0.1347346S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:57.3922427Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/C1525BB1F1BE7DB9
+  operationId: C1525BB1F1BE7DB9
+  properties:
+    duration: PT2.6973143S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cluster-api-azure-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/A2DE7F543B3FEDC1
+  operationId: A2DE7F543B3FEDC1
+  properties:
+    duration: PT2.6348144S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-file-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/F92D68878E7045CD
+  operationId: F92D68878E7045CD
+  properties:
+    duration: PT2.5879379S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-dp-disk-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/6196359DF0B8861C
+  operationId: 6196359DF0B8861C
+  properties:
+    duration: PT2.5566873S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cloud-network-config-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/F043E57209D413E1
+  operationId: F043E57209D413E1
+  properties:
+    duration: PT2.5410611S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/1CCBB103322E642A
+  operationId: 1CCBB103322E642A
+  properties:
+    duration: PT0.147675S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:57.0668047Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/3C1F7263BDC1BDD8
+  operationId: 3C1F7263BDC1BDD8
+  properties:
+    duration: PT0.1960183S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:56.9246987Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/E5071BFDBC61B2C3
+  operationId: E5071BFDBC61B2C3
+  properties:
+    duration: PT0.1826182S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:56.9380988Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/C5A07781D97FFD7E
+  operationId: C5A07781D97FFD7E
+  properties:
+    duration: PT2.2910555S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-service-managed-identity-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/47B2F0BF0CACB78A
+  operationId: 47B2F0BF0CACB78A
+  properties:
+    duration: PT0.1396834S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:56.9185339Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/C2C089FB2A2F70ED
+  operationId: C2C089FB2A2F70ED
+  properties:
+    duration: PT2.228551S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-cloud-controller-manager-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/4B3BDB7D0E266763
+  operationId: 4B3BDB7D0E266763
+  properties:
+    duration: PT2.0879236S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-control-plane-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/7AE02ADD5FFEE804
+  operationId: 7AE02ADD5FFEE804
+  properties:
+    duration: PT2.0879236S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-dp-file-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/3D4756EFD9B8C1D6
+  operationId: 3D4756EFD9B8C1D6
+  properties:
+    duration: PT2.0723028S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-ingress-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.Resources/deployments/hcp-cluster/operations/2BC3DC28DBBCBCA2
+  operationId: 2BC3DC28DBBCBCA2
+  properties:
+    duration: PT2.0723028S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pxpjtw/providers/Microsoft.ManagedIdentity/userAssignedIdentities/external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+      resourceName: external-auth-cluster-cp-disk-csi-driver-b74xwa6w5ofbi
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-08-07T08:47:54.7671618Z"

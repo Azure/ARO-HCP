@@ -1,0 +1,64 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Resources/deployments/infra/operations/E20A93B512F5286A
+  operationId: E20A93B512F5286A
+  properties:
+    duration: PT5.1450759S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+      resourceName: customer-vnet-name
+      resourceType: Microsoft.Network/virtualNetworks
+    timestamp: "2025-08-07T08:16:52.9810723Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Resources/deployments/infra/operations/303832C3DBCD391E
+  operationId: 303832C3DBCD391E
+  properties:
+    duration: PT4.9732126S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+        properties:
+          addressSpace:
+            addressPrefixes:
+            - 10.0.0.0/16
+          subnets:
+          - name: customer-vnet-subnet1
+            properties:
+              addressPrefix: 10.0.0.0/24
+              networkSecurityGroup:
+                id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+        tags:
+          persist: "true"
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+      resourceName: customer-vnet-name
+      resourceType: Microsoft.Network/virtualNetworks
+    timestamp: "2025-08-07T08:16:52.9810723Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Resources/deployments/infra/operations/9DA09BAA3E9C6FFF
+  operationId: 9DA09BAA3E9C6FFF
+  properties:
+    duration: PT1.3151838S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: uksouth
+        tags:
+          persist: "true"
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+      resourceName: customer-nsg-name
+      resourceType: Microsoft.Network/networkSecurityGroups
+    timestamp: "2025-08-07T08:16:52.9810723Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/external-auth-pvnl7c/providers/Microsoft.Resources/deployments/infra/operations/08584470522734511462
+  operationId: "08584470522734511462"
+  properties:
+    duration: PT5.3169632S
+    provisioningOperation: EvaluateDeploymentOutput
+    provisioningState: Succeeded
+    statusCode: OK
+    timestamp: "2025-08-07T08:16:52.9810723Z"

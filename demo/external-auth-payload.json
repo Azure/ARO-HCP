@@ -1,0 +1,6 @@
+{
+  "clientId": "00000000-0000-0000-0000-000000000000",
+  "clientSecret": "your-secret-value",
+  "issuer": "https://login.microsoftonline.com/your-tenant-id/v2.0",
+  "callbackUrl": "https://console-openshift.example.com/oauth2callback"
+}
