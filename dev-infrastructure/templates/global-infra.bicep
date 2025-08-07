@@ -130,13 +130,13 @@ module kvSecretsOfficer '../modules/keyvault/keyvault-secret-access.bicep' = {
   }
 }
 
-resource ev2CertAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kvCertAccessRoleId != '') {
-  scope: resourceGroup()
-  name: guid(kvCertAccessPrincipalId, globalKV.name, 'asd-secrets-user')
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions/', kvCertAccessRoleId)
-    principalId: kvCertAccessPrincipalId
-    principalType: 'ServicePrincipal'
+module ev2CertAccess '../modules/keyvault/keyvault-secret-access.bicep' = if (kvCertAccessRoleId != '') {
+  name: guid(kvCertOfficerPrincipalId, globalKV.name, 'certificate-access')
+  params: {
+    keyVaultName: keyVaultName
+    roleName: 'Azure Service Deploy Release Management Key Vault Secrets User'
+    managedIdentityPrincipalId: kvCertAccessPrincipalId
+    kvCertAccessRoleId: kvCertAccessRoleId
   }
 }
 
