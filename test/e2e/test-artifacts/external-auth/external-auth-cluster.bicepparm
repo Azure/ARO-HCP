@@ -1,0 +1,10 @@
+{
+  "clusterName": "external-auth",
+  "managedResourceGroupName": "mc-external-auth-cluster",
+  "nsgName": "external-auth-nsg",
+  "vnetName": "external-auth-vnet",
+  "subnetName": "external-auth-subnet",
+  "entraClientId": "3bc2c42a-4198-42c1-a052-1a505faf8a90",
+  "entraTenantId": "fa5d3dd8-b8ec-4407-a55c-ced639f1c8c5"
+}
+
