@@ -139,12 +139,7 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 func artifactDir() string {
 	return os.Getenv("ARTIFACT_DIR")
 }
-
-// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
-func sharedDir() string {
-	return os.Getenv("SHARED_DIR")
-}
-
+// sharedDir is SHARD_DIR. it is spot to store *file only* that can be sahred between ci-operators steps.
 // We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
 // here to cleanup and debug testing resources.
 func sharedDir() string {
