@@ -9,10 +9,11 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
-- name: '{{ .regionRG }}'
+- name: regional
+  resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: region-output
+  - name: output
     action: ARM
     template: templates/output-region.bicep
     parameters: configurations/output-region.tmpl.bicepparam
@@ -26,11 +27,11 @@ resourceGroups:
     variables:
     - name: azureMonitoringWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: azureMonitoringWorkspaceId
     - name: hcpAzureMonitoringWorkspaceId
       input:
-        step: region-output
+        resourceGroup: regional
+        step: output
         name: hcpAzureMonitoringWorkspaceId
-    dependsOn:
-    - region-output

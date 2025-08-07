@@ -98,8 +98,8 @@ func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, op
 	return nil
 }
 
-func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions) (map[string]Output, error) {
-	inputs := make(map[string]Output)
+func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions) (Outputs, error) {
+	inputs := make(Outputs)
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
 			DryRun:                   true,
@@ -114,8 +114,11 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *t
 		if err != nil {
 			return nil, err
 		}
-		for key, value := range outputs {
-			inputs[key] = value
+		for group, values := range outputs {
+			inputs[group] = map[string]Output{}
+			for key, value := range values {
+				inputs[group][key] = value
+			}
 		}
 	}
 	return inputs, nil

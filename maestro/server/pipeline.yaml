@@ -2,10 +2,16 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
 rolloutName: Maestro Server Rollout
 resourceGroups:
-- name: '{{ .global.rg }}'
+- name: global
+  resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    regions:
+    - uksouth
   steps:
-  - name: global-output
+  - name: output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -27,11 +33,11 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
-    dependsOn:
-    - global-output
-- name: '{{ .svc.rg }}'
+- name: regional
+  resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
@@ -43,7 +49,8 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     dependsOn:
-    - mirror-image
+    - resourceGroup: global
+      step: mirror-image
     variables:
     - name: EVENTGRID_NAME
       configRef: maestro.eventGrid.name
@@ -91,5 +98,6 @@ resourceGroups:
       configRef: maestro.server.tracing.exporter
     shellIdentity:
       input:
-        step: global-output
+        resourceGroup: global
+        step: output
         name: globalMSIId
