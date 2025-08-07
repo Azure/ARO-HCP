@@ -113,6 +113,6 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 		PipelineFilePath:         o.PipelineOptions.PipelineFilePath,
-	})
+	}, pipeline.RunStep)
 	return err
 }

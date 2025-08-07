@@ -110,7 +110,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *t
 			NoPersist:                true,
 			DeploymentTimeoutSeconds: 60,
 		}
-		outputs, err := RunPipeline(pipeline, ctx, runOptions)
+		outputs, err := RunPipeline(pipeline, ctx, runOptions, RunStep)
 		if err != nil {
 			return nil, err
 		}

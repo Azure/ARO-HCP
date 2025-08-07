@@ -23,6 +23,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/testr"
+	"github.com/spf13/cobra"
 
 	"github.com/stretchr/testify/assert"
 
@@ -37,6 +40,11 @@ func persistAndRun(t *testing.T, e2eImpl E2E) {
 
 	cmd, err := run.NewCommand()
 	assert.NoError(t, err)
+
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		cmd.SetContext(logr.NewContext(cmd.Context(), testr.New(t)))
+		return nil
+	}
 
 	err = cmd.Execute()
 	assert.NoError(t, err)
