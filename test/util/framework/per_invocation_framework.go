@@ -20,22 +20,26 @@ import (
 	"hash/fnv"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"github.com/onsi/ginkgo/v2/types"
 )
 
 type perBinaryInvocationTestContext struct {
-	artifactDir      string
-	sharedDir        string
-	subscriptionName string
-	tenantID         string
-	testUserClientID string
-	location         string
+	artifactDir              string
+	sharedDir                string
+	subscriptionName         string
+	tenantID                 string
+	testUserClientID         string
+	location                 string
+	isDevelopmentEnvironment bool
 
 	contextLock      sync.RWMutex
 	subscriptionID   string
@@ -61,12 +65,13 @@ const (
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
-			artifactDir:      artifactDir(),
-			sharedDir:        sharedDir(),
-			subscriptionName: subscriptionName(),
-			tenantID:         tenantID(),
-			testUserClientID: testUserClientID(),
-			location:         location(),
+			artifactDir:              artifactDir(),
+			sharedDir:                sharedDir(),
+			subscriptionName:         subscriptionName(),
+			tenantID:                 tenantID(),
+			testUserClientID:         testUserClientID(),
+			location:                 location(),
+			isDevelopmentEnvironment: isDevelopmentEnvironment(),
 		}
 	})
 	return invocationContextInstance
@@ -87,6 +92,16 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 		return tc.azureCredentials, nil
 	}
 
+	if tc.isDevelopmentEnvironment {
+		azureCredentials, err := azidentity.NewAzureCLICredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed building development environment CLI credential: %w", err)
+		}
+		tc.azureCredentials = azureCredentials
+
+		return tc.azureCredentials, nil
+	}
+
 	// if we find a desire to use the zero-dep e2e testing everywhere, we can extend this credential creation to include
 	// other options for non-Azure endpoints.  It's worth remembering that the value-add using the same library isn't in the
 	// ten lines of creation, it's in using a common credential library for golang compatibility.
@@ -97,6 +112,27 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	tc.azureCredentials = azureCredentials
 
 	return tc.azureCredentials, nil
+}
+
+func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	if tc.isDevelopmentEnvironment {
+		return &azcorearm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloud.Configuration{
+					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+						cloud.ResourceManager: {
+							Audience: "https://management.core.windows.net/",
+							Endpoint: "http://localhost:8443",
+						},
+					},
+				},
+				InsecureAllowCredentialWithHTTP: true,
+			},
+		}
+	}
+
+	return nil
 }
 
 func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client) (string, error) {
@@ -162,6 +198,12 @@ func testUserClientID() string {
 func tenantID() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("AZURE_TENANT_ID")
+}
+
+// isDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
+// when set to development.
+func isDevelopmentEnvironment() bool {
+	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
 
 // Must is a generic function that takes a value of type T and an error.
