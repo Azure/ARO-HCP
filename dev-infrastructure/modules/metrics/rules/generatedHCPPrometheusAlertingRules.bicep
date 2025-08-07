@@ -159,7 +159,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         }
         expression: 'absent(up{job="envoy-stats", namespace="mise"}) or (up{job="envoy-stats", namespace="mise"} == 0)'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
