@@ -965,23 +965,16 @@
         "kusto": {
           "type": "object",
           "properties": {
+            "sku": {
+              "type": "string"
+            },
             "clusterName": {
               "type": "string"
             }
           },
           "required": [
+            "sku",
             "clusterName"
-          ]
-        },
-        "cosmosDB": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
           ]
         },
         "eventHub": {
@@ -1010,7 +1003,6 @@
         "aub",
         "pav2",
         "kusto",
-        "cosmosDB",
         "eventHub"
       ]
     },
