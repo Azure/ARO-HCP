@@ -2,11 +2,10 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.PKO
 rolloutName: RP PKO Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -28,9 +27,10 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
   - name: mirror-image-manager
     action: ImageMirror
     targetACR:
@@ -47,9 +47,10 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
   - name: mirror-image-remotephase-manager
     action: ImageMirror
     targetACR:
@@ -66,11 +67,11 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: management
-  resourceGroup: '{{ .mgmt.rg }}'
+    dependsOn:
+    - global-output
+- name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
@@ -82,12 +83,9 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     dependsOn:
-    - resourceGroup: global
-      step: mirror-image-package
-    - resourceGroup: global
-      step: mirror-image-manager
-    - resourceGroup: global
-      step: mirror-image-remotephase-manager
+    - mirror-image-package
+    - mirror-image-manager
+    - mirror-image-remotephase-manager
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
@@ -107,6 +105,5 @@ resourceGroups:
       configRef: mgmt.rg
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId

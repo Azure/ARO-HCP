@@ -16,9 +16,6 @@ package validate
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -31,17 +28,7 @@ func NewCommand() (*cobra.Command, error) {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := runValidate(cmd.Context(), opts); err != nil {
-				lines := strings.Split(err.Error(), "\n")
-				if len(lines) == 1 {
-					return err
-				}
-				for _, line := range lines {
-					fmt.Println(strings.TrimSpace(line))
-				}
-				return errors.New(lines[0])
-			}
-			return nil
+			return runInspect(cmd.Context(), opts)
 		},
 	}
 	if err := BindValidationOptions(opts, cmd); err != nil {
@@ -50,7 +37,7 @@ func NewCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runValidate(ctx context.Context, opts *RawValidationOptions) error {
+func runInspect(ctx context.Context, opts *RawValidationOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

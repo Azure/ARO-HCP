@@ -1,8 +1,7 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: rg
-  resourceGroup: '{{ .rg }}'
+- name: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: stepA
@@ -15,7 +14,6 @@ resourceGroups:
     variables:
     - name: parameterB
       input:
-        resourceGroup: rg
         name: parameterA
         step: stepA
     template: testb.bicep
@@ -29,6 +27,5 @@ resourceGroups:
     variables:
     - name: end
       input:
-        resourceGroup: rg
         name: parameterC
         step: stepB

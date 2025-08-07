@@ -3,21 +3,19 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Prometheus
 rolloutName: Management Cluster Prometheus Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: management
-  resourceGroup: '{{ .mgmt.rg }}'
+- name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: deploy
+  - name: deploy mgmt
     action: Shell
     aksCluster: '{{ .mgmt.aks.name }}'
     command: make deploy
@@ -60,14 +58,14 @@ resourceGroups:
       configRef: clustersService.environment
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: service
-  resourceGroup: '{{ .svc.rg  }}'
+    dependsOn:
+    - global-output
+- name: '{{ .svc.rg  }}'
   subscription: '{{ .svc.subscription  }}'
   steps:
-  - name: deploy
+  - name: deploy svc
     action: Shell
     aksCluster: '{{ .svc.aks.name  }}'
     command: make deploy
@@ -110,6 +108,7 @@ resourceGroups:
       configRef: clustersService.environment
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output

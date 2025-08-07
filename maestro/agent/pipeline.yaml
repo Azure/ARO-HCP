@@ -2,11 +2,10 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
 rolloutName: Maestro Agent Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -28,21 +27,20 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: regional
-  resourceGroup: '{{ .regionRG }}'
+    dependsOn:
+    - global-output
+- name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: output
+  - name: region-output
     action: ARM
     template: ../../dev-infrastructure/templates/output-region.bicep
     parameters: ../../dev-infrastructure/configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: management
-  resourceGroup: '{{ .mgmt.rg }}'
+- name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
@@ -80,19 +78,16 @@ resourceGroups:
       configRef: acr.svc.name
     - name: EVENTGRID_HOSTNAME
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: maestroEventGridNamespacesHostname
     dependsOn:
-    - resourceGroup: global
-      step: mirror-image
+    - mirror-image
+    - region-output
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: service
-  resourceGroup: '{{ .svc.rg }}'
+- name: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: register-agent-with-server
@@ -109,10 +104,8 @@ resourceGroups:
     - name: NAMESPACE
       configRef: maestro.server.k8s.namespace
     dependsOn:
-    - resourceGroup: management
-      step: deploy
+    - deploy
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
