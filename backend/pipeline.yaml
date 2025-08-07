@@ -2,11 +2,10 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RP.Backend
 rolloutName: RP Backend Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -28,11 +27,11 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: service
-  resourceGroup: '{{ .svc.rg }}'
+    dependsOn:
+    - global-output
+- name: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
@@ -44,8 +43,8 @@ resourceGroups:
       - name: DRY_RUN
         value: "true"
     dependsOn:
-    - resourceGroup: global
-      step: mirror-image
+    - mirror-image
+    - global-output
     variables:
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
@@ -75,6 +74,5 @@ resourceGroups:
       configRef: backend.tracing.exporter
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId

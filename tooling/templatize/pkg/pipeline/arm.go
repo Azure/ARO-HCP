@@ -110,7 +110,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input Outputs) (Output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, input map[string]Output) (Output, error) {
 	// Ensure resourcegroup exists
 	err := a.ensureResourceGroupExists(ctx, rgName, !options.NoPersist)
 	if err != nil {
@@ -207,7 +207,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input Outputs) (Output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)
@@ -281,7 +281,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input Outputs) (Output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, input map[string]Output) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	inputValues, err := getInputValues(step.Variables, cfg, input)

@@ -10,47 +10,44 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: service
-  resourceGroup: '{{ .svc.rg }}'
+- name: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: output
+  - name: svc-output
     action: ARM
     template: templates/output-svc.bicep
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: regional
-  resourceGroup: '{{ .regionRG }}'
+- name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: output
+  - name: region-output
     action: ARM
     template: templates/output-region.bicep
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-- name: management
-  resourceGroup: '{{ .mgmt.rg }}'
+- name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: rpRegistration
     action: ProviderFeatureRegistration
     providerConfigRef: mgmt.subscription.providers
     identityFrom:
-      resourceGroup: global
-      step: output
+      step: global-output
       name: globalMSIId
+    dependsOn:
+    - global-output
   - name: mgmt-infra
     action: ARM
     template: templates/mgmt-infra.bicep
@@ -59,30 +56,30 @@ resourceGroups:
     variables:
     - name: clusterServiceMIResourceId
       input:
-        resourceGroup: service
-        step: output
+        step: svc-output
         name: cs
     - name: msiRefresherMIResourceId
       input:
-        resourceGroup: service
-        step: output
+        step: svc-output
         name: msiRefresher
     - name: logAnalyticsWorkspaceId
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: logAnalyticsWorkspaceId
     - name: globalMSIId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
     dependsOn:
-    - resourceGroup: management
-      step: rpRegistration
+    - global-output
+    - region-output
+    - svc-output
+    - rpRegistration
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
+    dependsOn:
+    - mgmt-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -91,13 +88,14 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: management
-        step: mgmt-infra
         name: cxKeyVaultUrl
+        step: mgmt-infra
     issuer:
       value: OneCertV2-PublicCA
   - name: mgmt-oncert-private-kv-issuer
     action: SetCertificateIssuer
+    dependsOn:
+    - mgmt-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -106,13 +104,14 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: management
-        step: mgmt-infra
         name: mgmtKeyVaultUrl
+        step: mgmt-infra
     issuer:
       value: OneCertV2-PrivateCA
   - name: mgmt-oncert-public-kv-issuer
     action: SetCertificateIssuer
+    dependsOn:
+    - mgmt-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -121,9 +120,8 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: management
-        step: mgmt-infra
         name: mgmtKeyVaultUrl
+        step: mgmt-infra
     issuer:
       value: OneCertV2-PublicCA
   # Build the MC
@@ -135,46 +133,38 @@ resourceGroups:
     variables:
     - name: ocpAcrResourceId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: ocpAcrResourceId
     - name: svcAcrResourceId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: svcAcrResourceId
     - name: globalMSIId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
     - name: azureMonitoringWorkspaceId
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: azureMonitoringWorkspaceId
     - name: hcpAzureMonitoringWorkspaceId
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: hcpAzureMonitoringWorkspaceId
     - name: maestroEventGridNamespaceId
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: maestroEventGridNamespaceId
     - name: logAnalyticsWorkspaceId
       input:
-        resourceGroup: regional
-        step: output
+        step: region-output
         name: logAnalyticsWorkspaceId
     dependsOn:
-    - resourceGroup: management
-      step: cx-oncert-public-kv-issuer
-    - resourceGroup: management
-      step: mgmt-oncert-private-kv-issuer
-    - resourceGroup: management
-      step: mgmt-oncert-public-kv-issuer
+    - cx-oncert-public-kv-issuer
+    - mgmt-oncert-private-kv-issuer
+    - mgmt-oncert-public-kv-issuer
+    - global-output
+    - region-output
   - name: mgmt-nsp
     action: ARM
     template: templates/mgmt-nsp.bicep
@@ -183,14 +173,11 @@ resourceGroups:
     variables:
     - name: serviceClusterSubscriptionId
       input:
-        resourceGroup: service
-        step: output
+        step: svc-output
         name: subscriptionId
     dependsOn:
-    - resourceGroup: management
-      step: mgmt-cluster
-    - resourceGroup: management
-      step: mgmt-infra
+    - mgmt-cluster
+    - mgmt-infra
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -233,12 +220,10 @@ resourceGroups:
     - name: CS_ENVIRONMENT
       configRef: clustersService.environment
     dependsOn:
-    - resourceGroup: management
-      step: mgmt-cluster
+    - mgmt-cluster
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
         # Install ACRpull
   - name: acrpull
@@ -257,12 +242,10 @@ resourceGroups:
     - name: ACRPULL_REGISTRY
       configRef: acrPull.image.registry
     dependsOn:
-    - resourceGroup: management
-      step: prometheus
+    - prometheus
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
         # Install cluster patches
   - name: mgmt-fixes
@@ -277,12 +260,10 @@ resourceGroups:
     - name: APPLY_KUBELET_FIXES
       configRef: mgmt.applyKubeletFixes
     dependsOn:
-    - resourceGroup: management
-      step: mgmt-cluster
+    - mgmt-cluster
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
   - name: arobit
     aksCluster: '{{ .mgmt.aks.name }}'
@@ -338,10 +319,8 @@ resourceGroups:
     - name: GENEVA_ENVIRONMENT
       configRef: geneva.logs.environment
     dependsOn:
-    - resourceGroup: management
-      step: mgmt-cluster
+    - mgmt-cluster
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId

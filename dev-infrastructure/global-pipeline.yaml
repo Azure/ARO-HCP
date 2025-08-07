@@ -10,18 +10,25 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: make
+  args:
+  - "-C"
+  - "../tooling/secret-sync"
+  - "secret-sync"
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: infra
+  - name: global-infra
     action: ARM
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-  - name: onecert-private-kv-issuer
+  - name: global-onecert-private-kv-issuer
     action: SetCertificateIssuer
+    dependsOn:
+    - global-infra
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
     secretName:
@@ -30,29 +37,26 @@ resourceGroups:
       configRef: ev2.assistedId.applicationId
     vaultBaseUrl:
       input:
-        resourceGroup: global
-        step: infra
         name: globalKeyVaultUrl
+        step: global-infra
     issuer:
       value: OneCertV2-PrivateCA
-  - name: certificates
+  - name: global-certificates
     action: ARM
     template: templates/global-certificates.bicep
     parameters: configurations/global-certificates.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
-      step: onecert-private-kv-issuer
-  - name: output
+    - global-onecert-private-kv-issuer
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
     dependsOn:
-    - resourceGroup: global
-      step: infra
-  - name: housekeeping
+    - global-infra
+  - name: global-housekeeping
     action: Shell
     command: scripts/global-housekeeping.sh
     dryRun:
@@ -62,19 +66,19 @@ resourceGroups:
     variables:
     - name: GLOBAL_RESOURCE_GROUP
       configRef: global.rg
+    dependsOn:
+    - global-output
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh
     dependsOn:
-    - resourceGroup: global
-      step: housekeeping
-    - resourceGroup: global
-      step: infra
+    - global-housekeeping
+    - global-infra
+    - global-output
     dryRun:
       variables:
       - name: DRY_RUN
@@ -86,8 +90,7 @@ resourceGroups:
       configRef: global.rg
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
@@ -97,8 +100,7 @@ resourceGroups:
     childZone:
       configRef: dns.svcParentZoneName
     dependsOn:
-    - resourceGroup: global
-      step: infra
+    - global-infra
   # creates DNS delegation for the ARO HCP global CX zone
   - name: cxChildZone
     action: DelegateChildZone
@@ -107,17 +109,15 @@ resourceGroups:
     childZone:
       configRef: dns.cxParentZoneName
     dependsOn:
-    - resourceGroup: global
-      step: infra
+    - global-infra
   # create global ARO HCP ACRs for OCP and SVC images
-  - name: acrs
+  - name: global-acrs
     action: ARM
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
-      step: infra
+    - global-infra
   # ingests secrets into the global KV
   - name: decrypt-and-ingest-secrets
     action: SecretSync
@@ -125,11 +125,10 @@ resourceGroups:
     configurationFile: 'data/encryptedsecrets.yaml'
     encryptionKey: 'secretSyncKey'
     dependsOn:
-    - resourceGroup: global
-      step: infra
+    - global-infra
+    - global-output
     identityFrom:
-      resourceGroup: global
-      step: output
+      step: global-output
       name: globalMSIId
   # mirror oc-mirror image
   - name: mirror-oc-mirror-image
@@ -147,14 +146,12 @@ resourceGroups:
     pullSecretName:
       configRef: imageSync.ondemandSync.pullSecretName
     dependsOn:
-    - resourceGroup: global
-      step: acrs
-    - resourceGroup: global
-      step: decrypt-and-ingest-secrets
+    - global-output
+    - global-acrs
+    - decrypt-and-ingest-secrets
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
   # deploys the image mirror for the ACRs
   - name: imagemirror
@@ -163,5 +160,4 @@ resourceGroups:
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
-    - resourceGroup: global
-      step: mirror-oc-mirror-image
+    - mirror-oc-mirror-image

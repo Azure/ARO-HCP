@@ -2,15 +2,14 @@ $schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: rg
-  resourceGroup: '{{ .rg }}'
+- name: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: test
     action: Shell
     command: make test
     shellIdentity:
-      value: "test"
+      Value: "test"
     variables:
     - name: TEST_ENV
       configRef: test_env

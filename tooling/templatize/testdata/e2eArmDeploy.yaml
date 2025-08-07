@@ -1,8 +1,7 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: rg
-  resourceGroup: '{{ .rg }}'
+- name: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: test
