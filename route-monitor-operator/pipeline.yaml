@@ -2,11 +2,10 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
 rolloutName: Route Monitor Operator Rollout
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
@@ -28,9 +27,10 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
   - name: mirror-blackbox-image
     action: ImageMirror
     targetACR:
@@ -47,11 +47,11 @@ resourceGroups:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: management
-  resourceGroup: '{{ .mgmt.rg }}'
+    dependsOn:
+    - global-output
+- name: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
@@ -80,12 +80,10 @@ resourceGroups:
     - name: BLACKBOX_IMAGE_DIGEST
       configRef: routeMonitorOperator.blackboxExporterImage.digest
     dependsOn:
-    - resourceGroup: global
-      step: mirror-operator-image
-    - resourceGroup: global
-      step: mirror-blackbox-image
+    - mirror-operator-image
+    - mirror-blackbox-image
+    - global-output
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId

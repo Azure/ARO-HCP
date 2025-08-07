@@ -58,30 +58,28 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region
 rolloutName: Region Rollout
 resourceGroups:
-- name: regional                                               (1)
-  resourceGroup: {{ .regionRG }}                               (2)
-  subscription: {{ .svc.subscription.key }}                    (3)
+- name: {{ .regionRG }}                                        (1)
+  subscription: {{ .svc.subscription.key }}                        (2)
   steps:
-  - name: region                                               (4)
-    action: ARM                                                (5)
-    template: templates/my-template.bicep                      (6)
-    parameters: configurations/my-template.tmpl.bicepparam     (7)
-    deploymentLevel: ResourceGroup/Subscription                (8)
-    variables:                                                 (9)
+  - name: region                                               (3)
+    action: ARM                                                (4)
+    template: templates/my-template.bicep                      (5)
+    parameters: configurations/my-template.tmpl.bicepparam     (6)
+    deploymentLevel: ResourceGroup/Subscription                (7)
+    variables:                                                 (8)
       ...
-    [outputOnly: true/false]                                   (10)
+    [outputOnly: true/false]                                   (9)
 ```
 
-1. The name of the group, within the pipeline
-2. The name of Azure resourcegroup targeted by this deployment
-3. The name of the Azue Subscription targeted by this deployment. When deploying via EV2, this needs to reference an [EV2 subscription key](https://ev2docs.azure.net/features/service-artifacts/actions/subscriptionProvisioningParameters.html#subscription-key)
-4. The name of the Azure deployment
-5. The action type `ARM` marks this step as ARM/Bicep deployment action
-6. File reference to the Bicep template, relative to the location of the pipeline file
-7. File reference to the Bicep parameter file, relative to the location of the pipeline file. This is a Go template file that will be processed to generate the final parameter file
-8. The deployment level for the Bicep template.
-9. covered in detail in the [Output templates and output chaining](#output-templates-and-output-chaining) section
-10. If `true`, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.
+1. The name of Azure resourcegroup targeted by this deployment
+2. The name of the Azue Subscription targeted by this deployment. When deploying via EV2, this needs to reference an [EV2 subscription key](https://ev2docs.azure.net/features/service-artifacts/actions/subscriptionProvisioningParameters.html#subscription-key)
+3. The name of the Azure deployment
+4. The action type `ARM` marks this step as ARM/Bicep deployment action
+5. File reference to the Bicep template, relative to the location of the pipeline file
+6. File reference to the Bicep parameter file, relative to the location of the pipeline file. This is a Go template file that will be processed to generate the final parameter file
+7. The deployment level for the Bicep template.
+8. covered in detail in the [Output templates and output chaining](#output-templates-and-output-chaining) section
+9. If `true`, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.
 
 ## Cross-Subscription deployments
 
@@ -125,17 +123,15 @@ With this in place we can hook up both bicep templates in a pipeline file.
 ```yaml
 ...
 resourceGroups:
-- name: global
-  resourceGroup: {{ .global.rg }}                                (3)
+- name: {{ .global.rg }}                                         (3)
   subscription: {{ .global.subscription.key }}
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
     outputOnly: true                                             (4)
-- name: regional
-  resourceGroup: {{ .regionRG }}                                 (5)
+- name: {{ .regionRG }}                                          (5)
   subscription: {{ .svc.subscription.key }}
   steps:
   - name: region
@@ -146,8 +142,7 @@ resourceGroups:
       ...
       - name: svcParentZoneResourceId                            (6)
         input:                                                   (7)
-          resourceGroup: global
-          step: output
+          step: global-output
           name: svcParentZoneResourceId
 ```
 

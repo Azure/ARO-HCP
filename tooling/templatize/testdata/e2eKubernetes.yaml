@@ -1,8 +1,7 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: rg
-  resourceGroup: '{{ .rg }}'
+- name: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: test
@@ -10,4 +9,4 @@ resourceGroups:
     aksCluster: dev-westus3-svc-1
     command: kubectl get namespaces
     shellIdentity:
-      value: "test"
+      Value: "test"

@@ -2,17 +2,16 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Region.Delete
 rolloutName: Delete Regional Resource Group
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
+- name: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: global-output
     action: ARM
     template: templates/output-global.bicep
     parameters: ./../configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-  - name: rg-ownership
+  - name: global-rg-ownership
     action: ARM
     template: ../templates/rg-ownership.bicep
     parameters: ../configurations/rg-ownership.tmpl.bicepparam
@@ -20,11 +19,11 @@ resourceGroups:
     variables:
     - name: globalMSIId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
-- name: regional
-  resourceGroup: '{{ .regionRG }}'
+    dependsOn:
+    - global-output
+- name: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: rg-ownership
@@ -35,9 +34,10 @@ resourceGroups:
     variables:
     - name: globalMSIId
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
+    dependsOn:
+    - global-output
   - name: delete-region
     action: Shell
     command: ./delete.sh
@@ -50,11 +50,9 @@ resourceGroups:
       configRef: regionRG
     shellIdentity:
       input:
-        resourceGroup: global
-        step: output
+        step: global-output
         name: globalMSIId
     dependsOn:
-    - resourceGroup: global
-      step: rg-ownership
-    - resourceGroup: regional
-      step: rg-ownership
+    - global-output
+    - global-rg-ownership
+    - rg-ownership
