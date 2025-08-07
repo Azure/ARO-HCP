@@ -15,6 +15,9 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'managedIdentities'
   params: {
     clusterName: clusterName
+    vnetName: customerInfra.outputs.vnetName
+    subnetName: customerInfra.outputs.vnetSubnetName
+    nsgName: customerInfra.outputs.nsgName
   }
 }
 
@@ -22,8 +25,9 @@ module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
   params: {
     clusterName: clusterName
-    subnetId: customerInfra.outputs.subnetId
-    networkSecurityGroupId: customerInfra.outputs.networkSecurityGroupId
+    vnetName: customerInfra.outputs.vnetName
+    subnetName: customerInfra.outputs.vnetSubnetName
+    nsgName: customerInfra.outputs.nsgName
     userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
     identityValue: managedIdentities.outputs.identityValue
   }
