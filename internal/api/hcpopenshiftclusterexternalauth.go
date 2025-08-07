@@ -56,9 +56,9 @@ type ExternalAuthCondition struct {
  */
 type TokenIssuerProfile struct {
 	// TODO: validate https url
-	Url string `json:"url"                      visibility:"read create update"       validate:"required_for_put"`
+	Url string `json:"url"                      visibility:"read create update"       validate:"required,url,startswith=https://"`
 	// TODO: validate at least one of the entries must match the 'aud' claim in the JWT token.
-	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required_for_put,max=10"`
+	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,min=1,max=10,dive,required"`
 	Ca        string   `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
 }
 
@@ -175,6 +175,30 @@ func (c ExternalAuthClientProfile) generateUniqueIdentifier() string {
 	return c.Component.Name + c.Component.AuthClientNamespace
 }
 
+// validateClientIdInAudiences checks that each ClientId matches an audience in the TokenIssuerProfile.
+func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
+
+	if len(externalAuth.Properties.Clients) > 0 {
+		audiencesSet := make(map[string]struct{}, len(externalAuth.Properties.Issuer.Audiences))
+		for _, aud := range externalAuth.Properties.Issuer.Audiences {
+			audiencesSet[aud] = struct{}{}
+		}
+
+		for i, client := range externalAuth.Properties.Clients {
+			if _, found := audiencesSet[client.ClientId]; !found {
+				errorDetails = append(errorDetails, arm.CloudErrorBody{
+					Code:    arm.CloudErrorCodeInvalidRequestContent,
+					Message: fmt.Sprintf("ClientId '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientId, i),
+					Target:  "properties.clients",
+				})
+			}
+		}
+	}
+
+	return errorDetails
+}
+
 func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
 	errorDetails := ValidateRequest(validate, request, externalAuth)
 
@@ -184,6 +208,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	// becoming overwhelming.
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
+		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
 	}
 
 	return errorDetails
