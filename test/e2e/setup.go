@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 
@@ -32,8 +33,7 @@ var (
 
 func setup(ctx context.Context) error {
 	// Use GinkgoLabelFilter to check for the 'requirenothing' label
-	labelFilter := GinkgoLabelFilter()
-	if labels.RequireNothing.MatchesLabelFilter(labelFilter) {
+	if strings.Contains(GinkgoLabelFilter(), labels.RequireNothing[0]) {
 		// Skip loading the e2esetup file
 		e2eSetup = integration.SetupModel{} // zero value
 	} else {
