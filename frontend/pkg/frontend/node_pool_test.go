@@ -50,7 +50,7 @@ var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, api.TestNodeP
 
 var dummyLocation = "Spain"
 var dummyVMSize = "Big"
-var dummyVersionID = "openshift-v4.18.0"
+var dummyVersionID = "4.18.0"
 
 func TestCreateNodePool(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)

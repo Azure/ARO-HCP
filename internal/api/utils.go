@@ -18,9 +18,6 @@ import (
 	"iter"
 	"reflect"
 	"slices"
-	"strings"
-
-	semver "github.com/hashicorp/go-version"
 )
 
 const (
@@ -54,12 +51,6 @@ func PtrOrNil[T any](p T) *T {
 		return nil
 	}
 	return &p
-}
-
-// NewOpenShiftVersion parses the given version, stripping off any
-// OpenShift prefix ("openshift-"), and returns a new Version.
-func NewOpenShiftVersion(v string) (*semver.Version, error) {
-	return semver.NewVersion(strings.Replace(v, OpenShiftVersionPrefix, "", 1))
 }
 
 // DeleteNilsFromPtrSlice returns a slice with nil pointers removed.

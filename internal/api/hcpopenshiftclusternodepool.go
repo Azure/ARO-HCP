@@ -48,7 +48,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 
 // NodePoolVersionProfile represents the worker node pool version.
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ID           string `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable,omitempty,semver"`
 	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 }
 

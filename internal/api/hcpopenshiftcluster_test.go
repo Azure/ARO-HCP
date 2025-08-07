@@ -204,7 +204,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad openshift_version",
+			name: "Bad semantic version",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
@@ -214,7 +214,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid OpenShift version 'bad.version'",
+					Message: "Invalid semantic version 'bad.version'",
 					Target:  "properties.version.id",
 				},
 			},
@@ -399,7 +399,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
-						ID:           "openshift-v4.99.0",
+						ID:           "4.99.0",
 						ChannelGroup: "freshmeat",
 					},
 				},
