@@ -12,7 +12,7 @@ spec:
   groups:
   - name: prometheus-slo-rules
     rules:
-    - alert: PrometheusJobUpSLO
+    - alert: PrometheusJobUp
       expr: min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0
       for: 5m
       labels:
@@ -24,7 +24,7 @@ spec:
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
         summary: Prometheus is unreachable for 5 minutes.
-    - alert: PrometheusUptimeSLO
+    - alert: PrometheusUptime
       expr: avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
       for: 10m
       labels:
@@ -36,7 +36,7 @@ spec:
           Please check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
         summary: Prometheus is unreachable for 1 day.
-    - alert: PrometheusPendingRateSLO
+    - alert: PrometheusPendingRate
       expr: |
         (
           prometheus_remote_storage_samples_pending
@@ -55,7 +55,7 @@ spec:
           Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
         runbook_url: TBD
         summary: Prometheus pending sample rate is above 40%.
-    - alert: PrometheusFailedRateSLO
+    - alert: PrometheusFailedRate
       expr: |
         (
           rate(prometheus_remote_storage_samples_failed_total[5m])

@@ -1017,7 +1017,7 @@ resource prometheusSloRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
-        alert: 'PrometheusJobUpSLO'
+        alert: 'PrometheusJobUp'
         enabled: true
         labels: {
           severity: 'critical'
@@ -1036,7 +1036,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
-        alert: 'PrometheusUptimeSLO'
+        alert: 'PrometheusUptime'
         enabled: true
         labels: {
           severity: 'critical'
@@ -1055,7 +1055,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
-        alert: 'PrometheusPendingRateSLO'
+        alert: 'PrometheusPendingRate'
         enabled: true
         labels: {
           severity: 'critical'
@@ -1076,7 +1076,7 @@ Investigate the health and performance of the remote storage endpoint, network l
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
-        alert: 'PrometheusFailedRateSLO'
+        alert: 'PrometheusFailedRate'
         enabled: true
         labels: {
           severity: 'critical'

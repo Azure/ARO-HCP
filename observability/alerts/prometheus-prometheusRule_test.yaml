@@ -9,7 +9,7 @@ tests:
     values: "0+0x10"
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -28,7 +28,7 @@ tests:
     values: "0.9+0x1440" # 24 hours of 90% uptime
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusUptimeSLO
+    alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -49,7 +49,7 @@ tests:
     values: "100+0x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts: []
 - interval: 1m
   input_series:
@@ -59,7 +59,7 @@ tests:
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusFailedRateSLO
+    alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -205,7 +205,7 @@ tests:
     values: "1+0x10"
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -218,25 +218,25 @@ tests:
           This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD
-# Test no alert scenario for PrometheusJobUpSLO
+# Test no alert scenario for PrometheusJobUp
 - interval: 1m
   input_series:
   - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
     values: "1+0x10"
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
-# Test recovery scenario for PrometheusUptimeSLO
+# Test recovery scenario for PrometheusUptime
 - interval: 1m
   input_series:
   - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
     values: "0.97+0x1440" # 97% uptime - should not alert
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusUptimeSLO
+    alertname: PrometheusUptime
     exp_alerts: []
-# Test edge case for PrometheusPendingRateSLO - exactly at threshold
+# Test edge case for PrometheusPendingRate - exactly at threshold
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_pending{cluster="test-edge"}'
@@ -245,9 +245,9 @@ tests:
     values: "100+0x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts: []
-# Test above threshold for PrometheusPendingRateSLO
+# Test above threshold for PrometheusPendingRate
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_pending{cluster="test-high"}'
@@ -256,7 +256,7 @@ tests:
     values: "100+0x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -433,14 +433,14 @@ tests:
   - eval_time: 16m
     alertname: PrometheusNotificationQueueRunningFull
     exp_alerts: []
-# Test PrometheusJobUpSLO with intermittent failures
+# Test PrometheusJobUp with intermittent failures
 - interval: 1m
   input_series:
   - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
     values: "0+0x10" # Continuously down for more than 5 minutes
   alert_rule_test:
   - eval_time: 6m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -453,14 +453,14 @@ tests:
           This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD
-# Test PrometheusUptimeSLO with gradual degradation
+# Test PrometheusUptime with gradual degradation
 - interval: 1m
   input_series:
   - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
     values: "0.94+0x1440" # 94% uptime - should alert
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusUptimeSLO
+    alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -473,7 +473,7 @@ tests:
           This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
           Please check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD
-# Test PrometheusPendingRateSLO with low pending rate
+# Test PrometheusPendingRate with low pending rate
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_pending{cluster="zero-test"}'
@@ -482,9 +482,9 @@ tests:
     values: "100+0x20" # 10/100 = 10% pending rate (below 40% threshold)
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts: []
-# Test PrometheusFailedRateSLO with exact threshold
+# Test PrometheusFailedRate with exact threshold
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_failed_total{cluster="threshold-test"}'
@@ -493,9 +493,9 @@ tests:
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusFailedRateSLO
+    alertname: PrometheusFailedRate
     exp_alerts: []
-# Test PrometheusFailedRateSLO with no samples
+# Test PrometheusFailedRate with no samples
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_failed_total{cluster="no-samples"}'
@@ -504,7 +504,7 @@ tests:
     values: "0+0x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusFailedRateSLO
+    alertname: PrometheusFailedRate
     exp_alerts: []
 # Test PrometheusRemoteStorageFailures with legacy metrics
 - interval: 1m
@@ -653,7 +653,7 @@ tests:
     values: "0+0x5" # Exactly 4 minutes down - should not alert
   alert_rule_test:
   - eval_time: 4m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
 # Test boundary conditions for exactly 5 minutes down
 - interval: 1m
@@ -662,7 +662,7 @@ tests:
     values: "0+0x6" # Exactly 5 minutes down - should alert
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -675,7 +675,7 @@ tests:
           This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD
-# Test PrometheusFailedRateSLO with very high failure rate
+# Test PrometheusFailedRate with very high failure rate
 - interval: 1m
   input_series:
   - series: 'prometheus_remote_storage_samples_failed_total{cluster="high-failure"}'
@@ -684,7 +684,7 @@ tests:
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusFailedRateSLO
+    alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -703,13 +703,13 @@ tests:
   input_series: [] # No metrics present
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
   - eval_time: 10m
-    alertname: PrometheusUptimeSLO
+    alertname: PrometheusUptime
     exp_alerts: []
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts: []
 # Test with stale metrics (NaN values)
 - interval: 1m
@@ -718,7 +718,7 @@ tests:
     values: "stale"
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
 # Test PrometheusRemoteStorageFailures with minimal failure rate (1.1%)
 - interval: 1m
@@ -765,7 +765,7 @@ tests:
     values: "0+0x6 1+0x10" # Down for 6 minutes, then up
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
         severity: critical
@@ -779,16 +779,16 @@ tests:
           Check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD
   - eval_time: 15m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
-# Test PrometheusUptimeSLO exactly at 95% threshold
+# Test PrometheusUptime exactly at 95% threshold
 - interval: 1m
   input_series:
   - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
     values: "0.95+0x1440" # Exactly 95% uptime - should not alert
   alert_rule_test:
   - eval_time: 10m
-    alertname: PrometheusUptimeSLO
+    alertname: PrometheusUptime
     exp_alerts: []
 # Test multiple namespaces and jobs
 - interval: 1m
@@ -801,7 +801,7 @@ tests:
     values: "0+0x10"
   alert_rule_test:
   - eval_time: 5m
-    alertname: PrometheusJobUpSLO
+    alertname: PrometheusJobUp
     exp_alerts: []
 # Test PrometheusRemoteStorageFailures with different namespaces
 - interval: 1m
@@ -863,7 +863,7 @@ tests:
     values: "100+0x20"
   alert_rule_test:
   - eval_time: 16m
-    alertname: PrometheusPendingRateSLO
+    alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
         severity: critical
