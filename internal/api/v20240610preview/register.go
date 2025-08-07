@@ -27,9 +27,10 @@ func (v version) String() string {
 }
 
 var (
-	validate             = api.NewValidator()
-	clusterStructTagMap  = api.NewStructTagMap[api.HCPOpenShiftCluster]()
-	nodePoolStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	validate                 = api.NewValidator()
+	clusterStructTagMap      = api.NewStructTagMap[api.HCPOpenShiftCluster]()
+	nodePoolStructTagMap     = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
 func init() {

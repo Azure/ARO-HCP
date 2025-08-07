@@ -43,11 +43,11 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 
 /** Condition defines an observation of the external auth state. */
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"                   validate:"enum_externalauthconditiontype"`
-	Status             ConditionStatusType       `json:"status"                 validate:"enum_externalauthconditionstatustype"`
-	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
-	Reason             string                    `json:"reason"`
-	Message            string                    `json:"message"`
+	ConditionType      ExternalAuthConditionType `json:"type"                     visibility:"read"              validate:"enum_externalauthconditiontype"`
+	Status             ConditionStatusType       `json:"status"                   visibility:"read"              validate:"enum_externalauthconditionstatustype"`
+	LastTransitionTime time.Time                 `json:"lastTransitionTime"       visibility:"read"`
+	Reason             string                    `json:"reason"                   visibility:"read"`
+	Message            string                    `json:"message"                  visibility:"read"`
 }
 
 /** Token issuer profile
