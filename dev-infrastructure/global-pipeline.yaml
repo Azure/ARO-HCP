@@ -14,11 +14,6 @@ resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
-  executionConstraints:
-  - clouds:
-    - public
-    regions:
-    - uksouth
   steps:
   - name: infra
     action: ARM
