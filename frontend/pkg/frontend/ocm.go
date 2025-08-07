@@ -556,7 +556,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 					Username: api.UsernameClaimProfile{
 						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: csExternalAuth.Claim().Mappings().UserName().PrefixPolicy(),
+						PrefixPolicy: api.UsernameClaimPrefixPolicyType(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
 					},
 				},
 			},
@@ -632,7 +632,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 				UserName(arohcpv1alpha1.NewUsernameClaim().
 					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
 					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
-					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
+					PrefixPolicy(string(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
 				),
 			),
 		)
