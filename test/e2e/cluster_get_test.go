@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -58,8 +59,8 @@ var _ = Describe("Get HCPOpenShiftCluster", func() {
 			By("Sending a GET request for the nonexistent cluster")
 			_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, customerEnv.CustomerRGName, clusterName, nil)
 			Expect(err).ToNot(BeNil())
-			errMessage := fmt.Sprintf("The resource 'hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerEnv.CustomerRGName)
-			Expect(err.Error()).To(ContainSubstring(errMessage))
+			errMessage := fmt.Sprintf("hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, customerEnv.CustomerRGName)
+			Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
 		})
 	})
 })

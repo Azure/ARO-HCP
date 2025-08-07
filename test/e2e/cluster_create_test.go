@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,7 +28,7 @@ import (
 )
 
 var _ = Describe("Put HCPOpenShiftCluster", func() {
-	It("Attempts to put HCPOpenshiftCluster with non-existant Resource Group", labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
+	It("Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil", labels.CreateCluster, labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
 		tc := framework.NewTestContext()
 
 		clusterName := "non-existing-cluster"
@@ -40,7 +41,7 @@ var _ = Describe("Put HCPOpenShiftCluster", func() {
 		By("Sending put request to create HCPOpenshiftCluster")
 		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
 		Expect(err).ToNot(BeNil())
-		errMessage := "RESPONSE 500: 500 Internal Server Error"
-		Expect(err.Error()).To(ContainSubstring(errMessage))
+		errMessage := "The location property is required"
+		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
 	})
 })

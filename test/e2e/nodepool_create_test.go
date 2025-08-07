@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -47,10 +48,10 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 			nodePoolOptions  *api.NodePoolsClientBeginCreateOrUpdateOptions
 		)
 
-		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster")
+		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster and cluster resource as nil")
 		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient().BeginCreateOrUpdate(ctx, customerEnv.CustomerRGName, clusterName, nodePoolName, nodePoolResource, nodePoolOptions)
 		Expect(err).ToNot(BeNil())
-		errMessage := "RESPONSE 500: 500 Internal Server Error"
-		Expect(err.Error()).To(ContainSubstring(errMessage))
+		errMessage := "The location property is required"
+		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
 	})
 })
