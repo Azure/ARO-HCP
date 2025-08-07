@@ -301,6 +301,29 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Invalid UsernamePrefixPolicy - A Policy of Prefix but none is set",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{
+								Claim:        "email",
+								Prefix:       "",
+								PrefixPolicy: "Prefix",
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Code:    "InvalidRequestContent",
+					Message: "UsernameClaimProfile has a PrefixPolicy of 'Prefix' but Username.Prefix is unset",
+					Target:  "properties.claim.mappings.username.prefix",
+				},
+			},
+		},
 	}
 
 	validate := NewTestValidator()

@@ -33,6 +33,23 @@ var (
 	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
+type UsernameClaimPrefixPolicyType string
+
+const (
+	UsernameClaimPrefixPolicyTypePrefix   UsernameClaimPrefixPolicyType = "Prefix"
+	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
+	UsernameClaimPrefixPolicyTypeUnset    UsernameClaimPrefixPolicyType = ""
+)
+
+// PossibleUsernameClaimPrefixPolicyTypeValues returns the possible values for the UsernameClaimPrefixPolicyType const type.
+func PossibleUsernameClaimPrefixPolicyTypeValues() []UsernameClaimPrefixPolicyType {
+	return []UsernameClaimPrefixPolicyType{
+		UsernameClaimPrefixPolicyTypePrefix,
+		UsernameClaimPrefixPolicyTypeNoPrefix,
+		UsernameClaimPrefixPolicyTypeUnset,
+	}
+}
+
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
 	//       a field with @visibility("read","create") becoming updatable,
@@ -60,6 +77,7 @@ func init() {
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
 	validate.RegisterAlias("enum_clusterimageregistryprofilestate", api.EnumValidateTag(generated.PossibleClusterImageRegistryProfileStateValues()...))
 	validate.RegisterAlias("enum_externalauthclienttype", api.EnumValidateTag(generated.PossibleExternalAuthClientTypeValues()...))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyTypeValues()...))
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditiontype", api.EnumValidateTag(generated.PossibleExternalAuthConditionTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditionstatustype", api.EnumValidateTag(generated.PossibleStatusTypeValues()...))

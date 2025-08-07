@@ -95,6 +95,11 @@ func NewTestValidator() *validator.Validate {
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,
 	))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
+		UsernameClaimPrefixPolicyTypePrefix,
+		UsernameClaimPrefixPolicyTypeNoPrefix,
+		UsernameClaimPrefixPolicyTypeUnset,
+	))
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
 		TokenValidationRuleTypeRequiredClaim,
 	))
