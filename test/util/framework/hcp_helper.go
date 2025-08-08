@@ -16,16 +16,152 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sync/errgroup"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
+
+type HostedClusterVerifier interface {
+	Name() string
+	Verify(ctx context.Context, restConfig *rest.Config) error
+}
+
+type verifyImageRegistryDisabled struct{}
+
+func (v verifyImageRegistryDisabled) Name() string {
+	return "VerifyImageRegistryDisabled"
+}
+
+func (v verifyImageRegistryDisabled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	_, err = kubeClient.CoreV1().Services("openshift-image-registry").Get(ctx, "image-registry", metav1.GetOptions{})
+	if err == nil {
+		return fmt.Errorf("image-registry service should not exist, but it does")
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("wrong type of error: %T, %v", err, err)
+	}
+
+	return nil
+}
+
+func VerifyImageRegistryDisabled() HostedClusterVerifier {
+	return verifyImageRegistryDisabled{}
+}
+
+type verifyBasicAccessImpl struct{}
+
+func (v verifyBasicAccessImpl) Name() string {
+	return "VerifyBasicAccess"
+}
+
+func (v verifyBasicAccessImpl) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	_, err = kubeClient.CoreV1().Services("default").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list services: %w", err)
+	}
+
+	return nil
+}
+
+func verifyBasicAccess() HostedClusterVerifier {
+	return verifyBasicAccessImpl{}
+}
+
+var standardVerifiers = []HostedClusterVerifier{
+	verifyBasicAccess(),
+}
+
+func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
+	allVerifiers := append(standardVerifiers, additionalVerifiers...)
+
+	// if these start taking a long time, run in parallel
+	errs := []error{}
+	for _, verifier := range allVerifiers {
+		err := verifier.Verify(ctx, adminRESTConfig)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%v failed: %w", verifier.Name(), err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func GetAdminRESTConfigForHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) (*rest.Config, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start credential request: %w", err)
+	}
+
+	operationResult, err := adminCredentialRequestPoller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpapi20240610.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+		return readStaticRESTConfig(m.Kubeconfig)
+	default:
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
+	ret, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
+		if kubeconfigContent == nil {
+			return nil, fmt.Errorf("kubeconfig content is nil")
+		}
+		return clientcmd.Load([]byte(*kubeconfigContent))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// we are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
+	// https://issues.redhat.com/browse/XCMSTRAT-950 for reference when this intentional time bomb explodes.
+	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
+		ret.Insecure = true
+	}
+	return ret, nil
+}
 
 // DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
 func DeleteHCPCluster(
