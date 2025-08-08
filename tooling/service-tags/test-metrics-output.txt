@@ -1,0 +1,10 @@
+azure_public_ip_tag_count{subscription="0ef1ad54-9296-44cd-9600-5dc8e9a74034",region="uksouth",ipTagType="None",tag="None"} 2
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="australiaeast",ipTagType="None",tag="None"} 3
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="eastus",ipTagType="None",tag="None"} 16
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="switzerlandnorth",ipTagType="None",tag="None"} 2
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="uksouth",ipTagType="None",tag="None"} 10
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="westcentralus",ipTagType="None",tag="None"} 4
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="westeurope",ipTagType="None",tag="None"} 1
+azure_public_ip_tag_count{subscription="1d3378d3-5a3f-4712-85a1-2485495dfc4b",region="westus3",ipTagType="None",tag="None"} 396
+azure_public_ip_tag_count{subscription="64f0619f-ebc2-4156-9d91-c4c781de7e54",region="uksouth",ipTagType="None",tag="None"} 128
+azure_public_ip_tag_count{subscription="b23756f7-4594-40a3-980f-10bb6168fc20",region="uksouth",ipTagType="None",tag="None"} 76
