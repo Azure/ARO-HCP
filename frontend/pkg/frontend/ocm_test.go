@@ -253,3 +253,75 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				State(""))
 	}
 }
+
+func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+		Properties: api.HCPOpenShiftClusterExternalAuthProperties{},
+	}
+
+	for _, opt := range opts {
+		opt(externalAuth)
+	}
+	return externalAuth
+}
+
+// Because we don't distinguish between unset and empty values in our JSON parsing
+// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
+	return arohcpv1alpha1.NewExternalAuth().
+		ID("").
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL("").
+			Audiences().
+			CA("")).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim("").
+					Prefix("").
+					PrefixPolicy(""),
+				),
+			),
+		)
+}
+
+func TestBuildCSExternalAuth(t *testing.T) {
+	resourceID := testResourceID(t)
+	testCases := []struct {
+		name                   string
+		hcpExternalAuth        *api.HCPOpenShiftClusterExternalAuth
+		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuthBuilder
+	}{
+		{
+			name:                   "zero",
+			hcpExternalAuth:        externalAuthResource(),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder(),
+		},
+		{
+			name: "correctly parse PrefixPolicyType",
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
+				Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+					UserName(arohcpv1alpha1.NewUsernameClaim().
+						Claim("").
+						Prefix("").
+						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
+					),
+				)),
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+				},
+			),
+		},
+	}
+	for _, tc := range testCases {
+		f := NewTestFrontend(t)
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+			expected, err := tc.expectedCSExternalAuth.Build()
+			require.NoError(t, err)
+			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			assert.Equalf(t, expected.Claim().Mappings().UserName(), generatedCSExternalAuth.Claim().Mappings().UserName(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+		})
+	}
+}

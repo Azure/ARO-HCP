@@ -628,7 +628,6 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 				RequiredValue(t.RequiredClaim.RequiredValue)
 		}
 	}
-
 	externalAuthBuilder.
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
 			URL(externalAuth.Properties.Issuer.Url).
