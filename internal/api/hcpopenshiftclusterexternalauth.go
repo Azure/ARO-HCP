@@ -55,9 +55,9 @@ type ExternalAuthCondition struct {
  * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
  */
 type TokenIssuerProfile struct {
-	Url       string   `json:"url"              visibility:"read create update"       validate:"required,url,startswith=https://"`
+	Url       *string  `json:"url"              visibility:"read create update"       validate:"required,url,startswith=https://"`
 	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,min=0,max=10"`
-	Ca        string   `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
+	Ca        *string  `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
 }
 
 /** External Auth client profile
