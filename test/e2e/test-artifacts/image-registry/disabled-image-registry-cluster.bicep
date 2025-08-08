@@ -464,7 +464,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   location: resourceGroup().location
   properties: {
     version: {
-      id: '4.19.0'
+      id: '4.19'
       channelGroup: 'stable'
     }
     clusterImageRegistry: {

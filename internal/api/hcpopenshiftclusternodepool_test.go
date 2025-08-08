@@ -124,7 +124,7 @@ func TestNodePoolValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterNodePool{},
 		},
 		{
-			name: "Bad semantic version",
+			name: "Bad openshift_version",
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					Version: NodePoolVersionProfile{
@@ -134,7 +134,7 @@ func TestNodePoolValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid semantic version 'bad.version'",
+					Message: "Invalid OpenShift version 'bad.version'",
 					Target:  "properties.version.id",
 				},
 			},

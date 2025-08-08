@@ -204,7 +204,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad semantic version",
+			name: "Bad openshift_version",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
@@ -214,7 +214,23 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid semantic version 'bad.version'",
+					Message: "Invalid OpenShift version 'bad.version'",
+					Target:  "properties.version.id",
+				},
+			},
+		},
+		{
+			name: "Version cannot be MAJOR.MINOR.PATCH",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ID: "4.18.1",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '4.18.1' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)",
 					Target:  "properties.version.id",
 				},
 			},
@@ -399,7 +415,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
-						ID:           "4.99.0",
+						ID:           "4.99",
 						ChannelGroup: "freshmeat",
 					},
 				},

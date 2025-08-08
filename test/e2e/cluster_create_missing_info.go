@@ -32,7 +32,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	for _, version := range []string{
-		"4.18.1",
+		"4.18",
 		// TODO add other disabled versions here.
 	} {
 		It("should not be able to create a "+version+" HCP cluster",

@@ -50,7 +50,7 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,semver"`
+	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 }
 
@@ -201,6 +201,18 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 
 func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
+
+	if cluster.Properties.Version.ID != "" {
+		// The version ID has already passed syntax validation so we know
+		// it's a valid semantic version.
+		if len(strings.SplitN(cluster.Properties.Version.ID, ".", 3)) > 2 {
+			errorDetails = append(errorDetails, arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf("Invalid value '%s' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)", cluster.Properties.Version.ID),
+				Target:  "properties.version.id",
+			})
+		}
+	}
 
 	// XXX For now, "stable" is the only accepted value. In the future, we may
 	//     allow unlocking other channel groups through Azure Feature Exposure
