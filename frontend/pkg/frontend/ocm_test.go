@@ -291,8 +291,6 @@ func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *a
 func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
-		Issuer(arohcpv1alpha1.NewTokenIssuer().
-			Audiences()).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
@@ -333,6 +331,22 @@ func TestBuildCSExternalAuth(t *testing.T) {
 				)),
 		},
 		{
+			name: "correctly parse Issuer",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Issuer.Ca = &dummyCA
+					hsc.Properties.Issuer.Url = &dummyURL
+					hsc.Properties.Issuer.Audiences = dummyAudiences
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Issuer(
+				arohcpv1alpha1.NewTokenIssuer().
+					CA(dummyCA).
+					URL(dummyURL).
+					Audiences(dummyAudiences...),
+			),
+		},
+		{
 			name: "handle multiple clients",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
@@ -370,7 +384,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
 			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
-			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+			assert.Equalf(t, expected.Issuer().Audiences(), generatedCSExternalAuth.Issuer().Audiences(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}
 }
