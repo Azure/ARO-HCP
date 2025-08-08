@@ -654,15 +654,20 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	}
 
-	for _, t := range externalAuth.Properties.Clients {
-		externalAuthBuilder = externalAuthBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientId).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))
+	if len(externalAuth.Properties.Clients) > 0 {
+		clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
+		for _, t := range externalAuth.Properties.Clients {
+			b := arohcpv1alpha1.NewExternalAuthClientConfig().
+				ID(t.ClientId).
+				Component(arohcpv1alpha1.NewClientComponent().
+					Name(t.Component.Name).
+					Namespace(t.Component.AuthClientNamespace),
+				).
+				ExtraScopes(t.ExtraScopes...).
+				Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType))
+			clientConfigs = append(clientConfigs, b)
+		}
+		externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
 	}
 
 	return externalAuthBuilder.Build()
