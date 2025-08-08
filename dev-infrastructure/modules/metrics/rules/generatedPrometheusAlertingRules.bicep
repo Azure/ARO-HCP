@@ -1444,3 +1444,63 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
     ]
   }
 }
+
+resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'backend'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'BackendLatency'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
+          runbook_url: 'TBD'
+          summary: 'Backend latency is high: 95th percentile exceeds 1 second'
+        }
+        expression: 'histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket[1h])) > 1'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'BackendOperationErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'TBD'
+          summary: 'High Error Rate on Backend Operations'
+        }
+        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'BackendHealthAvailability'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
+          runbook_url: 'TBD'
+          summary: 'High unavailability on the Backend'
+        }
+        expression: '(1 - (sum_over_time(backend_health[1h]) / 3600)) >= (300 / 3600)'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
