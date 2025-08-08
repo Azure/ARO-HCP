@@ -41,6 +41,7 @@ const (
 	UsernameClaimPrefixPolicyTypeUnset    UsernameClaimPrefixPolicyType = ""
 )
 
+// FIXME This is a hack because we typed this field as string and not an enum in the API spec.
 // PossibleUsernameClaimPrefixPolicyTypeValues returns the possible values for the UsernameClaimPrefixPolicyType const type.
 func PossibleUsernameClaimPrefixPolicyTypeValues() []UsernameClaimPrefixPolicyType {
 	return []UsernameClaimPrefixPolicyType{
