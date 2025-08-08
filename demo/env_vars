@@ -12,7 +12,6 @@ export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
 export CUSTOMER_KV_NAME="$USER-customer-kv"
-export ETCD_ENCRYPTION_KEY_NAME="etcd-data-kms-encryption-key"
 if is_int_testing_subscription; then
     export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
 else
