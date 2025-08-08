@@ -71,8 +71,8 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		newMiddlewareAudit(f.auditClient).handleRequest,
 		MiddlewareTracing,
 		MiddlewareLogging,
-		// NOTE: register panic middlware twice.
-		// Making sure we can capture paniced requests in our trace data.
+		// NOTE: register panic middleware twice.
+		// Making sure we can capture panicked requests in our trace data.
 		// But we also can recover if the tracing or logging middleware caused a panic.
 		MiddlewarePanic,
 		MiddlewareBody,
