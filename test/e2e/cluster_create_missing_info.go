@@ -15,7 +15,6 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -52,13 +51,14 @@ var _ = Describe("Customer", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "illegal-ocp-version", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("creating a prereqs in the resource group")
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
+				By("creating a customer-infra")
+				infraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
-					"infra",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
+					"customer-infra",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
 					map[string]interface{}{
+						"persistTagValue":        false,
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
@@ -67,26 +67,46 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				By("creating the hcp cluster")
-				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-				clusterTemplate := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/illegal-install-version/cluster.json"))
-				clusterTemplate = bytes.ReplaceAll(clusterTemplate, []byte("VERSION_REPLACE_ME"), []byte(version))
-
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
+				By("creating a managed identities")
+				managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
-					"illegal-cluster",
-					clusterTemplate,
+					"managed-identities",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 					map[string]interface{}{
-						"nsgName":                  customerNetworkSecurityGroupName,
-						"vnetName":                 customerVnetName,
-						"subnetName":               customerVnetSubnetName,
-						"clusterName":              customerClusterName,
-						"managedResourceGroupName": managedResourceGroupName,
+						"clusterName": customerClusterName,
 					},
 					45*time.Minute,
 				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating the hcp cluster")
+				networkSecurityGroupID, err := framework.GetOutputValueString(infraDeploymentResult, "networkSecurityGroupId")
+				Expect(err).NotTo(HaveOccurred())
+				subnetID, err := framework.GetOutputValueString(infraDeploymentResult, "subnetId")
+				Expect(err).NotTo(HaveOccurred())
+				userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
+				Expect(err).NotTo(HaveOccurred())
+				identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
+				Expect(err).NotTo(HaveOccurred())
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				_, err = framework.CreateBicepTemplateAndWait(ctx,
+					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+					*resourceGroup.Name,
+					"cluster",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
+					map[string]interface{}{
+						"openshiftVersionId":          version,
+						"clusterName":                 customerClusterName,
+						"managedResourceGroupName":    managedResourceGroupName,
+						"networkSecurityGroupId":      networkSecurityGroupID,
+						"subnetId":                    subnetID,
+						"userAssignedIdentitiesValue": userAssignedIdentities,
+						"identityValue":               identity,
+					},
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(MatchError(MatchRegexp("Version .* is disabled")))
 			},
