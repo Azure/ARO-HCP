@@ -17,7 +17,7 @@ spec:
         histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1
       for: 15m
       labels:
-        severity: critical
+        severity: info
       annotations:
         description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
         runbook_url: 'TBD'
@@ -30,7 +30,7 @@ spec:
         > 0.05
       for: 5m
       labels:
-        severity: critical
+        severity: info
       annotations:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
@@ -40,7 +40,7 @@ spec:
         (1 - (sum_over_time(frontend_health[1h]) / 3600)) >= (300 / 3600)
       for: 5m
       labels:
-        severity: critical
+        severity: info
       annotations:
         description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
         runbook_url: 'TBD'
