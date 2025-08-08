@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: backend-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: backend
+    rules:
+    - alert: BackendLatency
+      expr: |
+        histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket[1h])) > 1
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
+        runbook_url: 'TBD'
+        summary: 'Backend latency is high: 95th percentile exceeds 1 second'
+    - alert: BackendOperationErrorRate
+      expr: |
+        (sum(rate(backend_failed_operations_total[1h])))
+        /
+        (sum(rate(backend_operations_total[1h])))
+        > 0.05
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+        runbook_url: 'TBD'
+        summary: 'High Error Rate on Backend Operations'
+    - alert: BackendHealthAvailability
+      expr: |
+        (1 - (sum_over_time(backend_health[1h]) / 3600)) >= (300 / 3600)
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
+        runbook_url: 'TBD'
+        summary: 'High unavailability on the Backend'
