@@ -220,6 +220,22 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "Version cannot be MAJOR.MINOR.PATCH",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Version: VersionProfile{
+						ID: "4.18.1",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value '4.18.1' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)",
+					Target:  "properties.version.id",
+				},
+			},
+		},
+		{
 			name: "Bad enum_outboundtype",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
@@ -399,7 +415,7 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
-						ID:           "4.99.0",
+						ID:           "4.99",
 						ChannelGroup: "freshmeat",
 					},
 				},
