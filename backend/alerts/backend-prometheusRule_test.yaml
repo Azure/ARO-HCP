@@ -1,0 +1,101 @@
+rule_files:
+- backend-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: BackendLatency 95th percentile exceeds 1 second
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="0.25"}'
+    values: '0+60x10' # 10 operations/min
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="0.5"}'
+    values: '0+60x20' # 20 operations/min (includes 10 above 0.25)
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="1"}'
+    values: '0+60x30' # 30 operations/min (10 above 0.5)
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="2"}'
+    values: '0+60x190' # 190 operations/min (so 160 of these are >1s)
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="5"}'
+    values: '0+60x200' # 200 operations/min (10 above 2s)
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="+Inf"}'
+    values: '0+60x200' # 200 total/min
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: BackendLatency
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        type: create
+      exp_annotations:
+        description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
+        runbook_url: 'TBD'
+        summary: 'Backend latency is high: 95th percentile exceeds 1 second'
+# Test: BackendLatency Less than 5% of operations exceed 1 second
+- interval: 1m
+  input_series:
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="0.25"}'
+    values: '0+60x150'
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="0.5"}'
+    values: '0+60x180'
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="1"}'
+    values: '0+60x195'
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="2"}'
+    values: '0+60x198'
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="5"}'
+    values: '0+60x200'
+  - series: 'backend_operations_duration_seconds_bucket{type="create",le="+Inf"}'
+    values: '0+60x200'
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: BackendLatency
+    exp_alerts: []
+# Test: BackendOperationErrorRate above 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="create"}'
+    values: "0 6x10" # 6 failures per minute → 6 / 106 ≈ 5.66%
+  - series: 'backend_operations_total{type="create"}'
+    values: "0 100x10" # 100 operations per minute from minute 1 to 10
+  alert_rule_test:
+  - eval_time: 10m # At this point, the condition has held for 10 minutes
+    alertname: BackendOperationErrorRate
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend operation error rate is above 5% for the last hour. Current value: 6%.'
+        runbook_url: 'TBD'
+        summary: 'High Error Rate on Backend Operations'
+# Test: BackendOperationErrorRate below 5%
+- interval: 1m
+  input_series:
+  - series: 'backend_failed_operations_total{type="create"}'
+    values: "0 2x10" # 2 failures / 102 total ≈ 1.96%
+  - series: 'backend_operations_total{type="create"}'
+    values: "0 100x10" # 100 operations per minute from minute 1 to 10
+  alert_rule_test:
+  - eval_time: 10m # At this point, the condition has held for 10 minutes
+    alertname: BackendOperationErrorRate
+    exp_alerts: []
+# Test: BackendHealthAvailability greater than 300s
+- interval: 1s
+  input_series:
+  - series: "backend_health"
+    values: "1x3200 0x400 1x300" # 3200s up, 400s down
+  alert_rule_test:
+  - eval_time: 4000s
+    alertname: BackendHealthAvailability
+    exp_alerts:
+    - exp_labels:
+        severity: info
+      exp_annotations:
+        description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
+        runbook_url: 'TBD'
+        summary: 'High unavailability on the Backend'
+# Test: BackendHealthAvailability less than 300s
+- interval: 1s
+  input_series:
+  - series: "backend_health"
+    values: "1x3350 0x299" # 3350s up, 299s down
+  alert_rule_test:
+  - eval_time: 3600s
+    alertname: BackendHealthAvailability
+    exp_alerts: []
