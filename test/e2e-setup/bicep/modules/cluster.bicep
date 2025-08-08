@@ -46,6 +46,9 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     api: {
       visibility: 'Public'
     }
+    clusterImageRegistry: {
+      state: 'Enabled'
+    }
     platform: {
       managedResourceGroup: managedResourceGroupName
       subnetId: subnetId
