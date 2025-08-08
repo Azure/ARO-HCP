@@ -55,10 +55,6 @@ convert_bicep_to_json "${project_root}/demo/bicep/customer-infra.bicep" "${OUTPU
 convert_bicep_to_json "${project_root}/demo/bicep/cluster.bicep" "${OUTPUT_DIR}/standard-cluster-create/cluster.json"
 convert_bicep_to_json "${project_root}/demo/bicep/nodepool.bicep" "${OUTPUT_DIR}/standard-cluster-create/nodepool.json"
 
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
-
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
-
 # Process e2e-setup bicep files
 find "${project_root}/test/e2e-setup/bicep" -type f -name "*.bicep" | while read bicep_file; do
     # Get relative path from bicep root
@@ -67,7 +63,7 @@ find "${project_root}/test/e2e-setup/bicep" -type f -name "*.bicep" | while read
     json_filename="${filename%.bicep}.json"
 
     # Create output directory
-    output_dir="${OUTPUT_DIR}/e2e-setup/${rel_path}"
+    output_dir="${OUTPUT_DIR}/${rel_path}"
     mkdir -p "$output_dir"
 
     # Convert bicep to json
