@@ -24,6 +24,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	validator "github.com/go-playground/validator/v10"
+	semver "github.com/hashicorp/go-version"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -133,6 +134,19 @@ func NewValidator() *validator.Validate {
 			panic("String type required for k8s_label_value")
 		}
 		return len(k8svalidation.IsValidLabelValue(field.String())) == 0
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Use this for version ID fields.
+	err = validate.RegisterValidation("openshift_version", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			panic("String type required for openshift_version")
+		}
+		_, err := semver.NewVersion(field.String())
+		return err == nil
 	})
 	if err != nil {
 		panic(err)
@@ -336,6 +350,8 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 				switch tag {
 				case "api_version": // custom tag
 					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
+				case "openshift_version": // custom tag
+					message = fmt.Sprintf("Invalid OpenShift version '%s'", fieldErr.Value())
 				case "pem_certificates": // custom tag
 					message += " (must provide PEM encoded certificates)"
 				case "k8s_label_value": // custom tag
@@ -408,8 +424,6 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 							}
 						}
 					}
-				case "semver":
-					message = fmt.Sprintf("Invalid semantic version '%s'", fieldErr.Value())
 				case "startswith":
 					if len(params) > 0 {
 						message += fmt.Sprintf(" (must start with '%s')", params[0])
