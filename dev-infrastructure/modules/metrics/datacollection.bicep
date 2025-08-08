@@ -1,17 +1,10 @@
+import { safeTake } from '../common.bicep'
+
 param azureMonitoringWorkspaceId string
 param hcpAzureMonitoringWorkspaceId string = ''
 param azureMonitorWorkspaceLocation string
 param aksClusterName string
 param prometheusPrincipalId string
-
-// Function to safely truncate strings, ensuring no trailing dashes or problematic characters
-func safeTake(input string, maxLength int) string =>
-  length(take(input, maxLength)) > 0 && (endsWith(take(input, maxLength), '-') || endsWith(take(input, maxLength), '_') || endsWith(
-      take(input, maxLength),
-      '.'
-    ))
-    ? take(take(input, maxLength), length(take(input, maxLength)) - 1)
-    : take(input, maxLength)
 
 var dceName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
 var dcrName = safeTake('MSProm-${azureMonitorWorkspaceLocation}-${aksClusterName}', 44)
