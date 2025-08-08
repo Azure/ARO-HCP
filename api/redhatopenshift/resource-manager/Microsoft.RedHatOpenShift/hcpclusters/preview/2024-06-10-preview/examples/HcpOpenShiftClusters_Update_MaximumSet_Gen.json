@@ -7,6 +7,13 @@
     "resourceGroupName": "rgopenapi",
     "hcpOpenShiftClusterName": "hcpCluster-name",
     "properties": {
+      "platform": {
+        "loadBalancer": {
+          "managedOutboundIps": {
+            "count": 4
+          }
+        }
+      },
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
@@ -49,6 +56,25 @@
             "managedResourceGroup": "nhyhywrxupo",
             "subnetId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/virtualNetworks/hcp-network-example/subnets/example-subnet",
             "outboundType": "LoadBalancer",
+            "loadBalancer": {
+              "managedOutboundIps": {
+                "count": 4
+              },
+              "effectiveOutboundIps": [
+                {
+                  "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/publicIpAddresses/lb-id-1"
+                },
+                {
+                  "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/publicIpAddresses/lb-id-2"
+                },
+                {
+                  "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/publicIpAddresses/lb-id-3"
+                },
+                {
+                  "id": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/publicIpAddresses/lb-id-4"
+                }
+              ]
+            },
             "networkSecurityGroupId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/resourceGroupName/providers/Microsoft.Network/networkSecurityGroups/nsg-example",
             "operatorsAuthentication": {
               "userAssignedIdentities": {
