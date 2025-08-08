@@ -122,3 +122,14 @@ const (
 	// ConditionStatusTypeUnknown - the condition status is unknown.
 	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
 )
+
+type UsernameClaimPrefixPolicyType string
+
+const (
+	// ConditionStatusType - the condition status is true.
+	UsernameClaimPrefixPolicyTypePrefix UsernameClaimPrefixPolicyType = "Prefix"
+	// ExternalAuthConditionTypeFalse - the condition status is false.
+	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
+	// ConditionStatusTypeUnknown - the condition status is unknown.
+	UsernameClaimPrefixPolicyTypeUnset UsernameClaimPrefixPolicyType = ""
+)

@@ -182,3 +182,55 @@ func TestNodePoolStructTagMap(t *testing.T) {
 
 	testStructTagMap(t, nodePoolStructTagMap, expectedVisibility)
 }
+
+func TestExternalAuthStructTagMap(t *testing.T) {
+	// This should include any nodePoolStructTagMap
+	// overrides from the package's init() function.
+	expectedVisibility := map[string]api.VisibilityFlags{
+		"ProxyResource.Resource.ID":                            api.VisibilityRead,
+		"ProxyResource.Resource.Name":                          api.VisibilityRead,
+		"ProxyResource.Resource.Type":                          api.VisibilityRead,
+		"ProxyResource.Resource.SystemData":                    skip,
+		"ProxyResource.Resource.SystemData.CreatedBy":          api.VisibilityRead,
+		"ProxyResource.Resource.SystemData.CreatedByType":      api.VisibilityRead,
+		"ProxyResource.Resource.SystemData.CreatedAt":          api.VisibilityRead,
+		"ProxyResource.Resource.SystemData.LastModifiedBy":     api.VisibilityRead,
+		"ProxyResource.Resource.SystemData.LastModifiedByType": api.VisibilityRead,
+		"ProxyResource.Resource.SystemData.LastModifiedAt":     api.VisibilityRead,
+		"Properties":                                                    skip,
+		"Properties.ProvisioningState":                                  api.VisibilityRead,
+		"Properties.Condition":                                          skip,
+		"Properties.Condition.ConditionType":                            api.VisibilityRead,
+		"Properties.Condition.Status":                                   api.VisibilityRead,
+		"Properties.Condition.LastTransitionTime":                       api.VisibilityRead,
+		"Properties.Condition.Reason":                                   api.VisibilityRead,
+		"Properties.Condition.Message":                                  api.VisibilityRead,
+		"Properties.Issuer":                                             skip,
+		"Properties.Issuer.Url":                                         api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Issuer.Audiences":                                   api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Issuer.Ca":                                          api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Clients":                                            skip,
+		"Properties.Clients.Component":                                  skip,
+		"Properties.Clients.Component.Name":                             api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Clients.Component.AuthClientNamespace":              api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Clients.ClientId":                                   api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Clients.ExtraScopes":                                api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Clients.ExternalAuthClientProfileType":              api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim":                                              skip,
+		"Properties.Claim.Mappings":                                     skip,
+		"Properties.Claim.Mappings.Username":                            skip,
+		"Properties.Claim.Mappings.Username.Claim":                      api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.Mappings.Username.Prefix":                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.Mappings.Username.PrefixPolicy":               api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.Mappings.Groups":                              skip,
+		"Properties.Claim.Mappings.Groups.Claim":                        api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.Mappings.Groups.Prefix":                       api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.ValidationRules":                              skip,
+		"Properties.Claim.ValidationRules.TokenClaimValidationRuleType": api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.ValidationRules.RequiredClaim":                skip,
+		"Properties.Claim.ValidationRules.RequiredClaim.Claim":          api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Claim.ValidationRules.RequiredClaim.RequiredValue":  api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+	}
+
+	testStructTagMap(t, externalAuthStructTagMap, expectedVisibility)
+}

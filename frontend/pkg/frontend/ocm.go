@@ -554,8 +554,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// TODO fill these out later when CS supports Conditions fully
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
-				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        csExternalAuth.Issuer().CA(),
+				Url:       api.PtrOrNil(csExternalAuth.Issuer().URL()),
+				Ca:        api.PtrOrNil(csExternalAuth.Issuer().CA()),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -563,7 +563,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 					Username: api.UsernameClaimProfile{
 						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: csExternalAuth.Claim().Mappings().UserName().PrefixPolicy(),
+						PrefixPolicy: api.UsernameClaimPrefixPolicyType(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
 					},
 				},
 			},
@@ -618,31 +618,44 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 	if !updating {
 		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
 	}
-
-	tokenClaimValidationRuleBuilder := arohcpv1alpha1.NewTokenClaimValidationRule()
-
-	if externalAuth.Properties.Claim.ValidationRules != nil {
-		for _, t := range externalAuth.Properties.Claim.ValidationRules {
-			tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
-				Claim(t.RequiredClaim.Claim).
-				RequiredValue(t.RequiredClaim.RequiredValue)
-		}
-	}
-
 	externalAuthBuilder.
-		Issuer(arohcpv1alpha1.NewTokenIssuer().
-			URL(externalAuth.Properties.Issuer.Url).
-			Audiences(externalAuth.Properties.Issuer.Audiences...).
-			CA(externalAuth.Properties.Issuer.Ca)).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
 					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
 					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
-					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
+					PrefixPolicy(string(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
 				),
 			),
 		)
+
+	issuerBuilder := arohcpv1alpha1.NewTokenIssuer()
+	if externalAuth.Properties.Issuer.Url != nil {
+		issuerBuilder.URL(*externalAuth.Properties.Issuer.Url)
+	}
+	if externalAuth.Properties.Issuer.Ca != nil {
+		issuerBuilder.CA(*externalAuth.Properties.Issuer.Ca)
+	}
+	if len(externalAuth.Properties.Issuer.Audiences) > 0 {
+		issuerBuilder.Audiences(externalAuth.Properties.Issuer.Audiences...)
+	}
+	externalAuthBuilder.Issuer(issuerBuilder)
+
+	if len(externalAuth.Properties.Clients) > 0 {
+		clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
+		for _, t := range externalAuth.Properties.Clients {
+			newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
+				ID(t.ClientId).
+				Component(arohcpv1alpha1.NewClientComponent().
+					Name(t.Component.Name).
+					Namespace(t.Component.AuthClientNamespace),
+				).
+				ExtraScopes(t.ExtraScopes...).
+				Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType))
+			clientConfigs = append(clientConfigs, newClientConfig)
+		}
+		externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
+	}
 
 	if externalAuth.Properties.Claim.Mappings.Groups != nil {
 		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
@@ -656,21 +669,16 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 	}
 
 	if len(externalAuth.Properties.Claim.ValidationRules) > 0 {
+		validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
+		for _, t := range externalAuth.Properties.Claim.ValidationRules {
+			newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
+				Claim(t.RequiredClaim.Claim).
+				RequiredValue(t.RequiredClaim.RequiredValue)
+			validationRules = append(validationRules, newClientConfig)
+		}
 		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			ValidationRules(tokenClaimValidationRuleBuilder),
+			ValidationRules(validationRules...),
 		)
-
-	}
-
-	for _, t := range externalAuth.Properties.Clients {
-		externalAuthBuilder = externalAuthBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientId).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))
 	}
 
 	return externalAuthBuilder.Build()
