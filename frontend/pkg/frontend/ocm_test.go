@@ -299,6 +299,11 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		},
 		{
 			name: "correctly parse PrefixPolicyType",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+				},
+			),
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
 				Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 					UserName(arohcpv1alpha1.NewUsernameClaim().
@@ -307,11 +312,36 @@ func TestBuildCSExternalAuth(t *testing.T) {
 						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
 					),
 				)),
+		},
+		{
+			name: "handle multiple clients",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
-					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
+						{ClientId: "a"},
+						{ClientId: "b"},
+					}
 				},
 			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Clients(
+				[]*arohcpv1alpha1.ExternalAuthClientConfigBuilder{
+					arohcpv1alpha1.NewExternalAuthClientConfig().
+						ID("a").
+						Component(arohcpv1alpha1.NewClientComponent().
+							Name("").
+							Namespace(""),
+						).
+						ExtraScopes().
+						Type(""),
+					arohcpv1alpha1.NewExternalAuthClientConfig().
+						ID("b").
+						Component(arohcpv1alpha1.NewClientComponent().
+							Name("").
+							Namespace(""),
+						).
+						ExtraScopes().
+						Type(""),
+				}...),
 		},
 	}
 	for _, tc := range testCases {
@@ -321,7 +351,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
 			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
-			assert.Equalf(t, expected.Claim().Mappings().UserName(), generatedCSExternalAuth.Claim().Mappings().UserName(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+			assert.Equalf(t, expected.Clients(), generatedCSExternalAuth.Clients(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}
 }
