@@ -554,8 +554,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// TODO fill these out later when CS supports Conditions fully
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
-				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        csExternalAuth.Issuer().CA(),
+				Url:       api.PtrOrNil(csExternalAuth.Issuer().URL()),
+				Ca:        api.PtrOrNil(csExternalAuth.Issuer().CA()),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -621,9 +621,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	externalAuthBuilder.
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
-			URL(externalAuth.Properties.Issuer.Url).
-			Audiences(externalAuth.Properties.Issuer.Audiences...).
-			CA(externalAuth.Properties.Issuer.Ca)).
+			Audiences(externalAuth.Properties.Issuer.Audiences...)).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
@@ -633,6 +631,15 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 				),
 			),
 		)
+
+	if externalAuth.Properties.Issuer.Url != nil {
+		externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(*externalAuth.Properties.Issuer.Url))
+	}
+	if externalAuth.Properties.Issuer.Ca != nil {
+		externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(*externalAuth.Properties.Issuer.Ca))
+	}
 
 	if len(externalAuth.Properties.Clients) > 0 {
 		clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
