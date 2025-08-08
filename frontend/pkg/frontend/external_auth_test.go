@@ -47,7 +47,7 @@ import (
 
 var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.TestExternalAuthName)
 
-var dummyURL = "Spain"
+var dummyURL = "https://redhat.com"
 var dummyAudiences = []string{"audience1"}
 var dummyClaim = "4.18.0"
 
