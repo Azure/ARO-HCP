@@ -14,9 +14,6 @@
       "hostPrefix": 23
     },
     "console": {},
-    "clusterImageRegistry": {
-      "state": "Enabled"
-    },
     "etcd": {
       "dataEncryption": {
         "keyManagementMode": "PlatformManaged"

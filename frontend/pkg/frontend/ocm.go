@@ -147,19 +147,19 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 	}
 	return
 }
-func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.Cluster) api.CustomerManagedEncryptionProfile {
-	if customerManaged, ok := in.Azure().EtcdEncryption().DataEncryption().GetCustomerManaged(); ok {
-		return api.CustomerManagedEncryptionProfile{
+func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
+	if customerManaged, ok := in.GetCustomerManaged(); ok {
+		return &api.CustomerManagedEncryptionProfile{
 			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
-			Kms:            convertKmsEncryptionCSToRP(in),
+			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
 		}
 	}
-	return api.CustomerManagedEncryptionProfile{}
+	return nil
 }
 
-func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.Cluster) *api.KmsEncryptionProfile {
+func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) *api.KmsEncryptionProfile {
 
-	if kms, ok := in.Azure().EtcdEncryption().DataEncryption().CustomerManaged().GetKms(); ok {
+	if kms, ok := in.GetKms(); ok {
 		if activeKey, ok := kms.GetActiveKey(); ok {
 			return &api.KmsEncryptionProfile{
 				ActiveKey: api.KmsKey{
@@ -246,7 +246,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	if cluster.Azure().EtcdEncryption() != nil && cluster.Azure().EtcdEncryption().DataEncryption() != nil {
 		hcpcluster.Properties.Etcd = api.EtcdProfile{
 			DataEncryption: api.EtcdDataEncryptionProfile{
-				CustomerManaged:   convertCustomerManagedEncryptionCSToRP(cluster),
+				CustomerManaged:   convertCustomerManagedEncryptionCSToRP(cluster.Azure().EtcdEncryption().DataEncryption()),
 				KeyManagementMode: convertKeyManagementModeTypeCSToRP(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
 			},
 		}

@@ -90,11 +90,14 @@ func newEtcdProfile(from *api.EtcdProfile) *generated.EtcdProfile {
 }
 func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) *generated.EtcdDataEncryptionProfile {
 	return &generated.EtcdDataEncryptionProfile{
-		CustomerManaged:   newCustomerManagedEncryptionProfile(&from.CustomerManaged),
+		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
 		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
 func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
+	if from == nil {
+		return nil
+	}
 	return &generated.CustomerManagedEncryptionProfile{
 		Kms:            newKmsEncryptionProfile(from.Kms),
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
@@ -399,7 +402,10 @@ func normalizeEtcd(p *generated.EtcdProfile, out *api.EtcdProfile) {
 
 func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, out *api.EtcdDataEncryptionProfile) {
 	if p.CustomerManaged != nil {
-		normalizeCustomerManaged(p.CustomerManaged, &out.CustomerManaged)
+		if out.CustomerManaged == nil {
+			out.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
+		}
+		normalizeCustomerManaged(p.CustomerManaged, out.CustomerManaged)
 	}
 	if p.KeyManagementMode != nil {
 		out.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeType(*p.KeyManagementMode)
