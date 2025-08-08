@@ -8,7 +8,8 @@ then
     az ad app credential reset \
         --id "${APP_ID}" \
         --keyvault "${KEY_VAULT_NAME}" \
-        --cert "${CERTIFICATE_NAME}"
+        --cert "${CERTIFICATE_NAME}" \
+        --append
 
     echo "Assigning role ${ROLE_DEFINITION_NAME} to appId ${APP_ID}"
     az role assignment create \
@@ -19,6 +20,7 @@ then
     exit 0
 fi
 
+echo "Creating new application ${APPLICATION_NAME}"
 az ad sp create-for-rbac \
     --years 10 \
     --display-name "${APPLICATION_NAME}" \
