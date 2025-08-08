@@ -52,7 +52,7 @@ convert_bicep_to_json "${project_root}/demo/bicep/customer-infra.bicep" "${OUTPU
 convert_bicep_to_json "${project_root}/demo/bicep/cluster.bicep" "${OUTPUT_DIR}/standard-cluster-create/cluster.json"
 convert_bicep_to_json "${project_root}/demo/bicep/nodepool.bicep" "${OUTPUT_DIR}/standard-cluster-create/nodepool.json"
 
+convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/cmk-etcd/cmk-etcd-cluster.bicep" "${OUTPUT_DIR}/cmk-etcd/cmk-etcd-cluster.json"
 convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
-
 convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
 
