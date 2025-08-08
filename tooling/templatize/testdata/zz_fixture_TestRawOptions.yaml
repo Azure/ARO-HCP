@@ -2,7 +2,8 @@ $schema: pipeline.schema.v1
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: 'hcp-underlay-uksouth-dev'
+- name: regional
+  resourceGroup: 'hcp-underlay-uksouth-dev'
   subscription: 'hcp-uksouth'
   steps:
   - name: deploy
@@ -40,7 +41,8 @@ resourceGroups:
     childZone:
       configRef: childZone
     dependsOn:
-    - deploy
+    - resourceGroup: regional
+      step: deploy
   - name: issuerTest
     action: SetCertificateIssuer
     vaultBaseUrl:
@@ -48,17 +50,17 @@ resourceGroups:
     issuer:
       configRef: provider
     dependsOn:
-    - deploy
+    - resourceGroup: regional
+      step: deploy
   - name: issuerTestOutputChaining
     action: SetCertificateIssuer
     vaultBaseUrl:
       input:
+        resourceGroup: regional
         name: kvUrl
         step: deploy
     issuer:
       value: provider
-    dependsOn:
-    - deploy
   - name: cert
     action: CreateCertificate
     vaultBaseUrl:

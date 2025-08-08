@@ -1,0 +1,980 @@
+rule_files:
+- prometheus-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# prometheus-slo-rules group tests
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 5 minutes.
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0.9+0x1440" # 24 hours of 90% uptime
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 1 day.
+        description: |
+          Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+          Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_pending{cluster="test"}'
+    values: "30+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="test"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="test"}'
+    values: "0+15x20"
+  - series: 'prometheus_remote_storage_samples_total{cluster="test"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: test
+      exp_annotations:
+        summary: Prometheus failed sample rate to remote storage is above 10%.
+        description: |
+          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+        runbook_url: TBD
+# prometheus-rules group tests
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="test",url="http://test"}'
+    values: "0+2x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="test",url="http://test"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: test
+        url: http://test
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 2.0% of the samples to test:http://test
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x15"
+  - series: 'prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus",scrape_job="test"}'
+    values: "5+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PrometheusNotIngestingSamples
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is not ingesting samples.
+        description: Prometheus prometheus/ is not ingesting samples.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
+- interval: 1m
+  input_series:
+  - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: PrometheusBadConfig
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Failed Prometheus configuration reload.
+        description: Prometheus prometheus/ has failed to reload its configuration.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
+- interval: 1m
+  input_series:
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+5x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRuleFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is failing rule evaluations.
+        description: Prometheus prometheus/ has failed to evaluate 25 rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+- interval: 1m
+  input_series:
+  - series: 'prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+2x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusScrapeSampleLimitHit
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+# prometheus-operator-rules group tests
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="prometheus"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorNotReady
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        controller: prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus operator not ready
+        description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected",controller="prometheus",resource="prometheusrule"}'
+    values: "5+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorRejectedResources
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-operator
+        namespace: prometheus
+        state: rejected
+        controller: prometheus
+        resource: prometheusrule
+      exp_annotations:
+        summary: Resources rejected by Prometheus operator
+        description: Prometheus operator in prometheus namespace rejected 5 prometheus/prometheusrule resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
+# Additional test scenarios with multiple instances
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0"}'
+    values: "0+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-1"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 5 minutes.
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+# Test no alert scenario for PrometheusJobUp
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+# Test recovery scenario for PrometheusUptime
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0.97+0x1440" # 97% uptime - should not alert
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts: []
+# Test edge case for PrometheusPendingRate - exactly at threshold
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_pending{cluster="test-edge"}'
+    values: "40+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="test-edge"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts: []
+# Test above threshold for PrometheusPendingRate
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_pending{cluster="test-high"}'
+    values: "45+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="test-high"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: test-high
+      exp_annotations:
+        summary: Prometheus pending sample rate is above 40%.
+        description: |
+          The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+          This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+          a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+          If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+          Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+        runbook_url: TBD
+# Test multiple remote storage endpoints for PrometheusRemoteStorageFailures
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="http://storage1"}'
+    values: "0+3x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="http://storage1"}'
+    values: "0+100x20"
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage2",url="http://storage2"}'
+    values: "0+1x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage2",url="http://storage2"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: storage1
+        url: http://storage1
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 2.9% of the samples to storage1:http://storage1
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+# Test PrometheusNotIngestingSamples with rule groups present
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x15"
+  - series: 'prometheus_rule_group_rules{job="prometheus-prometheus",namespace="prometheus",rule_group="test-group"}'
+    values: "10+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PrometheusNotIngestingSamples
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is not ingesting samples.
+        description: Prometheus prometheus/ is not ingesting samples.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
+# Test successful config reload scenario
+- interval: 1m
+  input_series:
+  - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusBadConfig
+    exp_alerts: []
+# Test zero rule failures scenario
+- interval: 1m
+  input_series:
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRuleFailures
+    exp_alerts: []
+# Test PrometheusOperatorNotReady with multiple controllers
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="prometheus"}'
+    values: "0+0x10"
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="alertmanager"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorNotReady
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        controller: prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus operator not ready
+        description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
+# Test PrometheusOperatorRejectedResources with different resource types
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected",controller="prometheus",resource="servicemonitor"}'
+    values: "3+0x10"
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected",controller="prometheus",resource="podmonitor"}'
+    values: "2+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorRejectedResources
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-operator
+        namespace: prometheus
+        state: rejected
+        controller: prometheus
+        resource: servicemonitor
+      exp_annotations:
+        summary: Resources rejected by Prometheus operator
+        description: Prometheus operator in prometheus namespace rejected 3 prometheus/servicemonitor resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
+    - exp_labels:
+        severity: warning
+        job: prometheus-operator
+        namespace: prometheus
+        state: rejected
+        controller: prometheus
+        resource: podmonitor
+      exp_annotations:
+        summary: Resources rejected by Prometheus operator
+        description: Prometheus operator in prometheus namespace rejected 2 prometheus/podmonitor resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
+# Test TSDB disk space scenarios
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_symbol_table_size_bytes{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "1000000000+0x20" # 1GB
+  - series: 'prometheus_tsdb_head_series{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "1000000+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusTSDBReloadsFailing
+    exp_alerts: []
+# Test WAL corruption scenarios
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_wal_corruptions_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+1x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusWALCorruption
+    exp_alerts: []
+# Test compaction scenarios
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_compactions_failed_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+2x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusCompactionFailing
+    exp_alerts: []
+# Test target down scenarios for different job types
+- interval: 1m
+  input_series:
+  - series: 'up{job="node-exporter",namespace="monitoring"}'
+    values: "0+0x20"
+  - series: 'up{job="kube-state-metrics",namespace="monitoring"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: TargetDown
+    exp_alerts: []
+# Test notification queue scenarios
+- interval: 1m
+  input_series:
+  - series: 'prometheus_notifications_queue_length{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "1000+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusNotificationQueueRunningFull
+    exp_alerts: []
+# Test PrometheusJobUp with intermittent failures
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0+0x10" # Continuously down for more than 5 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 5 minutes.
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+# Test PrometheusUptime with gradual degradation
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0.94+0x1440" # 94% uptime - should alert
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 1 day.
+        description: |
+          Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+          Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+# Test PrometheusPendingRate with low pending rate
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_pending{cluster="zero-test"}'
+    values: "10+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="zero-test"}'
+    values: "100+0x20" # 10/100 = 10% pending rate (below 40% threshold)
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts: []
+# Test PrometheusFailedRate with exact threshold
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="threshold-test"}'
+    values: "0+10x20" # Exactly 10% failure rate
+  - series: 'prometheus_remote_storage_samples_total{cluster="threshold-test"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts: []
+# Test PrometheusFailedRate with no samples
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="no-samples"}'
+    values: "0+0x20"
+  - series: 'prometheus_remote_storage_samples_total{cluster="no-samples"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts: []
+# Test PrometheusRemoteStorageFailures with legacy metrics
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="legacy",url="http://legacy"}'
+    values: "0+3x20"
+  - series: 'prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="legacy",url="http://legacy"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: legacy
+        url: http://legacy
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 2.9% of the samples to legacy:http://legacy
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+# Test PrometheusNotIngestingSamples with no targets or rules
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x15"
+  - series: 'prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus",scrape_job="empty"}'
+    values: "0+0x15"
+  - series: 'prometheus_rule_group_rules{job="prometheus-prometheus",namespace="prometheus",rule_group="empty"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PrometheusNotIngestingSamples
+    exp_alerts: []
+# Test PrometheusBadConfig with sustained failures
+- interval: 1m
+  input_series:
+  - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+0x20" # Sustained config reload failures
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: PrometheusBadConfig
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Failed Prometheus configuration reload.
+        description: Prometheus prometheus/ has failed to reload its configuration.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
+# Test PrometheusRuleFailures with different failure patterns
+- interval: 1m
+  input_series:
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",rule_group="critical-rules"}'
+    values: "0+1x20"
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",rule_group="warning-rules"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRuleFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        rule_group: critical-rules
+      exp_annotations:
+        summary: Prometheus is failing rule evaluations.
+        description: Prometheus prometheus/ has failed to evaluate 5 rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+# Test PrometheusScrapeSampleLimitHit with multiple instances
+- interval: 1m
+  input_series:
+  - series: 'prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus",instance="prometheus-0"}'
+    values: "0+1x20"
+  - series: 'prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus",instance="prometheus-1"}'
+    values: "0+2x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusScrapeSampleLimitHit
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+        instance: prometheus-0
+      exp_annotations:
+        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        description: Prometheus prometheus/ has failed 5 scrapes in the last 5m because some targets exceeded the configured sample_limit.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+        instance: prometheus-1
+      exp_annotations:
+        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+# Test PrometheusOperatorNotReady recovery scenario
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="prometheus"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorNotReady
+    exp_alerts: []
+# Test PrometheusOperatorRejectedResources with zero rejections
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected",controller="prometheus",resource="prometheusrule"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorRejectedResources
+    exp_alerts: []
+# Test PrometheusOperatorRejectedResources with mixed states
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected",controller="prometheus",resource="prometheusrule"}'
+    values: "2+0x10"
+  - series: 'prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="created",controller="prometheus",resource="prometheusrule"}'
+    values: "10+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorRejectedResources
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-operator
+        namespace: prometheus
+        state: rejected
+        controller: prometheus
+        resource: prometheusrule
+      exp_annotations:
+        summary: Resources rejected by Prometheus operator
+        description: Prometheus operator in prometheus namespace rejected 2 prometheus/prometheusrule resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
+# Test boundary conditions for timing thresholds
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0+0x5" # Exactly 4 minutes down - should not alert
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+# Test boundary conditions for exactly 5 minutes down
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0+0x6" # Exactly 5 minutes down - should alert
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 5 minutes.
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+# Test PrometheusFailedRate with very high failure rate
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="high-failure"}'
+    values: "0+90x20" # 90% failure rate
+  - series: 'prometheus_remote_storage_samples_total{cluster="high-failure"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: high-failure
+      exp_annotations:
+        summary: Prometheus failed sample rate to remote storage is above 10%.
+        description: |
+          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+        runbook_url: TBD
+# Test negative scenarios - metrics not present
+- interval: 1m
+  input_series: [] # No metrics present
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts: []
+# Test with stale metrics (NaN values)
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "stale"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+# Test PrometheusRemoteStorageFailures with minimal failure rate (1.1%)
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="minimal",url="http://minimal"}'
+    values: "0+1.1x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="minimal",url="http://minimal"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: minimal
+        url: http://minimal
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 1.1% of the samples to minimal:http://minimal
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+# Test very large numbers for prometheus metrics
+- interval: 1m
+  input_series:
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}'
+    values: "0+1000x20" # Very high failure count
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRuleFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is failing rule evaluations.
+        description: Prometheus prometheus/ has failed to evaluate 5000 rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+# Test recovery after alert condition
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0+0x6 1+0x10" # Down for 6 minutes, then up
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus/prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus is unreachable for 5 minutes.
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD
+  - eval_time: 15m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+# Test PrometheusUptime exactly at 95% threshold
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus"}'
+    values: "0.95+0x1440" # Exactly 95% uptime - should not alert
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusUptime
+    exp_alerts: []
+# Test multiple namespaces and jobs
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="monitoring"}'
+    values: "0+0x10"
+  - series: 'up{job="prometheus/prometheus",namespace="observability"}'
+    values: "1+0x10"
+  - series: 'up{job="other/prometheus",namespace="prometheus"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusJobUp
+    exp_alerts: []
+# Test PrometheusRemoteStorageFailures with different namespaces
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="monitoring",remote_name="storage1",url="http://storage1"}'
+    values: "0+3x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="monitoring",remote_name="storage1",url="http://storage1"}'
+    values: "0+100x20"
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="http://storage1"}'
+    values: "0+5x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="http://storage1"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: storage1
+        url: http://storage1
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 4.8% of the samples to storage1:http://storage1
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+# Test with different pod labels
+- interval: 1m
+  input_series:
+  - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-server-0"}'
+    values: "0+0x15"
+  - series: 'prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus",pod="prometheus-server-1"}'
+    values: "100+100x15"
+  - series: 'prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus",scrape_job="test",pod="prometheus-server-0"}'
+    values: "5+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: PrometheusNotIngestingSamples
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus-prometheus
+        namespace: prometheus
+        pod: prometheus-server-0
+      exp_annotations:
+        summary: Prometheus is not ingesting samples.
+        description: Prometheus prometheus/prometheus-server-0 is not ingesting samples.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
+# Test with different cluster labels
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_pending{cluster="prod-east"}'
+    values: "45+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="prod-east"}'
+    values: "100+0x20"
+  - series: 'prometheus_remote_storage_samples_pending{cluster="prod-west"}'
+    values: "35+0x20"
+  - series: 'prometheus_remote_storage_samples_in_flight{cluster="prod-west"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusPendingRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: prod-east
+      exp_annotations:
+        summary: Prometheus pending sample rate is above 40%.
+        description: |
+          The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+          This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+          a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+          If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+          Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+        runbook_url: TBD
+# Test PrometheusOperatorNotReady with different controller types
+- interval: 1m
+  input_series:
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="prometheus"}'
+    values: "0+0x10"
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="alertmanager"}'
+    values: "0+0x10"
+  - series: 'prometheus_operator_ready{job="prometheus-operator",namespace="prometheus",controller="thanosruler"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: PrometheusOperatorNotReady
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        controller: prometheus
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus operator not ready
+        description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
+    - exp_labels:
+        severity: warning
+        controller: alertmanager
+        namespace: prometheus
+      exp_annotations:
+        summary: Prometheus operator not ready
+        description: Prometheus operator in prometheus namespace isn't ready to reconcile alertmanager resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
+# Test with different instance labels
+- interval: 1m
+  input_series:
+  - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus",instance="192.168.1.100:9090"}'
+    values: "0+0x15"
+  - series: 'prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus",instance="192.168.1.101:9090"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: PrometheusBadConfig
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        instance: 192.168.1.100:9090
+      exp_annotations:
+        summary: Failed Prometheus configuration reload.
+        description: Prometheus prometheus/ has failed to reload its configuration.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
+# Test mixed scenarios with multiple rule groups
+- interval: 1m
+  input_series:
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",rule_group="alerts.rules"}'
+    values: "0+2x20"
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",rule_group="recording.rules"}'
+    values: "0+1x20"
+  - series: 'prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus",rule_group="slo.rules"}'
+    values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRuleFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        rule_group: alerts.rules
+      exp_annotations:
+        summary: Prometheus is failing rule evaluations.
+        description: Prometheus prometheus/ has failed to evaluate 10 rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        rule_group: recording.rules
+      exp_annotations:
+        summary: Prometheus is failing rule evaluations.
+        description: Prometheus prometheus/ has failed to evaluate 5 rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+# Test with URL variations in remote storage
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="https://storage1.company.com/api/v1/write"}'
+    values: "0+3x20"
+  - series: 'prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus",remote_name="storage1",url="https://storage1.company.com/api/v1/write"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusRemoteStorageFailures
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: prometheus-prometheus
+        namespace: prometheus
+        remote_name: storage1
+        url: https://storage1.company.com/api/v1/write
+      exp_annotations:
+        summary: Prometheus fails to send samples to remote storage.
+        description: Prometheus prometheus/ failed to send 2.9% of the samples to storage1:https://storage1.company.com/api/v1/write
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures

@@ -22,8 +22,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -33,7 +31,7 @@ import (
 
 // FallbackCreateClusterWithBicep creates a complete cluster using the demo.bicep file if setup file loading fails.
 // Returns a filled SetupModel and error.
-func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, clients *api.ClientFactory, bicepJSONFileName string) (SetupModel, error) {
+func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName string) (SetupModel, error) {
 	var setup SetupModel
 	// 1. Generate names
 	clusterName := "e2e-cluster-" + rand.String(8)
@@ -75,10 +73,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 
 	// 5. Deploy the ARM template using the Azure SDK
 	deploymentName := "aro-hcp-e2e-setup"
-	deploymentsClient, err := armresources.NewDeploymentsClient(subscriptionID, creds, nil)
-	if err != nil {
-		return setup, fmt.Errorf("failed to create deployments client: %w", err)
-	}
+	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 	deploymentResult, err := framework.CreateBicepTemplateAndWait(
 		ctx,
 		deploymentsClient,
@@ -137,7 +132,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 	}
 
 	// Fetch ARM resources for ARMData
-	clusterClient := clients.NewHcpOpenShiftClustersClient()
+	clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 	clusterResp, err := clusterClient.Get(ctx, resourceGroupName, clusterName, nil)
 	var clusterData api.HcpOpenShiftCluster
 	if err != nil {
@@ -146,7 +141,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, subscriptionID string, 
 		clusterData = clusterResp.HcpOpenShiftCluster
 	}
 
-	nodepoolClient := clients.NewNodePoolsClient()
+	nodepoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
 	var nodepoolData api.NodePool
 	if err != nil {

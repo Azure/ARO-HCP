@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: prometheus
+  name: prometheus
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  podMetricsEndpoints:
+  - portNumber: 9090
+    path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: prometheus
+      app.kubernetes.io/managed-by: prometheus-operator

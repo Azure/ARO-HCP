@@ -1013,7 +1013,7 @@
         "cosmosDB",
         "eventHub"
       ]
-    },    
+    },
     "ev2": {
       "type": "object",
       "properties": {
@@ -1991,7 +1991,7 @@
         },
         "ocp": {
           "$ref": "#/definitions/acr"
-        }       
+        }
       },
       "additionalProperties": false,
       "required": [

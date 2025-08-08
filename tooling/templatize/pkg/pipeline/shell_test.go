@@ -115,7 +115,7 @@ func TestCreateCommand(t *testing.T) {
 			if tc.dryRun {
 				dryRun = &tc.step.DryRun
 			}
-			dryRunVars, err := mapStepVariables(tc.step.DryRun.Variables, tc.configuration, map[string]Output{})
+			dryRunVars, err := mapStepVariables(tc.step.DryRun.Variables, tc.configuration, Outputs{})
 			assert.NoError(t, err)
 			maps.Copy(tc.envVars, dryRunVars)
 
@@ -136,7 +136,7 @@ func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
 		cfg      config.Configuration
-		input    map[string]Output
+		input    Outputs
 		step     *types.ShellStep
 		expected map[string]string
 		err      string
@@ -220,17 +220,22 @@ func TestMapStepVariables(t *testing.T) {
 						Value: types.Value{
 							Input: &types.Input{
 								Name: "output1",
-								Step: "step1",
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "step1",
+								},
 							},
 						},
 					},
 				},
 			},
-			input: map[string]Output{
-				"step1": ArmOutput{
-					"output1": map[string]any{
-						"type":  "String",
-						"value": "bar",
+			input: Outputs{
+				"rg": map[string]Output{
+					"step1": ArmOutput{
+						"output1": map[string]any{
+							"type":  "String",
+							"value": "bar",
+						},
 					},
 				},
 			},
@@ -248,7 +253,10 @@ func TestMapStepVariables(t *testing.T) {
 						Value: types.Value{
 							Input: &types.Input{
 								Name: "output1",
-								Step: "step1",
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "step1",
+								},
 							},
 						},
 					},
@@ -266,17 +274,22 @@ func TestMapStepVariables(t *testing.T) {
 						Value: types.Value{
 							Input: &types.Input{
 								Name: "output1",
-								Step: "step1",
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "step1",
+								},
 							},
 						},
 					},
 				},
 			},
-			input: map[string]Output{
-				"step1": ArmOutput{
-					"anotheroutput": map[string]any{
-						"type":  "String",
-						"value": "bar",
+			input: Outputs{
+				"rg": map[string]Output{
+					"step1": ArmOutput{
+						"anotheroutput": map[string]any{
+							"type":  "String",
+							"value": "bar",
+						},
 					},
 				},
 			},
@@ -339,7 +352,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
+			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, Outputs{}, &buf)
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -355,7 +368,7 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 
-	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, map[string]Output{}, &buf)
+	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, Outputs{}, &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
 }

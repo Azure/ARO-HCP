@@ -54,7 +54,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs map[string]Output, outputWriter io.Writer) error {
+func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs Outputs, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -162,7 +162,7 @@ func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.C
 	return completed.Register(ctx)
 }
 
-func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs map[string]Output) (map[string]string, error) {
+func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
 	values, err := getInputValues(vars, cfg, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)

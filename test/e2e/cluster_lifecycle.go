@@ -128,7 +128,7 @@ var _ = Describe("HCPOpenShiftCluster Lifecycle", func() {
 		location := tc.Location()
 
 		// Define values for the new properties, we need the version which not currently specified in the infra only json config, network values are default and we probably don't need them here.
-		versionID := "openshift-v4.19.0"
+		versionID := "4.19.0"
 		channelGroup := "stable"
 		networkType := api.NetworkTypeOVNKubernetes
 		podCidr := "10.128.0.0/14"

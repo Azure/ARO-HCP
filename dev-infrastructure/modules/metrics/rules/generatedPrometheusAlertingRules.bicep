@@ -354,7 +354,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}   / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)   > 0.9 < 1'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -370,7 +370,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}   / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)   == 1'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -402,7 +402,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace)   / sum(increase(container_cpu_cfs_periods_total{}[5m])) by (cluster, container, pod, namespace)   > ( 25 / 100 )'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
     ]
     scopes: [
@@ -430,7 +430,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '(   kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}     /   kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -462,7 +462,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '(   kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}     /   kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -494,7 +494,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -568,7 +568,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -586,7 +586,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -666,7 +666,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -713,7 +713,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="apiserver"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -789,7 +789,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'count by(cluster, node) (   (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) (   kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
         for: 'PT15M'
-        severity: 4
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -867,7 +867,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -897,7 +897,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -945,7 +945,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'absent(up{job="kubelet", metrics_path="/metrics"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -973,7 +973,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="kube-scheduler"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1001,7 +1001,235 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'absent(up{job="kube-controller-manager"} == 1)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prometheus-wip-rules'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusJobUp'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: '''Prometheus has not been reachable for the past 5 minutes.
+This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+Check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 5 minutes.'
+        }
+        expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusUptime'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus is unreachable for 1 day.'
+        }
+        expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusPendingRate'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus pending sample rate is above 40%.'
+        }
+        expression: '(   prometheus_remote_storage_samples_pending   /   prometheus_remote_storage_samples_in_flight ) > 0.4'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusFailedRate'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus failed sample rate to remote storage is above 10%.'
+        }
+        expression: '(   rate(prometheus_remote_storage_samples_failed_total[5m])   /   rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prometheus-rules'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusRemoteStorageFailures'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures'
+          summary: 'Prometheus fails to send samples to remote storage.'
+        }
+        expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusNotIngestingSamples'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples'
+          summary: 'Prometheus is not ingesting samples.'
+        }
+        expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) <= 0 and (sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus"}) > 0 or sum without (rule_group) (prometheus_rule_group_rules{job="prometheus-prometheus",namespace="prometheus"}) > 0))'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusBadConfig'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig'
+          summary: 'Failed Prometheus configuration reload.'
+        }
+        expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusRuleFailures'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures'
+          summary: 'Prometheus is failing rule evaluations.'
+        }
+        expression: 'increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusScrapeSampleLimitHit'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
+          summary: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
+        }
+        expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'prometheus-operator-rules'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusOperatorNotReady'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          description: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready'
+          summary: 'Prometheus operator not ready'
+        }
+        expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'PrometheusOperatorRejectedResources'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          description: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
+          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources'
+          summary: 'Resources rejected by Prometheus operator'
+        }
+        expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
+        for: 'PT5M'
+        severity: 3
       }
     ]
     scopes: [

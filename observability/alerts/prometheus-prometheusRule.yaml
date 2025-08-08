@@ -1,0 +1,143 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: prometheus-monitoring-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: prometheus-wip-rules
+    rules:
+    - alert: PrometheusJobUp
+      expr: min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        description: |
+          Prometheus has not been reachable for the past 5 minutes.
+          This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
+          Check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
+        summary: Prometheus is unreachable for 5 minutes.
+    - alert: PrometheusUptime
+      expr: avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        description: |
+          Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+          Please check the status of the Prometheus pods, service endpoints, and network connectivity.
+        runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
+        summary: Prometheus is unreachable for 1 day.
+    - alert: PrometheusPendingRate
+      expr: |
+        (
+          prometheus_remote_storage_samples_pending
+          /
+          prometheus_remote_storage_samples_in_flight
+        ) > 0.4
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        description: |
+          The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
+          This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
+          a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
+          If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
+          Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
+        runbook_url: TBD
+        summary: Prometheus pending sample rate is above 40%.
+    - alert: PrometheusFailedRate
+      expr: |
+        (
+          rate(prometheus_remote_storage_samples_failed_total[5m])
+          /
+          rate(prometheus_remote_storage_samples_total[5m])
+        ) > 0.1
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        description: |
+          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+        runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+        summary: Prometheus failed sample rate to remote storage is above 10%.
+  - name: prometheus-rules
+    rules:
+    - alert: PrometheusRemoteStorageFailures
+      expr: ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        description: Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+        summary: Prometheus fails to send samples to remote storage.
+    - alert: PrometheusNotIngestingSamples
+      expr: (sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) <= 0 and (sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus-prometheus",namespace="prometheus"}) > 0 or sum without (rule_group) (prometheus_rule_group_rules{job="prometheus-prometheus",namespace="prometheus"}) > 0))
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
+        summary: Prometheus is not ingesting samples.
+    - alert: PrometheusBadConfig
+      expr: max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
+        summary: Failed Prometheus configuration reload.
+    - alert: PrometheusRuleFailures
+      expr: increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures
+        summary: Prometheus is failing rule evaluations.
+    - alert: PrometheusScrapeSampleLimitHit
+      expr: increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+  - name: prometheus-operator-rules
+    rules:
+    - alert: PrometheusOperatorNotReady
+      expr: min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: Prometheus operator in {{ $labels.namespace }} namespace isn't ready to reconcile {{ $labels.controller }} resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
+        summary: Prometheus operator not ready
+    - alert: PrometheusOperatorRejectedResources
+      expr: min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.
+        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
+        summary: Resources rejected by Prometheus operator

@@ -1,19 +1,19 @@
 acm:
   mce:
     bundle:
-      digest: sha256:1f5c4a3fb695ffbbf04521e7435157fd603311180908d538c59cb4a8062dbaef
+      digest: sha256:4d9d003842e3ffc386f4e07ce7a81cfa85e676031fb6fdc96aefa9654244974a
       registry: registry.redhat.io
       repository: multicluster-engine/mce-operator-bundle
-    mirrorAdditionalVersions: 2.8.2,2.9.0
-    pauseReconciliation: true
-    version: 2.8.1
+    mirrorAdditionalVersions: 2.8.1,2.8.2
+    pauseReconciliation: false
+    version: 2.9.0
   operator:
     bundle:
-      digest: sha256:ee0dcef1c136bb88ff9c6face87b3f07b22ca8e03896dc66b5f086e69657748d
+      digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157
       registry: registry.redhat.io
       repository: rhacm2/acm-operator-bundle
-    mirrorAdditionalVersions: 2.12.0,2.14.0
-    version: 2.13.0
+    mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1
+    version: 2.14.0
 acr:
   ocp:
     name: arohcpocpdev
@@ -104,7 +104,7 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:1bb9f13def38ff771df1afb7c47496c2aab89915328f8c3066b966f744b2e26d
+    digest: sha256:9e42358ccc59e25eec67f893961183e6b77f70ff3ec0bddb1b2b80411b7944d3
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:

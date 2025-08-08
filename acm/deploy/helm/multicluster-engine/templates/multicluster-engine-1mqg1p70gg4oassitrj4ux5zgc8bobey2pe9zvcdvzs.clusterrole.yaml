@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: multicluster-engine-ixu1k452vplrmrwqn1we7nyr579d3i93vr116pfyu3e
+  name: multicluster-engine-1mqg1p70gg4oassitrj4ux5zgc8bobey2pe9zvcdvzs
 rules:
 - apiGroups:
   - ""
@@ -123,6 +123,13 @@ rules:
   - secrets
   verbs:
   - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -136,6 +143,15 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - services
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - ""
@@ -182,7 +198,12 @@ rules:
   - events
   verbs:
   - create
+  - delete
+  - get
+  - list
   - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -227,8 +248,11 @@ rules:
   resources:
   - nodes
   verbs:
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -306,6 +330,7 @@ rules:
   - serviceaccounts/token
   verbs:
   - create
+  - get
 - apiGroups:
   - ""
   resources:
@@ -646,6 +671,30 @@ rules:
   verbs:
   - patch
   - update
+- apiGroups:
+  - addons.cluster.x-k8s.io
+  resources:
+  - clusterresourcesets/finalizers
+  - clusterresourcesets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - addons.cluster.x-k8s.io
+  - bootstrap.cluster.x-k8s.io
+  - controlplane.cluster.x-k8s.io
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - admission.hive.openshift.io
   resources:
@@ -1148,6 +1197,50 @@ rules:
   - update
   - watch
 - apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - eksconfigs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - eksconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  resources:
+  - openshiftassistedconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - bootstrap.cluster.x-k8s.io
+  - controlplane.cluster.x-k8s.io
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - capi-provider.agent-install.openshift.io
   resources:
   - agentmachines
@@ -1480,6 +1573,163 @@ rules:
   verbs:
   - update
 - apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusterclasses
+  - clusterclasses/status
+  - clusters
+  - clusters/finalizers
+  - clusters/status
+  - machinehealthchecks/finalizers
+  - machinehealthchecks/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - clusters/status
+  - machinedeployments
+  - machines/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - clusters/status
+  - machines
+  - machines/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - clusters/status
+  - machinesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - machines
+  - machinesets
+  - machinesets/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters/status
+  verbs:
+  - get
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - kubeadmcontrolplanes
+  - machinedeployments
+  - machines
+  - machines/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinedeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinedeployments
+  - machinedeployments/finalizers
+  - machinedeployments/status
+  - machinehealthchecks
+  - machinepools
+  - machinepools/finalizers
+  - machinepools/status
+  - machines
+  - machines/finalizers
+  - machines/status
+  - machinesets
+  - machinesets/finalizers
+  - machinesets/status
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinedrainrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinepools
+  verbs:
+  - list
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinepools
+  - machinepools/status
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
   - clusterview.open-cluster-management.io
   resources:
   - managedclusters
@@ -1609,6 +1859,69 @@ rules:
   - update
   - watch
 - apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - awsmanagedcontrolplanes
+  - rosacontrolplanes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - awsmanagedcontrolplanes/status
+  - rosacontrolplanes/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - openshiftassistedcontrolplanes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - openshiftassistedcontrolplanes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - openshiftassistedcontrolplanes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - rosacontrolplanes/finalizers
+  verbs:
+  - update
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
@@ -1719,6 +2032,15 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - extensions.hive.openshift.io
+  resources:
+  - agentclusterinstalls
+  - agentclusterinstalls/status
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - extensions.hive.openshift.io
@@ -1835,6 +2157,19 @@ rules:
   - hive.openshift.io
   resources:
   - clusterdeployments
+  - clusterimagesets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
   - selectorsyncsets
   - syncsets
   verbs:
@@ -1900,6 +2235,14 @@ rules:
   - hypershift.openshift.io
   resources:
   - hostedclusters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedclusters
   - nodepools
   verbs:
   - delete
@@ -1934,6 +2277,128 @@ rules:
   - update
   - watch
 - apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclustercontrolleridentities
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclusterroleidentities
+  - awsclusterstaticidentities
+  - awsmachinetemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclusters
+  - awsfargateprofiles
+  - awsmachinepools
+  - awsmanagedclusters
+  - awsmanagedmachinepools
+  - rosaclusters
+  - rosamachinepools
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsclusters/status
+  - awsfargateprofiles/status
+  - rosaclusters/status
+  - rosamachinepools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsmachinepools/status
+  - awsmachines/status
+  - awsmanagedclusters/status
+  - awsmanagedmachinepools/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - awsmachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - metal3clusters
+  - metal3dataclaims
+  - metal3datas
+  - metal3datatemplates
+  - metal3machines
+  - metal3machinetemplates
+  - metal3remediations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - metal3clusters/status
+  - metal3dataclaims/status
+  - metal3datas/status
+  - metal3datatemplates/status
+  - metal3machines/status
+  - metal3remediations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - metal3machines
+  - metal3machinetemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - rosamachinepools/finalizers
+  verbs:
+  - update
+- apiGroups:
   - internal.open-cluster-management.io
   resources:
   - managedclusterinfos
@@ -1962,10 +2427,90 @@ rules:
   - patch
   - update
 - apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddressclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  resources:
+  - ipaddressclaims/status
+  verbs:
+  - get
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  - ipam.metal3.io
+  resources:
+  - ipaddresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.cluster.x-k8s.io
+  - ipam.metal3.io
+  resources:
+  - ipaddresses/status
+  verbs:
+  - get
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipaddresses
+  - ipclaims
+  - ippools
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipaddresses/status
+  - ipclaims/status
+  - ippools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims/status
+  verbs:
+  - get
+  - watch
+- apiGroups:
   - metal3.io
   resources:
   - baremetalhosts
   verbs:
+  - create
+  - delete
   - get
   - list
   - patch
@@ -1984,6 +2529,14 @@ rules:
   resources:
   - baremetalhosts/finalizers
   verbs:
+  - update
+- apiGroups:
+  - metal3.io
+  resources:
+  - baremetalhosts/status
+  verbs:
+  - get
+  - patch
   - update
 - apiGroups:
   - metal3.io
@@ -2098,6 +2651,25 @@ rules:
   - patch
   - update
 - apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
@@ -2109,6 +2681,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - get
+  - update
 - apiGroups:
   - operator.open-cluster-management.io
   resources:
@@ -2370,6 +2950,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - rbac.open-cluster-management.io
+  resources:
+  - clusterpermissions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - register.open-cluster-management.io
   resources:
   - managedclusters/accept
@@ -2414,6 +3002,17 @@ rules:
   - update
   - watch
 - apiGroups:
+  - runtime.cluster.x-k8s.io
+  resources:
+  - extensionconfigs
+  - extensionconfigs/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - scheduling.k8s.io
   resources:
   - priorityclasses
@@ -2423,9 +3022,23 @@ rules:
   - patch
   - update
 - apiGroups:
+  - search.open-cluster-management.io
+  resources:
+  - searches
+  verbs:
+  - list
+  - watch
+- apiGroups:
   - storage.k8s.io
   resources:
   - storageclasses
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - volumeattachments
   verbs:
   - list
   - watch

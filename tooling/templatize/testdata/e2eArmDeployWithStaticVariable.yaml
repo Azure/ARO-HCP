@@ -1,7 +1,8 @@
 serviceGroup: Microsoft.Azure.ARO.Test
 rolloutName: Test Rollout
 resourceGroups:
-- name: '{{ .rg }}'
+- name: rg
+  resourceGroup: '{{ .rg }}'
   subscription: '{{ .subscription }}'
   steps:
   - name: createZone
@@ -20,5 +21,6 @@ resourceGroups:
     variables:
     - name: zoneName
       input:
+        resourceGroup: rg
         name: zoneName
         step: createZone

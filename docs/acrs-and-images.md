@@ -67,7 +67,8 @@ clustersService:
       configRef: imageSync.ondemandSync.pullSecretName
     shellIdentity:
       input:
-          step: global-output
+          resourceGroup: global
+          step: output
           name: globalMSIId
 ```
 

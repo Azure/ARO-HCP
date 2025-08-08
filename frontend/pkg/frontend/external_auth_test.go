@@ -49,7 +49,7 @@ var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.T
 
 var dummyURL = "Spain"
 var dummyAudiences = []string{"audience1"}
-var dummyClaim = "openshift-v4.18.0"
+var dummyClaim = "4.18.0"
 
 func TestCreateExternalAuth(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)

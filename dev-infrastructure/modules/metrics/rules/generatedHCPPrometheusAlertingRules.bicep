@@ -23,7 +23,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[5m])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[5m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[5m])) > 5 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1h])) > 60'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -39,7 +39,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h])) > 360'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -55,7 +55,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1d])) > 1440'
         for: 'PT1H'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -71,7 +71,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[3d])) > 4320'
         for: 'PT3H'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -99,7 +99,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -115,7 +115,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -131,7 +131,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(1 - (sum_over_time(frontend_health[1h]) / 3600)) >= (300 / 3600)'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [

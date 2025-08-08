@@ -32,7 +32,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	for _, version := range []string{
-		"openshift-v4.18.1",
+		"4.18.1",
 		// TODO add other disabled versions here.
 	} {
 		It("should not be able to create a "+version+" HCP cluster",
