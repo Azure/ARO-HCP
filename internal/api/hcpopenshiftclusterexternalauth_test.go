@@ -194,9 +194,9 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 			expectErrors: nil,
 		},
-		// //--------------------------------
-		// // Complex field validation
-		// //--------------------------------
+		//--------------------------------
+		// Complex field validation
+		//--------------------------------
 		{
 			name: "Valid ClientId in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
