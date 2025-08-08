@@ -42,6 +42,10 @@ services:
         pipelinePath: secret-sync-controller/pipeline.yaml
         purpose: Deploy the Secret Sync Controller.
       - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+        children:
+        - serviceGroup: Microsoft.Azure.ARO.HCP.ACM.Policies
+          pipelinePath: acm/policies/pipeline.yaml
+          purpose: Deploy ACM Policies independently.
         pipelinePath: acm/pipeline.yaml
         purpose: Deploy Advanced Cluster Management and Multi-Cluster Engine.
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator

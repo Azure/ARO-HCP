@@ -53,25 +53,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: deploy-policies
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make deploy-policies
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ARO_HCP_IMAGE_ACR
-      configRef: acr.svc.name
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: deploy
   - name: scale-down
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
