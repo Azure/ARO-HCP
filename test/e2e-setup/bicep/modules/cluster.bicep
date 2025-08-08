@@ -14,7 +14,7 @@ param vnetName string
 param subnetName string
 
 @description('OpenShift Version ID to use')
-param openshiftVersionId string = '4.19.0'
+param openshiftVersionId string = '4.19'
 
 @description('Cluster Managed Identities: ')
 param userAssignedIdentitiesValue object
