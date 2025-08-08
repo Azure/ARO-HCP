@@ -14,7 +14,7 @@ tests:
       exp_alerts:
         - exp_labels:
             alertname: MiseEnvoyScrapeDown
-            severity: critical
+            severity: info
             job: envoy-stats
             namespace: mise
           exp_annotations:
@@ -30,7 +30,7 @@ tests:
       exp_alerts:
         - exp_labels:
             alertname: MiseEnvoyScrapeDown
-            severity: critical
+            severity: info
             job: envoy-stats
             namespace: mise
           exp_annotations:
