@@ -942,6 +942,16 @@ clouds:
             subscription:
               key: ARO HCP nightly service (EA Subscription)
       pers:
+        # Regional overrides
+        regions:
+          switzerlandnorth:
+            oidc:
+              storageAccount:
+                privateLinkLocation: germanywestcentral
+          westus:
+            oidc:
+              storageAccount:
+                privateLinkLocation: westus3
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
