@@ -48,11 +48,30 @@ convert_bicep_to_json() {
     fi
 }
 
-convert_bicep_to_json "${project_root}/demo/bicep/customer-infra.bicep" "${OUTPUT_DIR}/standard-cluster-create/customer-infra.json"
-convert_bicep_to_json "${project_root}/demo/bicep/cluster.bicep" "${OUTPUT_DIR}/standard-cluster-create/cluster.json"
-convert_bicep_to_json "${project_root}/demo/bicep/nodepool.bicep" "${OUTPUT_DIR}/standard-cluster-create/nodepool.json"
+demo_bicep_dir="${project_root}/demo/bicep"
+std_cluster_bicep_dir="${OUTPUT_DIR}/standard-cluster-create/"
 
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/cmk-etcd/cmk-etcd-cluster.bicep" "${OUTPUT_DIR}/cmk-etcd/cmk-etcd-cluster.json"
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
+demo_bicep_files=(
+  "customer-infra.bicep"
+  "cluster.bicep"
+  "nodepool.bicep"
+)
 
+for bicep_file in ${demo_bicep_files[@]}
+do
+  convert_bicep_to_json "${demo_bicep_dir}/${bicep_file}" "${std_cluster_bicep_dir}/${bicep_file}"
+done
+
+test_bicep_file_paths=(
+  "cmk-etcd/cmk-etcd-cluster.bicep"
+  "illegal-install-version/cluster.bicep"
+  "image-registry/disabled-image-registry-cluster.bicep"
+)
+
+test_bicep_dir="${project_root}/test/e2e/test-artifacts"
+
+for bicep_file_path in "${test_bicep_file_paths[@]}"
+do
+  data=(${bicep_file_path//\// })
+  convert_bicep_to_json "${test_bicep_dir}/${data[0]}/${data[1]}" "${OUTPUT_DIR}/${data[0]}/${data[1]%.bicep}.json"
+done
