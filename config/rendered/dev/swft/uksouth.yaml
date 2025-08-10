@@ -329,11 +329,12 @@ mgmt:
       tagKey: aroHCPPurpose
       tagValue: etcd-encryption
     infraAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 2
       vmSize: Standard_D2s_v3
+      zones: null
     kubernetesVersion: 1.32.5
     name: swft-lnstest-mgmt-1
     networkDataplane: azure
@@ -341,17 +342,19 @@ mgmt:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      azCount: 1
       maxCount: 4
       minCount: 1
       osDiskSizeGB: 128
+      poolCount: 1
       vmSize: Standard_E8s_v3
+      zones: null
     userAgentPool:
-      azCount: 3
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 128
+      poolCount: 3
       vmSize: Standard_D16s_v3
+      zones: null
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
   jaeger:
@@ -539,11 +542,12 @@ svc:
       tagKey: aroHCPPurpose
       tagValue: etcd-encryption
     infraAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
-      vmSize: Standard_D2s_v3
+      poolCount: 1
+      vmSize: Standard_D2ds_v5
+      zones: null
     kubernetesVersion: 1.32.5
     name: swft-lnstest-svc
     networkDataplane: cilium
@@ -551,17 +555,19 @@ svc:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
-      vmSize: Standard_D2s_v3
+      poolCount: 1
+      vmSize: Standard_D2ds_v5
+      zones: null
     userAgentPool:
-      azCount: 3
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
-      vmSize: Standard_D2s_v3
+      poolCount: 3
+      vmSize: Standard_D2ds_v5
+      zones: null
     vnetAddressPrefix: 10.128.0.0/14
   istio:
     ingressGatewayIPAddressIPTags: ""

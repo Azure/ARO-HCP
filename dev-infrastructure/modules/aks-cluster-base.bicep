@@ -16,18 +16,22 @@ param metricAnnotationsAllowList string = ''
 param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
+param systemAgentPoolZones array
+param systemAgentPoolCount int
 
 // User agentpool spec (Worker)
 param userAgentMinCount int
 param userAgentMaxCount int
 param userAgentVMSize string
-param userAgentPoolAZCount int
+param userAgentPoolZones array
+param userAgentPoolCount int
 
 // User agentpool spec (Infra)
 param infraAgentMinCount int
 param infraAgentMaxCount int
 param infraAgentVMSize string
-param infraAgentPoolAZCount int
+param infraAgentPoolZones array
+param infraAgentPoolCount int
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -37,10 +41,7 @@ param location string
 
 @description('The resource group hosting IP Addresses of the AKS Clusters')
 param ipResourceGroup string
-
-@description('List of Availability Zones to use for the AKS cluster')
-param locationAvailabilityZones array
-var locationHasAvailabilityZones = length(locationAvailabilityZones) > 0
+param ipZones array
 
 param kubernetesVersion string
 param deployIstio bool
@@ -309,7 +310,7 @@ module istioIngressGatewayIPAddress '../modules/network/publicipaddress.bicep' =
     name: istioIngressGatewayIPAddressName
     ipTags: istioIngressGatewayIPAddressIPTagsArray
     location: location
-    zones: locationHasAvailabilityZones ? locationAvailabilityZones : null
+    zones: length(ipZones) > 0 ? ipZones : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -327,7 +328,7 @@ module aksClusterOutboundIPAddress '../modules/network/publicipaddress.bicep' = 
     name: aksClusterOutboundIPAddressName
     ipTags: aksClusterOutboundIPAddressIPTagsArray
     location: location
-    zones: locationHasAvailabilityZones ? locationAvailabilityZones : null
+    zones: length(ipZones) > 0 ? ipZones : null
     // Role Assignment needed for the public IP address to be used on the Load Balancer
     roleAssignmentProperties: {
       principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -423,7 +424,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
-        availabilityZones: locationHasAvailabilityZones ? locationAvailabilityZones : null
+        availabilityZones: length(systemAgentPoolZones) > 0 ? systemAgentPoolZones : null
         securityProfile: {
           enableSecureBoot: false
           enableVTPM: false
@@ -550,85 +551,46 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   ]
 }
 
-resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, min(userAgentPoolAZCount, 3)): {
-    parent: aksCluster
-    name: 'user${take(string(i+1), 8)}'
-    properties: {
-      osType: 'Linux'
-      osSKU: 'AzureLinux'
-      mode: 'User'
-      enableAutoScaling: true
-      enableEncryptionAtHost: true
-      enableFIPS: true
-      enableNodePublicIP: false
-      kubeletDiskType: 'OS'
-      osDiskType: 'Ephemeral'
-      osDiskSizeGB: userOsDiskSizeGB
-      count: userAgentMinCount
-      minCount: userAgentMinCount
-      maxCount: userAgentMaxCount
-      vmSize: userAgentVMSize
-      type: 'VirtualMachineScaleSets'
-      upgradeSettings: {
-        maxSurge: '10%'
-      }
-      vnetSubnetID: aksNodeSubnet.id
-      podSubnetID: aksPodSubnet.id
-      maxPods: 225
-      availabilityZones: locationHasAvailabilityZones ? [locationAvailabilityZones[i]] : null
-      securityProfile: {
-        enableSecureBoot: false
-        enableVTPM: false
-      }
-      nodeLabels: {
-        'aro-hcp.azure.com/role': 'worker'
-      }
-      tags: swiftNodepoolTags
-    }
+module userAgentPools '../modules/aks/pool.bicep' = {
+  name: 'user-agent-pools'
+  params: {
+    aksClusterName: aksCluster.name
+    poolBaseName: 'user'
+    poolZones: userAgentPoolZones
+    poolCount: userAgentPoolCount
+    poolRole: 'worker'
+    enableSwitftV2: enableSwiftV2Nodepools
+    minCount: userAgentMinCount
+    maxCount: userAgentMaxCount
+    vmSize: userAgentVMSize
+    osDiskSizeGB: userOsDiskSizeGB
+    vnetSubnetId: aksNodeSubnet.id
+    podSubnetId: aksPodSubnet.id
+    maxPods: 225
   }
-]
+}
 
-resource infraAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2024-10-01' = [
-  for i in range(0, min(infraAgentPoolAZCount, 3)): {
-    parent: aksCluster
-    name: 'infra${take(string(i+1), 7)}'
-    properties: {
-      osType: 'Linux'
-      osSKU: 'AzureLinux'
-      mode: 'User'
-      enableAutoScaling: true
-      enableEncryptionAtHost: true
-      enableFIPS: true
-      enableNodePublicIP: false
-      kubeletDiskType: 'OS'
-      osDiskType: 'Ephemeral'
-      osDiskSizeGB: infraOsDiskSizeGB
-      count: infraAgentMinCount
-      minCount: infraAgentMinCount
-      maxCount: infraAgentMaxCount
-      vmSize: infraAgentVMSize
-      type: 'VirtualMachineScaleSets'
-      upgradeSettings: {
-        maxSurge: '10%'
-      }
-      vnetSubnetID: aksNodeSubnet.id
-      podSubnetID: aksPodSubnet.id
-      maxPods: 225
-      availabilityZones: locationHasAvailabilityZones ? [locationAvailabilityZones[i]] : null
-      securityProfile: {
-        enableSecureBoot: false
-        enableVTPM: false
-      }
-      nodeLabels: {
-        'aro-hcp.azure.com/role': 'infra'
-      }
-      nodeTaints: [
-        'infra=true:NoSchedule'
-      ]
-    }
+module infraAgentPools '../modules/aks/pool.bicep' = {
+  name: 'infra-agent-pools'
+  params: {
+    aksClusterName: aksCluster.name
+    poolBaseName: 'infra'
+    poolZones: infraAgentPoolZones
+    poolCount: infraAgentPoolCount
+    poolRole: 'infra'
+    enableSwitftV2: enableSwiftV2Nodepools
+    minCount: infraAgentMinCount
+    maxCount: infraAgentMaxCount
+    vmSize: infraAgentVMSize
+    osDiskSizeGB: infraOsDiskSizeGB
+    vnetSubnetId: aksNodeSubnet.id
+    podSubnetId: aksPodSubnet.id
+    maxPods: 225
+    taints: [
+      'infra=true:NoSchedule'
+    ]
   }
-]
+}
 
 //
 // ACR Pull Permissions on the own resource group and the resource groups provided

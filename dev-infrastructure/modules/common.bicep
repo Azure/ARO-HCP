@@ -410,7 +410,7 @@ var _locationAvailabilityZones = {
 
 @export()
 func splitOrEmptyArray(inputString string, delimiter string) array =>
-  inputString == '' ? [] : split(inputString, delimiter)
+  inputString == '' || inputString == null ? [] : split(inputString, delimiter)
 
 @export()
 func csvToArray(inputString string) array => splitOrEmptyArray(inputString, ',')
@@ -431,6 +431,9 @@ func determineZoneRedundancyForRegion(region string, mode string) bool =>
 @export()
 func determineZoneRedundancy(availabilityZones array, mode string) bool =>
   mode == 'Auto' ? length(availabilityZones) > 0 : mode == 'Enabled' && length(availabilityZones) > 0
+
+@export()
+func generateZoneList(count int) array => count > 0 ? map(range(1, count), i => string(i)) : []
 
 @export()
 type IPServiceTag = {

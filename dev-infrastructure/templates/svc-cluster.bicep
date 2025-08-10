@@ -25,6 +25,12 @@ param systemAgentMaxCount int
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string
 
+@description('Number of pools to create for system nodes')
+param systemAgentPoolCount int
+
+@description('Zones to use for the system nodes')
+param systemAgentPoolZones string
+
 @description('Disk size for the AKS system nodes')
 param aksSystemOsDiskSizeGB int
 
@@ -46,8 +52,11 @@ param userAgentMaxCount int
 @description('VM instance type for the worker nodes')
 param userAgentVMSize string
 
-@description('Number of availability zones to use for the AKS clusters user agent pool')
-param userAgentPoolAZCount int
+@description('Number of pools to create for user nodes')
+param userAgentPoolCount int
+
+@description('Zones to use for the user nodes')
+param userAgentPoolZones string
 
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
@@ -58,8 +67,11 @@ param infraAgentMaxCount int
 @description('VM instance type for the infra worker nodes')
 param infraAgentVMSize string
 
-@description('Number of availability zones to use for the AKS clusters infra user agent pool')
-param infraAgentPoolAZCount int
+@description('Number of pools to create for infra nodes')
+param infraAgentPoolCount int
+
+@description('Zones to use for the infra nodes')
+param infraAgentPoolZones string
 
 @description('Disk size for the AKS infra nodes')
 param aksInfraOsDiskSizeGB int
@@ -390,8 +402,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
-    locationAvailabilityZones: locationAvailabilityZoneList
     ipResourceGroup: regionalResourceGroup
+    ipZones: locationAvailabilityZoneList
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
     aksEtcdKVEnableSoftDelete: aksEtcdKVEnableSoftDelete
@@ -411,15 +423,19 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
-    userAgentPoolAZCount: userAgentPoolAZCount
+    userAgentPoolCount: userAgentPoolCount
+    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0 ? csvToArray(userAgentPoolZones) : locationAvailabilityZoneList
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolAZCount: infraAgentPoolAZCount
+    infraAgentPoolCount: infraAgentPoolCount
+    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0 ? csvToArray(infraAgentPoolZones) : locationAvailabilityZoneList
     infraOsDiskSizeGB: aksInfraOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
+    systemAgentPoolCount: systemAgentPoolCount
+    systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0 ? csvToArray(systemAgentPoolZones) : locationAvailabilityZoneList
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     workloadIdentities: items({
