@@ -35,7 +35,7 @@ param systemAgentPoolZones string
 param aksSystemOsDiskSizeGB int
 
 @description('Disk size for the AKS user nodes')
-param aksUserOsDiskSizeGB int
+param userOsDiskSizeGB int
 
 @description('Network dataplane plugin for the AKS cluster')
 param aksNetworkDataplane string
@@ -74,7 +74,7 @@ param infraAgentPoolCount int
 param infraAgentPoolZones string
 
 @description('Disk size for the AKS infra nodes')
-param aksInfraOsDiskSizeGB int
+param infraOsDiskSizeGB int
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -419,7 +419,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     systemOsDiskSizeGB: aksSystemOsDiskSizeGB
-    userOsDiskSizeGB: aksUserOsDiskSizeGB
+    userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
@@ -434,7 +434,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
       ? csvToArray(infraAgentPoolZones)
       : locationAvailabilityZoneList
-    infraOsDiskSizeGB: aksInfraOsDiskSizeGB
+    infraOsDiskSizeGB: infraOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize

@@ -11,10 +11,10 @@ var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
 param aksClusterName string = 'aro-hcp-aks'
 
 @description('Disk size for the AKS system nodes')
-param aksSystemOsDiskSizeGB int
+param systemOsDiskSizeGB int
 
 @description('Disk size for the AKS user nodes')
-param aksUserOsDiskSizeGB int
+param userOsDiskSizeGB int
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -37,8 +37,11 @@ param userAgentMaxCount int = 3
 @description('VM instance type for the worker nodes')
 param userAgentVMSize string = 'Standard_D2s_v3'
 
-@description('Availability Zone count for worker nodes')
-param userAgentPoolAZCount int = 3
+@description('Number of pools to create for user nodes')
+param userAgentPoolCount int
+
+@description('Zones to use for the user nodes')
+param userAgentPoolZones string
 
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
@@ -49,11 +52,14 @@ param infraAgentMaxCount int
 @description('VM instance type for the infra worker nodes')
 param infraAgentVMSize string
 
-@description('Number of availability zones to use for the AKS clusters infra user agent pool')
-param infraAgentPoolAZCount int
+@description('Number of pools to create for infra nodes')
+param infraAgentPoolCount int
+
+@description('Zones to use for the infra nodes')
+param infraAgentPoolZones string
 
 @description('Disk size for the AKS infra nodes')
-param aksInfraOsDiskSizeGB int
+param infraOsDiskSizeGB int
 
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
@@ -63,6 +69,12 @@ param systemAgentMaxCount int = 3
 
 @description('VM instance type for the system nodes')
 param systemAgentVMSize string = 'Standard_D2s_v3'
+
+@description('Number of pools to create for system nodes')
+param systemAgentPoolCount int
+
+@description('Zones to use for the system nodes')
+param systemAgentPoolZones string
 
 @description('Network dataplane plugin for the AKS cluster')
 param aksNetworkDataplane string
@@ -202,7 +214,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   scope: resourceGroup()
   params: {
     location: location
-    locationAvailabilityZones: locationAvailabilityZoneList
+    ipZones: locationAvailabilityZoneList
     ipResourceGroup: resourceGroup().name
     aksClusterName: aksClusterName
     aksNodeResourceGroupName: aksNodeResourceGroupName
@@ -242,22 +254,32 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultTagValue: aksKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
-    userAgentMinCount: userAgentMinCount
-    userAgentPoolAZCount: userAgentPoolAZCount
-    userAgentMaxCount: userAgentMaxCount
-    userAgentVMSize: userAgentVMSize
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
-    systemOsDiskSizeGB: aksSystemOsDiskSizeGB
+    systemAgentPoolCount: systemAgentPoolCount
+    systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
+      ? csvToArray(systemAgentPoolZones)
+      : locationAvailabilityZoneList
+    systemOsDiskSizeGB: systemOsDiskSizeGB
+    userOsDiskSizeGB: userOsDiskSizeGB
+    userAgentMinCount: userAgentMinCount
+    userAgentMaxCount: userAgentMaxCount
+    userAgentVMSize: userAgentVMSize
+    userAgentPoolCount: userAgentPoolCount
+    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
+      ? csvToArray(userAgentPoolZones)
+      : locationAvailabilityZoneList
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
-    infraAgentPoolAZCount: infraAgentPoolAZCount
-    infraOsDiskSizeGB: aksInfraOsDiskSizeGB
+    infraAgentPoolCount: infraAgentPoolCount
+    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
+      ? csvToArray(infraAgentPoolZones)
+      : locationAvailabilityZoneList
+    infraOsDiskSizeGB: infraOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
-    userOsDiskSizeGB: aksUserOsDiskSizeGB
     deploymentMsiId: globalMSIId
     enableSwiftV2Vnet: aksEnableSwiftVnet
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
