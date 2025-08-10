@@ -32,12 +32,9 @@ func getNonZonalPoolName(poolType string, counter int) string => '${poolType}nz$
 func isZonalPool(poolName string) bool => !contains(poolName, 'nz')
 
 // Helper functions for calculating pool counts
-func getZonalPoolCount(availableZones array, requiredPools int) int =>
-  min(length(availableZones), requiredPools)
+func getZonalPoolCount(availableZones array, requiredPools int) int => min(length(availableZones), requiredPools)
 
-func getNonZonalPoolCount(availableZones array, requiredPools int) int =>
-  max(0, requiredPools - length(availableZones))
-
+func getNonZonalPoolCount(availableZones array, requiredPools int) int => max(0, requiredPools - length(availableZones))
 
 //
 //   P O O L   S T R A T E G Y

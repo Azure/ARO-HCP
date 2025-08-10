@@ -424,18 +424,24 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentMaxCount: userAgentMaxCount
     userAgentVMSize: userAgentVMSize
     userAgentPoolCount: userAgentPoolCount
-    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0 ? csvToArray(userAgentPoolZones) : locationAvailabilityZoneList
+    userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
+      ? csvToArray(userAgentPoolZones)
+      : locationAvailabilityZoneList
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
     infraAgentPoolCount: infraAgentPoolCount
-    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0 ? csvToArray(infraAgentPoolZones) : locationAvailabilityZoneList
+    infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
+      ? csvToArray(infraAgentPoolZones)
+      : locationAvailabilityZoneList
     infraOsDiskSizeGB: aksInfraOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
     systemAgentPoolCount: systemAgentPoolCount
-    systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0 ? csvToArray(systemAgentPoolZones) : locationAvailabilityZoneList
+    systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
+      ? csvToArray(systemAgentPoolZones)
+      : locationAvailabilityZoneList
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     workloadIdentities: items({
