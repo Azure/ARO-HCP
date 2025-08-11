@@ -140,7 +140,9 @@ func (opts *FrontendOpts) Run() error {
 		}))
 	if err != nil {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
-	} else if opts.auditTCPAddress != "" {
+	}
+
+	if opts.auditTCPAddress != "" {
 		logger.Info(fmt.Sprintf("audit logging to %s", opts.auditTCPAddress))
 	}
 
