@@ -494,6 +494,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
+					EncryptionSetId:        np.AzureNodePool().OsDisk().SseEncryptionSetResourceId(),
 					Persistence:            api.PersistenceType(np.AzureNodePool().OsDisk().Persistence()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
@@ -553,6 +554,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
 				StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
+				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetId)).
 				Persistence(string(nodePool.Properties.Platform.OSDisk.Persistence)))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
