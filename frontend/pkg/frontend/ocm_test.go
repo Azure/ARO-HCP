@@ -322,6 +322,27 @@ func TestBuildCSNodePool(t *testing.T) {
 			hcpNodePool:        getHCPNodePoolResource(),
 			expectedCSNodePool: getBaseCSNodePoolBuilder(),
 		},
+		{
+			name: "handle multiple taints",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Taints = []api.Taint{
+						{Effect: "a"},
+						{Effect: "b"},
+					}
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().Taints(
+				[]*arohcpv1alpha1.TaintBuilder{
+					arohcpv1alpha1.NewTaint().
+						Effect("a").
+						Key("").
+						Value(""),
+					arohcpv1alpha1.NewTaint().Effect("b").
+						Key("").
+						Value(""),
+				}...),
+		},
 	}
 	for _, tc := range testCases {
 		f := NewTestFrontend(t)
@@ -330,7 +351,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			expected, err := tc.expectedCSNodePool.Build()
 			require.NoError(t, err)
 			generatedCSNodePool, _ := f.BuildCSNodePool(ctx, tc.hcpNodePool, false)
-			assert.Equalf(t, expected, generatedCSNodePool, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+			assert.Equalf(t, expected.Taints(), generatedCSNodePool.Taints(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}
 }

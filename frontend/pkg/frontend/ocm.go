@@ -517,11 +517,16 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder.Replicas(int(nodePool.Properties.Replicas))
 	}
 
-	for _, t := range nodePool.Properties.Taints {
-		npBuilder = npBuilder.Taints(arohcpv1alpha1.NewTaint().
-			Effect(string(t.Effect)).
-			Key(t.Key).
-			Value(t.Value))
+	if len(nodePool.Properties.Taints) > 0 {
+		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
+		for _, t := range nodePool.Properties.Taints {
+			newTaintBuilder := arohcpv1alpha1.NewTaint().
+				Effect(string(t.Effect)).
+				Key(t.Key).
+				Value(t.Value)
+			taintBuilders = append(taintBuilders, newTaintBuilder)
+		}
+		npBuilder = npBuilder.Taints(taintBuilders...)
 	}
 
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
