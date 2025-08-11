@@ -19,11 +19,6 @@ deploy: pull-chart
 	$(eval PROMETHEUS_SPEC_DIGEST := $(subst sha256:,,$(PROMETHEUS_SPEC_DIGEST)))
 	$(eval PROMETHEUS_CONFIG_RELOADER_DIGEST := $(subst sha256:,,$(PROMETHEUS_CONFIG_RELOADER_DIGEST)))
 	@${LABEL_NAMESPACE_CMD}
-	DCE_METRICS_INGESTION_URL=$(shell az monitor data-collection endpoint list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='aks'].metricsIngestion.endpoint" -o tsv) && \
-	SERVICE_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='services'].immutableId" -o tsv) && \
-	HCP_DCR_IMMUTABLE_ID=$(shell az monitor data-collection rule list -g ${RESOURCE_GROUP} --query "[?tags.purpose=='hcp'].immutableId" -o tsv) && \
-	HCP_REMOTE_WRITE_URL=$$(if [ "$${HCP_DCR_IMMUTABLE_ID}" != "" ]; then echo "$${DCE_METRICS_INGESTION_URL}/dataCollectionRules/$${HCP_DCR_IMMUTABLE_ID}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24"; else echo ""; fi) && \
-	PROMETHEUS_WI_IDENTITY_CLIENT_ID=$(shell az identity show -g ${RESOURCE_GROUP} -n prometheus --query clientId -o tsv) && \
 	${HELM_CMD} arohcp-monitor deploy/ \
 		--version ${CHART_VERSION} \
 		--namespace ${NAMESPACE} \
@@ -36,7 +31,7 @@ deploy: pull-chart
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.registry=${PROMETHEUS_CONFIG_RELOADER_REGISTRY} \
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.repository=${PROMETHEUS_CONFIG_RELOADER_REPOSITORY} \
 		--set kube-prometheus-stack.prometheusOperator.prometheusConfigReloader.image.sha=${PROMETHEUS_CONFIG_RELOADER_DIGEST} \
-		--set prometheus.serviceAccount.managedIdentity=$${PROMETHEUS_WI_IDENTITY_CLIENT_ID} \
+		--set prometheus.serviceAccount.managedIdentity=$${PROMETHEUS_UAMI_CLIENT_ID} \
 		--set prometheusSpec.image.registry=${PROMETHEUS_SPEC_REGISTRY} \
 		--set prometheusSpec.image.repository=${PROMETHEUS_SPEC_REPOSITORY} \
 		--set prometheusSpec.image.sha=${PROMETHEUS_SPEC_DIGEST} \
@@ -44,8 +39,8 @@ deploy: pull-chart
 		--set prometheus.prometheusSpec.shards=${PROMETHEUS_SPEC_SHARDS} \
 		--set prometheus.prometheusSpec.replicas=${PROMETHEUS_SPEC_REPLICAS} \
 		--set prometheusSpec.externalLabels.cluster=${CLUSTER_NAME} \
-		--set prometheusSpec.remoteWriteUrl="$${DCE_METRICS_INGESTION_URL}/dataCollectionRules/$${SERVICE_DCR_IMMUTABLE_ID}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24" \
-		--set prometheusSpec.hcpRemoteWriteUrl="$${HCP_REMOTE_WRITE_URL}" \
+		--set prometheusSpec.remoteWriteUrl="$${DCR_REMOTE_WRITE_URL}" \
+		--set prometheusSpec.hcpRemoteWriteUrl="$${HCP_DCR_REMOTE_WRITE_URL}" \
 		--set prometheusSpec.topologyKey=${TOPOLOGY_KEY} \
 		--set prometheusSpec.maximumStartupDurationSeconds=360 \
 		--set environment=${CS_ENVIRONMENT}

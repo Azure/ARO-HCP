@@ -443,3 +443,13 @@ func parseIPServiceTag(tag string) IPServiceTag => {
   ipTagType: split(tag, ':')[0]
   tag: split(tag, ':')[1]
 }
+
+// Function to safely truncate strings, ensuring no trailing dashes or problematic characters
+@export()
+func safeTake(input string, maxLength int) string =>
+  length(take(input, maxLength)) > 0 && (endsWith(take(input, maxLength), '-') || endsWith(take(input, maxLength), '_') || endsWith(
+      take(input, maxLength),
+      '.'
+    ))
+    ? take(take(input, maxLength), length(take(input, maxLength)) - 1)
+    : take(input, maxLength)
