@@ -25,8 +25,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
-	"github.com/spf13/cobra"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
@@ -35,22 +33,14 @@ import (
 )
 
 func persistAndRun(t *testing.T, e2eImpl E2E) {
-	err := e2eImpl.Persist()
+	opts, err := e2eImpl.Persist()
 	require.NoError(t, err)
 
-	cmd, err := run.NewCommand()
-	require.NoError(t, err)
-
-	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		cmd.SetContext(logr.NewContext(cmd.Context(), testr.New(t)))
-		return nil
-	}
-
-	err = cmd.Execute()
-	require.NoError(t, err)
+	require.NoError(t, run.RunPipeline(logr.NewContext(t.Context(), testr.New(t)), opts))
 }
 
 func TestE2EMake(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -83,6 +73,7 @@ test:
 }
 
 func TestE2EKubernetes(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -107,6 +98,7 @@ func TestE2EKubernetes(t *testing.T) {
 }
 
 func TestE2EArmDeploy(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -152,6 +144,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 }
 
 func TestE2EShell(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -170,6 +163,7 @@ func TestE2EShell(t *testing.T) {
 }
 
 func TestE2EArmDeployWithOutput(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -202,6 +196,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 }
 
 func TestE2EArmDeployWithStaticVariable(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -234,6 +229,7 @@ param zoneName = '__zoneName__'
 }
 
 func TestE2EArmDeployWithOutputToArm(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -277,6 +273,7 @@ param parameterB = '< provided at runtime >'
 }
 
 func TestE2EArmDeployWithOutputRGOverlap(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -308,6 +305,7 @@ param parameterA = 'Hello Bicep'`,
 }
 
 func TestE2EArmDeploySubscriptionScope(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -345,6 +343,7 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 }
 
 func TestE2EDryRun(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
@@ -384,6 +383,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 }
 
 func TestE2EOutputOnly(t *testing.T) {
+	t.Parallel()
 	if !shouldRunE2E() {
 		t.Skip("Skipping end-to-end tests")
 	}
