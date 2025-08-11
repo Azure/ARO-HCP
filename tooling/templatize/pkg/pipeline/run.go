@@ -114,13 +114,13 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	queue := make(chan graph.Dependency, len(graphCtx.Nodes))
 	done := make(chan struct{}, len(graphCtx.Nodes))
 	errs := make(chan error, len(graphCtx.Nodes))
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+	producerWg := &sync.WaitGroup{}
+	producerWg.Add(1)
 	// producer routine checks to see if we can queue more steps when we finish executing one
 	go func() {
 		thisLogger := logger.WithValues("routine", "producer")
 		defer func() {
-			wg.Done()
+			producerWg.Done()
 			thisLogger.Info("Producer thread shutting down.")
 		}()
 		for {
@@ -159,13 +159,22 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		}
 	}()
 	// consumer routines pop steps off the execution queue and signal that they finished
+	// consumers have a couple different conditions on which they'll exit:
+	// - if the producer has finished queueing, and consumers hit the end of the queue
+	// - if any consumer hits an error, the context is cancelled
+	// - if the parent context is cancelled
+	consumerWg := &sync.WaitGroup{}
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+	defer func() {
+		consumerCancel()
+	}()
 	const maxConcurrency = 1 // TODO: actually do parallel execution and see what breaks
 	for i := 0; i < maxConcurrency; i++ {
-		wg.Add(1)
+		consumerWg.Add(1)
 		go func() {
 			thisLogger := logger.WithValues("routine", fmt.Sprintf("consumer-%d", i))
 			defer func() {
-				wg.Done()
+				consumerWg.Done()
 				thisLogger.Info("Consumer thread shutting down.")
 			}()
 			for {
@@ -173,25 +182,20 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 				case step, open := <-queue:
 					if !open {
 						thisLogger.Info("Queue channel closed.")
-						close(done)
-						close(errs)
 						return
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, graphCtx, step, ctx, options, state); err != nil {
+					if err := executeNode(executor, graphCtx, step, consumerCtx, options, state); err != nil {
 						stepLogger.Info("Step errored.")
-						close(done)
 						errs <- err
-						close(errs)
+						consumerCancel()
 						return
 					}
 					stepLogger.Info("Finished step.")
 					done <- struct{}{}
-				case <-ctx.Done():
+				case <-consumerCtx.Done():
 					thisLogger.Info("Context cancelled.")
-					close(done)
-					close(errs)
 					return
 				}
 			}
@@ -201,8 +205,14 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	// bootstrap the process with a signal to queue
 	done <- struct{}{}
 
+	logger.Info("Waiting for consumers to finish.")
+	consumerWg.Wait()
+
+	close(done)
+	close(errs)
+
 	logger.Info("Waiting for execution to finish.")
-	wg.Wait()
+	producerWg.Wait()
 	logger.Info("Execution finished.")
 	var executionErrors []error
 	for err := range errs {
