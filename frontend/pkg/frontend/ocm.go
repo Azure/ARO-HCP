@@ -147,6 +147,7 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 	}
 	return
 }
+
 func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
 	if customerManaged, ok := in.GetCustomerManaged(); ok {
 		return &api.CustomerManagedEncryptionProfile{
@@ -158,7 +159,6 @@ func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncr
 }
 
 func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) *api.KmsEncryptionProfile {
-
 	if kms, ok := in.GetKms(); ok {
 		if activeKey, ok := kms.GetActiveKey(); ok {
 			return &api.KmsEncryptionProfile{
@@ -183,7 +183,6 @@ func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBu
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder)
-
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
@@ -243,12 +242,15 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	}
 
 	// Only set etcd encryption settings if they exist in the cluster service response
-	if cluster.Azure().EtcdEncryption() != nil && cluster.Azure().EtcdEncryption().DataEncryption() != nil {
-		hcpcluster.Properties.Etcd = api.EtcdProfile{
-			DataEncryption: api.EtcdDataEncryptionProfile{
-				CustomerManaged:   convertCustomerManagedEncryptionCSToRP(cluster.Azure().EtcdEncryption().DataEncryption()),
-				KeyManagementMode: convertKeyManagementModeTypeCSToRP(cluster.Azure().EtcdEncryption().DataEncryption().KeyManagementMode()),
-			},
+	if cluster.Azure().EtcdEncryption() != nil {
+		dataEncryption := cluster.Azure().EtcdEncryption().DataEncryption()
+		if dataEncryption != nil {
+			hcpcluster.Properties.Etcd = api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					CustomerManaged:   convertCustomerManagedEncryptionCSToRP(dataEncryption),
+					KeyManagementMode: convertKeyManagementModeTypeCSToRP(dataEncryption.KeyManagementMode()),
+				},
+			}
 		}
 	}
 
