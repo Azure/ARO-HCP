@@ -438,6 +438,39 @@ func TestBuildCSExternalAuth(t *testing.T) {
 						Type(""),
 				}...),
 		},
+		{
+			name: "handle multiple validationRules",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
+						{
+							TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+							RequiredClaim: api.TokenRequiredClaim{
+								Claim:         "A",
+								RequiredValue: "B",
+							},
+						},
+						{
+							TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+							RequiredClaim: api.TokenRequiredClaim{
+								Claim:         "C",
+								RequiredValue: "D",
+							},
+						},
+					}
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(
+				arohcpv1alpha1.NewExternalAuthClaim().ValidationRules(
+					[]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("A").
+							RequiredValue("B"),
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("C").
+							RequiredValue("D"),
+					}...)),
+		},
 	}
 	for _, tc := range testCases {
 		f := NewTestFrontend(t)
