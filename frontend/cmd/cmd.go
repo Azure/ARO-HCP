@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
+	"github.com/microsoft/go-otel-audit/audit/base"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -131,11 +132,16 @@ func (opts *FrontendOpts) Run() error {
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
-	auditNoOp := opts.auditTCPAddress == ""
-	logger.InfoContext(ctx, "initialising Audit Logger", "isNoop", auditNoOp)
-	auditClient, err := audit.NewOtelAuditClient(opts.auditLogQueueSize, opts.auditTCPAddress, auditNoOp)
+	auditClient, err := audit.NewOtelAuditClient(
+		opts.auditTCPAddress,
+		base.WithLogger(logger),
+		base.WithSettings(base.Settings{
+			QueueSize: opts.auditLogQueueSize,
+		}))
 	if err != nil {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
+	} else if opts.auditTCPAddress != "" {
+		logger.Info(fmt.Sprintf("audit logging to %s", opts.auditTCPAddress))
 	}
 
 	// Initialize the global OpenTelemetry tracer.
