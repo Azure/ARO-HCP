@@ -3,7 +3,7 @@ param poolBaseName string
 
 param poolZones array
 param poolCount int
-param zoneRedundantMode string = 'Auto'
+param zoneRedundantMode string
 
 param poolRole string
 param enableSwitftV2 bool

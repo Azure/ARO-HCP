@@ -18,6 +18,7 @@ param systemAgentMaxCount int
 param systemAgentVMSize string
 param systemAgentPoolZones array
 param systemAgentPoolCount int
+param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
 param userAgentMinCount int
@@ -25,6 +26,7 @@ param userAgentMaxCount int
 param userAgentVMSize string
 param userAgentPoolZones array
 param userAgentPoolCount int
+param userZoneRedundantMode string
 
 // User agentpool spec (Infra)
 param infraAgentMinCount int
@@ -32,6 +34,7 @@ param infraAgentMaxCount int
 param infraAgentVMSize string
 param infraAgentPoolZones array
 param infraAgentPoolCount int
+param infraZoneRedundantMode string
 
 param serviceCidr string = '10.130.0.0/16'
 param dnsServiceIP string = '10.130.0.10'
@@ -358,6 +361,8 @@ var swiftNodepoolTags = enableSwiftV2Nodepools
     }
   : null
 
+var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRedundantMode == 'Auto' && length(systemAgentPoolZones) > 0) ? systemAgentPoolZones : null
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
   name: aksClusterName
@@ -424,7 +429,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         vnetSubnetID: aksNodeSubnet.id
         podSubnetID: aksPodSubnet.id
         maxPods: 100
-        availabilityZones: length(systemAgentPoolZones) > 0 ? systemAgentPoolZones : null
+        availabilityZones: systemPoolZonesArray
         securityProfile: {
           enableSecureBoot: false
           enableVTPM: false
@@ -566,6 +571,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     osDiskSizeGB: userOsDiskSizeGB
     vnetSubnetId: aksNodeSubnet.id
     podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: userZoneRedundantMode
     maxPods: 225
   }
 }
@@ -585,6 +591,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     osDiskSizeGB: infraOsDiskSizeGB
     vnetSubnetId: aksNodeSubnet.id
     podSubnetId: aksPodSubnet.id
+    zoneRedundantMode: infraZoneRedundantMode
     maxPods: 225
     taints: [
       'infra=true:NoSchedule'
