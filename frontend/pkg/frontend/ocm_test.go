@@ -254,6 +254,66 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 	}
 }
 
+func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+	}
+
+	for _, opt := range opts {
+		opt(nodePool)
+	}
+	return nodePool
+}
+
+// Because we don't distinguish between unset and empty values in our JSON parsing
+// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
+	return arohcpv1alpha1.NewNodePool().
+		ID("").
+		AvailabilityZone("").
+		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+			ResourceName("").
+			VMSize("").
+			EncryptionAtHost(
+				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+					State(azureNodePoolEncryptionAtHostDisabled),
+			).
+			OSDiskSizeGibibytes(0).
+			OSDiskStorageAccountType(""),
+		).
+		Subnet("").
+		Version(arohcpv1alpha1.NewVersion().
+			ID("openshift-v").
+			ChannelGroup(""),
+		).
+		Replicas(0).
+		AutoRepair(false)
+}
+func TestBuildCSNodePool(t *testing.T) {
+	resourceID := testResourceID(t)
+	testCases := []struct {
+		name               string
+		hcpNodePool        *api.HCPOpenShiftClusterNodePool
+		expectedCSNodePool *arohcpv1alpha1.NodePoolBuilder
+	}{
+		{
+			name:               "zero",
+			hcpNodePool:        getHCPNodePoolResource(),
+			expectedCSNodePool: getBaseCSNodePoolBuilder(),
+		},
+	}
+	for _, tc := range testCases {
+		f := NewTestFrontend(t)
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+			expected, err := tc.expectedCSNodePool.Build()
+			require.NoError(t, err)
+			generatedCSNodePool, _ := f.BuildCSNodePool(ctx, tc.hcpNodePool, false)
+			assert.Equalf(t, expected, generatedCSNodePool, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+		})
+	}
+}
+
 func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
 	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
 		Properties: api.HCPOpenShiftClusterExternalAuthProperties{},
