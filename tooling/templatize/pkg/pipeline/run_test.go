@@ -17,9 +17,11 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
@@ -111,7 +113,7 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -231,7 +233,7 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -261,11 +263,13 @@ func TestMockedPipelineRunError(t *testing.T) {
 
 	lock.Lock()
 	defer lock.Unlock()
+	slices.SortFunc(order, graph.CompareStepDependencies)
+
 	if diff := cmp.Diff(order, []types.StepDependency{
 		{ResourceGroup: "resourceGroup", Step: "fifth"},
 		{ResourceGroup: "resourceGroup", Step: "root"},
-		{ResourceGroup: "resourceGroup2", Step: "root2"},
 		{ResourceGroup: "resourceGroup", Step: "second"},
+		{ResourceGroup: "resourceGroup2", Step: "root2"},
 	}); len(diff) != 0 {
 		t.Errorf("incorrect step execution order: %s", diff)
 	}

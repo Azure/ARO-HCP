@@ -82,7 +82,15 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 // Outputs stores output values indexed by resource group name and step name.
 type Outputs map[string]map[string]Output
 
-type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error)
+type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error)
+
+type ExecutionState struct {
+	*sync.RWMutex
+
+	Executed sets.Set[graph.Dependency]
+	Queued   sets.Set[graph.Dependency]
+	Outputs  Outputs
+}
 
 func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	logger, err := logr.FromContext(ctx)
@@ -96,10 +104,12 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
-	lock := &sync.RWMutex{}
-	executed := sets.Set[graph.Dependency]{}
-	queued := sets.Set[graph.Dependency]{}
-	outputs := make(Outputs)
+	state := &ExecutionState{
+		RWMutex:  &sync.RWMutex{},
+		Executed: sets.Set[graph.Dependency]{},
+		Queued:   sets.Set[graph.Dependency]{},
+		Outputs:  make(Outputs),
+	}
 
 	queue := make(chan graph.Dependency, len(graphCtx.Nodes))
 	done := make(chan struct{}, len(graphCtx.Nodes))
@@ -122,25 +132,25 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 					return
 				}
 				thisLogger.Info("Processing queue after step finished executing.")
-				lock.RLock()
+				state.RLock()
 				for _, node := range graphCtx.Nodes {
-					if queued.Has(node.Dependency) {
+					if state.Queued.Has(node.Dependency) {
 						continue
 					}
-					if executed.HasAll(node.Parents...) {
+					if state.Executed.HasAll(node.Parents...) {
 						thisLogger.Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
-						queued.Insert(node.Dependency)
+						state.Queued.Insert(node.Dependency)
 						queue <- node.Dependency
 					}
 				}
-				thisLogger.Info("Execution status.", "nodes", len(graphCtx.Nodes), "queued", len(queued), "executed", len(executed))
-				if len(queued) == len(graphCtx.Nodes) {
+				thisLogger.Info("Execution status.", "nodes", len(graphCtx.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
+				if len(state.Queued) == len(graphCtx.Nodes) {
 					thisLogger.Info("Queued all nodes.")
 					close(queue)
-					lock.RUnlock()
+					state.RUnlock()
 					return
 				}
-				lock.RUnlock()
+				state.RUnlock()
 			case <-ctx.Done():
 				thisLogger.Info("Context cancelled.")
 				close(queue)
@@ -169,7 +179,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, graphCtx, step, ctx, options, outputs, executed, lock); err != nil {
+					if err := executeNode(executor, graphCtx, step, ctx, options, state); err != nil {
 						stepLogger.Info("Step errored.")
 						close(done)
 						errs <- err
@@ -203,19 +213,22 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	if len(executionErrors) > 0 {
 		return nil, fmt.Errorf("errors occurred during execution: %v", executionErrors)
 	}
+	state.RLock()
+	outputs := state.Outputs
+	state.RUnlock()
 	return outputs, nil
 }
 
-func executeNode(executor Executor, graphCtx *graph.Context, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, outputs Outputs, executed sets.Set[graph.Dependency], lock *sync.RWMutex) error {
+func executeNode(executor Executor, graphCtx *graph.Context, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
 	}
 
 	logger = logger.WithValues("serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
-	lock.RLock()
-	alreadyDone := executed.Has(node)
-	lock.RUnlock()
+	state.RLock()
+	alreadyDone := state.Executed.Has(node)
+	state.RUnlock()
 	if alreadyDone {
 		logger.Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
@@ -243,25 +256,25 @@ func executeNode(executor Executor, graphCtx *graph.Context, node graph.Dependen
 		resourceGroup:    resourceGroup.ResourceGroup,
 	}
 
-	output, err := executor(step, ctx, target, options, outputs)
+	output, err := executor(step, ctx, target, options, state)
 	if err != nil {
 		return err
 	}
 
-	lock.Lock()
+	state.Lock()
 	if output != nil {
 		logger.Info("Recording step output.")
-		if _, recorded := outputs[node.ResourceGroup]; !recorded {
-			outputs[node.ResourceGroup] = map[string]Output{}
+		if _, recorded := state.Outputs[node.ResourceGroup]; !recorded {
+			state.Outputs[node.ResourceGroup] = map[string]Output{}
 		}
-		outputs[node.ResourceGroup][node.Step] = output
+		state.Outputs[node.ResourceGroup][node.Step] = output
 	}
-	executed.Insert(node)
-	lock.Unlock()
+	state.Executed.Insert(node)
+	state.Unlock()
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
+func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	if options.Step != "" && s.StepName() != options.Step {
@@ -279,7 +292,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	case *types.ImageMirrorStep:
 		var buf bytes.Buffer
 
-		err := runImageMirrorStep(ctx, step, options, outPuts, &buf)
+		err := runImageMirrorStep(ctx, step, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
 		}
@@ -300,7 +313,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		err = runShellStep(step, ctx, kubeconfigFile, options, outPuts, &buf)
+		err = runShellStep(step, ctx, kubeconfigFile, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
@@ -322,7 +335,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		if a == nil {
 			return nil, fmt.Errorf("failed to create ARM client")
 		}
-		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, outPuts)
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
