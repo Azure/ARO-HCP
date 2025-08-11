@@ -42,9 +42,9 @@ func TestConnect(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
 	f := strings.Split(testServer.URL, "/")
-	_, err := initializeOtelAuditClient(-1, f[2])
+	_, err := NewOtelAuditClient(f[2])
 	require.NoError(t, err)
 
-	_, err = initializeOtelAuditClient(-1, "127.0.0.1:12345")
+	_, err = NewOtelAuditClient("127.0.0.1:12345")
 	require.Error(t, err, "error creating audit client dial tcp 127.0.0.1:12345: connect: connection refused")
 }

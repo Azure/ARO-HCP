@@ -45,50 +45,25 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 	return c.client.Send(ctx, msg)
 }
 
-func NewOtelAuditClient(auditLogQueueSize int, remoteAddress string, useNoop bool) (*AuditClient, error) {
-	if useNoop {
-		return initializeNoOPOtelAuditClient()
-	}
+func NewOtelAuditClient(remoteAddress string, options ...base.Option) (*AuditClient, error) {
+	var createConn audit.CreateConn
 
-	return initializeOtelAuditClient(auditLogQueueSize, remoteAddress)
-}
-
-// https://eng.ms/docs/products/geneva/collect/instrument/opentelemetryaudit/golang/linux/installation
-func initializeOtelAuditClient(auditLogQueueSize int, remoteAddress string) (*AuditClient, error) {
-	c, err := audit.New(
-		func() (conn.Audit, error) {
+	if remoteAddress != "" {
+		createConn = func() (conn.Audit, error) {
 			return conn.NewTCPConn(remoteAddress)
-		},
-		audit.WithAuditOptions(
-			base.WithSettings(
-				base.Settings{
-					QueueSize: auditLogQueueSize,
-				},
-			),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating audit client %v", err)
-	}
-
-	return &AuditClient{
-		client: c,
-	}, nil
-}
-
-// initializeNoOPOtelAuditClient creates a new no-op audit client.
-// NoOP is a no-op connection to the remote audit server used during E2E testing or development environment.
-func initializeNoOPOtelAuditClient() (*AuditClient, error) {
-	c, err := audit.New(
-		func() (conn.Audit, error) {
+		}
+	} else {
+		createConn = func() (conn.Audit, error) {
 			return conn.NewNoOP(), nil
-		})
-	if err != nil {
-		return nil, fmt.Errorf("error creating audit client %v", err)
+		}
 	}
-	return &AuditClient{
-		client: c,
-	}, nil
+
+	client, err := audit.New(createConn, audit.WithAuditOptions(options...))
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuditClient{client: client}, nil
 }
 
 func GetOperationType(method string) msgs.OperationType {
