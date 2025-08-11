@@ -268,7 +268,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			},
 			ClientID:    api.PtrOrNil(client.ClientId),
 			ExtraScopes: api.StringSliceToStringPtrSlice(client.ExtraScopes),
-			Type:        api.PtrOrNil(generated.ExternalAuthClientType(from.Type)),
+			Type:        api.PtrOrNil(generated.ExternalAuthClientType(client.ExternalAuthClientProfileType)),
 		})
 	}
 	return out
