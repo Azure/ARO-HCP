@@ -1,10 +1,10 @@
 @description('The name of the service keyvault')
 param serviceKeyVaultName string
 
-@description('The name of the resourcegroup for the service keyvault')
+@description('The name of the resource group for the service keyvault')
 param serviceKeyVaultResourceGroup string = resourceGroup().name
 
-@description('The location of the resourcegroup for the service keyvault')
+@description('The location of the resource group for the service keyvault')
 param serviceKeyVaultLocation string = resourceGroup().location
 
 @description('Soft delete setting for service keyvault')
@@ -50,7 +50,7 @@ resource aroDevopsMSIReader 'Microsoft.Authorization/roleAssignments@2022-04-01'
 
 // this is mostly a situation where multiple svc-infra pipelines run towards
 // a shared svc keyvault resource group ${serviceKeyVaultResourceGroup}. while
-// the individual modules will not conflict with each other, the existance
+// the individual modules will not conflict with each other, the existence
 // of same-named deployments fails one pipeline.
 var deploymentNameSuffix = uniqueString(resourceGroup().id)
 

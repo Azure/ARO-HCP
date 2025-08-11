@@ -30,7 +30,7 @@ There are two additional prefixes for special purposes
 
 ### Modules
 
-Single bicep templates can become too complex and hard to maintain big at times. To mitigate this, we group resouces by purpose and move them as dedicated bicep files into the `modules` directory.
+Single bicep templates can become too complex and hard to maintain big at times. To mitigate this, we group resources by purpose and move them as dedicated bicep files into the `modules` directory.
 
 Modules provide a structured way to organize and reuse infrastructure definitions. While modules enhance maintainability by breaking down complex deployments into manageable components, they also serve a critical function in switching execution context during a Bicep template deployment. See the section about [Cross-Subscription deployments](#cross-subscription-deployments) for more details.
 
