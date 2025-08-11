@@ -17,7 +17,7 @@ $(ENV_VARS_FILE): ${PROJECT_ROOT_DIR}/config/config.yaml ${PIPELINE} ${PROJECT_R
 	@echo "generate env vars file ${ENV_VARS_FILE}"
 	@echo "this might take a while the first time."
 	@LOG_LEVEL=${LOG_LEVEL} ${PROJECT_ROOT_DIR}/templatize.sh ${DEPLOY_ENV} \
-		-p ${PIPELINE} \
+		-p $(shell yq .serviceGroup ${PIPELINE}) \
 		-s ${PIPELINE_STEP} \
 		-o $(ENV_VARS_FILE)
 
