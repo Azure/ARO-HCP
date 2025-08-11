@@ -361,7 +361,9 @@ var swiftNodepoolTags = enableSwiftV2Nodepools
     }
   : null
 
-var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRedundantMode == 'Auto' && length(systemAgentPoolZones) > 0) ? systemAgentPoolZones : null
+var systemPoolZonesArray = systemZoneRedundantMode == 'Enabled' || (systemZoneRedundantMode == 'Auto' && length(systemAgentPoolZones) > 0)
+  ? systemAgentPoolZones
+  : null
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   location: location
