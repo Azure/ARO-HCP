@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,29 @@ func TestCreateNodePool(t *testing.T) {
 			},
 		},
 	}
+
+	expectedCSNodePool, _ := arohcpv1alpha1.NewNodePool().
+		ID(strings.ToLower(api.TestNodePoolName)).
+		AvailabilityZone("").
+		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+			ResourceName(strings.ToLower(api.TestNodePoolName)).
+			VMSize(dummyVMSize).
+			EncryptionAtHost(
+				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+					State(azureNodePoolEncryptionAtHostDisabled),
+			).
+			OSDiskSizeGibibytes(64).
+			OSDiskStorageAccountType("Premium_LRS"),
+		).
+		Labels(make(map[string]string)).
+		Subnet("").
+		Version(arohcpv1alpha1.NewVersion().
+			ID("openshift-v" + dummyVersionID).
+			ChannelGroup("stable"),
+		).
+		Replicas(0).
+		AutoRepair(true).Build()
+
 	tests := []struct {
 		name               string
 		urlPath            string
@@ -81,6 +105,7 @@ func TestCreateNodePool(t *testing.T) {
 		subDoc             *arm.Subscription
 		clusterDoc         *database.ResourceDocument
 		nodePoolDoc        *database.ResourceDocument
+		expectedCSNodePool *arohcpv1alpha1.NodePool
 		expectedStatusCode int
 	}{
 		{
@@ -93,6 +118,7 @@ func TestCreateNodePool(t *testing.T) {
 			},
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
+			expectedCSNodePool: expectedCSNodePool,
 			expectedStatusCode: http.StatusCreated,
 		},
 	}
@@ -134,7 +160,7 @@ func TestCreateNodePool(t *testing.T) {
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
-				PostNodePool(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
+				PostNodePool(gomock.Any(), clusterDoc.InternalID, expectedCSNodePool).
 				DoAndReturn(
 					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
 						builder := arohcpv1alpha1.NewNodePool().
