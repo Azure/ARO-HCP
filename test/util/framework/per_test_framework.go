@@ -84,7 +84,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	for _, resourceGroupName := range tc.knownResourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
-			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to funcion.
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			utilruntime.HandleCrashWithContext(ctx)
 
 			return tc.cleanupResourceGroup(ctx, currResourceGroupName)
@@ -109,7 +109,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	for _, resourceGroupName := range tc.knownResourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
-			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to funcion.
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			utilruntime.HandleCrashWithContext(ctx)
 
 			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)

@@ -114,7 +114,7 @@ Importance labels include four levels:
 - Low: very specific scenarios or enhancements to user experience
 
 Labels based on use cases:
-- Core-Infra-Service: use for gating a rollout of ARO-HCP componets
+- Core-Infra-Service: use for gating a rollout of ARO-HCP components
 - Create-Cluster: applied to test cases related to cluster creation
 - Setup-Validation/Teardown-validation: used for validation test cases run before and after tests
 
@@ -126,7 +126,7 @@ To run tests with specified labels use ginkgo with option --label-filter. Exampl
 ### Files structure
 Test code is organized by grouping test cases into specs within files.
 
-Basic test cases for HTTP methods of clusters and nodepools are seperated into individual files, like 'cluster_get_test', 'nodepool_create_test' or 'nodepool_update_test'.
+Basic test cases for HTTP methods of clusters and nodepools are separated into individual files, like 'cluster_get_test', 'nodepool_create_test' or 'nodepool_update_test'.
 
 Features requiring higher visibility or a large number of test cases have their own dedicated file, e.g. 'cluster_upgrade_test' or 'nodepool_upgrade_test'.
 

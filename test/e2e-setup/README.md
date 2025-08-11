@@ -18,7 +18,7 @@ ARO HCP project.
 
 We plan for the setup to work in [all environments](/docs/environments.md):
 
-- [ARO HCP Dev enviroment](https://github.com/Azure/ARO-HCP/blob/main/dev-infrastructure/docs/development-setup.md)
+- [ARO HCP Dev environment](https://github.com/Azure/ARO-HCP/blob/main/dev-infrastructure/docs/development-setup.md)
   for the needs of ARO HCP teams in Red Hat (no matter if a shared integrated
   DEV environment or personal dev environment is used)
 - Internal integration and stage environments of ARO HCP team
@@ -57,10 +57,10 @@ export CLUSTER_NAME=${USER}-cluster
 
 Note that the name of bicep file is specified via `SETUP_FILE` variable.
 
-With the enviroment variables defined `setup.sh` script. It will deploy given
-bicep file using the parameters passed via the enviroment variables.
+With the environment variables defined `setup.sh` script. It will deploy given
+bicep file using the parameters passed via the environment variables.
 
-To remove the cluster, run `teardown.sh` using the same enviroment variables.
+To remove the cluster, run `teardown.sh` using the same environment variables.
 It will remove the `CUSTOMER_RG_NAME` resource group and all Azure resources
 within.
 
