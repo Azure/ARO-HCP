@@ -208,6 +208,7 @@ func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
 	return &generated.OsDiskProfile{
 		SizeGiB:                api.PtrOrNil(from.SizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetId),
 		Persistence:            api.PtrOrNil(generated.PersistenceType(from.Persistence)),
 	}
 }
