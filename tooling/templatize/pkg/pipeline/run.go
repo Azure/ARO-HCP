@@ -133,13 +133,14 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 						queue <- node.Dependency
 					}
 				}
-				lock.RUnlock()
 				thisLogger.Info("Execution status.", "nodes", len(graphCtx.Nodes), "queued", len(queued), "executed", len(executed))
 				if len(queued) == len(graphCtx.Nodes) {
 					thisLogger.Info("Queued all nodes.")
 					close(queue)
+					lock.RUnlock()
 					return
 				}
+				lock.RUnlock()
 			case <-ctx.Done():
 				thisLogger.Info("Context cancelled.")
 				close(queue)
