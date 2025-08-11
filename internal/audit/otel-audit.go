@@ -68,13 +68,13 @@ func NewOtelAuditClient(remoteAddress string, options ...base.Option) (*AuditCli
 
 func GetOperationType(method string) msgs.OperationType {
 	switch method {
-	case "GET":
+	case http.MethodGet:
 		return msgs.Read
-	case "POST":
+	case http.MethodPost:
 		return msgs.Create
-	case "PUT":
+	case http.MethodPut:
 		return msgs.Update
-	case "DELETE":
+	case http.MethodDelete:
 		return msgs.Delete
 	default:
 		return msgs.UnknownOperationType
