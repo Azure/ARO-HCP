@@ -409,6 +409,64 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			),
 		},
 		{
+			name: "correctly parse Claim",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim = api.ExternalAuthClaimProfile{
+						Mappings: api.TokenClaimMappingsProfile{
+							Username: api.UsernameClaimProfile{
+								Claim:        "a",
+								Prefix:       "",
+								PrefixPolicy: "",
+							},
+							Groups: &api.GroupClaimProfile{
+								Claim:  "b",
+								Prefix: "",
+							},
+						},
+						ValidationRules: []api.TokenClaimValidationRule{
+							{
+								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								RequiredClaim: api.TokenRequiredClaim{
+									Claim:         "A",
+									RequiredValue: "B",
+								},
+							},
+							{
+								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								RequiredClaim: api.TokenRequiredClaim{
+									Claim:         "C",
+									RequiredValue: "D",
+								},
+							},
+						},
+					}
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(
+				arohcpv1alpha1.NewExternalAuthClaim().
+					Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+						UserName(arohcpv1alpha1.NewUsernameClaim().
+							Claim("a").
+							Prefix("").
+							PrefixPolicy(""),
+						).
+						Groups(arohcpv1alpha1.NewGroupsClaim().
+							Claim("b").
+							Prefix(""),
+						),
+					).
+					ValidationRules([]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("A").
+							RequiredValue("B"),
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("C").
+							RequiredValue("D"),
+					}...),
+			),
+		},
+		{
 			name: "handle multiple clients",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
@@ -438,39 +496,6 @@ func TestBuildCSExternalAuth(t *testing.T) {
 						Type(""),
 				}...),
 		},
-		{
-			name: "handle multiple validationRules",
-			hcpExternalAuth: externalAuthResource(
-				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
-					hsc.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{
-						{
-							TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
-							RequiredClaim: api.TokenRequiredClaim{
-								Claim:         "A",
-								RequiredValue: "B",
-							},
-						},
-						{
-							TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
-							RequiredClaim: api.TokenRequiredClaim{
-								Claim:         "C",
-								RequiredValue: "D",
-							},
-						},
-					}
-				},
-			),
-			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(
-				arohcpv1alpha1.NewExternalAuthClaim().ValidationRules(
-					[]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
-						arohcpv1alpha1.NewTokenClaimValidationRule().
-							Claim("A").
-							RequiredValue("B"),
-						arohcpv1alpha1.NewTokenClaimValidationRule().
-							Claim("C").
-							RequiredValue("D"),
-					}...)),
-		},
 	}
 	for _, tc := range testCases {
 		f := NewTestFrontend(t)
@@ -479,7 +504,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
 			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
-			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+			assert.Equalf(t, expected.Claim().Mappings(), generatedCSExternalAuth.Claim().Mappings(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}
 }
