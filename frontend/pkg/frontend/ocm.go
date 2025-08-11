@@ -444,7 +444,6 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
-					EncryptionSetId:        np.AzureNodePool().OsDisk().SseEncryptionSetResourceId(),
 					Persistence:            api.PersistenceType(np.AzureNodePool().OsDisk().Persistence()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
@@ -452,6 +451,10 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 			AutoRepair: np.AutoRepair(),
 			Labels:     np.Labels(),
 		},
+	}
+
+	if encryptionSetId, ok := np.AzureNodePool().OsDisk().GetSseEncryptionSetResourceId(); ok {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetId = encryptionSetId
 	}
 
 	if replicas, ok := np.GetReplicas(); ok {
@@ -489,9 +492,19 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 	npBuilder := arohcpv1alpha1.NewNodePool()
 
 	nodepoolCSversion := ocm.ConvertOpenshiftVersionAddPrefix(nodePool.Properties.Version.ID)
-
+	var osDisk *arohcpv1alpha1.AzureNodePoolOsDiskBuilder
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
+
+		osDisk = arohcpv1alpha1.NewAzureNodePoolOsDisk().
+			SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+			StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
+			Persistence(string(nodePool.Properties.Platform.OSDisk.Persistence))
+		if nodePool.Properties.Platform.OSDisk.EncryptionSetId != "" {
+			osDisk = osDisk.
+				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetId))
+		}
+
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
@@ -501,13 +514,10 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
-				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
-				StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
-				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetId)).
-				Persistence(string(nodePool.Properties.Platform.OSDisk.Persistence)))).
+				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(osDisk)).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
+
 	}
 
 	npBuilder = npBuilder.
