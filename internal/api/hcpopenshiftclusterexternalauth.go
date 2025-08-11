@@ -64,10 +64,10 @@ type TokenIssuerProfile struct {
  * This configures how on-cluster, platform clients should request tokens from the identity provider.
  */
 type ExternalAuthClientProfile struct {
-	Component                     ExternalAuthClientComponentProfile `json:"component"                      visibility:"read create update"       validate:"required_for_put"`
-	ClientId                      string                             `json:"clientId"                       visibility:"read create update"       validate:"required_for_put"`
-	ExtraScopes                   []string                           `json:"extraScopes"                    visibility:"read create update"       validate:"omitempty"`
-	ExternalAuthClientProfileType ExternalAuthClientType             `json:"enum_externalauthclienttype"    visibility:"read create update"       validate:"required_for_put"`
+	Component                     ExternalAuthClientComponentProfile `json:"component"           visibility:"read create update"       validate:"required_for_put"`
+	ClientId                      string                             `json:"clientId"            visibility:"read create update"       validate:"required_for_put"`
+	ExtraScopes                   []string                           `json:"extraScopes"         visibility:"read create update"       validate:"omitempty"`
+	ExternalAuthClientProfileType ExternalAuthClientType             `json:"type"                visibility:"read create update"       validate:"required_for_put,enum_externalauthclienttype"`
 }
 
 /** External Auth component profile
