@@ -47,8 +47,6 @@ func (c contextKey) String() string {
 		return "originalPath"
 	case contextKeyBody:
 		return "body"
-	case contextKeyAuditLogger:
-		return "auditLogger"
 	case contextKeyLogger:
 		return "logger"
 	case contextKeyVersion:
@@ -71,7 +69,6 @@ const (
 	// Keys for request-scoped data in http.Request contexts
 	contextKeyOriginalPath contextKey = iota
 	contextKeyBody
-	contextKeyAuditLogger
 	contextKeyLogger
 	contextKeyVersion
 	contextKeyDBClient
