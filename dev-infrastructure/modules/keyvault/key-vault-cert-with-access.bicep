@@ -36,12 +36,14 @@ param certificateAccessManagedIdentityPrincipalId string
 //
 
 var fqdn = '${hostName}.${certDomain}'
+// // RFC 5280 requires that the common name be <= 64 characters.
+var cn = length(fqdn) > 64 ? substring(fqdn, max(0, length(fqdn) - 64), 64) : fqdn
 
 module clientCertificate 'key-vault-cert.bicep' = {
   name: '${hostName}-cert'
   params: {
     keyVaultName: keyVaultName
-    subjectName: 'CN=${fqdn}'
+    subjectName: 'CN=${cn}'
     certName: keyVaultCertificateName
     keyVaultManagedIdentityId: kvCertOfficerManagedIdentityResourceId
     dnsNames: [

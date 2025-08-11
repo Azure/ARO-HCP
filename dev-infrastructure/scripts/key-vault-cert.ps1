@@ -38,6 +38,14 @@ try
 
         Write-Output $DNSNamesArray
 
+        # RFC 5280 requires that the common name be <= 64 characters
+        if ($SubjectName -match '^CN=(.+)$') {
+            $cn = $matches[1]
+            if ($cn.Length -gt 64) {
+                throw "CN length violates RFC 5280, it must be less than or equal to 64 characters."
+            }
+        }
+
         $PolicyParams = @{
             RenewAtPercentageLifetime = $RenewAtPercentageLifetime
             SecretContentType         = $SecretContentType
