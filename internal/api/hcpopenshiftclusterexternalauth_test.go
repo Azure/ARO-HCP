@@ -139,7 +139,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Bad properties.issuer.ca",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Ca: Ptr("NOT A PEM DOC"),
 					},
 				},
@@ -155,7 +155,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Bad properties.issuer.url - InvalidURL",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Url: Ptr("aaa"),
 					},
 				},
@@ -171,7 +171,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Bad properties.issuer.url - Not  starting with https://",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Url: Ptr("http://microsoft.com"),
 					},
 				},
@@ -187,7 +187,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Bad properties.issuer.audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Audiences: []string{"omitempty"},
 					},
 				},
@@ -201,7 +201,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Valid ClientId in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Url:       Ptr("https://example.com"),
 						Audiences: []string{ClientId1},
 					},
@@ -228,7 +228,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "Invalid ClientId not in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Url:       Ptr("https://example.com"),
 						Audiences: []string{},
 					},
@@ -261,7 +261,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			name: "External Auth with multiple clients that have the same Name/Namespace pair",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Issuer: TokenIssuerProfile{
+					Issuer: &TokenIssuerProfile{
 						Url:       Ptr("https://example.com"),
 						Audiences: []string{ClientId1, ClientId2},
 					},

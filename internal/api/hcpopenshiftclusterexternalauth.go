@@ -36,7 +36,7 @@ type HCPOpenShiftClusterExternalAuth struct {
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
 	Condition         ExternalAuthCondition             `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
-	Issuer            TokenIssuerProfile                `json:"issuer"                  visibility:"read create update"       validate:"required_for_put"`
+	Issuer            *TokenIssuerProfile               `json:"issuer"                  visibility:"read create update"       validate:"required_for_put"`
 	Clients           []ExternalAuthClientProfile       `json:"clients"                 visibility:"read create update"       validate:"max=20,omitempty"`
 	Claim             ExternalAuthClaimProfile          `json:"claim"                   visibility:"read create update"       validate:"required_for_put"`
 }
@@ -55,8 +55,8 @@ type ExternalAuthCondition struct {
  * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
  */
 type TokenIssuerProfile struct {
-	Url       *string  `json:"url"              visibility:"read create update"       validate:"required,url,startswith=https://"`
-	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required,min=0,max=10"`
+	Url       *string  `json:"url"              visibility:"read create update"       validate:"required_for_put,url,startswith=https://"`
+	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required_for_put,min=0,max=10"`
 	Ca        *string  `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
 }
 
