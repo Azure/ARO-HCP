@@ -1237,3 +1237,31 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
     ]
   }
 }
+
+resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'mise'
+  location: resourceGroup().location
+  properties: {
+    rules: [
+      {
+        actions: [for g in actionGroups: { actionGroupId: g }]
+        alert: 'MiseEnvoyScrapeDown'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
+          runbook_url: 'TBD'
+          summary: 'Envoy scrape target down for namespace=mise'
+        }
+        expression: 'absent(up{job="envoy-stats", namespace="mise"}) or (up{job="envoy-stats", namespace="mise"} == 0)'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
