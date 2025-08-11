@@ -111,7 +111,7 @@ type EtcdProfile struct {
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
 type EtcdDataEncryptionProfile struct {
-	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty" visibility:"read create"`
+	CustomerManaged   CustomerManagedEncryptionProfile        `json:"customerManaged,omitempty" visibility:"read create"`
 	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" visibility:"read create"`
 }
 

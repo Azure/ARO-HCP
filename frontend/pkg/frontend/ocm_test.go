@@ -97,49 +97,23 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				},
 			),
 		},
-		{
-			name: "converts EtcdEncryption for only default PlatformManaged",
-			cluster: arohcpv1alpha1.NewCluster().
-				Azure(arohcpv1alpha1.NewAzure().
-					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
-						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged))),
-					),
-				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-					hsc.Properties.Etcd.DataEncryption.CustomerManaged = nil
-				},
-			),
-		},
-		{
-			name: "converts EtcdEncryption for CustomerManaged",
-			cluster: arohcpv1alpha1.NewCluster().
-				Azure(arohcpv1alpha1.NewAzure().
-					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
-						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType("kms").Kms(arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(arohcpv1alpha1.NewAzureKmsKey().KeyName("test").KeyVaultName("test").KeyVersion("test-version"))))),
-					),
-				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.Etcd.DataEncryption = api.EtcdDataEncryptionProfile{
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: "kms",
-							Kms: &api.KmsEncryptionProfile{
-								ActiveKey: api.KmsKey{
-									Name:      "test",
-									VaultName: "test",
-									Version:   "test-version",
-								},
-							},
-						},
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-					}
-				},
-			),
-		},
+		// TODO: Uncomment when CS supports it.
+		// {
+		// 	name: "converts EtcdEncryption for only default PlatformManaged",
+		// 	cluster: arohcpv1alpha1.NewCluster().
+		// 		Azure(arohcpv1alpha1.NewAzure().
+		// 			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+		// 				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+		// 					KeyManagementMode("PlatformManaged")),
+		// 			),
+		// 		),
+		// 	want: clusterResource(
+		// 		func(hsc *api.HCPOpenShiftCluster) {
+		// 			hsc.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+		// 			hsc.Properties.Etcd.DataEncryption.CustomerManaged = api.CustomerManagedEncryptionProfile{}
+		// 		},
+		// 	),
+		// },
 		{
 			name: "converts CS ClusterImageRegistry to ClusterImageRegistryProfile",
 			cluster: arohcpv1alpha1.NewCluster().
@@ -218,7 +192,12 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 	for _, opt := range opts {
 		opt(c)
 	}
-
+	// Temporarily add a default that CS doesn't supply.
+	c.Properties.Etcd = api.EtcdProfile{
+		DataEncryption: api.EtcdDataEncryptionProfile{
+			KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		},
+	}
 	return c
 }
 
