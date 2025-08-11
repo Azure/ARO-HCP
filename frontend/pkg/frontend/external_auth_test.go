@@ -93,8 +93,7 @@ func TestCreateExternalAuth(t *testing.T) {
 			},
 		},
 	}
-	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
-	expectedCSExternalAuth, _ := externalAuthBuilder.
+	expectedCSExternalAuth, _ := arohcpv1alpha1.NewExternalAuth().
 		ID(strings.ToLower(api.TestExternalAuthName)).
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
 			URL(dummyURL).

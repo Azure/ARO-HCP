@@ -287,7 +287,7 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 }
 
 // Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+// we will get the resulting CS object from an empty HCPOpenShiftClusterNodePool object.
 func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 	return arohcpv1alpha1.NewNodePool().
 		ID("").
@@ -351,7 +351,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			expected, err := tc.expectedCSNodePool.Build()
 			require.NoError(t, err)
 			generatedCSNodePool, _ := f.BuildCSNodePool(ctx, tc.hcpNodePool, false)
-			assert.Equalf(t, expected.Taints(), generatedCSNodePool.Taints(), "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+			assert.Equalf(t, expected, generatedCSNodePool, "BuildCSNodePool(%v, %v)", resourceID, expected)
 		})
 	}
 }
