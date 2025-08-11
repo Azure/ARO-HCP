@@ -236,7 +236,7 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 	return func(b *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 		// This reflects how the immutable attributes get set when passed an empty[*] RP
 		// cluster. (well, not exactly empty, need to set Platform.ManagedResourceGroupName
-		// so that we don't get a corresdponding random value in the output.)
+		// so that we don't get a corresponding random value in the output.)
 		return b.
 			API(arohcpv1alpha1.NewClusterAPI().Listening("")).
 			Azure(arohcpv1alpha1.NewAzure().
