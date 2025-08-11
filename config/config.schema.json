@@ -315,6 +315,9 @@
         "zones": {
           "$ref": "#/definitions/zones",
           "description": "Zones to use for the pools."
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
         }
       },
       "additionalProperties": false,
@@ -324,7 +327,8 @@
         "osDiskSizeGB",
         "vmSize",
         "poolCount",
-        "zones"
+        "zones",
+        "zoneRedundantMode"
       ]
     },
     "aksConfig": {
@@ -432,10 +436,7 @@
       "oneOf": [
         {
           "type": "string",
-          "pattern": "^\\w+(?:,\\w+)*$"
-        },
-        {
-          "type": "null"
+          "pattern": "^$|^\\w+(?:,\\w+)*$"
         }
       ]
     },

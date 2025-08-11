@@ -31,6 +31,9 @@ param systemAgentPoolCount int
 @description('Zones to use for the system nodes')
 param systemAgentPoolZones string
 
+@description('Zone redundant mode for the system nodes')
+param systemZoneRedundantMode string
+
 @description('Disk size for the AKS system nodes')
 param aksSystemOsDiskSizeGB int
 
@@ -58,6 +61,9 @@ param userAgentPoolCount int
 @description('Zones to use for the user nodes')
 param userAgentPoolZones string
 
+@description('Zone redundant mode for the user nodes')
+param userZoneRedundantMode string
+
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
 
@@ -75,6 +81,9 @@ param infraAgentPoolZones string
 
 @description('Disk size for the AKS infra nodes')
 param infraOsDiskSizeGB int
+
+@description('Zone redundant mode for the infra nodes')
+param infraZoneRedundantMode string
 
 @description('The resource ID of the OCP ACR')
 param ocpAcrResourceId string
@@ -418,7 +427,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     subnetPrefix: subnetPrefix
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
-    systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
@@ -427,6 +435,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
+    userZoneRedundantMode: userZoneRedundantMode
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -435,6 +444,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(infraAgentPoolZones)
       : locationAvailabilityZoneList
     infraOsDiskSizeGB: infraOsDiskSizeGB
+    infraZoneRedundantMode: infraZoneRedundantMode
+    systemOsDiskSizeGB: aksSystemOsDiskSizeGB
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
     systemAgentVMSize: systemAgentVMSize
@@ -442,6 +453,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     systemAgentPoolZones: length(csvToArray(systemAgentPoolZones)) > 0
       ? csvToArray(systemAgentPoolZones)
       : locationAvailabilityZoneList
+    systemZoneRedundantMode: systemZoneRedundantMode
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     workloadIdentities: items({

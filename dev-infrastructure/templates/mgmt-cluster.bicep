@@ -43,6 +43,9 @@ param userAgentPoolCount int
 @description('Zones to use for the user nodes')
 param userAgentPoolZones string
 
+@description('Zone redundant mode for the user nodes')
+param userZoneRedundantMode string
+
 @description('Min replicas for the infra worker nodes')
 param infraAgentMinCount int
 
@@ -61,6 +64,9 @@ param infraAgentPoolZones string
 @description('Disk size for the AKS infra nodes')
 param infraOsDiskSizeGB int
 
+@description('Zone redundant mode for the infra nodes')
+param infraZoneRedundantMode string
+
 @description('Min replicas for the system nodes')
 param systemAgentMinCount int = 2
 
@@ -75,6 +81,9 @@ param systemAgentPoolCount int
 
 @description('Zones to use for the system nodes')
 param systemAgentPoolZones string
+
+@description('Zone redundant mode for the system nodes')
+param systemZoneRedundantMode string
 
 @description('Network dataplane plugin for the AKS cluster')
 param aksNetworkDataplane string
@@ -262,6 +271,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
       ? csvToArray(systemAgentPoolZones)
       : locationAvailabilityZoneList
     systemOsDiskSizeGB: systemOsDiskSizeGB
+    systemZoneRedundantMode: systemZoneRedundantMode
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
@@ -270,6 +280,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     userAgentPoolZones: length(csvToArray(userAgentPoolZones)) > 0
       ? csvToArray(userAgentPoolZones)
       : locationAvailabilityZoneList
+    userZoneRedundantMode: userZoneRedundantMode
     infraAgentMinCount: infraAgentMinCount
     infraAgentMaxCount: infraAgentMaxCount
     infraAgentVMSize: infraAgentVMSize
@@ -277,6 +288,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     infraAgentPoolZones: length(csvToArray(infraAgentPoolZones)) > 0
       ? csvToArray(infraAgentPoolZones)
       : locationAvailabilityZoneList
+    infraZoneRedundantMode: infraZoneRedundantMode
     infraOsDiskSizeGB: infraOsDiskSizeGB
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy

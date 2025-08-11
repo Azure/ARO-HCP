@@ -255,24 +255,27 @@ defaults:
       systemAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2ds_v5'
+        vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
         poolCount: 3
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       userAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2ds_v5'
+        vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
         poolCount: 3
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       infraAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2ds_v5'
+        vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
         poolCount: 2
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       etcd:
         name: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
         softDelete: true
@@ -350,20 +353,23 @@ defaults:
         osDiskSizeGB: 128
         minCount: 1
         poolCount: 3
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       userAgentPool:
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1
         poolCount: 3
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       infraAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2ds_v6'
         osDiskSizeGB: 32
         poolCount: 2
-        zones: null
+        zones: ""
+        zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
@@ -960,6 +966,14 @@ clouds:
                 privateLinkLocation: westus3
           westeurope:
             svc:
+              aks:
+                userAgentPool:
+                  zones: '1'
+                infraAgentPool:
+                  zones: '1'
+                systemAgentPool:
+                  zones: '1'
+            mgmt:
               aks:
                 userAgentPool:
                   zones: '1'

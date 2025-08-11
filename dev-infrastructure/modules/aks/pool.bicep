@@ -3,6 +3,7 @@ param poolBaseName string
 
 param poolZones array
 param poolCount int
+param zoneRedundantMode string = 'Auto'
 
 param poolRole string
 param enableSwitftV2 bool
@@ -40,18 +41,18 @@ func getNonZonalPoolCount(availableZones array, requiredPools int) int => max(0,
 //   P O O L   S T R A T E G Y
 //
 
-// Implementation of AKSZoneStrategy using helper functions
-// Creates pool configurations for user and infra pools based on available zones
+var useZonalPools = zoneRedundantMode == 'Enabled' || (zoneRedundantMode == 'Auto' && length(poolZones) > 0)
+var finalZones = useZonalPools ? poolZones : []
 
 var zonalPools = [
-  for i in range(0, getZonalPoolCount(poolZones, poolCount)): {
-    name: getZonalPoolName(poolBaseName, poolZones[i])
-    zones: [poolZones[i]]
+  for i in range(0, getZonalPoolCount(finalZones, poolCount)): {
+    name: getZonalPoolName(poolBaseName, finalZones[i])
+    zones: [finalZones[i]]
   }
 ]
 
 var nonZonalPools = [
-  for i in range(0, getNonZonalPoolCount(poolZones, poolCount)): {
+  for i in range(0, getNonZonalPoolCount(finalZones, poolCount)): {
     name: getNonZonalPoolName(poolBaseName, i + 1)
     zones: []
   }
