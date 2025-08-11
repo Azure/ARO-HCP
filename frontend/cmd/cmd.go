@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -46,8 +47,9 @@ import (
 )
 
 type FrontendOpts struct {
-	auditLogQueueSize int
-	auditTCPAddress   string
+	auditLogQueueSize  int
+	auditTCPAddress    string
+	auditConnectSocket bool
 
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -85,6 +87,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().StringVar(&opts.auditTCPAddress, "audit-tcp-address", os.Getenv("AUDIT_TCP_ADDRESS"), "OTEL Address to send audit logging to")
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
+	rootCmd.Flags().BoolVar(&opts.auditConnectSocket, "audit-connect-socket", strings.ToLower(os.Getenv("AUDIT_CONNECT_SOCKET")) == "true", "Connect to mdsd audit socket instead")
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
@@ -131,9 +134,8 @@ func (opts *FrontendOpts) Run() error {
 	logger := util.DefaultLogger()
 	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
 
-	auditNoOp := opts.auditTCPAddress == ""
-	logger.InfoContext(ctx, "initialising Audit Logger", "isNoop", auditNoOp)
-	auditClient, err := audit.NewOtelAuditClient(opts.auditLogQueueSize, opts.auditTCPAddress, auditNoOp)
+	logger.InfoContext(ctx, "initialising Audit Logger", "isNoop", !opts.auditConnectSocket)
+	auditClient, err := audit.NewOtelAuditClient(opts.auditLogQueueSize, opts.auditTCPAddress, opts.auditConnectSocket)
 	if err != nil {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
 	}

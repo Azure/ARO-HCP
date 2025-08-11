@@ -178,10 +178,14 @@
       "properties": {
         "tcpAddress": {
           "type": "string"
+        },
+        "connectSocket": {
+          "type": "boolean"
         }
       },
       "required": [
-        "tcpAddress"
+        "tcpAddress",
+        "connectSocket"
       ]
     },
     "tracing": {

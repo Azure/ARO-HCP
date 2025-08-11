@@ -25,7 +25,7 @@ import (
 // The definitions in this file are meant for unit tests.
 
 func newNoopAuditClient(t *testing.T) *audit.AuditClient {
-	c, err := audit.NewOtelAuditClient(0, "", true)
+	c, err := audit.NewOtelAuditClient(0, "", false)
 	require.NoError(t, err)
 	return c
 }

@@ -45,16 +45,33 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 	return c.client.Send(ctx, msg)
 }
 
-func NewOtelAuditClient(auditLogQueueSize int, remoteAddress string, useNoop bool) (*AuditClient, error) {
-	if useNoop {
-		return initializeNoOPOtelAuditClient()
+func NewOtelAuditClient(auditLogQueueSize int, remoteAddress string, connectSocket bool) (*AuditClient, error) {
+	if connectSocket {
+		return initializeSocketOtelAuditClient()
 	}
 
-	return initializeOtelAuditClient(auditLogQueueSize, remoteAddress)
+	if remoteAddress != "" {
+		return initializeTcpOtelAuditClient(auditLogQueueSize, remoteAddress)
+	}
+
+	return initializeNoOPOtelAuditClient()
+}
+
+func initializeSocketOtelAuditClient() (*AuditClient, error) {
+	cc := func() (conn.Audit, error) {
+		return conn.NewDomainSocket() // You can pass an option here for a non-standard path.
+	}
+	c, err := audit.New(cc)
+	if err != nil {
+		return nil, fmt.Errorf("error creating socket audit client %v", err)
+	}
+	return &AuditClient{
+		client: c,
+	}, nil
 }
 
 // https://eng.ms/docs/products/geneva/collect/instrument/opentelemetryaudit/golang/linux/installation
-func initializeOtelAuditClient(auditLogQueueSize int, remoteAddress string) (*AuditClient, error) {
+func initializeTcpOtelAuditClient(auditLogQueueSize int, remoteAddress string) (*AuditClient, error) {
 	c, err := audit.New(
 		func() (conn.Audit, error) {
 			return conn.NewTCPConn(remoteAddress)
