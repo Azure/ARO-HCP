@@ -37,12 +37,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	// This will invoke the init() function in each
 	// API version package so it can register itself.
+	"github.com/Azure/ARO-HCP/internal/api"
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
