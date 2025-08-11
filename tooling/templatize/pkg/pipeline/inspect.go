@@ -41,6 +41,7 @@ type InspectOptions struct {
 	Configuration  config.Configuration
 	ScopeFunctions map[string]StepInspectScope
 	OutputFile     io.Writer
+	Concurrency    int
 }
 
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
@@ -110,6 +111,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *t
 			SubsciptionLookupFunc:    LookupSubscriptionID,
 			NoPersist:                true,
 			DeploymentTimeoutSeconds: 60,
+			Concurrency:              options.Concurrency,
 		}
 		outputs, err := RunPipeline(&topology.Service{
 			ServiceGroup: pipeline.ServiceGroup,

@@ -139,14 +139,16 @@ func TestMockedPipelineRun(t *testing.T) {
 
 	lock.Lock()
 	defer lock.Unlock()
+	slices.SortFunc(order, graph.CompareStepDependencies)
+
 	if diff := cmp.Diff(order, []types.StepDependency{
 		{ResourceGroup: "resourceGroup", Step: "fifth"},
-		{ResourceGroup: "resourceGroup", Step: "root"},
-		{ResourceGroup: "resourceGroup2", Step: "root2"},
-		{ResourceGroup: "resourceGroup", Step: "second"},
-		{ResourceGroup: "resourceGroup2", Step: "second2"},
 		{ResourceGroup: "resourceGroup", Step: "fourth"},
+		{ResourceGroup: "resourceGroup", Step: "root"},
+		{ResourceGroup: "resourceGroup", Step: "second"},
 		{ResourceGroup: "resourceGroup", Step: "third"},
+		{ResourceGroup: "resourceGroup2", Step: "root2"},
+		{ResourceGroup: "resourceGroup2", Step: "second2"},
 	}); len(diff) != 0 {
 		t.Errorf("incorrect step execution order: %s", diff)
 	}
@@ -221,6 +223,20 @@ func TestMockedPipelineRunError(t *testing.T) {
 								StepDependency: types.StepDependency{
 									ResourceGroup: "rg2",
 									Step:          "root2",
+								},
+							}},
+						}, { // since we cancel the context when rg2/second2 fails, if this does not depend on everything, it's not deterministic which will have finished
+							Value: types.Value{Input: &types.Input{
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "fifth",
+								},
+							}},
+						}, {
+							Value: types.Value{Input: &types.Input{
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "third",
 								},
 							}},
 						}},

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/Azure/ARO-Tools/pkg/graph"
@@ -44,6 +45,7 @@ type PipelineRunOptions struct {
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
 	PipelineFilePath         string
+	Concurrency              int
 }
 
 type Output interface {
@@ -168,7 +170,10 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	defer func() {
 		consumerCancel()
 	}()
-	const maxConcurrency = 1 // TODO: actually do parallel execution and see what breaks
+	maxConcurrency := options.Concurrency
+	if maxConcurrency == 0 {
+		maxConcurrency = runtime.NumCPU()
+	}
 	for i := 0; i < maxConcurrency; i++ {
 		consumerWg.Add(1)
 		go func() {
