@@ -19,10 +19,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
-	"strings"
 	"sync"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -84,26 +84,26 @@ type Outputs map[string]map[string]Output
 
 type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error)
 
-func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Info("Generating execution graph.")
-	nodes, err := createExecutionGraph(ctx, pipeline, options.Region, options.SubsciptionLookupFunc)
+	graphCtx, err := graph.ForPipeline(service, pipeline)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
 	lock := &sync.RWMutex{}
-	executed := sets.Set[types.StepDependency]{}
-	queued := sets.Set[types.StepDependency]{}
+	executed := sets.Set[graph.Dependency]{}
+	queued := sets.Set[graph.Dependency]{}
 	outputs := make(Outputs)
 
-	queue := make(chan *stepExecutionNode, len(nodes))
-	done := make(chan struct{}, len(nodes))
-	errs := make(chan error, len(nodes))
+	queue := make(chan graph.Dependency, len(graphCtx.Nodes))
+	done := make(chan struct{}, len(graphCtx.Nodes))
+	errs := make(chan error, len(graphCtx.Nodes))
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	// producer routine checks to see if we can queue more steps when we finish executing one
@@ -123,23 +123,19 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 				}
 				thisLogger.Info("Processing queue after step finished executing.")
 				lock.RLock()
-				for _, node := range nodes {
-					thisNode := types.StepDependency{
-						ResourceGroup: node.Step.ResourceGroup.Name,
-						Step:          node.Step.Delegate.StepName(),
-					}
-					if queued.Has(thisNode) {
+				for _, node := range graphCtx.Nodes {
+					if queued.Has(node.Dependency) {
 						continue
 					}
-					if executed.HasAll(contextsToDependencies(node.Parents)...) {
-						thisLogger.Info("Queueing step to run.", "resourceGroup", node.Step.ResourceGroup.Name, "step", node.Step.Delegate.StepName())
-						queued.Insert(thisNode)
-						queue <- node
+					if executed.HasAll(node.Parents...) {
+						thisLogger.Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
+						queued.Insert(node.Dependency)
+						queue <- node.Dependency
 					}
 				}
 				lock.RUnlock()
-				thisLogger.Info("Execution status.", "nodes", len(nodes), "queued", len(queued), "executed", len(executed))
-				if len(queued) == len(nodes) {
+				thisLogger.Info("Execution status.", "nodes", len(graphCtx.Nodes), "queued", len(queued), "executed", len(executed))
+				if len(queued) == len(graphCtx.Nodes) {
 					thisLogger.Info("Queued all nodes.")
 					close(queue)
 					return
@@ -170,9 +166,9 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 						close(errs)
 						return
 					}
-					stepLogger := thisLogger.WithValues("resourceGroup", step.Step.ResourceGroup.Name, "step", step.Step.Delegate.StepName())
+					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, step, ctx, options, outputs, executed, lock); err != nil {
+					if err := executeNode(executor, graphCtx, step, ctx, options, outputs, executed, lock); err != nil {
 						stepLogger.Info("Step errored.")
 						close(done)
 						errs <- err
@@ -209,171 +205,15 @@ func RunPipeline(pipeline *types.Pipeline, ctx context.Context, options *Pipelin
 	return outputs, nil
 }
 
-func contextsToDependencies(contexts []*stepExecutionContext) []types.StepDependency {
-	out := make([]types.StepDependency, len(contexts))
-	for i, ctx := range contexts {
-		out[i] = types.StepDependency{
-			ResourceGroup: ctx.ResourceGroup.Name,
-			Step:          ctx.Delegate.StepName(),
-		}
-	}
-	return out
-}
-
-type stepExecutionContext struct {
-	ResourceGroup *types.ResourceGroup
-	Delegate      types.Step
-	Target        ExecutionTarget
-}
-
-type stepExecutionDependency struct {
-	// parent must run before child
-	Parent, Child *stepExecutionContext
-}
-
-type stepExecutionNode struct {
-	Step     *stepExecutionContext
-	Parents  []*stepExecutionContext
-	Children []*stepExecutionContext
-}
-
-func createExecutionGraph(ctx context.Context, pipeline *types.Pipeline, region string, subscription subsciptionLookup) ([]*stepExecutionNode, error) {
-	// first, create a registry of steps by their identifier (resource group name, step name)
-	stepsByResourceGroupAndName := map[string]map[string]*stepExecutionContext{}
-	for _, rg := range pipeline.ResourceGroups {
-		// prepare execution context
-		subscriptionID, err := subscription(ctx, rg.Subscription)
-		if err != nil {
-			return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", rg.Subscription, err)
-		}
-		executionTarget := executionTargetImpl{
-			subscriptionName: rg.Subscription,
-			subscriptionID:   subscriptionID,
-			region:           region,
-			resourceGroup:    rg.ResourceGroup,
-		}
-
-		stepsByResourceGroupAndName[rg.Name] = map[string]*stepExecutionContext{}
-		for _, step := range rg.Steps {
-			stepsByResourceGroupAndName[rg.Name][step.StepName()] = &stepExecutionContext{
-				ResourceGroup: rg,
-				Delegate:      step,
-				Target:        &executionTarget,
-			}
-		}
-	}
-
-	// next, create an adjacency list of edges between these nodes
-	var stepDependencies []*stepExecutionDependency
-	for _, rg := range pipeline.ResourceGroups {
-		for _, step := range rg.Steps {
-			dependsOn := append(step.Dependencies(), step.RequiredInputs()...)
-			slices.SortFunc(dependsOn, func(a, b types.StepDependency) int {
-				if cmp := strings.Compare(a.ResourceGroup, b.ResourceGroup); cmp != 0 {
-					return cmp
-				}
-				return strings.Compare(a.Step, b.Step)
-			})
-			dependsOn = slices.Compact(dependsOn)
-
-			child, recorded := stepsByResourceGroupAndName[rg.Name][step.StepName()]
-			if !recorded {
-				return nil, fmt.Errorf("step %s/%s not recorded - this should never happen, programmer error", rg.Name, step.StepName())
-			}
-
-			for _, dep := range dependsOn {
-				parent, recorded := stepsByResourceGroupAndName[dep.ResourceGroup][dep.Step]
-				if !recorded {
-					return nil, fmt.Errorf("step %s/%s depends on a step %s/%s that is not recorded - this should never happen with a validated pipeline, programmer error", rg.Name, step.StepName(), dep.ResourceGroup, dep.Step)
-				}
-
-				stepDependencies = append(stepDependencies, &stepExecutionDependency{
-					Parent: parent,
-					Child:  child,
-				})
-			}
-		}
-	}
-
-	// record edges as references in nodes for ease of traversal
-	var nodes []*stepExecutionNode
-	for _, steps := range stepsByResourceGroupAndName {
-		for _, step := range steps {
-			node := &stepExecutionNode{
-				Step:     step,
-				Parents:  []*stepExecutionContext{},
-				Children: []*stepExecutionContext{},
-			}
-			for _, edge := range stepDependencies {
-				if edge.Child != nil && edge.Child == step {
-					node.Parents = append(node.Parents, edge.Parent)
-				}
-				if edge.Parent != nil && edge.Parent == step {
-					node.Children = append(node.Children, edge.Child)
-				}
-			}
-			nodes = append(nodes, node)
-		}
-	}
-
-	slices.SortFunc(nodes, func(a, b *stepExecutionNode) int {
-		if cmp := strings.Compare(a.Step.ResourceGroup.Name, b.Step.ResourceGroup.Name); cmp != 0 {
-			return cmp
-		}
-		return strings.Compare(a.Step.Delegate.StepName(), b.Step.Delegate.StepName())
-	})
-
-	// check for cycles
-	for _, node := range nodes {
-		seen := []*stepExecutionContext{
-			node.Step,
-		}
-		if err := traverse(node, nodes, seen); err != nil {
-			return nil, err
-		}
-	}
-
-	return nodes, nil
-}
-
-func traverse(node *stepExecutionNode, all []*stepExecutionNode, seen []*stepExecutionContext) error {
-	for _, child := range node.Children {
-		for _, previous := range seen {
-			if previous == child {
-				var cycle []string
-				for _, i := range seen {
-					cycle = append(cycle, fmt.Sprintf("%s/%s", i.ResourceGroup.Name, i.Delegate.StepName()))
-				}
-				return fmt.Errorf("cycle detected, reached %s/%s via %s", child.ResourceGroup.Name, child.Delegate.StepName(), strings.Join(cycle, " -> "))
-			}
-		}
-		chain := seen[:]
-		chain = append(chain, child)
-		var childNode *stepExecutionNode
-		for _, candidate := range all {
-			if candidate.Step == child {
-				childNode = candidate
-			}
-		}
-		if childNode == nil {
-			return fmt.Errorf("could not find child node %s/%s - programmer error", child.ResourceGroup.Name, child.Delegate.StepName())
-		}
-		if err := traverse(childNode, all, chain); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func executeNode(executor Executor, node *stepExecutionNode, ctx context.Context, options *PipelineRunOptions, outputs Outputs, executed sets.Set[types.StepDependency], lock *sync.RWMutex) error {
+func executeNode(executor Executor, graphCtx *graph.Context, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, outputs Outputs, executed sets.Set[graph.Dependency], lock *sync.RWMutex) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
 	}
-	logger = logger.WithValues("resourceGroup", node.Step.ResourceGroup.Name, "step", node.Step.Delegate.StepName())
-	thisNode := types.StepDependency{ResourceGroup: node.Step.ResourceGroup.Name, Step: node.Step.Delegate.StepName()}
+
+	logger = logger.WithValues("serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
 	lock.RLock()
-	alreadyDone := executed.Has(thisNode)
+	alreadyDone := executed.Has(node)
 	lock.RUnlock()
 	if alreadyDone {
 		logger.Info("Skipping execution, as it has already happened.")
@@ -381,7 +221,28 @@ func executeNode(executor Executor, node *stepExecutionNode, ctx context.Context
 		return nil
 	}
 
-	output, err := executor(node.Step.Delegate, ctx, node.Step.Target, options, outputs)
+	resourceGroup, exists := graphCtx.ResourceGroups[node.ResourceGroup]
+	if !exists {
+		return fmt.Errorf("could not find resource group %s", node.ResourceGroup)
+	}
+
+	step, exists := graphCtx.Steps[node.ServiceGroup][node.ResourceGroup][node.Step]
+	if !exists {
+		return fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
+	}
+
+	subscriptionID, err := options.SubsciptionLookupFunc(ctx, resourceGroup.Subscription)
+	if err != nil {
+		return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+	}
+	target := &executionTargetImpl{
+		subscriptionName: resourceGroup.Subscription,
+		subscriptionID:   subscriptionID,
+		region:           options.Region,
+		resourceGroup:    resourceGroup.ResourceGroup,
+	}
+
+	output, err := executor(step, ctx, target, options, outputs)
 	if err != nil {
 		return err
 	}
@@ -389,12 +250,12 @@ func executeNode(executor Executor, node *stepExecutionNode, ctx context.Context
 	lock.Lock()
 	if output != nil {
 		logger.Info("Recording step output.")
-		if _, recorded := outputs[node.Step.ResourceGroup.Name]; !recorded {
-			outputs[node.Step.ResourceGroup.Name] = map[string]Output{}
+		if _, recorded := outputs[node.ResourceGroup]; !recorded {
+			outputs[node.ResourceGroup] = map[string]Output{}
 		}
-		outputs[node.Step.ResourceGroup.Name][node.Step.Delegate.StepName()] = output
+		outputs[node.ResourceGroup][node.Step] = output
 	}
-	executed.Insert(thisNode)
+	executed.Insert(node)
 	lock.Unlock()
 	return nil
 }
