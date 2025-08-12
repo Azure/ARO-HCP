@@ -26,7 +26,6 @@ param identityValue object
 param keyVaultName string
 
 var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
-var randomSuffix = toLower(uniqueString(resourceGroup().id))
 
 //
 // E X I S T I N G   R E S O U R C E S

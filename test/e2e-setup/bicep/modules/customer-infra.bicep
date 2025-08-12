@@ -20,7 +20,7 @@ resource customerNsg 'Microsoft.Network/networkSecurityGroups@2023-05-01' = {
   name: customerNsgName
   location: resourceGroup().location
   tags: {
-    persist: persistTagValue
+    persist: string(persistTagValue)
   }
 }
 
@@ -28,7 +28,7 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   name: customerVnetName
   location: resourceGroup().location
   tags: {
-    persist: persistTagValue
+    persist: string(persistTagValue)
   }
   properties: {
     addressSpace: {
