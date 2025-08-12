@@ -566,9 +566,9 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			Claim: api.ExternalAuthClaimProfile{
 				Mappings: api.TokenClaimMappingsProfile{
 					Username: api.UsernameClaimProfile{
-						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
-						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: api.UsernameClaimPrefixPolicyType(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
+						Claim:        api.PtrOrNil(csExternalAuth.Claim().Mappings().UserName().Claim()),
+						Prefix:       api.PtrOrNil(csExternalAuth.Claim().Mappings().UserName().Prefix()),
+						PrefixPolicy: api.PtrOrNil(api.UsernameClaimPrefixPolicyType(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy())),
 					},
 				},
 			},
@@ -659,13 +659,20 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) {
 	claimBuilder := arohcpv1alpha1.NewExternalAuthClaim()
-
 	mappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings()
-	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
-		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-		PrefixPolicy(string(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
-	)
+
+	usernameBuilder := arohcpv1alpha1.NewUsernameClaim()
+	if hcpExternalAuth.Properties.Claim.Mappings.Username.Claim != nil {
+		usernameBuilder.Claim(*hcpExternalAuth.Properties.Claim.Mappings.Username.Claim)
+	}
+	if hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix != nil {
+		usernameBuilder.Prefix(*hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix)
+	}
+	if hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy != nil {
+		usernameBuilder.PrefixPolicy(string(*hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy))
+	}
+	mappingsBuilder.UserName(usernameBuilder)
+
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
 		groupBuilder := arohcpv1alpha1.NewGroupsClaim()
 		if hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim != nil {
@@ -676,6 +683,7 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		}
 		mappingsBuilder.Groups(groupBuilder)
 	}
+
 	claimBuilder.Mappings(mappingsBuilder)
 
 	if len(hcpExternalAuth.Properties.Claim.ValidationRules) > 0 {

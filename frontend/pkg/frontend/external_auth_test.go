@@ -18,6 +18,7 @@ import (
 
 	// This will invoke the init() function in each
 	// API version package so it can register itself.
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -27,6 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/mocks"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -36,14 +44,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/mocks"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.TestExternalAuthName)
@@ -102,9 +102,7 @@ func TestCreateExternalAuth(t *testing.T) {
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
-					Claim(dummyClaim).
-					Prefix("").
-					PrefixPolicy(""),
+					Claim(dummyClaim),
 				),
 			),
 		).Build()

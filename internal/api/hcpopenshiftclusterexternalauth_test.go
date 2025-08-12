@@ -76,6 +76,9 @@ func TestExternalAuthRequiredForPut(t *testing.T) {
 }
 
 func TestExternalAuthValidate(t *testing.T) {
+	testClaim := "my-cool-claim"
+	testPrefix := "my-prefix"
+	testPrefixPolicy := "Prefix"
 	TooLongClaim := strings.Repeat("a", 257)
 	ClientId1 := "clientId1"
 	ClientId2 := "clientId2"
@@ -100,7 +103,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
 							Username: UsernameClaimProfile{
-								Claim: TooLongClaim,
+								Claim: &TooLongClaim,
 							},
 						},
 					},
@@ -217,7 +220,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
-							Username: UsernameClaimProfile{Claim: "email"},
+							Username: UsernameClaimProfile{Claim: &testClaim},
 						},
 					},
 				},
@@ -244,7 +247,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
-							Username: UsernameClaimProfile{Claim: "email"},
+							Username: UsernameClaimProfile{Claim: &testClaim},
 						},
 					},
 				},
@@ -285,7 +288,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
-							Username: UsernameClaimProfile{Claim: "email"},
+							Username: UsernameClaimProfile{Claim: &testClaim},
 						},
 					},
 				},
@@ -308,9 +311,9 @@ func TestExternalAuthValidate(t *testing.T) {
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
 							Username: UsernameClaimProfile{
-								Claim:        "email",
-								Prefix:       "",
-								PrefixPolicy: "Prefix",
+								Claim:        &testClaim,
+								Prefix:       &testPrefix,
+								PrefixPolicy: (*UsernameClaimPrefixPolicyType)(&testPrefixPolicy),
 							},
 						},
 					},
