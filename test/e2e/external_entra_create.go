@@ -15,8 +15,6 @@
 // Copyright 2025 Microsoft Corporation
 // Licensed under the Apache License, Version 2.0
 
-
-
 package e2e
 
 import (
@@ -38,7 +36,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
-
 
 type entraSecretFiles struct {
 	TenantID        string    `json:"tenant_id"`

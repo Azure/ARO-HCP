@@ -55,6 +55,7 @@ var (
 
 // Custom labels
 var (
-	Integration  = ginkgo.Label("Integration")
-	ExternalAuth = ginkgo.Label("ExternalAuth")
+	Integration   = ginkgo.Label("Integration")
+	ExternalAuth  = ginkgo.Label("ExternalAuth")
+	ExternalEntra = ginkgo.Label("ExternalEntra")
 )

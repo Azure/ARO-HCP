@@ -80,4 +80,7 @@ convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/external-auth/ext
 
 convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" \
                       "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
+convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
+convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/external-auth/external-auth-cluster.bicep" "${OUTPUT_DIR}/external-auth/external-auth-cluster.json"
+convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
 
