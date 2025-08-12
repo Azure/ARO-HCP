@@ -101,7 +101,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	}
 
 	logger.Info("Generating execution graph.")
-	graphCtx, err := graph.ForPipeline(service, pipeline)
+	executionGraph, err := graph.ForPipeline(service, pipeline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
@@ -113,9 +113,9 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		Outputs:  make(Outputs),
 	}
 
-	queue := make(chan graph.Dependency, len(graphCtx.Nodes))
-	done := make(chan struct{}, len(graphCtx.Nodes))
-	errs := make(chan error, len(graphCtx.Nodes))
+	queue := make(chan graph.Dependency, len(executionGraph.Nodes))
+	done := make(chan struct{}, len(executionGraph.Nodes))
+	errs := make(chan error, len(executionGraph.Nodes))
 	producerWg := &sync.WaitGroup{}
 	producerWg.Add(1)
 	// producer routine checks to see if we can queue more steps when we finish executing one
@@ -135,7 +135,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 				}
 				thisLogger.Info("Processing queue after step finished executing.")
 				state.RLock()
-				for _, node := range graphCtx.Nodes {
+				for _, node := range executionGraph.Nodes {
 					if state.Queued.Has(node.Dependency) {
 						continue
 					}
@@ -145,8 +145,8 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 						queue <- node.Dependency
 					}
 				}
-				thisLogger.Info("Execution status.", "nodes", len(graphCtx.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
-				if len(state.Queued) == len(graphCtx.Nodes) {
+				thisLogger.Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
+				if len(state.Queued) == len(executionGraph.Nodes) {
 					thisLogger.Info("Queued all nodes.")
 					close(queue)
 					state.RUnlock()
@@ -191,7 +191,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, graphCtx, step, consumerCtx, options, state); err != nil {
+					if err := executeNode(executor, executionGraph, step, consumerCtx, options, state); err != nil {
 						stepLogger.Info("Step errored.")
 						errs <- err
 						consumerCancel()
@@ -234,7 +234,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	return outputs, nil
 }
 
-func executeNode(executor Executor, graphCtx *graph.Context, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
+func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
