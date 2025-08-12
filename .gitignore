@@ -18,6 +18,13 @@ tooling/bin
 **/__pycache__
 **/charts/*.tgz
 /vendor/
-**/*.sha256
 CLAUDE.local.md
 .claude/*.local.json
+**/*.sha256*
+test/resourcegroups/
+demo/external-auth-payload.json
+.env
+# Generated Bicep artifacts
+*.sha256
+test/e2e/bicep-templates/
+test/e2e/out/
