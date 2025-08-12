@@ -17,6 +17,9 @@ param vnetName string
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
 
+@description('The key vault key name for etcd.')
+param keyName string
+
 var randomSuffix = toLower(uniqueString(clusterName))
 
 //
@@ -47,7 +50,7 @@ module clusterEtcdKeyVault '../../../../dev-infrastructure/modules/keyvault/keyv
     keyVaultName: 'cmk-etcd-kv'
     private: true
     enableSoftDelete: false
-    tagKey: 'test'
+    tagKey: 'cmk-etcd'
     tagValue: 'test'
   }
 }
@@ -56,7 +59,7 @@ module encryptionKey '../../../../dev-infrastructure/modules/keyvault/key-vault-
   name: 'cluster-etcd-key'
   params: {
     keyVaultName: clusterEtcdKeyVault.outputs.kvName
-    keyName: 'etcd-key'
+    keyName: keyName
   }
 }
 
@@ -511,8 +514,8 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
             kms: {
                 activeKey: {
                     vaultName: clusterEtcdKeyVault.outputs.kvName
-                    name: 'key-name'
-                    version: 'v1'
+                    name: keyName
+                    version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
                 }
 
             }
