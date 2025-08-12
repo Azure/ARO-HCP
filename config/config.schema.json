@@ -2052,6 +2052,10 @@
         "readerGroupId",
         "releaseManagementGroupId"
       ]
+    },
+    "automationDryRun": {
+      "type": "boolean",
+      "description": "Whether automation account runs in dry-run mode"
     }
   },
   "additionalProperties": false,

@@ -578,6 +578,8 @@ defaults:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
       pullSecretName: ocmirror-pull-secret
+  # Automation Account
+  automationDryRun: true
   # Mock Managed Identities - not relevant for most MSFT envs
   miMockClientId: ""
   miMockPrincipalId: ""
@@ -637,6 +639,7 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      automationDryRun: false
       arobit:
         mdsd:
           enabled: false
