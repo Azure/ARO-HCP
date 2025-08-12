@@ -135,7 +135,6 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         SUBSCRIPTION_ID=<subscription-id>
         CURRENT_USER_ID=$(az ad signed-in-user show -o json | jq -r '.id')
         az keyvault create --name ${USER}-${CS_CLUSTER_NAME}-"kv" -g ${RESOURCENAME} --location "westus3" --enable-rbac-authorization true
-        az role assignment create --assignee "${CURRENT_USER_ID}" --role "Key Vault Crypto Officer" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCENAME}/providers/Microsoft.KeyVault/vaults/${USER}-${CS_CLUSTER_NAME}-kv"
         az keyvault key create --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name "etcd-data-kms-encryption-key" --kty RSA --size 2048
         
         export etcd_key_version=$(az keyvault key list-versions --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name etcd-data-kms-encryption-key  --query "[].kid" -o tsv | cut -d'/' -f6)
