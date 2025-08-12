@@ -120,7 +120,7 @@ clustersService:
     name: arohcp-cspr-dbcs-usw3
     private: false
     serverStorageSizeGB: 128
-    serverVersion: "12"
+    serverVersion: "17"
     zoneRedundantMode: Auto
   tracing:
     address: ""
