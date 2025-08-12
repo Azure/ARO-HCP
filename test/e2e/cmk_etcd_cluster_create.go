@@ -40,11 +40,12 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "cmk-etcd-hcp-cluster"
+				customerManagedEncryptionKeyName = "cmk-etcd-hcp-cluster-key"
 			)
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "cmk-etcd", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "customer-managed-kms-etcd", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a prereqs in the resource group")
@@ -74,6 +75,7 @@ var _ = Describe("Customer", func() {
 					"vnetName":                 customerVnetName,
 					"subnetName":               customerVnetSubnetName,
 					"clusterName":              customerClusterName,
+					"keyName":                  customerManagedEncryptionKeyName,
 					"managedResourceGroupName": managedResourceGroupName,
 				},
 				45*time.Minute,
