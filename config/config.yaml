@@ -856,6 +856,10 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
+          # Clusters Service
+          clustersService:
+            postgres:
+              serverVersion: '17'
           # Maestro
           maestro:
             server:
