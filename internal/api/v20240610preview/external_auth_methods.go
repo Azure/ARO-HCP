@@ -66,10 +66,7 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 		// }
 
 		if h.Properties.Issuer != nil {
-			if out.Properties.Issuer == nil {
-				out.Properties.Issuer = &api.TokenIssuerProfile{}
-			}
-			normalizeTokenIssuerProfile(h.Properties.Issuer, out.Properties.Issuer)
+			normalizeTokenIssuerProfile(h.Properties.Issuer, &out.Properties.Issuer)
 		}
 		if h.Properties.Claim != nil {
 			normalizeExternalAuthClaimProfile(h.Properties.Claim, &out.Properties.Claim)
@@ -245,9 +242,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			},
 		},
 	}
-	if from.Properties.Issuer != nil {
-		out.Properties.Issuer = newTokenIssuerProfile(from.Properties.Issuer)
-	}
+	out.Properties.Issuer = newTokenIssuerProfile(&from.Properties.Issuer)
 
 	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
