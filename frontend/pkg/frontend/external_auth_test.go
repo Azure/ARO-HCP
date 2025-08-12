@@ -15,6 +15,9 @@
 package frontend
 
 import (
+
+	// This will invoke the init() function in each
+	// API version package so it can register itself.
 	"bytes"
 	"context"
 	"encoding/json"
@@ -34,10 +37,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	// This will invoke the init() function in each
-	// API version package so it can register itself.
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"

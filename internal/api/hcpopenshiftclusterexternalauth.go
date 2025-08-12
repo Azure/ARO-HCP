@@ -101,8 +101,8 @@ type TokenClaimMappingsProfile struct {
  * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
  */
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"         visibility:"read create update"      validate:"required_for_put,max=256"`
-	Prefix string `json:"prefix"        visibility:"read create update"      validate:"omitempty"`
+	Claim  *string `json:"claim"         visibility:"read create update"      validate:"required_for_put,max=256"`
+	Prefix *string `json:"prefix"        visibility:"read create update"      validate:"omitempty"`
 }
 
 /** External Auth claim profile

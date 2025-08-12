@@ -121,7 +121,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
 							Groups: &GroupClaimProfile{
-								Claim: TooLongClaim,
+								Claim: &TooLongClaim,
 							},
 						},
 					},

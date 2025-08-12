@@ -577,8 +577,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 
 	if groups, ok := csExternalAuth.Claim().Mappings().GetGroups(); ok {
 		externalAuth.Properties.Claim.Mappings.Groups = &api.GroupClaimProfile{
-			Claim:  groups.Claim(),
-			Prefix: groups.Prefix(),
+			Claim:  api.PtrOrNil(groups.Claim()),
+			Prefix: api.PtrOrNil(groups.Prefix()),
 		}
 
 	}
@@ -666,12 +666,15 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
 		PrefixPolicy(string(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
 	)
-
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		mappingsBuilder.Groups(arohcpv1alpha1.NewGroupsClaim().
-			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
-		)
+		groupBuilder := arohcpv1alpha1.NewGroupsClaim()
+		if hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim != nil {
+			groupBuilder.Claim(*hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim)
+		}
+		if hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix != nil {
+			groupBuilder.Prefix(*hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix)
+		}
+		mappingsBuilder.Groups(groupBuilder)
 	}
 	claimBuilder.Mappings(mappingsBuilder)
 

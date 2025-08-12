@@ -160,10 +160,10 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 	if p.Groups != nil {
 		out.Groups = &api.GroupClaimProfile{}
 		if p.Groups.Claim != nil {
-			out.Groups.Claim = *p.Groups.Claim
+			out.Groups.Claim = p.Groups.Claim
 		}
 		if p.Groups.Prefix != nil {
-			out.Groups.Prefix = *p.Groups.Prefix
+			out.Groups.Prefix = p.Groups.Prefix
 		}
 	}
 }
@@ -208,8 +208,8 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 
 	if from.Mappings.Groups != nil {
 		groups = &generated.GroupClaimProfile{
-			Claim:  api.PtrOrNil(from.Mappings.Groups.Claim),
-			Prefix: api.PtrOrNil(from.Mappings.Groups.Prefix),
+			Claim:  from.Mappings.Groups.Claim,
+			Prefix: from.Mappings.Groups.Prefix,
 		}
 	}
 

@@ -365,6 +365,10 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 
 func TestBuildCSExternalAuth(t *testing.T) {
 	resourceID := testResourceID(t)
+
+	testClaim := "A"
+	testClaim2 := "B"
+	testPrefix := "my-cool-prefix"
 	testCases := []struct {
 		name                   string
 		hcpExternalAuth        *api.HCPOpenShiftClusterExternalAuth
@@ -416,13 +420,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 					hsc.Properties.Claim = api.ExternalAuthClaimProfile{
 						Mappings: api.TokenClaimMappingsProfile{
 							Username: api.UsernameClaimProfile{
-								Claim:        "a",
+								Claim:        testClaim,
 								Prefix:       "",
 								PrefixPolicy: "",
 							},
 							Groups: &api.GroupClaimProfile{
-								Claim:  "b",
-								Prefix: "",
+								Claim:  &testClaim2,
+								Prefix: &testPrefix,
 							},
 						},
 						ValidationRules: []api.TokenClaimValidationRule{
@@ -448,13 +452,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 				arohcpv1alpha1.NewExternalAuthClaim().
 					Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 						UserName(arohcpv1alpha1.NewUsernameClaim().
-							Claim("a").
+							Claim(testClaim).
 							Prefix("").
 							PrefixPolicy(""),
 						).
 						Groups(arohcpv1alpha1.NewGroupsClaim().
-							Claim("b").
-							Prefix(""),
+							Claim(testClaim2).
+							Prefix(testPrefix),
 						),
 					).
 					ValidationRules([]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
