@@ -20,7 +20,7 @@ tests:
     alertname: FrontendLatency
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: info
       exp_annotations:
         description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
         runbook_url: 'TBD'
@@ -54,7 +54,7 @@ tests:
     alertname: FrontendClusterServiceErrorRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: info
       exp_annotations:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: 5.66%.'
         runbook_url: 'TBD'
@@ -80,7 +80,7 @@ tests:
     alertname: FrontendHealthAvailability
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: info
       exp_annotations:
         description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
         runbook_url: 'TBD'
