@@ -329,11 +329,13 @@ mgmt:
       tagKey: aroHCPPurpose
       tagValue: etcd-encryption
     infraAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 2
       vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     kubernetesVersion: 1.32.5
     name: pers-usw3test-mgmt-1
     networkDataplane: azure
@@ -341,17 +343,21 @@ mgmt:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      azCount: 1
       maxCount: 4
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 1
       vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     userAgentPool:
-      azCount: 4
       maxCount: 6
       minCount: 1
       osDiskSizeGB: 100
+      poolCount: 3
       vmSize: Standard_D4s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
   jaeger:
@@ -539,11 +545,13 @@ svc:
       tagKey: aroHCPPurpose
       tagValue: etcd-encryption
     infraAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 1
       vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     kubernetesVersion: 1.32.5
     name: pers-usw3test-svc
     networkDataplane: cilium
@@ -551,17 +559,21 @@ svc:
     podSubnetPrefix: 10.128.64.0/18
     subnetPrefix: 10.128.8.0/21
     systemAgentPool:
-      azCount: 1
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 1
       vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     userAgentPool:
-      azCount: 4
       maxCount: 3
       minCount: 1
       osDiskSizeGB: 32
+      poolCount: 3
       vmSize: Standard_D2s_v3
+      zoneRedundantMode: Auto
+      zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   istio:
     ingressGatewayIPAddressIPTags: ""

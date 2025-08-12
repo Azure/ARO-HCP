@@ -309,8 +309,15 @@
         "vmSize": {
           "type": "string"
         },
-        "azCount": {
+        "poolCount": {
           "type": "number"
+        },
+        "zones": {
+          "$ref": "#/definitions/zones",
+          "description": "Zones to use for the pools."
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
         }
       },
       "additionalProperties": false,
@@ -318,7 +325,10 @@
         "maxCount",
         "minCount",
         "osDiskSizeGB",
-        "vmSize"
+        "vmSize",
+        "poolCount",
+        "zones",
+        "zoneRedundantMode"
       ]
     },
     "aksConfig": {
@@ -421,6 +431,14 @@
     "csv": {
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+(,[\\w-\\.]+)*$"
+    },
+    "zones": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^$|^\\w+(?:,\\w+)*$"
+        }
+      ]
     },
     "certificateIssuer": {
       "type": "string",

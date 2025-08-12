@@ -257,19 +257,25 @@ defaults:
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 3
+        zones: ""
+        zoneRedundantMode: "Auto"
       userAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 3
+        zones: ""
+        zoneRedundantMode: "Auto"
       infraAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2s_v3'
         osDiskSizeGB: 32
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 2
+        zones: ""
+        zoneRedundantMode: "Auto"
       etcd:
         name: "ah-{{ .ctx.environment }}-se-{{ .ctx.regionShort }}-1" # [globally-unique]
         softDelete: true
@@ -346,18 +352,24 @@ defaults:
         vmSize: 'Standard_E8ds_v6'
         osDiskSizeGB: 128
         minCount: 1
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 3
+        zones: ""
+        zoneRedundantMode: "Auto"
       userAgentPool:
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
         minCount: 1
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 3
+        zones: ""
+        zoneRedundantMode: "Auto"
       infraAgentPool:
         minCount: 1
         maxCount: 3
         vmSize: 'Standard_D2ds_v6'
         osDiskSizeGB: 32
-        azCount: {{ .ev2.availabilityZoneCount }}
+        poolCount: 2
+        zones: ""
+        zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
@@ -758,9 +770,9 @@ clouds:
           etcd:
             softDelete: false
           infraAgentPool:
-            azCount: 1
+            poolCount: 1
           systemAgentPool:
-            azCount: 1
+            poolCount: 1
         prometheus:
           prometheusOperator:
             image:
@@ -780,14 +792,14 @@ clouds:
           systemAgentPool:
             vmSize: 'Standard_E8s_v3'
             maxCount: 4
-            azCount: 1
+            poolCount: 1
           userAgentPool:
             maxCount: 6
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
           infraAgentPool:
             vmSize: 'Standard_D2s_v3'
-            azCount: 1
+            poolCount: 2
           etcd:
             softDelete: false
           enableSwiftV2Vnet: false
@@ -952,6 +964,24 @@ clouds:
             oidc:
               storageAccount:
                 privateLinkLocation: westus3
+          westeurope:
+            svc:
+              aks:
+                userAgentPool:
+                  zones: '1'
+                infraAgentPool:
+                  zones: '1'
+                systemAgentPool:
+                  zones: '1'
+            mgmt:
+              aks:
+                userAgentPool:
+                  zones: '1'
+                infraAgentPool:
+                  zones: '1'
+                systemAgentPool:
+                  zones: '1'
+
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
