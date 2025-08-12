@@ -22,6 +22,10 @@ param userAssignedIdentitiesValue object
 @description('Cluster Managed Identities')
 param identityValue object
 
+@description('The KeyVault name that contains the encryption key')
+param keyVaultName string
+
+var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
 var randomSuffix = toLower(uniqueString(resourceGroup().id))
 
 //
@@ -39,6 +43,15 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
+  name: keyVaultName
+}
+
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' existing = {
+  parent: keyVault
+  name: etcdEncryptionKeyName
 }
 
 //
@@ -64,7 +77,17 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     console: {}
     etcd: {
       dataEncryption: {
-        keyManagementMode: 'PlatformManaged'
+        keyManagementMode: 'CustomerManaged'
+        customerManaged: {
+          encryptionType: 'kms'
+          kms: {
+            activeKey: {
+              vaultName: keyVaultName
+              name: etcdEncryptionKeyName
+              version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
+            }
+          }
+        }
       }
     }
     api: {

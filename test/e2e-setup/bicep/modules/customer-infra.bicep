@@ -10,6 +10,9 @@ param customerVnetName string = 'customer-vnet'
 @description('Subnet Name')
 param customerVnetSubnetName string = 'customer-subnet-1'
 
+@description('Key Vault Name')
+param customerKeyVaultName string = 'customer-key-vault'
+
 var addressPrefix = '10.0.0.0/16'
 var subnetPrefix = '10.0.0.0/24'
 
@@ -47,9 +50,32 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   }
 }
 
+resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
+  name: customerKeyVaultName
+  location: resourceGroup().location
+  properties: {
+    enableRbacAuthorization: true
+    enableSoftDelete: false
+    tenantId: subscription().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+  }
+}
+
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
+  parent: customerKeyVault
+  name: 'etcd-data-kms-encryption-key'
+  properties: {
+    kty: 'RSA'
+    keySize: 2048
+  }
+}
+
 //
 // outputs
-// 
+//
 
 @description('Network Security Group Name')
 output nsgName string = customerNsgName
@@ -59,3 +85,6 @@ output vnetName string = customerVnetName
 
 @description('Subnet Name')
 output vnetSubnetName string = customerVnetSubnetName
+
+@description('Key Vault Name')
+output keyVaultName string = customerKeyVaultName
