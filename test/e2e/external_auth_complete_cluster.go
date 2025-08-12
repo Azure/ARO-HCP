@@ -240,4 +240,3 @@ var _ = Describe("ExternalAuth Full E2E", func() {
 			Expect(string(respData)).To(ContainSubstring(externalAuthID))
 		})
 })
-

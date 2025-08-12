@@ -2,6 +2,10 @@
 // * KMS identity + role assignments need to be created
 // * pass the KMS identity to the cluster
 
+// TODO
+// * KMS identity + role assignments need to be created
+// * pass the KMS identity to the cluster
+
 @description('Name of the hypershift cluster')
 param clusterName string
 
@@ -16,12 +20,6 @@ param vnetName string
 
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
-
-@description('The Microsoft Entra client ID for external authentication')
-param entraClientId string
-
-@description('The Microsoft Entra tenant ID for external authentication')
-param entraTenantId string
 
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -470,10 +468,10 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   location: resourceGroup().location
   properties: {
     version: {
-      id: 'v4.19.0'
+      id: '4.19'
       channelGroup: 'stable'
     }
-    clusterImageRegistry: {
+  clusterImageRegistry: {
       state: 'Enabled'
     }
     dns: {}
@@ -518,33 +516,20 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
           serviceManagedIdentity: serviceManagedIdentity.id
         }
       }
-      //  External Auth config
-      externalAuthentication: {
-        identityProviders: [
-          {
-            name: 'entra-id'
-            type: 'MicrosoftEntra'
-            microsoftEntra: {
-              clientId: entraClientId
-              tenantId: entraTenantId
-            }
-          }
-        ]
-      }
     }
-    identity: {
-      type: 'UserAssigned'
-      userAssignedIdentities: {
-        '${serviceManagedIdentity.id}': {}
-        '${clusterApiAzureMi.id}': {}
-        '${controlPlaneMi.id}': {}
-        '${cloudControllerManagerMi.id}': {}
-        '${ingressMi.id}': {}
-        '${diskCsiDriverMi.id}': {}
-        '${fileCsiDriverMi.id}': {}
-        '${imageRegistryMi.id}': {}
-        '${cloudNetworkConfigMi.id}': {}
-      }
+  }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${serviceManagedIdentity.id}': {}
+      '${clusterApiAzureMi.id}': {}
+      '${controlPlaneMi.id}': {}
+      '${cloudControllerManagerMi.id}': {}
+      '${ingressMi.id}': {}
+      '${diskCsiDriverMi.id}': {}
+      '${fileCsiDriverMi.id}': {}
+      '${imageRegistryMi.id}': {}
+      '${cloudNetworkConfigMi.id}': {}
     }
   }
   dependsOn: [
