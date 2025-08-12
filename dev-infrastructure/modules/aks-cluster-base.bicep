@@ -392,7 +392,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         enabled: true
         config: {
           enableSecretRotation: 'true'
-          rotationPollInterval: '5m'
+          rotationPollInterval: '1h'
         }
       }
       omsagent: (logAnalyticsWorkspaceId != '')
