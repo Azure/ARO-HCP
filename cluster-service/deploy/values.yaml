@@ -186,6 +186,7 @@ azureMiMockServicePrincipalClientId: ""
 azureMiMockServicePrincipalPrincipalId: ""
 # Details for a provisioning shard
 shard:
+  Id: ""
   consumerName: ""
   zoneResourceId: ""
   cxSecretsKeyVaultUrl: ""

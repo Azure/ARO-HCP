@@ -15,6 +15,19 @@ ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 AFD_OIDC_BASE_ENDPOINT ?= "https://${REGIONAL_DNS_SUBDOMAIN}.${OIDC_SUBDOMAIN}.${SVC_PARENT_DNS_ZONE_NAME}/"
 TLS_CERTIFICATES_ENABLED ?= true
 
+# PROVISION_SHARDS_IDS_NAMESPACE_UUID is the UUID used as the Namespace ID
+# for generating Azure Provision Shard IDs. The value was generated
+# using an UUIDv4 with the github.com/google/uuid library.
+# *WARNING* Do not change this value as changing it changes how the
+# provision shard ids are generated and consumers of the generated names
+# rely on predictability of the generated names based on the given input.
+PROVISION_SHARDS_IDS_NAMESPACE_UUID=916f9976-e1c0-4afd-b84c-5d5c94fbeaed
+# PROVISION_SHARD_ID is the ID of the provision shard for the management cluster.
+# It is generated using the PROVISION_SHARDS_IDS_NAMESPACE_UUID and the
+# management cluster name(MGMT_AKS_NAME).
+# The value is generated using the uuid5 function from the python3 uuid module.
+PROVISION_SHARD_ID=$$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${PROVISION_SHARDS_IDS_NAMESPACE_UUID}'), '${MGMT_AKS_NAME}'))")
+
 deploy:
 	@source ./generate_helm_set_flags.sh && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
@@ -57,6 +70,7 @@ deploy:
 	  --set shard.cxSecretsKeyVaultMiClientId="${CX_SECRETS_KV_MI_CLIENT_ID}" \
 	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
 	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
+	  --set shard.Id=$(PROVISION_SHARD_ID) \
 	  --set databaseHost=$${DB_HOST} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
@@ -112,7 +126,7 @@ local-deploy-provision-shard:
 	CX_MI_KV_URL=$(shell az keyvault show -n ${CX_MI_KV_NAME} -g ${MGMT_RESOURCEGROUP} --query properties.vaultUri -o tsv) && \
 	CX_SECRETS_KV_MI_CLIENT_ID=$(shell az aks show -n ${MGMT_AKS_NAME} -g ${MGMT_RESOURCEGROUP} --query 'addonProfiles.azureKeyvaultSecretsProvider.identity.clientId' -o tsv) && \
 	if [ -z "$${CX_SECRETS_KV_MI_CLIENT_ID}" ]; then echo "Failed to get CX_SECRETS_KV_MI_CLIENT_ID - make sure to provision a MGMT cluster first" >&2; exit 1; fi && \
-	../templatize.sh $(DEPLOY_ENV) local/provisioning-shards.tmpl.yml local/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},cxSecretsKeyVaultMiClientId=$${CX_SECRETS_KV_MI_CLIENT_ID},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090
+	../templatize.sh $(DEPLOY_ENV) local/provisioning-shards.tmpl.yml local/local-provisioning-shards.yml -e zoneResourceId=$${ZONE_RESOURCE_ID},cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL},cxMiKeyVaultUrl=$${CX_MI_KV_URL},cxSecretsKeyVaultMiClientId=$${CX_SECRETS_KV_MI_CLIENT_ID},maestroRestUrl=http://localhost:8001,maestroGrpUrl=localhost:8090,shardId=$(PROVISION_SHARD_ID)
 	@cat local/local-provisioning-shards.yml
 
 personal-runtime-config:
