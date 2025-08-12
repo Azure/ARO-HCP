@@ -151,7 +151,7 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
 	dummyURL := "https://www.redhat.com"
 	resource := NewDefaultHCPOpenShiftClusterExternalAuth()
-	resource.Properties.Issuer = &TokenIssuerProfile{
+	resource.Properties.Issuer = TokenIssuerProfile{
 		Url:       &dummyURL,
 		Audiences: []string{"audience1"},
 	}

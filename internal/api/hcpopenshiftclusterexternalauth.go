@@ -36,7 +36,7 @@ type HCPOpenShiftClusterExternalAuth struct {
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
 	Condition         ExternalAuthCondition             `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
-	Issuer            *TokenIssuerProfile               `json:"issuer"                  visibility:"read create update"       validate:"required_for_put"`
+	Issuer            TokenIssuerProfile                `json:"issuer"                  visibility:"read create update"       validate:"required_for_put"`
 	Clients           []ExternalAuthClientProfile       `json:"clients"                 visibility:"read create update"       validate:"max=20,omitempty"`
 	Claim             ExternalAuthClaimProfile          `json:"claim"                   visibility:"read create update"       validate:"required_for_put"`
 }
