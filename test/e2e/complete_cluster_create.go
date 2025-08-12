@@ -45,20 +45,23 @@ var _ = Describe("Customer", func() {
 				customerVnetSubnetName           = "customer-vnet-subnet1"
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
+				openshiftControlPlaneVersionId   = "4.19"
+				openshiftNodeVersionId           = "4.19.0"
 			)
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "basic-create", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "setup-scripts", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a prereqs in the resource group")
+			By("creating a customer-infra")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"infra",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
+				"customer-infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
 				map[string]interface{}{
+					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
@@ -67,19 +70,42 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the hcp cluster")
+			By("creating a managed identities")
+			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*resourceGroup.Name,
+				"managed-identities",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+				map[string]interface{}{
+					"clusterName": customerClusterName,
+					"nsgName":     customerNetworkSecurityGroupName,
+					"vnetName":    customerVnetName,
+					"subnetName":  customerVnetSubnetName,
+				},
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the cluster")
+			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
+			Expect(err).NotTo(HaveOccurred())
+			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
+			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"hcp-cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/cluster.json")),
+				"cluster",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
 				map[string]interface{}{
-					"nsgName":                  customerNetworkSecurityGroupName,
-					"vnetName":                 customerVnetName,
-					"subnetName":               customerVnetSubnetName,
-					"clusterName":              customerClusterName,
-					"managedResourceGroupName": managedResourceGroupName,
+					"openshiftVersionId":          openshiftControlPlaneVersionId,
+					"clusterName":                 customerClusterName,
+					"managedResourceGroupName":    managedResourceGroupName,
+					"nsgName":                     customerNetworkSecurityGroupName,
+					"subnetName":                  customerVnetSubnetName,
+					"vnetName":                    customerVnetName,
+					"userAssignedIdentitiesValue": userAssignedIdentities,
+					"identityValue":               identity,
 				},
 				45*time.Minute,
 			)
@@ -104,14 +130,15 @@ var _ = Describe("Customer", func() {
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"node-pool",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/nodepool.json")),
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
 				map[string]interface{}{
-					"clusterName":  customerClusterName,
-					"nodePoolName": customerNodePoolName,
+					"openshiftVersionId": openshiftNodeVersionId,
+					"clusterName":        customerClusterName,
+					"nodePoolName":       customerNodePoolName,
+					"replicas":           2,
 				},
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-
 		})
 })

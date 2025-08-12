@@ -15,7 +15,6 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -52,13 +51,14 @@ var _ = Describe("Customer", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "illegal-ocp-version", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("creating a prereqs in the resource group")
+				By("creating a customer-infra")
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
-					"infra",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/standard-cluster-create/customer-infra.json")),
+					"customer-infra",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
 					map[string]interface{}{
+						"persistTagValue":        false,
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
@@ -67,23 +67,42 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
+				By("creating a managed identities")
+				managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+					*resourceGroup.Name,
+					"managed-identities",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+					map[string]interface{}{
+						"clusterName": customerClusterName,
+						"nsgName":     customerNetworkSecurityGroupName,
+						"vnetName":    customerVnetName,
+						"subnetName":  customerVnetSubnetName,
+					},
+					45*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
 				By("creating the hcp cluster")
+				userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
+				Expect(err).NotTo(HaveOccurred())
+				identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
+				Expect(err).NotTo(HaveOccurred())
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-				clusterTemplate := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/illegal-install-version/cluster.json"))
-				clusterTemplate = bytes.ReplaceAll(clusterTemplate, []byte("VERSION_REPLACE_ME"), []byte(version))
-
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
-					"illegal-cluster",
-					clusterTemplate,
+					"cluster",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
 					map[string]interface{}{
-						"nsgName":                  customerNetworkSecurityGroupName,
-						"vnetName":                 customerVnetName,
-						"subnetName":               customerVnetSubnetName,
-						"clusterName":              customerClusterName,
-						"managedResourceGroupName": managedResourceGroupName,
+						"openshiftVersionId":          version,
+						"clusterName":                 customerClusterName,
+						"managedResourceGroupName":    managedResourceGroupName,
+						"nsgName":                     customerNetworkSecurityGroupName,
+						"subnetName":                  customerVnetSubnetName,
+						"vnetName":                    customerVnetName,
+						"userAssignedIdentitiesValue": userAssignedIdentities,
+						"identityValue":               identity,
 					},
 					45*time.Minute,
 				)

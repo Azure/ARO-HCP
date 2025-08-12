@@ -10,6 +10,8 @@ OUTPUT_DIR="${1:-${ACTUAL_OUTPUT_DIR}}"
 
 # create output directory if it doesn't exist
 mkdir -p "${OUTPUT_DIR}/standard-cluster-create"
+mkdir -p "${OUTPUT_DIR}/illegal-install-version"
+mkdir -p "${OUTPUT_DIR}/image-registry"
 
 # Function to calculate SHA256 hash of a file
 calculate_hash() {
@@ -48,11 +50,24 @@ convert_bicep_to_json() {
     fi
 }
 
+# Process existing conversions
 convert_bicep_to_json "${project_root}/demo/bicep/customer-infra.bicep" "${OUTPUT_DIR}/standard-cluster-create/customer-infra.json"
 convert_bicep_to_json "${project_root}/demo/bicep/cluster.bicep" "${OUTPUT_DIR}/standard-cluster-create/cluster.json"
 convert_bicep_to_json "${project_root}/demo/bicep/nodepool.bicep" "${OUTPUT_DIR}/standard-cluster-create/nodepool.json"
 
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
+# Process e2e-setup bicep files
+find "${project_root}/test/e2e-setup/bicep" -type f -name "*.bicep" | while read bicep_file; do
+    # Get relative path from bicep root
+    rel_path=$(realpath --relative-to="${project_root}/test/e2e-setup/bicep" "$(dirname "$bicep_file")")
+    filename=$(basename "$bicep_file")
+    json_filename="${filename%.bicep}.json"
 
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
+    # Create output directory
+    output_dir="${OUTPUT_DIR}/${rel_path}"
+    mkdir -p "$output_dir"
+
+    # Convert bicep to json
+    convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
+done
+
 
