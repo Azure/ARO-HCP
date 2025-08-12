@@ -66,6 +66,6 @@ if [ -d "${project_root}/test/e2e-setup/bicep" ]; then
       output_dir="${OUTPUT_DIR}/${rel_path}"
       mkdir -p "$output_dir"
 
-      convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
-  done
-fi
+    # Convert bicep to json
+    convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
+done
