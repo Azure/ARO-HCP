@@ -20,6 +20,7 @@ ignore:
 - 'observability/arobit/deploy/templates/serviceaccount.yaml'
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 - 'observability/kube-events/deploy/templates/deployment.yaml'
+- 'observability/frontend/deploy/templates/frontend.deployment.yaml'
 rules:
   brackets: enable
   colons: enable
