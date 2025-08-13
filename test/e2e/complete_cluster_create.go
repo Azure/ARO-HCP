@@ -55,7 +55,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a customer-infra")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
+			customerInfraDeploymentResult, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"customer-infra",
@@ -91,6 +91,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
 			Expect(err).NotTo(HaveOccurred())
+			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
+			Expect(err).NotTo(HaveOccurred())
+			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
@@ -106,6 +110,8 @@ var _ = Describe("Customer", func() {
 					"vnetName":                    customerVnetName,
 					"userAssignedIdentitiesValue": userAssignedIdentities,
 					"identityValue":               identity,
+					"keyVaultName":                keyVaultName,
+					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
 				},
 				45*time.Minute,
 			)
