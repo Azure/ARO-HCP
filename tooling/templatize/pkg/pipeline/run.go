@@ -114,7 +114,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	}
 
 	queue := make(chan graph.Dependency, len(executionGraph.Nodes))
-	done := make(chan struct{}, len(executionGraph.Nodes))
+	checkForStepsToExecute := make(chan struct{}, len(executionGraph.Nodes))
 	errs := make(chan error, len(executionGraph.Nodes))
 	producerWg := &sync.WaitGroup{}
 	producerWg.Add(1)
@@ -122,15 +122,15 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	go func() {
 		thisLogger := logger.WithValues("routine", "producer")
 		defer func() {
+			close(queue)
 			producerWg.Done()
 			thisLogger.Info("Producer thread shutting down.")
 		}()
 		for {
 			select {
-			case _, open := <-done:
+			case _, open := <-checkForStepsToExecute:
 				if !open {
 					thisLogger.Info("Done channel closed.")
-					close(queue)
 					return
 				}
 				thisLogger.Info("Processing queue after step finished executing.")
@@ -148,14 +148,12 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 				thisLogger.Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
 				if len(state.Queued) == len(executionGraph.Nodes) {
 					thisLogger.Info("Queued all nodes.")
-					close(queue)
 					state.RUnlock()
 					return
 				}
 				state.RUnlock()
 			case <-ctx.Done():
 				thisLogger.Info("Context cancelled.")
-				close(queue)
 				return
 			}
 		}
@@ -198,7 +196,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 						return
 					}
 					stepLogger.Info("Finished step.")
-					done <- struct{}{}
+					checkForStepsToExecute <- struct{}{}
 				case <-consumerCtx.Done():
 					thisLogger.Info("Context cancelled.")
 					return
@@ -208,12 +206,12 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	}
 
 	// bootstrap the process with a signal to queue
-	done <- struct{}{}
+	checkForStepsToExecute <- struct{}{}
 
 	logger.Info("Waiting for consumers to finish.")
 	consumerWg.Wait()
 
-	close(done)
+	close(checkForStepsToExecute)
 	close(errs)
 
 	logger.Info("Waiting for execution to finish.")
