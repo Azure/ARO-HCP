@@ -19,5 +19,3 @@ tooling/bin
 **/charts/*.tgz
 /vendor/
 **/*.sha256
-CLAUDE.local.md
-.claude/*.local.json
