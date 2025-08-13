@@ -52,7 +52,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a customer-infra")
-				customerInfraDeploymentResult, err = framework.CreateBicepTemplateAndWait(ctx,
+				customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"customer-infra",
