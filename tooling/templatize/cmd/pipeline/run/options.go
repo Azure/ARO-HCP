@@ -103,7 +103,7 @@ func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
 }
 
 func (o *RunOptions) RunPipeline(ctx context.Context) error {
-	_, err := pipeline.RunPipeline(o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
+	_, err := pipeline.RunPipeline(o.PipelineOptions.Service, o.PipelineOptions.Pipeline, ctx, &pipeline.PipelineRunOptions{
 		DryRun:                   o.DryRun,
 		Cloud:                    o.PipelineOptions.RolloutOptions.Cloud,
 		Configuration:            o.PipelineOptions.RolloutOptions.Config,
@@ -113,6 +113,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 		PipelineFilePath:         o.PipelineOptions.PipelineFilePath,
+		Concurrency:              o.PipelineOptions.RolloutOptions.Concurrency,
 	}, pipeline.RunStep)
 	return err
 }

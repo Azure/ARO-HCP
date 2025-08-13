@@ -151,11 +151,11 @@ create-mock-identities:
 #
 
 global:
-	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run
 .PHONY: global
 
 global.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p global-pipeline.yaml -P run -d
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run -d
 .PHONY: global.what-if
 
 #
@@ -163,7 +163,7 @@ global.what-if:
 #
 
 region:
-	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run
 .PHONY: region
 
 region.clean:
@@ -174,7 +174,7 @@ region.clean:
 .PHONY: region.clean
 
 region.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p region-pipeline.yaml -P run -d
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run -d
 .PHONY: region.what-if
 
 #
@@ -182,7 +182,7 @@ region.what-if:
 #
 
 svc:
-	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run
 .PHONY: svc
 
 svc.cs-pr-check-msi:
@@ -231,7 +231,7 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.dev.permissions
 .PHONY: svc.init
 
 svc.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p svc-pipeline.yaml -P run -d
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run -d
 .PHONY: svc.what-if
 
 svc.dev-role-assignments:
@@ -258,7 +258,7 @@ svc.clean: svc.clean-nsp-associations
 #
 
 mgmt:
-	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run
 .PHONY: mgmt
 
 mgmt.aks.admin-access:
@@ -278,7 +278,7 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permis
 .PHONY: mgmt.init
 
 mgmt.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p mgmt-pipeline.yaml -P run -d
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run -d
 .PHONY: mgmt.what-if
 
 mgmt.clean-nsp-associations:
@@ -303,7 +303,7 @@ mgmt.dev.permissions: mgmt.kv.permission
 mgmt.solo.init: region mgmt.solo mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
 
 mgmt.solo:
-	../templatize.sh $(DEPLOY_ENV) -p mgmt-solo-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra.Solo -P run
 .PHONY: mgmt.solo
 
 #
@@ -311,11 +311,11 @@ mgmt.solo:
 #
 
 monitoring:
-	../templatize.sh $(DEPLOY_ENV) -p monitoring-pipeline.yaml -P run
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring
 
 monitoring.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p monitoring-pipeline.yaml -P run -d
+	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run -d
 .PHONY: monitoring.what-if
 
 # ACR DEV customizations

@@ -53,7 +53,7 @@ func NewCommand() (*cobra.Command, error) {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPipeline(cmd.Context(), opts)
+			return RunPipeline(cmd.Context(), opts)
 		},
 	}
 	if err := BindOptions(opts, cmd); err != nil {
@@ -87,7 +87,7 @@ func ensureDependencies(ctx context.Context) error {
 	return nil
 }
 
-func runPipeline(ctx context.Context, opts *RawRunOptions) error {
+func RunPipeline(ctx context.Context, opts *RawRunOptions) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err

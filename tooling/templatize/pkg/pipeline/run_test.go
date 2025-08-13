@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
@@ -31,313 +32,16 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-type compactNode struct {
-	node     types.StepDependency
-	children []types.StepDependency
-	parents  []types.StepDependency
-}
-
-func compactNodeFor(node *stepExecutionNode) compactNode {
-	var children []types.StepDependency
-	for _, child := range node.Children {
-		children = append(children, types.StepDependency{
-			ResourceGroup: child.ResourceGroup.Name,
-			Step:          child.Delegate.StepName(),
-		})
-	}
-	var parents []types.StepDependency
-	for _, parent := range node.Parents {
-		parents = append(parents, types.StepDependency{
-			ResourceGroup: parent.ResourceGroup.Name,
-			Step:          parent.Delegate.StepName(),
-		})
-	}
-	return compactNode{
-		node: types.StepDependency{
-			ResourceGroup: node.Step.ResourceGroup.Name,
-			Step:          node.Step.Delegate.StepName(),
-		},
-		children: children,
-		parents:  parents,
-	}
-}
-
-func compactNodesFor(nodes []*stepExecutionNode) []compactNode {
-	var out []compactNode
-	for _, node := range nodes {
-		out = append(out, compactNodeFor(node))
-	}
-	return out
-}
-
-func TestCreateExecutionGraph(t *testing.T) {
-	for _, testCase := range []struct {
-		name        string
-		input       *types.Pipeline
-		expected    []compactNode
-		expectedErr bool
-	}{
-		{
-			name: "dag",
-			input: &types.Pipeline{
-				ResourceGroups: []*types.ResourceGroup{
-					{
-						Name:          "rg",
-						ResourceGroup: "resourceGroup",
-						Subscription:  "subscription",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "root"},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "second"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "root",
-										},
-									}},
-								}},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "third"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "second",
-										},
-									}},
-								}},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "fourth"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg2",
-											Step:          "second2",
-										},
-									}},
-								}},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "fifth"},
-							},
-						},
-					},
-					{
-						Name:          "rg2",
-						ResourceGroup: "resourceGroup2",
-						Subscription:  "subscription",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "root2"},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "second2"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg2",
-											Step:          "root2",
-										},
-									}},
-								}},
-							},
-						},
-					},
-				},
-			},
-			expected: []compactNode{
-				{node: types.StepDependency{ResourceGroup: "rg", Step: "fifth"}},
-				{
-					node:    types.StepDependency{ResourceGroup: "rg", Step: "fourth"},
-					parents: []types.StepDependency{{ResourceGroup: "rg2", Step: "second2"}},
-				},
-				{
-					node:     types.StepDependency{ResourceGroup: "rg", Step: "root"},
-					children: []types.StepDependency{{ResourceGroup: "rg", Step: "second"}},
-				},
-				{
-					node:     types.StepDependency{ResourceGroup: "rg2", Step: "root2"},
-					children: []types.StepDependency{{ResourceGroup: "rg2", Step: "second2"}},
-				},
-				{
-					node:     types.StepDependency{ResourceGroup: "rg", Step: "second"},
-					children: []types.StepDependency{{ResourceGroup: "rg", Step: "third"}},
-					parents:  []types.StepDependency{{ResourceGroup: "rg", Step: "root"}},
-				},
-				{
-					node:     types.StepDependency{ResourceGroup: "rg2", Step: "second2"},
-					children: []types.StepDependency{{ResourceGroup: "rg", Step: "fourth"}},
-					parents:  []types.StepDependency{{ResourceGroup: "rg2", Step: "root2"}},
-				},
-				{
-					node:    types.StepDependency{ResourceGroup: "rg", Step: "third"},
-					parents: []types.StepDependency{{ResourceGroup: "rg", Step: "second"}},
-				},
-			},
-		},
-		{
-			name: "convergent",
-			input: &types.Pipeline{
-				ResourceGroups: []*types.ResourceGroup{
-					{
-						Name:          "rg",
-						ResourceGroup: "resourceGroup",
-						Subscription:  "subscription",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "root"},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "second"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "root",
-										},
-									}},
-								}, {
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg2",
-											Step:          "root2",
-										},
-									}},
-								}},
-							},
-						},
-					},
-					{
-						Name:          "rg2",
-						ResourceGroup: "resourceGroup2",
-						Subscription:  "subscription",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "root2"},
-							},
-						},
-					},
-				},
-			},
-			expected: []compactNode{
-				{
-					node:     types.StepDependency{ResourceGroup: "rg", Step: "root"},
-					children: []types.StepDependency{{ResourceGroup: "rg", Step: "second"}},
-				},
-				{
-					node:     types.StepDependency{ResourceGroup: "rg2", Step: "root2"},
-					children: []types.StepDependency{{ResourceGroup: "rg", Step: "second"}},
-				},
-				{
-					node:    types.StepDependency{ResourceGroup: "rg", Step: "second"},
-					parents: []types.StepDependency{{ResourceGroup: "rg", Step: "root"}, {ResourceGroup: "rg2", Step: "root2"}},
-				},
-			},
-		},
-		{
-			name: "no roots",
-			input: &types.Pipeline{
-				ResourceGroups: []*types.ResourceGroup{
-					{
-						Name: "rg",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "first"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "second",
-										},
-									}},
-								}}},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "second"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "first",
-										},
-									}},
-								}}},
-						},
-					},
-				},
-			},
-			expectedErr: true,
-		},
-		{
-			name: "deep cycle",
-			input: &types.Pipeline{
-				ResourceGroups: []*types.ResourceGroup{
-					{
-						Name: "rg",
-						Steps: []types.Step{
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "root"},
-							},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "first", DependsOn: []types.StepDependency{{ResourceGroup: "rg", Step: "root"}}},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "second",
-										},
-									}},
-								}}},
-							&types.ShellStep{
-								StepMeta: types.StepMeta{Name: "second"},
-								Variables: []types.Variable{{
-									Value: types.Value{Input: &types.Input{
-										StepDependency: types.StepDependency{
-											ResourceGroup: "rg",
-											Step:          "first",
-										},
-									}},
-								}}},
-						},
-					},
-				},
-			},
-			expectedErr: true,
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			nodes, err := createExecutionGraph(t.Context(), testCase.input, "region", func(ctx context.Context, s string) (string, error) {
-				return s + "-id", nil
-			})
-			slices.SortFunc(nodes, func(a, b *stepExecutionNode) int {
-				return strings.Compare(a.Step.Delegate.StepName(), b.Step.Delegate.StepName())
-			})
-			if testCase.expectedErr && err == nil {
-				t.Errorf("%s: expected an error but got none", testCase.name)
-			}
-			if !testCase.expectedErr && err != nil {
-				t.Errorf("%s: expected no error but got one: %v", testCase.name, err)
-			}
-			if diff := cmp.Diff(testCase.expected, compactNodesFor(nodes),
-				cmp.AllowUnexported(compactNode{}),
-			); diff != "" {
-				t.Errorf("%s: actual nodes diff %s", testCase.name, diff)
-			}
-		})
-	}
-}
-
 func TestMockedPipelineRun(t *testing.T) {
 	pipeline := &types.Pipeline{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 		ResourceGroups: []*types.ResourceGroup{
 			{
-				Name:          "rg",
-				ResourceGroup: "resourceGroup",
-				Subscription:  "subscription",
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name:          "rg",
+					ResourceGroup: "resourceGroup",
+					Subscription:  "subscription",
+				},
 				Steps: []types.Step{
 					&types.ShellStep{
 						StepMeta: types.StepMeta{Name: "root"},
@@ -381,9 +85,11 @@ func TestMockedPipelineRun(t *testing.T) {
 				},
 			},
 			{
-				Name:          "rg2",
-				ResourceGroup: "resourceGroup2",
-				Subscription:  "subscription",
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name:          "rg2",
+					ResourceGroup: "resourceGroup2",
+					Subscription:  "subscription",
+				},
 				Steps: []types.Step{
 					&types.ShellStep{
 						StepMeta: types.StepMeta{Name: "root2"},
@@ -407,7 +113,7 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -421,7 +127,9 @@ func TestMockedPipelineRun(t *testing.T) {
 		return nil, nil
 	}
 
-	if _, err := RunPipeline(pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+	if _, err := RunPipeline(&topology.Service{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
+	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -431,14 +139,16 @@ func TestMockedPipelineRun(t *testing.T) {
 
 	lock.Lock()
 	defer lock.Unlock()
+	slices.SortFunc(order, graph.CompareStepDependencies)
+
 	if diff := cmp.Diff(order, []types.StepDependency{
 		{ResourceGroup: "resourceGroup", Step: "fifth"},
-		{ResourceGroup: "resourceGroup", Step: "root"},
-		{ResourceGroup: "resourceGroup2", Step: "root2"},
-		{ResourceGroup: "resourceGroup", Step: "second"},
-		{ResourceGroup: "resourceGroup2", Step: "second2"},
 		{ResourceGroup: "resourceGroup", Step: "fourth"},
+		{ResourceGroup: "resourceGroup", Step: "root"},
+		{ResourceGroup: "resourceGroup", Step: "second"},
 		{ResourceGroup: "resourceGroup", Step: "third"},
+		{ResourceGroup: "resourceGroup2", Step: "root2"},
+		{ResourceGroup: "resourceGroup2", Step: "second2"},
 	}); len(diff) != 0 {
 		t.Errorf("incorrect step execution order: %s", diff)
 	}
@@ -446,11 +156,14 @@ func TestMockedPipelineRun(t *testing.T) {
 
 func TestMockedPipelineRunError(t *testing.T) {
 	pipeline := &types.Pipeline{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 		ResourceGroups: []*types.ResourceGroup{
 			{
-				Name:          "rg",
-				ResourceGroup: "resourceGroup",
-				Subscription:  "subscription",
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name:          "rg",
+					ResourceGroup: "resourceGroup",
+					Subscription:  "subscription",
+				},
 				Steps: []types.Step{
 					&types.ShellStep{
 						StepMeta: types.StepMeta{Name: "root"},
@@ -494,9 +207,11 @@ func TestMockedPipelineRunError(t *testing.T) {
 				},
 			},
 			{
-				Name:          "rg2",
-				ResourceGroup: "resourceGroup2",
-				Subscription:  "subscription",
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name:          "rg2",
+					ResourceGroup: "resourceGroup2",
+					Subscription:  "subscription",
+				},
 				Steps: []types.Step{
 					&types.ShellStep{
 						StepMeta: types.StepMeta{Name: "root2"},
@@ -510,6 +225,20 @@ func TestMockedPipelineRunError(t *testing.T) {
 									Step:          "root2",
 								},
 							}},
+						}, { // since we cancel the context when rg2/second2 fails, if this does not depend on everything, it's not deterministic which will have finished
+							Value: types.Value{Input: &types.Input{
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "fifth",
+								},
+							}},
+						}, {
+							Value: types.Value{Input: &types.Input{
+								StepDependency: types.StepDependency{
+									ResourceGroup: "rg",
+									Step:          "third",
+								},
+							}},
 						}},
 					},
 				},
@@ -520,7 +249,7 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, outPuts Outputs) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -538,7 +267,9 @@ func TestMockedPipelineRunError(t *testing.T) {
 		return nil, nil
 	}
 
-	if _, err := RunPipeline(pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+	if _, err := RunPipeline(&topology.Service{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
+	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -548,11 +279,13 @@ func TestMockedPipelineRunError(t *testing.T) {
 
 	lock.Lock()
 	defer lock.Unlock()
+	slices.SortFunc(order, graph.CompareStepDependencies)
+
 	if diff := cmp.Diff(order, []types.StepDependency{
 		{ResourceGroup: "resourceGroup", Step: "fifth"},
 		{ResourceGroup: "resourceGroup", Step: "root"},
-		{ResourceGroup: "resourceGroup2", Step: "root2"},
 		{ResourceGroup: "resourceGroup", Step: "second"},
+		{ResourceGroup: "resourceGroup2", Step: "root2"},
 	}); len(diff) != 0 {
 		t.Errorf("incorrect step execution order: %s", diff)
 	}
@@ -560,11 +293,14 @@ func TestMockedPipelineRunError(t *testing.T) {
 
 func TestPipelineRun(t *testing.T) {
 	pipeline := &types.Pipeline{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 		ResourceGroups: []*types.ResourceGroup{
 			{
-				Name:          "test",
-				ResourceGroup: "test",
-				Subscription:  "test",
+				ResourceGroupMeta: &types.ResourceGroupMeta{
+					Name:          "test",
+					ResourceGroup: "test",
+					Subscription:  "test",
+				},
 				Steps: []types.Step{
 					types.NewShellStep("step", "echo hello"),
 				},
@@ -572,7 +308,9 @@ func TestPipelineRun(t *testing.T) {
 		},
 	}
 
-	output, err := RunPipeline(pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+	output, err := RunPipeline(&topology.Service{
+		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
+	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
