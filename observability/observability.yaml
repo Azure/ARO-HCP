@@ -4,6 +4,7 @@ prometheusRules:
   - ../frontend/alerts/mise-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
   - ../observability/alerts/tested-rules
+  - ../backend/alerts/backend-prometheusRule.yaml
   untestedRules:
   - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
