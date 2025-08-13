@@ -94,7 +94,7 @@ func NewValidator() *validator.Validate {
 	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
 		UsernameClaimPrefixPolicyTypePrefix,
 		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeUnset,
+		UsernameClaimPrefixPolicyTypeNone,
 	))
 	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
 		ExternalAuthConditionTypeAvailable,

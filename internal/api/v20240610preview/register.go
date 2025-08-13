@@ -38,7 +38,7 @@ type UsernameClaimPrefixPolicyType string
 const (
 	UsernameClaimPrefixPolicyTypePrefix   UsernameClaimPrefixPolicyType = "Prefix"
 	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
-	UsernameClaimPrefixPolicyTypeUnset    UsernameClaimPrefixPolicyType = ""
+	UsernameClaimPrefixPolicyTypeNone     UsernameClaimPrefixPolicyType = "None"
 )
 
 // FIXME This is a hack because we typed this field as string and not an enum in the API spec.
@@ -47,7 +47,7 @@ func PossibleUsernameClaimPrefixPolicyTypeValues() []UsernameClaimPrefixPolicyTy
 	return []UsernameClaimPrefixPolicyType{
 		UsernameClaimPrefixPolicyTypePrefix,
 		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeUnset,
+		UsernameClaimPrefixPolicyTypeNone,
 	}
 }
 

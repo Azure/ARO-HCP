@@ -47,6 +47,8 @@ const (
 	csImageRegistryStateDisabled          string = "disabled"
 	csImageRegistryStateEnabled           string = "enabled"
 	csPlatformOutboundType                string = "load_balancer"
+	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
+	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -85,6 +87,30 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	return
 }
 
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (prefixPolicyRP api.UsernameClaimPrefixPolicyType) {
+	switch prefixPolicyCS {
+	case csUsernameClaimPrefixPolicyPrefix:
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypePrefix
+	case csUsernameClaimPrefixPolicyNoPrefix:
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNoPrefix
+	case "":
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNone
+	}
+	return
+}
+
+func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (prefixPolicyCS string) {
+	switch prefixPolicyRP {
+	case api.UsernameClaimPrefixPolicyTypePrefix:
+		prefixPolicyCS = csUsernameClaimPrefixPolicyPrefix
+	case api.UsernameClaimPrefixPolicyTypeNoPrefix:
+		prefixPolicyCS = csUsernameClaimPrefixPolicyNoPrefix
+	case api.UsernameClaimPrefixPolicyTypeNone:
+		prefixPolicyCS = ""
+	}
+	return
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -107,6 +133,7 @@ func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) 
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
 }
+
 func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
 	var registryState api.ClusterImageRegistryProfileState
 	switch state {
@@ -561,7 +588,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 					Username: api.UsernameClaimProfile{
 						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: api.UsernameClaimPrefixPolicyType(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
+						PrefixPolicy: convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
 					},
 				},
 			},
@@ -655,7 +682,7 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
 		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
 		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-		PrefixPolicy(string(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
+		PrefixPolicy(convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
 	)
 
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {

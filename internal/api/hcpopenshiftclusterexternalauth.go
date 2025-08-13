@@ -128,9 +128,17 @@ type TokenRequiredClaim struct {
 }
 
 func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAuth {
-	// Currently the only defaults in External Auth is for TokenValidationRuleType but as
-	// there are no TokenValidationRules by default the object is just empty.
-	return &HCPOpenShiftClusterExternalAuth{}
+	return &HCPOpenShiftClusterExternalAuth{
+		Properties: HCPOpenShiftClusterExternalAuthProperties{
+			Claim: ExternalAuthClaimProfile{
+				Mappings: TokenClaimMappingsProfile{
+					Username: UsernameClaimProfile{
+						PrefixPolicy: UsernameClaimPrefixPolicyTypeNone,
+					},
+				},
+			},
+		},
+	}
 }
 
 // This combination is used later in the system as a unique identifier and as
@@ -220,7 +228,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUsernamePrefixPolic
 				Target: "properties.claim.mappings.username.prefix",
 			})
 		}
-	case UsernameClaimPrefixPolicyTypeUnset:
+	case UsernameClaimPrefixPolicyTypeNone:
 	}
 
 	return errorDetails

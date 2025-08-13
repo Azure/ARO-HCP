@@ -46,8 +46,12 @@ func TestExternalAuthRequiredForPut(t *testing.T) {
 			resource: NewDefaultHCPOpenShiftClusterExternalAuth(),
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Missing required field 'properties'",
-					Target:  "properties",
+					Message: "Missing required field 'claim'",
+					Target:  "properties.claim.mappings.username.claim",
+				},
+				{
+					Message: "Missing required field 'issuer'",
+					Target:  "properties.issuer",
 				},
 			},
 		},

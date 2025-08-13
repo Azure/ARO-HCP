@@ -440,7 +440,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 							Username: api.UsernameClaimProfile{
 								Claim:        "a",
 								Prefix:       "",
-								PrefixPolicy: "",
+								PrefixPolicy: "None",
 							},
 							Groups: &api.GroupClaimProfile{
 								Claim:  "b",

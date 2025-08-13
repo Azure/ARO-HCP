@@ -126,10 +126,10 @@ const (
 type UsernameClaimPrefixPolicyType string
 
 const (
-	// ConditionStatusType - the condition status is true.
+	// UsernameClaimPrefixPolicyTypePrefix - prefix the JWT claim with the value of Prefix.
 	UsernameClaimPrefixPolicyTypePrefix UsernameClaimPrefixPolicyType = "Prefix"
-	// ExternalAuthConditionTypeFalse - the condition status is false.
+	// UsernameClaimPrefixPolicyTypeNoPrefix - do not prefix the JWT claim.
 	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
-	// ConditionStatusTypeUnknown - the condition status is unknown.
-	UsernameClaimPrefixPolicyTypeUnset UsernameClaimPrefixPolicyType = ""
+	// UsernameClaimPrefixPolicyTypeNone - let the platform choose an appropriate prefix.
+	UsernameClaimPrefixPolicyTypeNone UsernameClaimPrefixPolicyType = "None"
 )
