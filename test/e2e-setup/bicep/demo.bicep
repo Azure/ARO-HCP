@@ -30,6 +30,8 @@ module AroHcpCluster 'modules/cluster.bicep' = {
     nsgName: customerInfra.outputs.nsgName
     userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
     identityValue: managedIdentities.outputs.identityValue
+    keyVaultName: customerInfra.outputs.keyVaultName
+    etcdEncryptionKeyName: customerInfra.outputs.etcdEncryptionKeyName
   }
 }
 

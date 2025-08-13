@@ -10,8 +10,24 @@ param customerVnetName string = 'customer-vnet'
 @description('Subnet Name')
 param customerVnetSubnetName string = 'customer-subnet-1'
 
-@description('Key Vault Name')
-param customerKeyVaultName string = 'customer-key-vault'
+@description('The name of the encryption key for etcd')
+param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
+
+//
+// Variables
+//
+
+var randomSuffix = toLower(uniqueString(resourceGroup().id))
+
+// The Key Vault Name is defined here in a variable instead of using a
+// parameter because of strict Azure requirements for KeyVault names
+// (KeyVault names are globally unique and must be between 3-24 alphanumeric
+// characters).
+var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
+
+//
+// Network
+//
 
 var addressPrefix = '10.0.0.0/16'
 var subnetPrefix = '10.0.0.0/24'
@@ -50,6 +66,10 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
   }
 }
 
+//
+// KeyVault
+//
+
 resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
   name: customerKeyVaultName
   location: resourceGroup().location
@@ -66,7 +86,7 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
 
 resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
   parent: customerKeyVault
-  name: 'etcd-data-kms-encryption-key'
+  name: customerEtcdEncryptionKeyName
   properties: {
     kty: 'RSA'
     keySize: 2048
@@ -88,3 +108,6 @@ output vnetSubnetName string = customerVnetSubnetName
 
 @description('Key Vault Name')
 output keyVaultName string = customerKeyVaultName
+
+@description('The name of the encryption key for etcd')
+output etcdEncryptionKeyName string = customerEtcdEncryptionKeyName

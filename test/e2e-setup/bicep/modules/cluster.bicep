@@ -22,10 +22,11 @@ param userAssignedIdentitiesValue object
 @description('Cluster Managed Identities')
 param identityValue object
 
-@description('The KeyVault name that contains the encryption key')
+@description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
-var etcdEncryptionKeyName = 'etcd-data-kms-encryption-key'
+@description('The name of the etcd encryption key in the KeyVault')
+param etcdEncryptionKeyName string
 
 //
 // E X I S T I N G   R E S O U R C E S
