@@ -7,8 +7,13 @@ param customerVnetName string
 @description('Subnet Name')
 param customerVnetSubnetName string
 
-@description('KeyVault Name')
-param customerKeyVaultName string
+var randomSuffix = toLower(uniqueString(resourceGroup().id))
+
+// The Key Vault Name is defined here in a variable instead of using a
+// parameter because of strict Azure requirements for KeyVault names
+// (KeyVault names are globally unique and must be between 3-24 alphanumeric
+// characters).
+var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
 
 var addressPrefix = '10.0.0.0/16'
 var subnetPrefix = '10.0.0.0/24'
@@ -73,4 +78,4 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' =
 
 output subnetId string = customerVnet.properties.subnets[0].id
 output networkSecurityGroupId string = customerNsg.id
-output keyvaultid string = customerKeyVault.id
+output keyVaultName string = customerKeyVaultName

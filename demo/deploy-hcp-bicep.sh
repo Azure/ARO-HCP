@@ -46,6 +46,12 @@ SUBNET_ID=$(az deployment group show \
           --resource-group "${CUSTOMER_RG_NAME}" \
           --query "properties.outputs.subnetId.value" -o tsv)
 
+KEYVAULT_NAME=$(az deployment group show \
+          --name 'infra' \
+          --subscription "${SUBSCRIPTION}" \
+          --resource-group "${CUSTOMER_RG_NAME}" \
+          --query "properties.outputs.keyVaultName.value" -o tsv)
+
 az deployment group create \
   --name 'aro-hcp'\
   --subscription "${SUBSCRIPTION}" \
@@ -56,7 +62,8 @@ az deployment group create \
     subnetName="${CUSTOMER_VNET_SUBNET1}" \
     nsgName="${CUSTOMER_NSG}" \
     clusterName="${CLUSTER_NAME}" \
-    managedResourceGroupName="${MANAGED_RESOURCE_GROUP}"
+    managedResourceGroupName="${MANAGED_RESOURCE_GROUP}" \
+    keyVaultName="${KEYVAULT_NAME}"
 
 az deployment group create \
   --name 'node-pool' \
