@@ -428,9 +428,8 @@ defaults:
     pav2:
       cloudName: ""
     kusto:
+      sku: ""
       clusterName: ""
-    cosmosDB:
-      name: ""
     eventHub:
       namespace: ""
       subscriptionId: ""
