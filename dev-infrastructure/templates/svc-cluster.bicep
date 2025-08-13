@@ -467,6 +467,11 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         namespace: 'aro-hcp'
         serviceAccountName: 'backend'
       }
+      billing_wi: {
+        uamiName: 'aro-billing'
+        namespace: 'billing'
+        serviceAccountName: 'aro-billing'
+      }
       backplane_wi: {
         uamiName: 'backplane-api'
         namespace: 'aro-hcp'
