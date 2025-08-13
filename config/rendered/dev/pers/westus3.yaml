@@ -68,14 +68,13 @@ billing:
   aub:
     accountName: ""
     cloudSuffix: ""
-  cosmosDB:
-    name: ""
   eventHub:
     namespace: ""
     resourceGroupName: ""
     subscriptionId: ""
   kusto:
     clusterName: ""
+    sku: ""
   pav2:
     cloudName: ""
   rg: placeholder
