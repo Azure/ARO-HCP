@@ -120,7 +120,7 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 
 func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.TokenIssuerProfile) {
 	if p.URL != nil {
-		out.Url = p.URL
+		out.Url = *p.URL
 	}
 	out.Audiences = make([]string, len(p.Audiences))
 	for i := range p.Audiences {
@@ -197,7 +197,7 @@ func newExternalAuthCondition(from *api.ExternalAuthCondition) *generated.Extern
 
 func newTokenIssuerProfile(from *api.TokenIssuerProfile) *generated.TokenIssuerProfile {
 	return &generated.TokenIssuerProfile{
-		URL:       from.Url,
+		URL:       api.PtrOrNil(from.Url),
 		Audiences: api.StringSliceToStringPtrSlice(from.Audiences),
 		Ca:        from.Ca,
 	}

@@ -372,7 +372,8 @@ func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *a
 func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
-		Issuer(arohcpv1alpha1.NewTokenIssuer()).
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL("")).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
@@ -418,7 +419,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Issuer = api.TokenIssuerProfile{
 						Ca:        &dummyCA,
-						Url:       &dummyURL,
+						Url:       dummyURL,
 						Audiences: dummyAudiences,
 					}
 				},

@@ -156,7 +156,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url: Ptr("aaa"),
+						Url: "aaa",
 					},
 				},
 			},
@@ -172,7 +172,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url: Ptr("http://microsoft.com"),
+						Url: "http://microsoft.com",
 					},
 				},
 			},
@@ -202,7 +202,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       Ptr("https://example.com"),
+						Url:       "https://example.com",
 						Audiences: []string{ClientId1},
 					},
 					Clients: []ExternalAuthClientProfile{
@@ -229,7 +229,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       Ptr("https://example.com"),
+						Url:       "https://example.com",
 						Audiences: []string{},
 					},
 					Clients: []ExternalAuthClientProfile{
@@ -262,7 +262,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       Ptr("https://example.com"),
+						Url:       "https://example.com",
 						Audiences: []string{ClientId1, ClientId2},
 					},
 					Clients: []ExternalAuthClientProfile{
