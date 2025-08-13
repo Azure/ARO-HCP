@@ -25,7 +25,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -241,6 +244,53 @@ func DeleteAllHCPClusters(
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
 		return fmt.Errorf("at least one hcp cluster failed to delete: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyNodePoolConfiguration verifies that a NodePool has the expected number of replicas and osDisk size.
+// This function uses the Kubernetes client to check the HyperShift NodePool CRD in the cluster namespace.
+func VerifyNodePoolConfiguration(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string, expectedReplicas int32, expectedOsDiskSizeGiB int32) error {
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	nodePoolGVR := schema.GroupVersionResource{
+		Group:    "hypershift.openshift.io",
+		Version:  "v1beta1",
+		Resource: "nodepools",
+	}
+
+	namespace := clusterName
+	nodePool, err := dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
+	}
+
+	// Verify replicas
+	replicas, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "replicas")
+	if err != nil {
+		return fmt.Errorf("failed to get replicas from NodePool spec: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("replicas not found in NodePool spec")
+	}
+	if replicas != int64(expectedReplicas) {
+		return fmt.Errorf("expected %d replicas, got %d", expectedReplicas, replicas)
+	}
+
+	// Verify osDisk.sizeGiB
+	diskSize, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "platform", "azure", "osDisk", "sizeGiB")
+	if err != nil {
+		return fmt.Errorf("failed to get osDisk.sizeGiB from NodePool spec: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("osDisk.sizeGiB not found in NodePool spec")
+	}
+	if diskSize != int64(expectedOsDiskSizeGiB) {
+		return fmt.Errorf("expected osDisk.sizeGiB %d, got %d", expectedOsDiskSizeGiB, diskSize)
 	}
 
 	return nil
