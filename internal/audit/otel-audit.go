@@ -45,14 +45,19 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 	return c.client.Send(ctx, msg)
 }
 
-func NewOtelAuditClient(remoteAddress string, options ...base.Option) (*AuditClient, error) {
+func NewOtelAuditClient(connectSocket bool, remoteAddress string, options ...base.Option) (*AuditClient, error) {
 	var createConn audit.CreateConn
 
-	if remoteAddress != "" {
+	switch {
+	case connectSocket:
+		createConn = func() (conn.Audit, error) {
+			return conn.NewDomainSocket()
+		}
+	case remoteAddress != "":
 		createConn = func() (conn.Audit, error) {
 			return conn.NewTCPConn(remoteAddress)
 		}
-	} else {
+	default:
 		createConn = func() (conn.Audit, error) {
 			return conn.NewNoOP(), nil
 		}
