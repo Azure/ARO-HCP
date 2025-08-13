@@ -32,7 +32,10 @@ import (
 	azidentity "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
+//
 // ---------- Shared types ----------
+//
+
 type providerEntraSecretOut struct {
 	TenantID     string    `json:"tenant_id"`
 	AppObjectID  string    `json:"app_object_id"`
@@ -47,7 +50,10 @@ type providerAppWeb struct {
 	RedirectUris []string `json:"redirectUris"`
 }
 
+//
 // ---------- Microsoft Graph helpers (Azure CLI auth) ----------
+//
+
 func providerGraphToken(ctx context.Context) (string, error) {
 	cred, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
@@ -123,7 +129,11 @@ func providerPatchAppRedirectUris(ctx context.Context, token, appObjectID string
 		token, body, nil, http.StatusNoContent)
 }
 
+//
 // ---------- Kube & port-forward helpers ----------
+//
+
+// run a command; for oc/kubectl/ocm append --insecure-skip-tls-verify (not used for port-forward path)
 func providerRun(ctx context.Context, name string, args ...string) (string, error) {
 	if name == "oc" || name == "kubectl" || name == "ocm" {
 		args = append(args, "--insecure-skip-tls-verify")
@@ -148,7 +158,8 @@ func providerFindServiceNamespace(ctx context.Context, svcName string) (string, 
 	return "", fmt.Errorf("service %q not found in any namespace", svcName)
 }
 
-func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, localPort int, f func(baseURL string)) error {
+// scheme-aware port-forward (scheme is only for the baseURL composing, PF is plain TCP)
+func providerWithPortForwardScheme(ctx context.Context, ns, svc string, remotePort, localPort int, scheme string, f func(baseURL string)) error {
 	if localPort == 0 {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -158,10 +169,10 @@ func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, lo
 		_ = l.Close()
 	}
 
+	// DO NOT add --insecure-skip-tls-verify here: invalid for port-forward
 	args := []string{
 		"-n", ns, "port-forward", "svc/" + svc,
 		fmt.Sprintf("%d:%d", localPort, remotePort),
-		"--insecure-skip-tls-verify",
 		"--address", "127.0.0.1",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
@@ -173,7 +184,7 @@ func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, lo
 	}
 
 	addr := fmt.Sprintf("127.0.0.1:%d", localPort)
-	deadline := time.Now().Add(12 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	var lastErr error
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
@@ -183,7 +194,7 @@ func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, lo
 			break
 		}
 		lastErr = err
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 	}
 	if lastErr != nil {
 		_ = cmd.Process.Kill()
@@ -191,8 +202,14 @@ func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, lo
 	}
 	defer func() { _ = cmd.Process.Kill() }()
 
-	f("https://" + addr)
+	base := scheme + "://" + addr
+	f(base)
 	return nil
+}
+
+// default wrapper (kept for convenience; uses https in case you don’t care)
+func providerWithPortForward(ctx context.Context, ns, svc string, remotePort, localPort int, f func(baseURL string)) error {
+	return providerWithPortForwardScheme(ctx, ns, svc, remotePort, localPort, "https", f)
 }
 
 func providerHTTPClient() *http.Client {
@@ -223,7 +240,10 @@ func providerGetConsoleRouteHost(ctx context.Context) (string, error) {
 	return strings.TrimSpace(host), nil
 }
 
+//
 // ---------- Clusters-Service breakglass kubeconfig ----------
+//
+
 func providerFetchBreakglassKubeconfig(ctx context.Context, clusterName string) ([]byte, error) {
 	csNS, err := providerFindServiceNamespace(ctx, "clusters-service")
 	if err != nil {
@@ -233,7 +253,7 @@ func providerFetchBreakglassKubeconfig(ctx context.Context, clusterName string) 
 	csPathAdminKC := fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s/admin_kubeconfig", clusterName)
 
 	var kc []byte
-	err = providerWithPortForward(ctx, csNS, "clusters-service", csPort, 0, func(baseURL string) {
+	err = providerWithPortForwardScheme(ctx, csNS, "clusters-service", csPort, 0, "http", func(baseURL string) {
 		u := baseURL + csPathAdminKC
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		resp, err2 := providerHTTPClient().Do(req)
