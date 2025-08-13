@@ -4,6 +4,9 @@ param location string = resourceGroup().location
 @description('Environment short name, defaults to <dev>')
 param environment string = 'dev'
 
+@description('Automation account dry run mode')
+param automationDryRun bool = true
+
 @description('Name of the Automation account to be created')
 param automationAccountName string = 'hcp-${environment}-automation'
 
@@ -19,7 +22,7 @@ param scriptVersion string = '0de69144a537d9e5a032605a5fa82e863fc45a9e'
 module automationAccount '../modules/automation-account/account.bicep' = {
   name: 'hcp-${environment}-automation'
   params: {
-    dryRun: true
+    dryRun: automationDryRun
     automationAccountName: automationAccountName
     automationAccountManagedIdentity: 'hcp-${environment}-automation'
     location: location
