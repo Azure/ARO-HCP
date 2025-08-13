@@ -160,6 +160,7 @@ firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
 frontend:
   audit:
     tcpAddress: ""
+    connectSocket: false
   cert:
     issuer: Self
     name: frontend-cert-cspr-usw3
