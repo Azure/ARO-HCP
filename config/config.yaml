@@ -989,7 +989,6 @@ clouds:
                   zones: '1'
                 systemAgentPool:
                   zones: '1'
-
         # this is the personal DEV environment
         defaults:
           # Service Key Vault
