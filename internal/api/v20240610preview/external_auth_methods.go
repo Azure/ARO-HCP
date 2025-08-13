@@ -148,22 +148,22 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 	if p.Username != nil {
 
 		if p.Username.Claim != nil {
-			out.Username.Claim = *p.Username.Claim
+			out.Username.Claim = p.Username.Claim
 		}
 		if p.Username.Prefix != nil {
-			out.Username.Prefix = *p.Username.Prefix
+			out.Username.Prefix = p.Username.Prefix
 		}
 		if p.Username.PrefixPolicy != nil {
-			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyType(*p.Username.PrefixPolicy)
+			out.Username.PrefixPolicy = (*api.UsernameClaimPrefixPolicyType)(p.Username.PrefixPolicy)
 		}
 	}
 	if p.Groups != nil {
 		out.Groups = &api.GroupClaimProfile{}
 		if p.Groups.Claim != nil {
-			out.Groups.Claim = *p.Groups.Claim
+			out.Groups.Claim = p.Groups.Claim
 		}
 		if p.Groups.Prefix != nil {
-			out.Groups.Prefix = *p.Groups.Prefix
+			out.Groups.Prefix = p.Groups.Prefix
 		}
 	}
 }
@@ -208,21 +208,24 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 
 	if from.Mappings.Groups != nil {
 		groups = &generated.GroupClaimProfile{
-			Claim:  api.PtrOrNil(from.Mappings.Groups.Claim),
-			Prefix: api.PtrOrNil(from.Mappings.Groups.Prefix),
+			Claim:  from.Mappings.Groups.Claim,
+			Prefix: from.Mappings.Groups.Prefix,
 		}
 	}
 
-	return &generated.ExternalAuthClaimProfile{
+	claim := generated.ExternalAuthClaimProfile{
 		Mappings: &generated.TokenClaimMappingsProfile{
 			Username: &generated.UsernameClaimProfile{
-				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
-				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(string(from.Mappings.Username.PrefixPolicy)),
+				Claim:  from.Mappings.Username.Claim,
+				Prefix: from.Mappings.Username.Prefix,
 			},
 			Groups: groups,
 		},
 	}
+	if from.Mappings.Username.PrefixPolicy != nil {
+		claim.Mappings.Username.PrefixPolicy = (*string)(from.Mappings.Username.PrefixPolicy)
+	}
+	return &claim
 }
 
 func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {

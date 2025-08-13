@@ -355,17 +355,18 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 			URL("")).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
-				UserName(arohcpv1alpha1.NewUsernameClaim().
-					Claim("").
-					Prefix("").
-					PrefixPolicy(""),
-				),
+				UserName(arohcpv1alpha1.NewUsernameClaim()),
 			),
 		)
 }
 
 func TestBuildCSExternalAuth(t *testing.T) {
 	resourceID := testResourceID(t)
+
+	testClaim := "A"
+	testClaim2 := "B"
+	testPrefix := "my-cool-prefix"
+	testPrefixPolicy := "prefix"
 	testCases := []struct {
 		name                   string
 		hcpExternalAuth        *api.HCPOpenShiftClusterExternalAuth
@@ -380,14 +381,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			name: "correctly parse PrefixPolicyType",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
-					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+					prefixPolicy := api.UsernameClaimPrefixPolicyTypePrefix
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = &prefixPolicy
 				},
 			),
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
 				Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 					UserName(arohcpv1alpha1.NewUsernameClaim().
-						Claim("").
-						Prefix("").
 						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
 					),
 				)),
@@ -417,13 +417,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 					hsc.Properties.Claim = api.ExternalAuthClaimProfile{
 						Mappings: api.TokenClaimMappingsProfile{
 							Username: api.UsernameClaimProfile{
-								Claim:        "a",
-								Prefix:       "",
-								PrefixPolicy: "",
+								Claim:        &testClaim,
+								Prefix:       &testPrefix,
+								PrefixPolicy: (*api.UsernameClaimPrefixPolicyType)(&testPrefixPolicy),
 							},
 							Groups: &api.GroupClaimProfile{
-								Claim:  "b",
-								Prefix: "",
+								Claim:  &testClaim2,
+								Prefix: &testPrefix,
 							},
 						},
 						ValidationRules: []api.TokenClaimValidationRule{
@@ -449,13 +449,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 				arohcpv1alpha1.NewExternalAuthClaim().
 					Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 						UserName(arohcpv1alpha1.NewUsernameClaim().
-							Claim("a").
-							Prefix("").
-							PrefixPolicy(""),
+							Claim(testClaim).
+							Prefix(testPrefix).
+							PrefixPolicy(testPrefixPolicy),
 						).
 						Groups(arohcpv1alpha1.NewGroupsClaim().
-							Claim("b").
-							Prefix(""),
+							Claim(testClaim2).
+							Prefix(testPrefix),
 						),
 					).
 					ValidationRules([]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
