@@ -95,6 +95,7 @@ spec:
         - name: mdsd-asa-run-vol
           hostPath: 
             path: /var/run/mdsd/asa
+            type: Directory
       {{- end }}
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
