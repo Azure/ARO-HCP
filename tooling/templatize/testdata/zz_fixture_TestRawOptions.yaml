@@ -1,5 +1,5 @@
 $schema: pipeline.schema.v1
-serviceGroup: Microsoft.Azure.ARO.Test
+serviceGroup: Microsoft.Azure.ARO.HCP.Test
 rolloutName: Test Rollout
 resourceGroups:
 - name: regional

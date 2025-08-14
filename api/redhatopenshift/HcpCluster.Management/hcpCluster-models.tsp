@@ -942,7 +942,7 @@ model UsernameClaimProfile {
   /** Prefix policy is an optional field that configures how a prefix should be
    * applied to the value of the JWT claim specified in the 'claim' field.
    *
-   * Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
+   * Allowed values are 'Prefix', 'NoPrefix', and 'None'.
    *
    * When set to 'Prefix', the value specified in the prefix field will be
    * prepended to the value of the JWT claim.
@@ -951,7 +951,7 @@ model UsernameClaimProfile {
    * When set to 'NoPrefix', no prefix will be prepended to the value
    * of the JWT claim.
    *
-   * When omitted, this means no opinion and the platform is left to choose
+   * When set to 'None', this means no opinion and the platform is left to choose
    * any prefixes that are applied which is subject to change over time.
    * Currently, the platform prepends `{issuerURL}#` to the value of the JWT claim
    * when the claim is not 'email'.

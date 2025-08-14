@@ -27,5 +27,7 @@ go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 /cluster-service/ @machi1990 @miguelsorianod @JameelB
 /observability/tracing/ @frzifus @simonpasquier @dinhxuanvu @mbarnes
 /observability/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @roivaz @weinong @whober0521 @jonathan34c @stevekuznetsov
+/*/alerts/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @roivaz @weinong @whober0521 @jonathan34c @stevekuznetsov
+/*/grafana-dashboards/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @roivaz @weinong @whober0521 @jonathan34c @stevekuznetsov
 /docs/ @geoberle @janboll @tony-schndr @jfchevrette @mmazur @roivaz @weinong @whober0521 @jonathan34c @stevekuznetsov
 /test/ @patriksuba @mbukatov @mgahagan73 @jharrington22 @deads2k @bennerv

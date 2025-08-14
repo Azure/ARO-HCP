@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -352,7 +353,10 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, Outputs{}, &buf)
+			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, &ExecutionState{
+				RWMutex: &sync.RWMutex{},
+				Outputs: Outputs{},
+			}, &buf)
 			if tc.err != "" {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
@@ -368,7 +372,10 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 
-	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, Outputs{}, &buf)
+	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, &ExecutionState{
+		RWMutex: &sync.RWMutex{},
+		Outputs: Outputs{},
+	}, &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, buf.String(), "hallo\n")
 }

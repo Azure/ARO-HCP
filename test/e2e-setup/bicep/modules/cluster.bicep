@@ -22,7 +22,11 @@ param userAssignedIdentitiesValue object
 @description('Cluster Managed Identities')
 param identityValue object
 
-var randomSuffix = toLower(uniqueString(resourceGroup().id))
+@description('The KeyVault name that contains the etcd encryption key')
+param keyVaultName string
+
+@description('The name of the etcd encryption key in the KeyVault')
+param etcdEncryptionKeyName string
 
 //
 // E X I S T I N G   R E S O U R C E S
@@ -39,6 +43,15 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
+  name: keyVaultName
+}
+
+resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' existing = {
+  parent: keyVault
+  name: etcdEncryptionKeyName
 }
 
 //
@@ -64,7 +77,17 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     console: {}
     etcd: {
       dataEncryption: {
-        keyManagementMode: 'PlatformManaged'
+        keyManagementMode: 'CustomerManaged'
+        customerManaged: {
+          encryptionType: 'kms'
+          kms: {
+            activeKey: {
+              vaultName: keyVaultName
+              name: etcdEncryptionKeyName
+              version: last(split(etcdEncryptionKey.properties.keyUriWithVersion, '/'))
+            }
+          }
+        }
       }
     }
     api: {
@@ -77,7 +100,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       managedResourceGroup: managedResourceGroupName
       subnetId: subnet.id
       outboundType: 'LoadBalancer'
-      networkSecurityGroupId: nsg.id 
+      networkSecurityGroupId: nsg.id
       operatorsAuthentication: {
         userAssignedIdentities: userAssignedIdentitiesValue
       }

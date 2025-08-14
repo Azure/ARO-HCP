@@ -10,6 +10,9 @@ param vnetName string
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
 
+@description('The KeyVault name that contains the etcd encryption key')
+param keyVaultName string
+
 var randomSuffix = toLower(uniqueString(resourceGroup().id))
 
 //
@@ -27,6 +30,10 @@ resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing 
 
 resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
+  name: keyVaultName
 }
 
 //
@@ -453,6 +460,40 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 }
 
 //
+// KMS identity
+//
+
+resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${clusterName}-cp-kms-${randomSuffix}'
+  location: resourceGroup().location
+}
+
+var keyVaultCryptoUserRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '12338af0-0e69-4776-bea7-57ae8d297424'
+)
+
+resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, kmsMi.id, keyVaultCryptoUserRoleId, keyVault.id)
+  scope: keyVault
+  properties: {
+    principalId: kmsMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: keyVaultCryptoUserRoleId
+  }
+}
+
+resource serviceManagedIdentityReaderOnKMSAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, kmsMi.id)
+  scope: kmsMi
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
+  }
+}
+
+//
 // Outputs
 //
 
@@ -466,6 +507,7 @@ output userAssignedIdentitiesValue object = {
     'file-csi-driver': fileCsiDriverMi.id
     'image-registry': imageRegistryMi.id
     'cloud-network-config': cloudNetworkConfigMi.id
+    'kms': kmsMi.id
   }
   dataPlaneOperators: {
     'disk-csi-driver': dpDiskCsiDriverMi.id
@@ -487,5 +529,6 @@ output identityValue object = {
     '${fileCsiDriverMi.id}': {}
     '${imageRegistryMi.id}': {}
     '${cloudNetworkConfigMi.id}': {}
+    '${kmsMi.id}': {}
   }
 }

@@ -72,22 +72,18 @@ The standard Helm chart installation command in Makefiles supports waiting for d
 The `Makefile` in the service directory is the entry point for its deployment operations. It needs to contain a `deploy` target that handles the deployment process. The `deploy` target should be able to take in all required configuration data as environment variables.
 
 ```makefile
--include ../setup-env.mk                               (1)
--include ../helm-cmd.mk                                (2)
+-include ../setup-env.mk                                                                (1)
 
-deploy:                                                (3)
+deploy:                                                                                 (2)
     kubectl create namespace <namespace> --dry-run=client -o json | kubectl apply -f -
-    $(HELM_CMD) <deployment-name> ./deploy \           (4)
-    --namespace <namespace> \                          (5)
-    --set some_key=${SOME_ENV_VAR}                     (6)
+    ../hack/helm.sh <deployment-name> <charts-dir> <namespace> \                        (3)
+      --set some_key=${SOME_ENV_VAR}                                                    (4)
 ```
 
 1. Include the setup-env.mk file to set up some basic environment variables that sets up hooks into [configuration management](configuration.md).
-2. Include the helm-cmd.mk file to set up the `HELM_CMD` environment variable. Controls also Helm dry-run mode.
-3. Since Helm is not managing the namespace creation, the Makefile should create the namespace if it does not exist.
-4. Using the `HELM_CMD` environment variable makes sure a consistent helm command is used across all services.
-5. The namespace should be passed to the Helm chart.
-6. Configuration values should be passed to the Helm chart using the `--set` flag.
+2. Since Helm is not managing the namespace creation, the Makefile should create the namespace if it does not exist.
+3. Using the `helm.sh` script makes sure a consistent helm command is used across all services.
+4. Any other Helm arguments can be passed to the `helm.sh` script which will pass them along to the helm command as-is.
 
 ### Deployment via Pipelines
 

@@ -52,6 +52,7 @@ func BindRolloutOptions(opts *RawRolloutOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringToStringVar(&opts.ExtraVars, "extra-args", opts.ExtraVars, "Extra arguments to be used config templating")
 	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "File to load environment details from.")
 	cmd.Flags().StringVar(&opts.DevEnvironment, "dev-environment", opts.DevEnvironment, "Name of the developer environment to use.")
+	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Number of concurrent routines to use when running the pipeline. If unset/set to 0, unbounded concurrency is used.")
 
 	for _, flag := range []string{
 		"dev-settings-file",
@@ -73,6 +74,8 @@ type RawRolloutOptions struct {
 
 	DevSettingsFile string
 	DevEnvironment  string
+
+	Concurrency int
 }
 
 // validatedRolloutOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.

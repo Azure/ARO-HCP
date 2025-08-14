@@ -54,7 +54,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, inputs Outputs, outputWriter io.Writer) error {
+func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -63,14 +63,18 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	var err error
 	if options.DryRun {
 		dryRun = &s.DryRun
-		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, inputs)
+		state.RLock()
+		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, state.Outputs)
+		state.RUnlock()
 		if err != nil {
 			return fmt.Errorf("failed to build dry run vars: %w", err)
 		}
 	}
 
 	// build ENV vars
-	stepVars, err := mapStepVariables(s.Variables, options.Configuration, inputs)
+	state.RLock()
+	stepVars, err := mapStepVariables(s.Variables, options.Configuration, state.Outputs)
+	state.RUnlock()
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
 	}

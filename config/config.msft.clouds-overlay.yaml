@@ -8,7 +8,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:9e42358ccc59e25eec67f893961183e6b77f70ff3ec0bddb1b2b80411b7944d3
+              digest: sha256:1f69d9707f4f36e64fe280b32686899bdd1541f7dba935a7d66b03c4e2e13883
           # ACR Pull
           acrPull:
             image:
@@ -51,11 +51,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:c78c24a9e5da591adc4ac2947b8a17febb3116a57eeed42f3b98eb35f8a8291f
+              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
           # RP Backend
           backend:
             image:
-              digest: sha256:0e36af2551e96f1da1dad72d90154f86420aef123dbaa5402dc87a57a8dff94e
+              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
           # Hypershift
           hypershift:
             image:
@@ -63,7 +63,7 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+              digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
           # OCP image sync
           imageSync:
             ocMirror:
@@ -75,7 +75,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:9e42358ccc59e25eec67f893961183e6b77f70ff3ec0bddb1b2b80411b7944d3
+              digest: sha256:1f69d9707f4f36e64fe280b32686899bdd1541f7dba935a7d66b03c4e2e13883
           # ACR Pull
           acrPull:
             image:
@@ -118,11 +118,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:c78c24a9e5da591adc4ac2947b8a17febb3116a57eeed42f3b98eb35f8a8291f
+              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
           # RP Backend
           backend:
             image:
-              digest: sha256:0e36af2551e96f1da1dad72d90154f86420aef123dbaa5402dc87a57a8dff94e
+              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
           # Hypershift
           hypershift:
             image:
@@ -142,7 +142,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:9e42358ccc59e25eec67f893961183e6b77f70ff3ec0bddb1b2b80411b7944d3
+              digest: sha256:1f69d9707f4f36e64fe280b32686899bdd1541f7dba935a7d66b03c4e2e13883
           # ACR Pull
           acrPull:
             image:
@@ -185,11 +185,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:c78c24a9e5da591adc4ac2947b8a17febb3116a57eeed42f3b98eb35f8a8291f
+              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
           # RP Backend
           backend:
             image:
-              digest: sha256:0e36af2551e96f1da1dad72d90154f86420aef123dbaa5402dc87a57a8dff94e
+              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
           # Hypershift
           hypershift:
             image:

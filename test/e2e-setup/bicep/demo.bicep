@@ -18,6 +18,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName
+    keyVaultName: customerInfra.outputs.keyVaultName
   }
 }
 
@@ -30,6 +31,8 @@ module AroHcpCluster 'modules/cluster.bicep' = {
     nsgName: customerInfra.outputs.nsgName
     userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
     identityValue: managedIdentities.outputs.identityValue
+    keyVaultName: customerInfra.outputs.keyVaultName
+    etcdEncryptionKeyName: customerInfra.outputs.etcdEncryptionKeyName
   }
 }
 

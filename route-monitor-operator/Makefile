@@ -1,5 +1,4 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 NAMESPACE ?= openshift-route-monitor-operator
 
@@ -13,8 +12,7 @@ IMAGE_REGISTRY = ${ACR_NAME}.azurecr.io
 deploy:
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	KUBE_VERSION=$(shell kubectl version --output=json | jq -r '.serverVersion.gitVersion' | sed 's/^v//') && \
-	${HELM_CMD} route-monitor-operator \
-		${RMO_CHART_DIR} \
+	../hack/helm.sh route-monitor-operator ${RMO_CHART_DIR} ${NAMESPACE} \
 		--set imageRegistryOperator=${IMAGE_REGISTRY} \
 		--set imageRepositoryOperator=${OPERATOR_IMAGE_REPOSITORY} \
 		--set imageDigestOperator=$(subst sha256:,,$(OPERATOR_IMAGE_DIGEST)) \
@@ -23,8 +21,7 @@ deploy:
 		--set imageDigestManager=$(subst sha256:,,$(OPERATOR_IMAGE_DIGEST)) \
 		--set imageRegistryBlackbox=${IMAGE_REGISTRY} \
 		--set imageRepositoryBlackbox=${BLACKBOX_IMAGE_REPOSITORY} \
-		--set imageDigestBlackbox=$(subst sha256:,,$(BLACKBOX_IMAGE_DIGEST)) \
-		--namespace ${NAMESPACE}
+		--set imageDigestBlackbox=$(subst sha256:,,$(BLACKBOX_IMAGE_DIGEST))
 .PHONY: deploy
 
 helm-chart:

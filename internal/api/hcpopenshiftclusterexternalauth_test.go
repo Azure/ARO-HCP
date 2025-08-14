@@ -46,8 +46,12 @@ func TestExternalAuthRequiredForPut(t *testing.T) {
 			resource: NewDefaultHCPOpenShiftClusterExternalAuth(),
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Missing required field 'properties'",
-					Target:  "properties",
+					Message: "Missing required field 'claim'",
+					Target:  "properties.claim.mappings.username.claim",
+				},
+				{
+					Message: "Missing required field 'issuer'",
+					Target:  "properties.issuer",
 				},
 			},
 		},
@@ -135,15 +139,12 @@ func TestExternalAuthValidate(t *testing.T) {
 				},
 			},
 		},
-		// //--------------------------------
-		// // Complex field validation
-		// //--------------------------------
 		{
 			name: "Bad properties.issuer.ca",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: "NOT A PEM DOC",
+						Ca: Ptr("NOT A PEM DOC"),
 					},
 				},
 			},
@@ -155,9 +156,59 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "External Auth with multiple clients that have the same Name/Namespace pair",
+			name: "Bad properties.issuer.url - InvalidURL",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url: "aaa",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'aaa' for field 'url' (must be a URL)",
+					Target:  "properties.issuer.url",
+				},
+			},
+		},
+		{
+			name: "Bad properties.issuer.url - Not  starting with https://",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url: "http://microsoft.com",
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'http://microsoft.com' for field 'url' (must start with 'https://')",
+					Target:  "properties.issuer.url",
+				},
+			},
+		},
+		{
+			name: "Bad properties.issuer.audiences",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Audiences: []string{"omitempty"},
+					},
+				},
+			},
+			expectErrors: nil,
+		},
+		//--------------------------------
+		// Complex field validation
+		//--------------------------------
+		{
+			name: "Valid ClientId in audiences",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{ClientId1},
+					},
 					Clients: []ExternalAuthClientProfile{
 						{
 							ClientId: ClientId1,
@@ -165,6 +216,67 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: nil,
+		},
+		{
+			name: "Invalid ClientId not in audiences",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{},
+					},
+					Clients: []ExternalAuthClientProfile{
+						{
+							ClientId: ClientId1,
+							Component: ExternalAuthClientComponentProfile{
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
+							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Code:    "InvalidRequestContent",
+					Message: fmt.Sprintf("ClientId '%s' in clients[0] must match an audience in TokenIssuerProfile", ClientId1),
+					Target:  "properties.clients",
+				},
+			},
+		},
+		{
+			name: "External Auth with multiple clients that have the same Name/Namespace pair",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Url:       "https://example.com",
+						Audiences: []string{ClientId1, ClientId2},
+					},
+					Clients: []ExternalAuthClientProfile{
+						{
+							ClientId: ClientId1,
+							Component: ExternalAuthClientComponentProfile{
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
+							},
+							ExternalAuthClientProfileType: "confidential",
 						},
 						{
 							ClientId: ClientId2,
@@ -172,6 +284,12 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
+							ExternalAuthClientProfileType: "confidential",
+						},
+					},
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{Claim: "email"},
 						},
 					},
 				},
@@ -181,8 +299,32 @@ func TestExternalAuthValidate(t *testing.T) {
 					Message: fmt.Sprintf(
 						"External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace. "+
 							"The following clientIds share the same unique combination '%s%s' and are invalid: \n '[%s %s]' ",
-						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2),
+						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2,
+					),
 					Target: "properties.clients",
+				},
+			},
+		},
+		{
+			name: "Invalid UsernamePrefixPolicy - A Policy of Prefix but none is set",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{
+								Claim:        "email",
+								Prefix:       "",
+								PrefixPolicy: "Prefix",
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Code:    "InvalidRequestContent",
+					Message: "UsernameClaimProfile has a PrefixPolicy of 'Prefix' but Username.Prefix is unset",
+					Target:  "properties.claim.mappings.username.prefix",
 				},
 			},
 		},

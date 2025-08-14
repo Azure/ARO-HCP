@@ -122,3 +122,14 @@ const (
 	// ConditionStatusTypeUnknown - the condition status is unknown.
 	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
 )
+
+type UsernameClaimPrefixPolicyType string
+
+const (
+	// UsernameClaimPrefixPolicyTypePrefix - prefix the JWT claim with the value of Prefix.
+	UsernameClaimPrefixPolicyTypePrefix UsernameClaimPrefixPolicyType = "Prefix"
+	// UsernameClaimPrefixPolicyTypeNoPrefix - do not prefix the JWT claim.
+	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
+	// UsernameClaimPrefixPolicyTypeNone - let the platform choose an appropriate prefix.
+	UsernameClaimPrefixPolicyTypeNone UsernameClaimPrefixPolicyType = "None"
+)

@@ -91,6 +91,11 @@ func NewValidator() *validator.Validate {
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,
 	))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
+		UsernameClaimPrefixPolicyTypePrefix,
+		UsernameClaimPrefixPolicyTypeNoPrefix,
+		UsernameClaimPrefixPolicyTypeNone,
+	))
 	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
 		ExternalAuthConditionTypeAvailable,
 		ExternalAuthConditionTypeDegraded,

@@ -1,1 +1,1 @@
-AGENTS.md
+Load CLAUDE.md for context

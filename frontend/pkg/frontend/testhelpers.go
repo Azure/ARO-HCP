@@ -17,9 +17,13 @@ package frontend
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/mocks"
 )
 
 // The definitions in this file are meant for unit tests.
@@ -28,4 +32,22 @@ func newNoopAuditClient(t *testing.T) *audit.AuditClient {
 	c, err := audit.NewOtelAuditClient("")
 	require.NoError(t, err)
 	return c
+}
+
+func NewTestFrontend(t *testing.T) *Frontend {
+	ctrl := gomock.NewController(t)
+	mockDBClient := mocks.NewMockDBClient(ctrl)
+	reg := prometheus.NewRegistry()
+
+	f := NewFrontend(
+		api.NewTestLogger(),
+		nil,
+		nil,
+		reg,
+		mockDBClient,
+		"",
+		nil,
+		newNoopAuditClient(t),
+	)
+	return f
 }
