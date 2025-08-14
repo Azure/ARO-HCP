@@ -30,7 +30,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster using bicep templates",
+	It("should be able to create an HCP cluster and custom node pool osDisk size using bicep templates",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
