@@ -648,10 +648,10 @@ union PersistenceType {
   string,
 
   /** Persistent OS Disks of the Nodes in the Node Pool */
-  Persistent: "persistent",
+  Persistent: "Persistent",
 
   /** Ephemeral OS Disks of the Nodes in the Node Pool */
-  Ephemeral: "ephemeral",
+  Ephemeral: "Ephemeral",
 }
 
 /** Supported Azure storage account types
