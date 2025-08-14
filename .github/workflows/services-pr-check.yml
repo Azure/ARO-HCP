@@ -30,6 +30,9 @@ on:
     - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
+    - '!**/CLAUDE.md'
+    - '!**/GEMINI.md'
+    - '!**/AGENTS.md'
     types:
     - opened
     - synchronize
