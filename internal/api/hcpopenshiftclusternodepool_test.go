@@ -326,7 +326,7 @@ func TestNodePoolValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Invalid value 'invalid_option' for field 'persistence' (must be one of: persistent ephemeral)",
+					Message: "Invalid value 'invalid_option' for field 'persistence' (must be one of: Persistent Ephemeral)",
 					Target:  "properties.platform.osDisk.persistence",
 				},
 			},
