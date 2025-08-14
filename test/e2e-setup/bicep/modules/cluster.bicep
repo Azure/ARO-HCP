@@ -100,7 +100,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       managedResourceGroup: managedResourceGroupName
       subnetId: subnet.id
       outboundType: 'LoadBalancer'
-      networkSecurityGroupId: nsg.id 
+      networkSecurityGroupId: nsg.id
       operatorsAuthentication: {
         userAssignedIdentities: userAssignedIdentitiesValue
       }
