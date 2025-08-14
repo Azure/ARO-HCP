@@ -3097,10 +3097,10 @@
         "persistence": {
           "type": "string",
           "description": "Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool.\nValid values are: persistent and ephemeral. If not specified, Persistent OS Disks are used.",
-          "default": "persistent",
+          "default": "Persistent",
           "enum": [
-            "persistent",
-            "ephemeral"
+            "Persistent",
+            "Ephemeral"
           ],
           "x-ms-enum": {
             "name": "PersistenceType",
@@ -3108,12 +3108,12 @@
             "values": [
               {
                 "name": "Persistent",
-                "value": "persistent",
+                "value": "Persistent",
                 "description": "Persistent OS Disks of the Nodes in the Node Pool"
               },
               {
                 "name": "Ephemeral",
-                "value": "ephemeral",
+                "value": "Ephemeral",
                 "description": "Ephemeral OS Disks of the Nodes in the Node Pool"
               }
             ]

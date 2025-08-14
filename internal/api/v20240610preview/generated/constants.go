@@ -309,9 +309,9 @@ type PersistenceType string
 
 const (
 	// PersistenceTypeEphemeral - Ephemeral OS Disks of the Nodes in the Node Pool
-	PersistenceTypeEphemeral PersistenceType = "ephemeral"
+	PersistenceTypeEphemeral PersistenceType = "Ephemeral"
 	// PersistenceTypePersistent - Persistent OS Disks of the Nodes in the Node Pool
-	PersistenceTypePersistent PersistenceType = "persistent"
+	PersistenceTypePersistent PersistenceType = "Persistent"
 )
 
 // PossiblePersistenceTypeValues returns the possible values for the PersistenceType const type.
