@@ -463,7 +463,7 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 // KMS identity
 //
 
-resource kmsAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-kms-${randomSuffix}'
   location: resourceGroup().location
 }
@@ -473,19 +473,19 @@ var keyVaultCryptoUserRoleId = subscriptionResourceId(
   '12338af0-0e69-4776-bea7-57ae8d297424'
 )
 
-resource kmsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, kmsAzureMi.id, keyVaultCryptoUserRoleId, keyVault.id)
+resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, kmsMi.id, keyVaultCryptoUserRoleId, keyVault.id)
   scope: keyVault
   properties: {
-    principalId: kmsAzureMi.properties.principalId
+    principalId: kmsMi.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: keyVaultCryptoUserRoleId
   }
 }
 
 resource serviceManagedIdentityReaderOnKMSAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, kmsAzureMi.id)
-  scope: kmsAzureMi
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, kmsMi.id)
+  scope: kmsMi
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -507,7 +507,7 @@ output userAssignedIdentitiesValue object = {
     'file-csi-driver': fileCsiDriverMi.id
     'image-registry': imageRegistryMi.id
     'cloud-network-config': cloudNetworkConfigMi.id
-    'kms': kmsAzureMi.id
+    'kms': kmsMi.id
   }
   dataPlaneOperators: {
     'disk-csi-driver': dpDiskCsiDriverMi.id
@@ -529,6 +529,6 @@ output identityValue object = {
     '${fileCsiDriverMi.id}': {}
     '${imageRegistryMi.id}': {}
     '${cloudNetworkConfigMi.id}': {}
-    '${kmsAzureMi.id}': {}
+    '${kmsMi.id}': {}
   }
 }
