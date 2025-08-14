@@ -685,7 +685,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:00e0aa8746725c257b370bdd530ef961eb9b88f8c583d2c848b99264d073d5f3
+          digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
       # ACR Pull
       acrPull:
         image:
