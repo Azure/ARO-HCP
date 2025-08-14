@@ -18,6 +18,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName
+    keyVaultName: customerInfra.outputs.keyVaultName
   }
 }
 
