@@ -3,14 +3,28 @@ on:
   pull_request:
     branches:
     - main
-    paths:
-    - 'config/*'
-    - .github/workflows/config-change-detection.yml
 permissions:
   contents: read
 jobs:
+  paths-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      config_changed: ${{ steps.filter.outputs.config }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Filter paths
+      id: filter
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          config:
+            - 'config/**'
+            - '.github/workflows/config-change-detection.yml'
   build:
     name: change-detection
+    needs: paths-filter
+    if: needs.paths-filter.outputs.config_changed == 'true'
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository

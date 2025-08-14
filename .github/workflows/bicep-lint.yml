@@ -3,10 +3,26 @@ on:
   pull_request:
     branches:
     - main
-    paths:
-    - 'dev-infrastructure/**'
 jobs:
+  paths-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      bicep: ${{ steps.filter.outputs.bicep }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        fetch-depth: 1
+    - name: Filter paths
+      id: filter
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          bicep:
+            - 'dev-infrastructure/**'
   validate_bicep:
+    needs: paths-filter
+    if: needs.paths-filter.outputs.bicep == 'true'
     permissions:
       contents: 'read'
     runs-on: ubuntu-latest
