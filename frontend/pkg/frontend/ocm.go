@@ -188,6 +188,26 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
+func convertPersistenceTypeRPtoCS(persistenceTypeRP api.PersistenceType) (persistenceTypeCS string) {
+	switch persistenceTypeRP {
+	case api.PersistenceTypePersistent:
+		persistenceTypeCS = "persistent"
+	case api.PersistenceTypeEphemeral:
+		persistenceTypeCS = "ephemeral"
+	}
+	return
+}
+
+func convertPersistenceTypeCStoRP(persistenceTypeCS string) (persistenceTypeRP api.PersistenceType) {
+	switch persistenceTypeCS {
+	case "persistent":
+		persistenceTypeRP = api.PersistenceTypePersistent
+	case "ephemeral":
+		persistenceTypeRP = api.PersistenceTypeEphemeral
+	}
+	return
+}
+
 func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (api.EtcdDataEncryptionKeyManagementModeType, error) {
 	switch keyManagementModeCS {
 	case csKeyManagementModePlatformManaged:
@@ -593,7 +613,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
-					Persistence:            api.PersistenceType(np.AzureNodePool().OsDisk().Persistence()),
+					Persistence:            convertPersistenceTypeCStoRP(np.AzureNodePool().OsDisk().Persistence()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
@@ -646,7 +666,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		osDisk = arohcpv1alpha1.NewAzureNodePoolOsDisk().
 			SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
 			StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
-			Persistence(string(nodePool.Properties.Platform.OSDisk.Persistence))
+			Persistence(convertPersistenceTypeRPtoCS((nodePool.Properties.Platform.OSDisk.Persistence)))
 		if nodePool.Properties.Platform.OSDisk.EncryptionSetId != "" {
 			osDisk = osDisk.
 				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetId))
@@ -664,7 +684,6 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(osDisk)).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
-
 	}
 
 	npBuilder = npBuilder.
