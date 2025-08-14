@@ -1,7 +1,3 @@
-// TODO
-// * KMS identity + role assignments need to be created
-// * pass the KMS identity to the cluster
-
 @description('Name of the hypershift cluster')
 param clusterName string
 
@@ -87,6 +83,42 @@ resource hcpClusterApiProviderRoleSubnetAssignment 'Microsoft.Authorization/role
 resource serviceManagedIdentityReaderOnClusterApiAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, clusterApiAzureMi.id)
   scope: clusterApiAzureMi
+  properties: {
+    principalId: serviceManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
+  }
+}
+
+
+//
+// K M S   M I
+//
+
+resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${clusterName}-cp-kms-${randomSuffix}'
+  location: resourceGroup().location
+}
+
+// Key Vault Crypto User
+var keyVaultCryptoUserRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '12338af0-0e69-4776-bea7-57ae8d297424'
+)
+
+resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, kmsMi.id, keyVaultCryptoUserRoleId, keyVault.id)
+  scope: keyVault
+  properties: {
+    principalId: kmsMi.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: keyVaultCryptoUserRoleId
+  }
+}
+
+resource serviceManagedIdentityReaderOnKmsMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, kmsMi.id)
+  scope: kmsMi
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -527,6 +559,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
             'file-csi-driver': fileCsiDriverMi.id
             'image-registry': imageRegistryMi.id
             'cloud-network-config': cloudNetworkConfigMi.id
+            'kms': kmsMi.id
           }
           dataPlaneOperators: {
             'disk-csi-driver': dpDiskCsiDriverMi.id
@@ -550,10 +583,12 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       '${fileCsiDriverMi.id}': {}
       '${imageRegistryMi.id}': {}
       '${cloudNetworkConfigMi.id}': {}
+      '${kmsMi.id}': {}
     }
   }
   dependsOn: [
     hcpClusterApiProviderRoleSubnetAssignment
+    keyVaultCryptoUserToKeyVaultRoleAssignment
     hcpControlPlaneOperatorVnetRoleAssignment
     hcpControlPlaneOperatorNsgRoleAssignment
     cloudControllerManagerRoleSubnetAssignment
@@ -579,5 +614,6 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     serviceManagedIdentityReaderOnImageRegistryMi
     serviceManagedIdentityReaderOnCloudNetworkMi
     serviceManagedIdentityReaderOnClusterApiAzureMi
+    serviceManagedIdentityReaderOnKmsMi
   ]
 }
