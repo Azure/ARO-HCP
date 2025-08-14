@@ -6,6 +6,9 @@ on:
     paths:
     - 'config/*'
     - .github/workflows/config-change-detection.yml
+    - '!**/CLAUDE.md'
+    - '!**/GEMINI.md'
+    - '!**/AGENTS.md'
 permissions:
   contents: read
 jobs:

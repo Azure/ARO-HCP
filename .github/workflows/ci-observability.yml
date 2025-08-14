@@ -7,6 +7,9 @@ on:
     - '.github/workflows/ci-python.yml'
     - 'observability/**'
     - '**/alerts/**'
+    - '!**/CLAUDE.md'
+    - '!**/GEMINI.md'
+    - '!**/AGENTS.md'
     types:
     - opened
     - synchronize

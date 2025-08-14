@@ -5,6 +5,9 @@ on:
     - main
     paths:
     - 'dev-infrastructure/**'
+    - '!**/CLAUDE.md'
+    - '!**/GEMINI.md'
+    - '!**/AGENTS.md'
 jobs:
   validate_bicep:
     permissions:
