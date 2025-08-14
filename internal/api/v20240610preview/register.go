@@ -27,10 +27,29 @@ func (v version) String() string {
 }
 
 var (
-	validate             = api.NewValidator()
-	clusterStructTagMap  = api.NewStructTagMap[api.HCPOpenShiftCluster]()
-	nodePoolStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	validate                 = api.NewValidator()
+	clusterStructTagMap      = api.NewStructTagMap[api.HCPOpenShiftCluster]()
+	nodePoolStructTagMap     = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
+
+type UsernameClaimPrefixPolicyType string
+
+const (
+	UsernameClaimPrefixPolicyTypePrefix   UsernameClaimPrefixPolicyType = "Prefix"
+	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
+	UsernameClaimPrefixPolicyTypeNone     UsernameClaimPrefixPolicyType = "None"
+)
+
+// FIXME This is a hack because we typed this field as string and not an enum in the API spec.
+// PossibleUsernameClaimPrefixPolicyTypeValues returns the possible values for the UsernameClaimPrefixPolicyType const type.
+func PossibleUsernameClaimPrefixPolicyTypeValues() []UsernameClaimPrefixPolicyType {
+	return []UsernameClaimPrefixPolicyType{
+		UsernameClaimPrefixPolicyTypePrefix,
+		UsernameClaimPrefixPolicyTypeNoPrefix,
+		UsernameClaimPrefixPolicyTypeNone,
+	}
+}
 
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
@@ -59,6 +78,7 @@ func init() {
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
 	validate.RegisterAlias("enum_clusterimageregistryprofilestate", api.EnumValidateTag(generated.PossibleClusterImageRegistryProfileStateValues()...))
 	validate.RegisterAlias("enum_externalauthclienttype", api.EnumValidateTag(generated.PossibleExternalAuthClientTypeValues()...))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyTypeValues()...))
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditiontype", api.EnumValidateTag(generated.PossibleExternalAuthConditionTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditionstatustype", api.EnumValidateTag(generated.PossibleStatusTypeValues()...))

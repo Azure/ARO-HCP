@@ -83,12 +83,12 @@ func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterEx
 	var normalized api.HCPOpenShiftClusterExternalAuth
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded HcpOpenShiftCluster struct so the
-	// struct field names match the clusterStructTagMap keys.
+	// Pass the embedded ExternalAuth struct so the
+	// struct field names match the externalAuthStructTagMap keys.
 	errorDetails = api.ValidateVisibility(
 		c.ExternalAuth,
 		current.(*ExternalAuth).ExternalAuth,
-		clusterStructTagMap, updating)
+		externalAuthStructTagMap, updating)
 
 	c.Normalize(&normalized)
 
@@ -129,7 +129,7 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 		}
 	}
 	if p.Ca != nil {
-		out.Ca = *p.Ca
+		out.Ca = p.Ca
 	}
 }
 
@@ -154,7 +154,7 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 			out.Username.Prefix = *p.Username.Prefix
 		}
 		if p.Username.PrefixPolicy != nil {
-			out.Username.PrefixPolicy = *p.Username.PrefixPolicy
+			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyType(*p.Username.PrefixPolicy)
 		}
 	}
 	if p.Groups != nil {
@@ -199,7 +199,7 @@ func newTokenIssuerProfile(from *api.TokenIssuerProfile) *generated.TokenIssuerP
 	return &generated.TokenIssuerProfile{
 		URL:       api.PtrOrNil(from.Url),
 		Audiences: api.StringSliceToStringPtrSlice(from.Audiences),
-		Ca:        api.PtrOrNil(from.Ca),
+		Ca:        from.Ca,
 	}
 }
 
@@ -218,7 +218,7 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 			Username: &generated.UsernameClaimProfile{
 				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
 				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(from.Mappings.Username.PrefixPolicy),
+				PrefixPolicy: api.PtrOrNil(string(from.Mappings.Username.PrefixPolicy)),
 			},
 			Groups: groups,
 		},
@@ -238,11 +238,11 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
 				Condition:         newExternalAuthCondition(&from.Properties.Condition),
-				Issuer:            newTokenIssuerProfile(&from.Properties.Issuer),
 				Claim:             newExternalAuthClaimProfile(&from.Properties.Claim),
 			},
 		},
 	}
+	out.Properties.Issuer = newTokenIssuerProfile(&from.Properties.Issuer)
 
 	if from.SystemData != nil {
 		out.SystemData = &generated.SystemData{
@@ -263,7 +263,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			},
 			ClientID:    api.PtrOrNil(client.ClientId),
 			ExtraScopes: api.StringSliceToStringPtrSlice(client.ExtraScopes),
-			Type:        api.PtrOrNil(generated.ExternalAuthClientType(from.Type)),
+			Type:        api.PtrOrNil(generated.ExternalAuthClientType(client.ExternalAuthClientProfileType)),
 		})
 	}
 	return out

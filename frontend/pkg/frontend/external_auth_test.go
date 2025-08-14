@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,12 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	// This will invoke the init() function in each
 	// API version package so it can register itself.
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
-
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
@@ -47,8 +47,23 @@ import (
 
 var dummyExternalAuthHREF = ocm.GenerateExternalAuthHREF(dummyClusterHREF, api.TestExternalAuthName)
 
-var dummyURL = "Spain"
-var dummyAudiences = []string{"audience1"}
+var dummyURL = "https://redhat.com"
+var dummyCA = `-----BEGIN CERTIFICATE-----
+MIICMzCCAZygAwIBAgIJALiPnVsvq8dsMA0GCSqGSIb3DQEBBQUAMFMxCzAJBgNV
+BAYTAlVTMQwwCgYDVQQIEwNmb28xDDAKBgNVBAcTA2ZvbzEMMAoGA1UEChMDZm9v
+MQwwCgYDVQQLEwNmb28xDDAKBgNVBAMTA2ZvbzAeFw0xMzAzMTkxNTQwMTlaFw0x
+ODAzMTgxNTQwMTlaMFMxCzAJBgNVBAYTAlVTMQwwCgYDVQQIEwNmb28xDDAKBgNV
+BAcTA2ZvbzEMMAoGA1UEChMDZm9vMQwwCgYDVQQLEwNmb28xDDAKBgNVBAMTA2Zv
+bzCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAzdGfxi9CNbMf1UUcvDQh7MYB
+OveIHyc0E0KIbhjK5FkCBU4CiZrbfHagaW7ZEcN0tt3EvpbOMxxc/ZQU2WN/s/wP
+xph0pSfsfFsTKM4RhTWD2v4fgk+xZiKd1p0+L4hTtpwnEw0uXRVd0ki6muwV5y/P
++5FHUeldq+pgTcgzuK8CAwEAAaMPMA0wCwYDVR0PBAQDAgLkMA0GCSqGSIb3DQEB
+BQUAA4GBAJiDAAtY0mQQeuxWdzLRzXmjvdSuL9GoyT3BF/jSnpxz5/58dba8pWen
+v3pj4P3w5DoOso0rzkZy2jEsEitlVM2mLSbQpMM+MUVQCQoiG6W9xuCFuxSrwPIS
+pAqEAuV4DNoxQKKWmhVv+J0ptMWD25Pnpxeq5sXzghfJnslJlQND
+-----END CERTIFICATE-----
+`
+var dummyAudiences = []string{"audience1", "audience2"}
 var dummyClaim = "4.18.0"
 
 func TestCreateExternalAuth(t *testing.T) {
@@ -64,6 +79,7 @@ func TestCreateExternalAuth(t *testing.T) {
 		Properties: &generated.ExternalAuthProperties{
 			Issuer: &generated.TokenIssuerProfile{
 				URL:       &dummyURL,
+				Ca:        &dummyCA,
 				Audiences: api.StringSliceToStringPtrSlice(dummyAudiences),
 			},
 			Claim: &generated.ExternalAuthClaimProfile{
@@ -75,15 +91,32 @@ func TestCreateExternalAuth(t *testing.T) {
 			},
 		},
 	}
+	expectedCSExternalAuth, _ := arohcpv1alpha1.NewExternalAuth().
+		ID(strings.ToLower(api.TestExternalAuthName)).
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL(dummyURL).
+			CA(dummyCA).
+			Audiences(dummyAudiences...),
+		).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(dummyClaim).
+					Prefix("").
+					PrefixPolicy(""),
+				),
+			),
+		).Build()
 	tests := []struct {
-		name               string
-		urlPath            string
-		subscription       *arm.Subscription
-		systemData         *arm.SystemData
-		subDoc             *arm.Subscription
-		clusterDoc         *database.ResourceDocument
-		externalAuthDoc    *database.ResourceDocument
-		expectedStatusCode int
+		name                   string
+		urlPath                string
+		subscription           *arm.Subscription
+		systemData             *arm.SystemData
+		subDoc                 *arm.Subscription
+		clusterDoc             *database.ResourceDocument
+		externalAuthDoc        *database.ResourceDocument
+		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuth
+		expectedStatusCode     int
 	}{
 		{
 			name:    "PUT External Auth - Create a new External Auth",
@@ -93,9 +126,10 @@ func TestCreateExternalAuth(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			clusterDoc:         clusterDoc,
-			externalAuthDoc:    externalAuthDoc,
-			expectedStatusCode: http.StatusCreated,
+			clusterDoc:             clusterDoc,
+			externalAuthDoc:        externalAuthDoc,
+			expectedCSExternalAuth: expectedCSExternalAuth,
+			expectedStatusCode:     http.StatusCreated,
 		},
 	}
 
@@ -130,7 +164,7 @@ func TestCreateExternalAuth(t *testing.T) {
 
 			// CreateOrUpdateExternalAuth
 			mockCSClient.EXPECT().
-				PostExternalAuth(gomock.Any(), clusterDoc.InternalID, gomock.Any()).
+				PostExternalAuth(gomock.Any(), clusterDoc.InternalID, test.expectedCSExternalAuth).
 				DoAndReturn(
 					func(ctx context.Context, clusterInternalID ocm.InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
 						builder := arohcpv1alpha1.NewExternalAuth().

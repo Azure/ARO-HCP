@@ -236,7 +236,7 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 	return func(b *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 		// This reflects how the immutable attributes get set when passed an empty[*] RP
 		// cluster. (well, not exactly empty, need to set Platform.ManagedResourceGroupName
-		// so that we don't get a corresdponding random value in the output.)
+		// so that we don't get a corresponding random value in the output.)
 		return b.
 			API(arohcpv1alpha1.NewClusterAPI().Listening("")).
 			Azure(arohcpv1alpha1.NewAzure().
@@ -272,5 +272,262 @@ func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alph
 				ChannelGroup("")).
 			ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 				State(""))
+	}
+}
+
+func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+	}
+
+	for _, opt := range opts {
+		opt(nodePool)
+	}
+	return nodePool
+}
+
+// Because we don't distinguish between unset and empty values in our JSON parsing
+// we will get the resulting CS object from an empty HCPOpenShiftClusterNodePool object.
+func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
+	return arohcpv1alpha1.NewNodePool().
+		ID("").
+		AvailabilityZone("").
+		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+			ResourceName("").
+			VMSize("").
+			EncryptionAtHost(
+				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+					State(azureNodePoolEncryptionAtHostDisabled),
+			).
+			OSDiskSizeGibibytes(0).
+			OSDiskStorageAccountType(""),
+		).
+		Subnet("").
+		Version(arohcpv1alpha1.NewVersion().
+			ID("openshift-v").
+			ChannelGroup(""),
+		).
+		Replicas(0).
+		AutoRepair(false)
+}
+func TestBuildCSNodePool(t *testing.T) {
+	resourceID := testResourceID(t)
+	testCases := []struct {
+		name               string
+		hcpNodePool        *api.HCPOpenShiftClusterNodePool
+		expectedCSNodePool *arohcpv1alpha1.NodePoolBuilder
+	}{
+		{
+			name:               "zero",
+			hcpNodePool:        getHCPNodePoolResource(),
+			expectedCSNodePool: getBaseCSNodePoolBuilder(),
+		},
+		{
+			name: "handle multiple taints",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Taints = []api.Taint{
+						{Effect: "a"},
+						{Effect: "b"},
+					}
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().Taints(
+				[]*arohcpv1alpha1.TaintBuilder{
+					arohcpv1alpha1.NewTaint().
+						Effect("a").
+						Key("").
+						Value(""),
+					arohcpv1alpha1.NewTaint().Effect("b").
+						Key("").
+						Value(""),
+				}...),
+		},
+	}
+	for _, tc := range testCases {
+		f := NewTestFrontend(t)
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+			expected, err := tc.expectedCSNodePool.Build()
+			require.NoError(t, err)
+			generatedCSNodePool, _ := f.BuildCSNodePool(ctx, tc.hcpNodePool, false)
+			assert.Equalf(t, expected, generatedCSNodePool, "BuildCSNodePool(%v, %v)", resourceID, expected)
+		})
+	}
+}
+
+func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+		Properties: api.HCPOpenShiftClusterExternalAuthProperties{},
+	}
+
+	for _, opt := range opts {
+		opt(externalAuth)
+	}
+	return externalAuth
+}
+
+// Because we don't distinguish between unset and empty values in our JSON parsing
+// we will get the resulting CS object from an empty HCPOpenShiftClusterExternalAuth object.
+func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
+	return arohcpv1alpha1.NewExternalAuth().
+		ID("").
+		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			URL("")).
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim("").
+					Prefix("").
+					PrefixPolicy(""),
+				),
+			),
+		)
+}
+
+func TestBuildCSExternalAuth(t *testing.T) {
+	resourceID := testResourceID(t)
+	testCases := []struct {
+		name                   string
+		hcpExternalAuth        *api.HCPOpenShiftClusterExternalAuth
+		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuthBuilder
+	}{
+		{
+			name:                   "zero",
+			hcpExternalAuth:        externalAuthResource(),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder(),
+		},
+		{
+			name: "correctly parse PrefixPolicyType",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
+				Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+					UserName(arohcpv1alpha1.NewUsernameClaim().
+						Claim("").
+						Prefix("").
+						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
+					),
+				)),
+		},
+		{
+			name: "correctly parse Issuer",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Issuer = api.TokenIssuerProfile{
+						Ca:        &dummyCA,
+						Url:       dummyURL,
+						Audiences: dummyAudiences,
+					}
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Issuer(
+				arohcpv1alpha1.NewTokenIssuer().
+					CA(dummyCA).
+					URL(dummyURL).
+					Audiences(dummyAudiences...),
+			),
+		},
+		{
+			name: "correctly parse Claim",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Claim = api.ExternalAuthClaimProfile{
+						Mappings: api.TokenClaimMappingsProfile{
+							Username: api.UsernameClaimProfile{
+								Claim:        "a",
+								Prefix:       "",
+								PrefixPolicy: "None",
+							},
+							Groups: &api.GroupClaimProfile{
+								Claim:  "b",
+								Prefix: "",
+							},
+						},
+						ValidationRules: []api.TokenClaimValidationRule{
+							{
+								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								RequiredClaim: api.TokenRequiredClaim{
+									Claim:         "A",
+									RequiredValue: "B",
+								},
+							},
+							{
+								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								RequiredClaim: api.TokenRequiredClaim{
+									Claim:         "C",
+									RequiredValue: "D",
+								},
+							},
+						},
+					}
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(
+				arohcpv1alpha1.NewExternalAuthClaim().
+					Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+						UserName(arohcpv1alpha1.NewUsernameClaim().
+							Claim("a").
+							Prefix("").
+							PrefixPolicy(""),
+						).
+						Groups(arohcpv1alpha1.NewGroupsClaim().
+							Claim("b").
+							Prefix(""),
+						),
+					).
+					ValidationRules([]*arohcpv1alpha1.TokenClaimValidationRuleBuilder{
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("A").
+							RequiredValue("B"),
+						arohcpv1alpha1.NewTokenClaimValidationRule().
+							Claim("C").
+							RequiredValue("D"),
+					}...),
+			),
+		},
+		{
+			name: "handle multiple clients",
+			hcpExternalAuth: externalAuthResource(
+				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
+					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
+						{ClientId: "a"},
+						{ClientId: "b"},
+					}
+				},
+			),
+			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Clients(
+				[]*arohcpv1alpha1.ExternalAuthClientConfigBuilder{
+					arohcpv1alpha1.NewExternalAuthClientConfig().
+						ID("a").
+						Component(arohcpv1alpha1.NewClientComponent().
+							Name("").
+							Namespace(""),
+						).
+						ExtraScopes().
+						Type(""),
+					arohcpv1alpha1.NewExternalAuthClientConfig().
+						ID("b").
+						Component(arohcpv1alpha1.NewClientComponent().
+							Name("").
+							Namespace(""),
+						).
+						ExtraScopes().
+						Type(""),
+				}...),
+		},
+	}
+	for _, tc := range testCases {
+		f := NewTestFrontend(t)
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
+			expected, err := tc.expectedCSExternalAuth.Build()
+			require.NoError(t, err)
+			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
+		})
 	}
 }

@@ -47,6 +47,8 @@ const (
 	csImageRegistryStateDisabled          string = "disabled"
 	csImageRegistryStateEnabled           string = "enabled"
 	csPlatformOutboundType                string = "load_balancer"
+	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
+	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -85,6 +87,30 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	return
 }
 
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (prefixPolicyRP api.UsernameClaimPrefixPolicyType) {
+	switch prefixPolicyCS {
+	case csUsernameClaimPrefixPolicyPrefix:
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypePrefix
+	case csUsernameClaimPrefixPolicyNoPrefix:
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNoPrefix
+	case "":
+		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNone
+	}
+	return
+}
+
+func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (prefixPolicyCS string) {
+	switch prefixPolicyRP {
+	case api.UsernameClaimPrefixPolicyTypePrefix:
+		prefixPolicyCS = csUsernameClaimPrefixPolicyPrefix
+	case api.UsernameClaimPrefixPolicyTypeNoPrefix:
+		prefixPolicyCS = csUsernameClaimPrefixPolicyNoPrefix
+	case api.UsernameClaimPrefixPolicyTypeNone:
+		prefixPolicyCS = ""
+	}
+	return
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -107,6 +133,7 @@ func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) 
 	}
 	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
 }
+
 func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
 	var registryState api.ClusterImageRegistryProfileState
 	switch state {
@@ -517,11 +544,16 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder.Replicas(int(nodePool.Properties.Replicas))
 	}
 
-	for _, t := range nodePool.Properties.Taints {
-		npBuilder = npBuilder.Taints(arohcpv1alpha1.NewTaint().
-			Effect(string(t.Effect)).
-			Key(t.Key).
-			Value(t.Value))
+	if len(nodePool.Properties.Taints) > 0 {
+		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
+		for _, t := range nodePool.Properties.Taints {
+			newTaintBuilder := arohcpv1alpha1.NewTaint().
+				Effect(string(t.Effect)).
+				Key(t.Key).
+				Value(t.Value)
+			taintBuilders = append(taintBuilders, newTaintBuilder)
+		}
+		npBuilder = npBuilder.Taints(taintBuilders...)
 	}
 
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
@@ -548,7 +580,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
 				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        csExternalAuth.Issuer().CA(),
+				Ca:        api.PtrOrNil(csExternalAuth.Issuer().CA()),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -556,7 +588,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 					Username: api.UsernameClaimProfile{
 						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: csExternalAuth.Claim().Mappings().UserName().PrefixPolicy(),
+						PrefixPolicy: convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
 					},
 				},
 			},
@@ -612,61 +644,67 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
 	}
 
-	tokenClaimValidationRuleBuilder := arohcpv1alpha1.NewTokenClaimValidationRule()
+	issuerBuilder := arohcpv1alpha1.NewTokenIssuer()
+	issuerBuilder.URL(externalAuth.Properties.Issuer.Url)
+	if externalAuth.Properties.Issuer.Ca != nil {
+		issuerBuilder.CA(*externalAuth.Properties.Issuer.Ca)
+	}
+	if len(externalAuth.Properties.Issuer.Audiences) > 0 {
+		issuerBuilder.Audiences(externalAuth.Properties.Issuer.Audiences...)
+	}
+	externalAuthBuilder.Issuer(issuerBuilder)
 
-	if externalAuth.Properties.Claim.ValidationRules != nil {
-		for _, t := range externalAuth.Properties.Claim.ValidationRules {
-			tokenClaimValidationRuleBuilder = tokenClaimValidationRuleBuilder.
-				Claim(t.RequiredClaim.Claim).
-				RequiredValue(t.RequiredClaim.RequiredValue)
+	if len(externalAuth.Properties.Clients) > 0 {
+		clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
+		for _, t := range externalAuth.Properties.Clients {
+			newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
+				ID(t.ClientId).
+				Component(arohcpv1alpha1.NewClientComponent().
+					Name(t.Component.Name).
+					Namespace(t.Component.AuthClientNamespace),
+				).
+				ExtraScopes(t.ExtraScopes...).
+				Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType))
+			clientConfigs = append(clientConfigs, newClientConfig)
 		}
+		externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
 	}
 
-	externalAuthBuilder.
-		Issuer(arohcpv1alpha1.NewTokenIssuer().
-			URL(externalAuth.Properties.Issuer.Url).
-			Audiences(externalAuth.Properties.Issuer.Audiences...).
-			CA(externalAuth.Properties.Issuer.Ca)).
-		Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
-				UserName(arohcpv1alpha1.NewUsernameClaim().
-					Claim(externalAuth.Properties.Claim.Mappings.Username.Claim).
-					Prefix(externalAuth.Properties.Claim.Mappings.Username.Prefix).
-					PrefixPolicy(externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy),
-				),
-			),
-		)
-
-	if externalAuth.Properties.Claim.Mappings.Groups != nil {
-		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
-				Groups(arohcpv1alpha1.NewGroupsClaim().
-					Claim(externalAuth.Properties.Claim.Mappings.Groups.Claim).
-					Prefix(externalAuth.Properties.Claim.Mappings.Groups.Prefix),
-				),
-			),
-		)
-	}
-
-	if len(externalAuth.Properties.Claim.ValidationRules) > 0 {
-		externalAuthBuilder.Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			ValidationRules(tokenClaimValidationRuleBuilder),
-		)
-
-	}
-
-	for _, t := range externalAuth.Properties.Clients {
-		externalAuthBuilder = externalAuthBuilder.Clients(arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientId).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType)))
-	}
+	buildClaims(externalAuthBuilder, *externalAuth)
 
 	return externalAuthBuilder.Build()
+}
+
+func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) {
+	claimBuilder := arohcpv1alpha1.NewExternalAuthClaim()
+
+	mappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings()
+	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
+		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
+		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
+		PrefixPolicy(convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
+	)
+
+	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
+		mappingsBuilder.Groups(arohcpv1alpha1.NewGroupsClaim().
+			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
+			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
+		)
+	}
+	claimBuilder.Mappings(mappingsBuilder)
+
+	if len(hcpExternalAuth.Properties.Claim.ValidationRules) > 0 {
+		validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
+		for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
+			newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
+				Claim(t.RequiredClaim.Claim).
+				RequiredValue(t.RequiredClaim.RequiredValue)
+			validationRules = append(validationRules, newClientConfig)
+		}
+		claimBuilder.ValidationRules(validationRules...)
+	}
+
+	externalAuthBuilder.Claim(claimBuilder)
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential.
