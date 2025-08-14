@@ -6,12 +6,26 @@ on:
   pull_request:
     branches:
     - main
-    paths:
-    - 'api/**'
-    - 'api/package.json'
-    - 'api/package-lock.json'
 jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Filter paths
+      id: filter
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          api:
+            - 'api/**'
+            - 'api/package.json'
+            - 'api/package-lock.json'
   typescript_api_spec_validation:
+    needs: filter
+    if: needs.filter.outputs.api == 'true'
     permissions:
       contents: 'read'
     runs-on: ubuntu-latest
