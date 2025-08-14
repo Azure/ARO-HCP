@@ -2,10 +2,6 @@
 // * KMS identity + role assignments need to be created
 // * pass the KMS identity to the cluster
 
-// TODO
-// * KMS identity + role assignments need to be created
-// * pass the KMS identity to the cluster
-
 @description('Name of the hypershift cluster')
 param clusterName string
 
@@ -20,6 +16,12 @@ param vnetName string
 
 @description('The subnet name for deploying hcp cluster resources.')
 param subnetName string
+
+@description('Name of the Key Vault containing the etcd CMK')
+param keyVaultName string
+
+@description('Name of the Key Vault key used for etcd encryption')
+param etcdEncryptionKeyName string
 
 var randomSuffix = toLower(uniqueString(clusterName))
 
@@ -40,8 +42,22 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
   name: nsgName
 }
 
+// Key Vault used for etcd CMK
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+// (Optional) The key resource (not strictly required for role assignment or key URL construction)
+resource etcdKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' existing = {
+  name: etcdEncryptionKeyName
+  parent: keyVault
+}
+
+// Build the key identifier URL (no version)
+var etcdKeyIdentifier = 'https://${keyVaultName}.vault.azure.net/keys/${etcdEncryptionKeyName}'
+
 //
-// C O N T R O L   P L A N E   I D E N T I T I E S
+// R O L E   D E F S
 //
 
 // Reader
@@ -50,20 +66,71 @@ var readerRoleId = subscriptionResourceId(
   'acdd72a7-3385-48ef-bd42-f606fba81ae7'
 )
 
-//
-// C L U S T E R   A P I   A Z U R E   M I
-//
-
-resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-cluster-api-azure-${randomSuffix}'
-  location: resourceGroup().location
-}
-
 // Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
 var hcpClusterApiProviderRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '88366f10-ed47-4cc0-9fab-c8a06148393e'
 )
+
+// Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+var hcpControlPlaneOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed'
+)
+
+// Azure Red Hat OpenShift Cloud Controller Manager
+var cloudControllerManagerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'a1f96423-95ce-4224-ab27-4e3dc72facd4'
+)
+
+// Azure Red Hat OpenShift Cluster Ingress Operator
+var ingressOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '0336e1d3-7a87-462b-b6db-342b63f7802c'
+)
+
+// Azure Red Hat OpenShift File Storage Operator
+var fileStorageOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '0d7aedc0-15fd-4a67-a412-efad370c947e'
+)
+
+// Azure Red Hat OpenShift Network Operator
+var networkOperatorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'be7a6435-15ae-4171-8f30-4a343eff9e8f'
+)
+
+// Azure Red Hat OpenShift Federated Credential
+var federatedCredentialsRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'ef318e2a-8334-4a05-9e4a-295a196c6a6e'
+)
+
+// Hosted Control Plane Service Managed Identity
+var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'c0ff367d-66d8-445e-917c-583feb0ef0d4'
+)
+
+// Key Vault Crypto User (allows wrap/unwrap/sign/verify)
+var kvCryptoUserRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '12338af0-0e69-4776-bea7-57ae8d297424'
+)
+
+//
+// C O N T R O L   P L A N E   I D E N T I T I E S
+//
+
+//
+// C L U S T E R   A P I   A Z U R E   M I
+//
+resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${clusterName}-cp-cluster-api-azure-${randomSuffix}'
+  location: resourceGroup().location
+}
 
 resource hcpClusterApiProviderRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, clusterApiAzureMi.id, hcpClusterApiProviderRoleId, subnet.id)
@@ -86,19 +153,12 @@ resource serviceManagedIdentityReaderOnClusterApiAzureMi 'Microsoft.Authorizatio
 }
 
 //
-// C O N T R O L   P L A N E   O P E R A T O R   M A N A G E D   I D E N T I T Y
+// C O N T R O L   P L A N E   O P E R A T O R   M I
 //
-
 resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-control-plane-${randomSuffix}'
   location: resourceGroup().location
 }
-
-// Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
-var hcpControlPlaneOperatorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'fc0c873f-45e9-4d0d-a7d1-585aab30c6ed'
-)
 
 resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, vnet.id)
@@ -130,20 +190,24 @@ resource serviceManagedIdentityReaderOnControlPlaneMi 'Microsoft.Authorization/r
   }
 }
 
-//
-// C L O U D   C O N T R O L L E R   M A N A G E R   M A N A G E D   I D E N T I T Y
-//
+// 🔐 Grant control plane identity Key Vault Crypto User on the vault
+resource controlPlaneMiKvCryptoRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, controlPlaneMi.id, kvCryptoUserRoleId)
+  scope: keyVault
+  properties: {
+    roleDefinitionId: kvCryptoUserRoleId
+    principalId: controlPlaneMi.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
+//
+// C L O U D   C O N T R O L L E R   M A N A G E R   M I
+//
 resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-cloud-controller-manager-${randomSuffix}'
   location: resourceGroup().location
 }
-
-// Azure Red Hat OpenShift Cloud Controller Manager
-var cloudControllerManagerRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'a1f96423-95ce-4224-ab27-4e3dc72facd4'
-)
 
 resource cloudControllerManagerRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId, subnet.id)
@@ -176,19 +240,12 @@ resource serviceManagedIdentityReaderOnCloudControllerManagerMi 'Microsoft.Autho
 }
 
 //
-// I N G R E S S   M A N A G E D   I D E N T I T Y
+// I N G R E S S   M I
 //
-
 resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-ingress-${randomSuffix}'
   location: resourceGroup().location
 }
-
-// Azure Red Hat OpenShift Cluster Ingress Operator
-var ingressOperatorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '0336e1d3-7a87-462b-b6db-342b63f7802c'
-)
 
 resource ingressOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, ingressMi.id, ingressOperatorRoleId, subnet.id)
@@ -211,9 +268,8 @@ resource serviceManagedIdentityReaderOnIngressMi 'Microsoft.Authorization/roleAs
 }
 
 //
-// D I S K   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
+// D I S K   C S I   D R I V E R   M I
 //
-
 resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-disk-csi-driver-${randomSuffix}'
   location: resourceGroup().location
@@ -230,19 +286,12 @@ resource serviceManagedIdentityReaderOnDiskCsiDriverMi 'Microsoft.Authorization/
 }
 
 //
-// F I L E   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
+// F I L E   C S I   D R I V E R   M I
 //
-
 resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-file-csi-driver-${randomSuffix}'
   location: resourceGroup().location
 }
-
-// Azure Red Hat OpenShift File Storage Operator
-var fileStorageOperatorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '0d7aedc0-15fd-4a67-a412-efad370c947e'
-)
 
 resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
@@ -275,9 +324,8 @@ resource serviceManagedIdentityReaderOnFileCsiDriverMi 'Microsoft.Authorization/
 }
 
 //
-// I M A G E   R E G I S T R Y   M A N A G E D   I D E N T I T Y
+// I M A G E   R E G I S T R Y   M I
 //
-
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-image-registry-${randomSuffix}'
   location: resourceGroup().location
@@ -294,19 +342,12 @@ resource serviceManagedIdentityReaderOnImageRegistryMi 'Microsoft.Authorization/
 }
 
 //
-// C L O U D   N E T W O R K   C O N F I G   M A N A G E D   I D E N T I T Y
+// C L O U D   N E T W O R K   C O N F I G   M I
 //
-
 resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-cp-cloud-network-config-${randomSuffix}'
   location: resourceGroup().location
 }
-
-// Azure Red Hat OpenShift Network Operator
-var networkOperatorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'be7a6435-15ae-4171-8f30-4a343eff9e8f'
-)
 
 resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, subnet.id)
@@ -341,15 +382,6 @@ resource serviceManagedIdentityReaderOnCloudNetworkMi 'Microsoft.Authorization/r
 //
 // D A T A P L A N E   I D E N T I T I E S
 //
-
-// Azure Red Hat OpenShift Federated Credential
-// give the ability to perform OIDC federation to the service managed identity
-// over the corresponding dataplane identities
-var federatedCredentialsRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'ef318e2a-8334-4a05-9e4a-295a196c6a6e'
-)
-
 resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-dp-disk-csi-driver-${randomSuffix}'
   location: resourceGroup().location
@@ -418,19 +450,11 @@ resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 //
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
-
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${clusterName}-service-managed-identity-${randomSuffix}'
   location: resourceGroup().location
 }
 
-// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
-var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'c0ff367d-66d8-445e-917c-583feb0ef0d4'
-)
-
-// grant service managed identity role to the service managed identity over the user provided subnet
 resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
   scope: vnet
@@ -441,7 +465,6 @@ resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleA
   }
 }
 
-// grant service managed identity role to the service managed identity over the user provided subnet
 resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, subnet.id)
   scope: subnet
@@ -452,7 +475,6 @@ resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/rol
   }
 }
 
-// grant service managed identity role to the service managed identity over the user provided NSG
 resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, nsg.id)
   scope: nsg
@@ -463,6 +485,9 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
   }
 }
 
+//
+// H C P   C L U S T E R
+//
 resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview' = {
   name: clusterName
   location: resourceGroup().location
@@ -471,7 +496,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       id: '4.19'
       channelGroup: 'stable'
     }
-  clusterImageRegistry: {
+    clusterImageRegistry: {
       state: 'Enabled'
     }
     dns: {}
@@ -485,7 +510,11 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     console: {}
     etcd: {
       dataEncryption: {
-        keyManagementMode: 'PlatformManaged'
+        // 👇 Use CMK from Key Vault
+        keyManagementMode: 'CustomerManaged'
+        // Most Azure RPs accept 'keyIdentifier' (key URL) for CMK configuration.
+        // Adjust the property name to match the exact RP contract if needed.
+        keyIdentifier: etcdKeyIdentifier
       }
     }
     api: {
@@ -559,5 +588,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     serviceManagedIdentityReaderOnImageRegistryMi
     serviceManagedIdentityReaderOnCloudNetworkMi
     serviceManagedIdentityReaderOnClusterApiAzureMi
+    // Ensure KV role assignment is ready before cluster consumes the key
+    controlPlaneMiKvCryptoRole
   ]
 }
