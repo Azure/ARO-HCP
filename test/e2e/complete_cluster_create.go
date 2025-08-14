@@ -71,16 +71,19 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a managed identities")
+			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
+			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"managed-identities",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
-					"clusterName": customerClusterName,
-					"nsgName":     customerNetworkSecurityGroupName,
-					"vnetName":    customerVnetName,
-					"subnetName":  customerVnetSubnetName,
+					"clusterName":  customerClusterName,
+					"nsgName":      customerNetworkSecurityGroupName,
+					"vnetName":     customerVnetName,
+					"subnetName":   customerVnetSubnetName,
+					"keyVaultName": keyVaultName,
 				},
 				45*time.Minute,
 			)
@@ -90,8 +93,6 @@ var _ = Describe("Customer", func() {
 			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
 			Expect(err).NotTo(HaveOccurred())
 			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-			Expect(err).NotTo(HaveOccurred())
-			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
