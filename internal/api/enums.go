@@ -31,8 +31,8 @@ const (
 type PersistenceType string
 
 const (
-	PersistenceTypePersistent PersistenceType = "persistent"
-	PersistenceTypeEphemeral  PersistenceType = "ephemeral"
+	PersistenceTypePersistent PersistenceType = "Persistent"
+	PersistenceTypeEphemeral  PersistenceType = "Ephemeral"
 )
 
 // NetworkType represents an OpenShift cluster network plugin.
