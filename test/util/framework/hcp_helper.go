@@ -112,6 +112,53 @@ func DeleteHCPCluster(
 	return nil
 }
 
+// UpdateHCPCluster sends a PATCH (BeginUpdate) request for an HCP cluster and waits for completion
+// within the provided timeout. It returns the final update response or an error.
+func UpdateHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	update hcpapi20240610.HcpOpenShiftClusterUpdate,
+	timeout time.Duration,
+) (hcpapi20240610.HcpOpenShiftClustersClientUpdateResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
+	if err != nil {
+		return hcpapi20240610.HcpOpenShiftClustersClientUpdateResponse{}, err
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return hcpapi20240610.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpapi20240610.HcpOpenShiftClustersClientUpdateResponse:
+		return m, nil
+	default:
+		return hcpapi20240610.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// GetHCPCluster fetches an HCP cluster with a timeout
+func GetHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	timeout time.Duration,
+) (hcpapi20240610.HcpOpenShiftClustersClientGetResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+}
+
 // DeleteResourceGroup deletes a resource group and waits for the operation to complete
 func DeleteAllHCPClusters(
 	ctx context.Context,
