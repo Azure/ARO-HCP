@@ -1,11 +1,8 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 deploy:
-	${HELM_CMD} istio \
-		deploy/ \
-		--set "istioVersions={${ISTIO_VERSIONS}}" \
-		--namespace aks-istio-system
+	../hack/helm.sh istio deploy aks-istio-system \
+		--set "istioVersions={${ISTIO_VERSIONS}}"
 .PHONY: deploy
 
 undeploy:

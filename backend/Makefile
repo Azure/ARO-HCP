@@ -1,5 +1,4 @@
 -include ../setup-env.mk
--include ../helm-cmd.mk
 
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
@@ -54,8 +53,7 @@ deploy:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	${HELM_CMD} aro-hcp-backend-dev \
-		deploy/ \
+	../hack/helm.sh aro-hcp-backend-dev deploy aro-hcp \
 		--set configMap.databaseName=${DB_NAME} \
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
@@ -66,8 +64,7 @@ deploy:
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployment.imageName=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
 		--set tracing.address=${TRACING_ADDRESS} \
-		--set tracing.exporter=${TRACING_EXPORTER} \
-		--namespace aro-hcp
+		--set tracing.exporter=${TRACING_EXPORTER}
 .PHONY: deploy
 
 undeploy:

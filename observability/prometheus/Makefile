@@ -1,5 +1,4 @@
 -include ../../setup-env.mk
--include ../../helm-cmd.mk
 
 NAMESPACE ?= "prometheus"
 CHART_VERSION ?= 70.4.1
@@ -19,9 +18,8 @@ deploy: pull-chart
 	$(eval PROMETHEUS_SPEC_DIGEST := $(subst sha256:,,$(PROMETHEUS_SPEC_DIGEST)))
 	$(eval PROMETHEUS_CONFIG_RELOADER_DIGEST := $(subst sha256:,,$(PROMETHEUS_CONFIG_RELOADER_DIGEST)))
 	@${LABEL_NAMESPACE_CMD}
-	${HELM_CMD} arohcp-monitor deploy/ \
+	../hack/helm.sh arohcp-monitor deploy ${NAMESPACE} \
 		--version ${CHART_VERSION} \
-		--namespace ${NAMESPACE} \
 		--values=deploy/values.yaml \
 		--set crds.enabled=true \
 		--set kube-prometheus-stack.prometheusOperator.enabled=true \
