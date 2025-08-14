@@ -106,7 +106,12 @@ create-int-mock-identities:
 	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
 	ROLE_DEFINITION_NAME=$${MSI_MOCK_ROLE_NAME} \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh
+	./scripts/create-sp-for-rbac.sh && \
+	az role assignment create \
+		--role "Key Vault Crypto User" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+		--only-show-errors
 
 .PHONY: create-mock-identities
 
