@@ -112,8 +112,8 @@ type EtcdProfile struct {
 // EtcdDataEncryptionProfile represents a data encryption configuration for ETCD.
 // Visibility for the entire struct is "read create".
 type EtcdDataEncryptionProfile struct {
-	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
-	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty"`
+	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" validate:"enum_etcddataencryptionkeymanagementmodetype"`
+	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"   validate:"required_if=KeyManagementMode CustomerManaged,excluded_unless=KeyManagementMode CustomerManaged,omitempty"`
 }
 
 // CustomerManagedEncryptionProfile repesents a data encryption configuration for
@@ -121,7 +121,7 @@ type EtcdDataEncryptionProfile struct {
 // Visibility for the entire struct is "read create".
 type CustomerManagedEncryptionProfile struct {
 	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
-	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"omitempty"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"required_if=EncryptionType KMS,excluded_unless=EncryptionType KMS,omitempty"`
 }
 
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using

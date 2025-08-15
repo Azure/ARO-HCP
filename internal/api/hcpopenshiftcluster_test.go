@@ -408,6 +408,92 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'customerManaged' is required when 'keyManagementMode' is 'CustomerManaged'",
+					Target:  "properties.etcd.dataEncryption.customerManaged",
+				},
+			},
+		},
+		{
+			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+							CustomerManaged:   &CustomerManagedEncryptionProfile{},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'customerManaged' can only be set when 'keyManagementMode' is 'CustomerManaged'",
+					Target:  "properties.etcd.dataEncryption.customerManaged",
+				},
+			},
+		},
+		{
+			name: "Customer managed Key Management Service (KMS) requires Kms fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &CustomerManagedEncryptionProfile{
+								EncryptionType: CustomerManagedEncryptionTypeKMS,
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'kms' is required when 'encryptionType' is 'KMS'",
+					Target:  "properties.etcd.dataEncryption.customerManaged.kms",
+				},
+			},
+		},
+		{
+			// FIXME Use a valid alternate EncryptionType once we have one.
+			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &CustomerManagedEncryptionProfile{
+								EncryptionType: "Alternate",
+								Kms:            &KmsEncryptionProfile{},
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'Alternate' for field 'encryptionType' (must be KMS)",
+					Target:  "properties.etcd.dataEncryption.customerManaged.encryptionType",
+				},
+				{
+					Message: "Field 'kms' can only be set when 'encryptionType' is 'KMS'",
+					Target:  "properties.etcd.dataEncryption.customerManaged.kms",
+				},
+			},
+		},
+
 		//--------------------------------
 		// Complex multi-field validation
 		//--------------------------------

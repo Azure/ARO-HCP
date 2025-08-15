@@ -72,6 +72,7 @@ func init() {
 	validate.RegisterAlias("enum_customermanagedencryptiontype", api.EnumValidateTag(generated.PossibleCustomerManagedEncryptionTypeValues()...))
 	validate.RegisterAlias("enum_diskstorageaccounttype", api.EnumValidateTag(generated.PossibleDiskStorageAccountTypeValues()...))
 	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
+	validate.RegisterAlias("enum_etcddataencryptionkeymanagementmodetype", api.EnumValidateTag(generated.PossibleEtcdDataEncryptionKeyManagementModeTypeValues()...))
 	validate.RegisterAlias("enum_externalauthclienttype", api.EnumValidateTag(generated.PossibleExternalAuthClientTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditionstatustype", api.EnumValidateTag(generated.PossibleStatusTypeValues()...))
 	validate.RegisterAlias("enum_externalauthconditiontype", api.EnumValidateTag(generated.PossibleExternalAuthConditionTypeValues()...))
