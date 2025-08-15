@@ -58,7 +58,7 @@ type ExternalAuthCondition struct {
 type TokenIssuerProfile struct {
 	Url       string   `json:"url"       validate:"required,url,startswith=https://"`
 	Audiences []string `json:"audiences" validate:"required,min=0,max=10"`
-	Ca        *string  `json:"ca"        validate:"omitempty,pem_certificates"`
+	Ca        string   `json:"ca"        validate:"omitempty,pem_certificates"`
 }
 
 // External Auth client profile
