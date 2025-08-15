@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"github.com/davecgh/go-spew/spew"
+	"k8s.io/utils/ptr"
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
@@ -48,19 +49,67 @@ func CreateResourceGroup(
 	resourceGroupsClient *armresources.ResourceGroupsClient,
 	resourceGroupName string,
 	location string,
+	resourceGroupTTL time.Duration,
 	timeout time.Duration,
 ) (*armresources.ResourceGroup, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	if resourceGroupTTL < 60*time.Minute {
+		return nil, fmt.Errorf("resourceGroupTTL must be at least an hour, got %v", resourceGroupTTL)
+	}
+
 	resourceGroup, err := resourceGroupsClient.CreateOrUpdate(ctx, resourceGroupName, armresources.ResourceGroup{
 		Location: to.Ptr(location),
+		Tags: map[string]*string{
+			"e2e.aro-hcp-ci.redhat.com":         to.Ptr("true"),
+			"deleteAfter.aro-hcp-ci.redhat.com": to.Ptr(fmt.Sprintf("%v", time.Now().Add(resourceGroupTTL).Format(time.RFC3339))),
+		},
 	}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &resourceGroup.ResourceGroup, nil
+}
+
+// DeleteResourceGroup deletes a resource group and waits for the operation to complete
+func ListAllExpiredResourceGroups(
+	ctx context.Context,
+	resourceGroupsClient *armresources.ResourceGroupsClient,
+	now time.Time,
+) ([]*armresources.ResourceGroup, error) {
+	resourceGroupsPager := resourceGroupsClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
+		Filter: ptr.To(`tagName eq 'e2e.aro-hcp-ci.redhat.com' and tagValue eq 'true'`),
+	})
+
+	allResourceGroups := []*armresources.ResourceGroup{}
+	for resourceGroupsPager.More() {
+		resourceGroupPage, err := resourceGroupsPager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed listing resource groups: %w", err)
+		}
+		allResourceGroups = append(allResourceGroups, resourceGroupPage.Value...)
+	}
+
+	expiredResourceGroups := []*armresources.ResourceGroup{}
+	for i := range allResourceGroups {
+		currResourceGroup := allResourceGroups[i]
+		expiryTime := currResourceGroup.Tags["deleteAfter.aro-hcp-ci.redhat.com"]
+		if expiryTime == nil {
+			continue
+		}
+		expiryTimeTime, err := time.Parse(time.RFC3339, *expiryTime)
+		if err != nil {
+			// TODO log
+			continue
+		}
+		if expiryTimeTime.Before(now) {
+			expiredResourceGroups = append(expiredResourceGroups, currResourceGroup)
+		}
+	}
+
+	return expiredResourceGroups, nil
 }
 
 // DeleteResourceGroup deletes a resource group and waits for the operation to complete
