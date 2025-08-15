@@ -59,7 +59,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
           # Maestro
           maestro:
             image:
@@ -126,7 +126,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
           # Maestro
           maestro:
             image:
@@ -193,7 +193,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
           # Maestro
           maestro:
             image:
