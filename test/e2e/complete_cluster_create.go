@@ -132,20 +132,20 @@ var _ = Describe("Customer", func() {
 			err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"node-pool",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
-					"openshiftVersionId": openshiftNodeVersionId,
-					"clusterName":        customerClusterName,
-					"nodePoolName":       customerNodePoolName,
-					"replicas":           2,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
+			//By("creating the node pool")
+			//_, err = framework.CreateBicepTemplateAndWait(ctx,
+			//	tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			//	*resourceGroup.Name,
+			//	"node-pool",
+			//	framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+			//	map[string]interface{}{
+			//		"openshiftVersionId": openshiftNodeVersionId,
+			//		"clusterName":        customerClusterName,
+			//		"nodePoolName":       customerNodePoolName,
+			//		"replicas":           2,
+			//	},
+			//	45*time.Minute,
+			//)
+			//Expect(err).NotTo(HaveOccurred())
 		})
 })

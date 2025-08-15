@@ -81,27 +81,53 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 
 // deleteCreatedResources deletes what was created that we know of.
 func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
+	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get HCP client")
+		return
+	}
+	resourceGroupsClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get ARM client")
+		return
+	}
 	tc.contextLock.RLock()
+	resourceGroupNames := tc.knownResourceGroups
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
-	// deletion takes a while, it's worth it to do this in parallel
-	waitGroup, ctx := errgroup.WithContext(ctx)
-	for _, resourceGroupName := range tc.knownResourceGroups {
-		currResourceGroupName := resourceGroupName
-		waitGroup.Go(func() error {
-			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
-			utilruntime.HandleCrashWithContext(ctx)
-
-			return tc.cleanupResourceGroup(ctx, currResourceGroupName)
-		})
-	}
-	if err := waitGroup.Wait(); err != nil {
-		// remember that Wait only shows the first error, not all the errors.
+	err = CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
+	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
+}
+
+func CleanupResourceGroups(ctx context.Context, hcpClient *hcpapi20240610.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
+	// deletion takes a while, it's worth it to do this in parallel
+	wg := sync.WaitGroup{}
+	errCh := make(chan error, len(resourceGroupNames))
+	for _, currResourceGroupName := range resourceGroupNames {
+		wg.Add(1)
+		go func(ctx context.Context) {
+			defer wg.Done()
+			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
+			utilruntime.HandleCrashWithContext(ctx)
+
+			if err := cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName); err != nil {
+				errCh <- err
+			}
+		}(ctx)
+	}
+	wg.Wait()
+	close(errCh)
+
+	errs := []error{}
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // collectDebugInfo collects information and saves it in artifact dir
@@ -146,7 +172,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 		}
 	}
 
-	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, 20*time.Minute)
+	resourceGroup, err := CreateResourceGroup(ctx, tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(), resourceGroupName, location, StandardResourceGroupExpiration, 20*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group: %w", err)
 	}
@@ -157,27 +183,17 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string) error {
+func cleanupResourceGroup(ctx context.Context, hcpClient *hcpapi20240610.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
 	errs := []error{}
 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if hcpClientFactory, err := tc.get20240610ClientFactoryUnlocked(ctx); err == nil {
-		err := DeleteAllHCPClusters(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, 60*time.Minute)
-		if err != nil {
-			return fmt.Errorf("failed to cleanup resource group: %w", err)
-		}
-	} else {
-		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, 60*time.Minute); err != nil {
+		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if armClientFactory, err := tc.getARMResourcesClientFactoryUnlocked(ctx); err == nil {
-		err := DeleteResourceGroup(ctx, armClientFactory.NewResourceGroupsClient(), resourceGroupName, 60*time.Minute)
-		if err != nil {
-			return fmt.Errorf("failed to cleanup resource group: %w", err)
-		}
-	} else {
-		errs = append(errs, fmt.Errorf("failed creating client factory for cleanup: %w", err))
+	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, 60*time.Minute); err != nil {
+		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
 	return errors.Join(errs...)
