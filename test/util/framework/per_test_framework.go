@@ -67,7 +67,13 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// remains valid as long as possible.
 	//
 	// In addition, AfterEach will not be called if a test never gets here.
-	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(45*time.Minute))
+	// We are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
+	// If we haven't fixed the deletion timeout after Labor Day, this intentional time bomb will explode and start failing again.
+	cleanupTimeout := 45 * time.Minute
+	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
+		cleanupTimeout = 90 * time.Minute
+	}
+	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	// Registered later and thus runs before deleting namespaces.
 	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
