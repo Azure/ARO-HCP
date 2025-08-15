@@ -114,7 +114,7 @@ type GroupClaimProfile struct {
 // Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
 	Claim        string                        `json:"claim"        validate:"required,max=256"`
-	Prefix       string                        `json:"prefix"       validate:"omitempty"`
+	Prefix       string                        `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
 	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicytype"`
 }
 
@@ -209,36 +209,6 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 	return errorDetails
 }
 
-// validateUsernamePrefixPolicy checks that a usernameClaimProfile obeys it's own type
-func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUsernamePrefixPolicy() []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	switch externalAuth.Properties.Claim.Mappings.Username.PrefixPolicy {
-	case UsernameClaimPrefixPolicyTypePrefix:
-		if len(externalAuth.Properties.Claim.Mappings.Username.Prefix) == 0 {
-			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: "UsernameClaimProfile has a PrefixPolicy of 'Prefix' but Username.Prefix is unset",
-				Target:  "properties.claim.mappings.username.prefix",
-			})
-		}
-	case UsernameClaimPrefixPolicyTypeNoPrefix:
-		if len(externalAuth.Properties.Claim.Mappings.Username.Prefix) > 0 {
-			errorDetails = append(errorDetails, arm.CloudErrorBody{
-				Code: arm.CloudErrorCodeInvalidRequestContent,
-				Message: fmt.Sprintf(
-					"UsernameClaimProfile has a PrefixPolicy of 'NoPrefix' but Username.Prefix is set to %s",
-					externalAuth.Properties.Claim.Mappings.Username.Prefix,
-				),
-				Target: "properties.claim.mappings.username.prefix",
-			})
-		}
-	case UsernameClaimPrefixPolicyTypeNone:
-	}
-
-	return errorDetails
-}
-
 func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
 	errorDetails := ValidateRequest(validate, request, externalAuth)
 
@@ -249,7 +219,6 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validato
 	if len(errorDetails) == 0 {
 		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
 		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
-		errorDetails = append(errorDetails, externalAuth.validateUsernamePrefixPolicy()...)
 	}
 
 	return errorDetails
