@@ -105,7 +105,7 @@ initialize_etcd_encryption_json_map() {
       "dataEncryption": {
         "keyManagementMode": "CustomerManaged",
         "customerManaged": {
-          "encryptionType": "kms",
+          "encryptionType": "KMS",
           "kms": {
             "activeKey": {
               "vaultName": "",
