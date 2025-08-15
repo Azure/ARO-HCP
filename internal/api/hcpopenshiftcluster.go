@@ -120,7 +120,7 @@ type EtcdDataEncryptionProfile struct {
 // ETCD using customer-managed keys.
 // Visibility for the entire struct is "read create".
 type CustomerManagedEncryptionProfile struct {
-	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty"`
+	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
 	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"omitempty"`
 }
 

@@ -49,6 +49,7 @@ const (
 	csPlatformOutboundType                string = "load_balancer"
 	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
 	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
+	csCustomerManagedEncryptionTypeKms    string = "kms"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -83,6 +84,22 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
 		outboundTypeCS = csPlatformOutboundType
+	}
+	return
+}
+
+func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (encryptionTypeRP api.CustomerManagedEncryptionType) {
+	switch encryptionTypeCS {
+	case csCustomerManagedEncryptionTypeKms:
+		encryptionTypeRP = api.CustomerManagedEncryptionTypeKMS
+	}
+	return
+}
+
+func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) (encryptionTypeCS string) {
+	switch encryptionTypeRP {
+	case api.CustomerManagedEncryptionTypeKMS:
+		encryptionTypeCS = csCustomerManagedEncryptionTypeKms
 	}
 	return
 }
@@ -178,7 +195,7 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
 	if customerManaged, ok := in.GetCustomerManaged(); ok {
 		return &api.CustomerManagedEncryptionProfile{
-			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
+			EncryptionType: convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType()),
 			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
 		}
 	}
@@ -204,7 +221,7 @@ func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBu
 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode))
 	if in.DataEncryption.CustomerManaged != nil {
 		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
-			EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
+			EncryptionType(convertCustomerManagedEncryptionTypeRPToCS(in.DataEncryption.CustomerManaged.EncryptionType))
 		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
 			KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
 			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).

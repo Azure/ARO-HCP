@@ -71,6 +71,9 @@ func NewTestValidator() *validator.Validate {
 		ClusterImageRegistryProfileStateEnabled,
 		ClusterImageRegistryProfileStateDisabled,
 	))
+	validate.RegisterAlias("enum_customermanagedencryptiontype", EnumValidateTag(
+		CustomerManagedEncryptionTypeKMS,
+	))
 	validate.RegisterAlias("enum_diskstorageaccounttype", EnumValidateTag(
 		DiskStorageAccountTypePremium_LRS,
 		DiskStorageAccountTypeStandardSSD_LRS,

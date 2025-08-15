@@ -16,6 +16,7 @@ package v20240610preview
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -414,7 +415,8 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 
 func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
 	if p.EncryptionType != nil {
-		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
+		// FIXME Temporarily allow "kms" instead of "KMS".
+		out.EncryptionType = api.CustomerManagedEncryptionType(strings.ToUpper(string(*p.EncryptionType)))
 	}
 	if p.Kms != nil && p.Kms.ActiveKey != nil {
 		if out.Kms == nil {

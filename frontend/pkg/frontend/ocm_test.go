@@ -137,7 +137,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				func(hsc *api.HCPOpenShiftCluster) {
 					hsc.Properties.Etcd.DataEncryption = api.EtcdDataEncryptionProfile{
 						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: "kms",
+							EncryptionType: "KMS",
 							Kms: &api.KmsEncryptionProfile{
 								ActiveKey: api.KmsKey{
 									Name:      "test",
