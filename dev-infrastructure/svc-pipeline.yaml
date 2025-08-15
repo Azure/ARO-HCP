@@ -60,7 +60,7 @@ resourceGroups:
         step: output
         name: logAnalyticsWorkspaceId
   # Configure certificate issuers for the SVC KV
-  - name: svc-oncert-private-kv-issuer
+  - name: oncert-private-kv-issuer
     action: SetCertificateIssuer
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
@@ -75,7 +75,7 @@ resourceGroups:
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
-  - name: svc-oncert-public-kv-issuer
+  - name: oncert-public-kv-issuer
     action: SetCertificateIssuer
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
@@ -91,7 +91,7 @@ resourceGroups:
     issuer:
       value: OneCertV2-PublicCA
   # Create SVC cluster
-  - name: svc-cluster
+  - name: cluster
     action: ARM
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
@@ -129,10 +129,10 @@ resourceGroups:
         name: azureFrontDoorResourceId
     dependsOn:
     - resourceGroup: service
-      step: svc-oncert-private-kv-issuer
+      step: oncert-private-kv-issuer
     - resourceGroup: service
-      step: svc-oncert-public-kv-issuer
-  - name: svc-cluster-output
+      step: oncert-public-kv-issuer
+  - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
     parameters: configurations/output-svc-cluster.tmpl.bicepparam
@@ -142,7 +142,7 @@ resourceGroups:
     - resourceGroup: regional
       step: output
     - resourceGroup: service
-      step: svc-cluster
+      step: cluster
   # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
     aksCluster: '{{ .svc.aks.name }}'
@@ -186,16 +186,16 @@ resourceGroups:
     - name: DCR_REMOTE_WRITE_URL
       input:
         resourceGroup: service
-        step: svc-cluster-output
+        step: cluster-output
         name: dcrRemoteWriteUrl
     - name: PROMETHEUS_UAMI_CLIENT_ID
       input:
         resourceGroup: service
-        step: svc-cluster-output
+        step: cluster-output
         name: prometheusUAMIClientId
     dependsOn:
     - resourceGroup: service
-      step: svc-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
@@ -317,7 +317,7 @@ resourceGroups:
       configRef: geneva.logs.environment
     dependsOn:
     - resourceGroup: service
-      step: svc-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
