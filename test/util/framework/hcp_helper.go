@@ -245,3 +245,52 @@ func DeleteAllHCPClusters(
 
 	return nil
 }
+
+// DeleteNodePool deletes a nodepool and waits for the operation to complete
+func DeleteNodePool(
+	ctx context.Context,
+	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	poller, err := nodePoolsClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+	if err != nil {
+		return err
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish deleting: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpapi20240610.NodePoolsClientDeleteResponse:
+	default:
+		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		return fmt.Errorf("unknown type %T", m)
+	}
+
+	return nil
+}
+
+// GetNodePool fetches a nodepool resource
+func GetNodePool(
+	ctx context.Context,
+	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	timeout time.Duration,
+) (hcpapi20240610.NodePoolsClientGetResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+}
