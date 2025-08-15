@@ -19,7 +19,7 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
     }
     platform: {
       subnetId: hcp.properties.platform.subnetId
-      vmSize: 'Standard_D8s_v3'
+      vmSize: 'Standard_D2s_v3'
       osDisk: {
         sizeGiB: 64
         diskStorageAccountType: 'StandardSSD_LRS'

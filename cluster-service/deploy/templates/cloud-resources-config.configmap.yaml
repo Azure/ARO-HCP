@@ -9,6 +9,23 @@ data:
   instance-types.yaml: |
     instance_types:
     # DEMO INSTANCE TYPES
+    - id: Standard_D2s_v3
+      name: Standard_D2s_v3 - General purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      memory: 8589934592
+      category: general_purpose
+      size: d2s_v3
+      generic_name: standard-d2s_v3
+    - id: Standard_D2ps_v6
+      name: D2ps_v6 - General purpose
+      cloud_provider_id: azure
+      cpu_cores: 2
+      memory: 8589934592
+      category: general_purpose
+      size: d2ps_v6
+      generic_name: standard-d2ps_v6
+      architecture: arm64
     - id: Standard_D8s_v3
       name: Standard_D8s_v3 - General purpose
       cloud_provider_id: azure
