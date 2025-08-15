@@ -112,27 +112,12 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' =
 }
 
 //
-// E X I S T I N G   R E S O U R C E S
+// S U B N E T   R E F E R E N C E
 //
-
-resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' existing = {
-  name: customerVnetName
-  dependsOn: [customerVnet]
-}
 
 resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
   name: customerVnetSubnetName
-  parent: vnet
-}
-
-resource nsg 'Microsoft.Network/networkSecurityGroups@2022-07-01' existing = {
-  name: customerNsgName
-  dependsOn: [customerNsg]
-}
-
-resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
-  name: customerKeyVaultName
-  dependsOn: [customerKeyVault]
+  parent: customerVnet
 }
 
 //
@@ -186,8 +171,8 @@ var hcpControlPlaneOperatorRoleId = subscriptionResourceId(
 )
 
 resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, vnet.id)
-  scope: vnet
+  name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, customerVnet.id)
+  scope: customerVnet
   properties: {
     principalId: controlPlaneMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -196,8 +181,8 @@ resource hcpControlPlaneOperatorVnetRoleAssignment 'Microsoft.Authorization/role
 }
 
 resource hcpControlPlaneOperatorNsgRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, nsg.id)
-  scope: nsg
+  name: guid(resourceGroup().id, controlPlaneMi.id, hcpControlPlaneOperatorRoleId, customerNsg.id)
+  scope: customerNsg
   properties: {
     principalId: controlPlaneMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -231,8 +216,8 @@ resource cloudControllerManagerRoleSubnetAssignment 'Microsoft.Authorization/rol
 }
 
 resource cloudControllerManagerRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId, nsg.id)
-  scope: nsg
+  name: guid(resourceGroup().id, cloudControllerManagerMi.id, cloudControllerManagerRoleId, customerNsg.id)
+  scope: customerNsg
   properties: {
     principalId: cloudControllerManagerMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -300,8 +285,8 @@ resource fileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAs
 }
 
 resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
-  scope: nsg
+  name: guid(resourceGroup().id, fileCsiDriverMi.id, fileStorageOperatorRoleId, customerNsg.id)
+  scope: customerNsg
   properties: {
     principalId: fileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -344,8 +329,8 @@ resource networkOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssign
 }
 
 resource networkOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, vnet.id)
-  scope: vnet
+  name: guid(resourceGroup().id, cloudNetworkConfigMi.id, networkOperatorRoleId, customerVnet.id)
+  scope: customerVnet
   properties: {
     principalId: cloudNetworkConfigMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -386,8 +371,8 @@ resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Autho
 }
 
 resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, nsg.id)
-  scope: nsg
+  name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, customerNsg.id)
+  scope: customerNsg
   properties: {
     principalId: dpFileCsiDriverMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -417,8 +402,8 @@ var hcpServiceManagedIdentityRoleId = subscriptionResourceId(
 
 // grant service managed identity role to the service managed identity over the user provided subnet
 resource serviceManagedIdentityRoleAssignmentVnet 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, vnet.id)
-  scope: vnet
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, customerVnet.id)
+  scope: customerVnet
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -439,8 +424,8 @@ resource serviceManagedIdentityRoleAssignmentSubnet 'Microsoft.Authorization/rol
 
 // grant service managed identity role to the service managed identity over the user provided NSG
 resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, nsg.id)
-  scope: nsg
+  name: guid(resourceGroup().id, serviceManagedIdentity.id, hcpServiceManagedIdentityRoleId, customerNsg.id)
+  scope: customerNsg
   properties: {
     principalId: serviceManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -575,8 +560,8 @@ var keyVaultCryptoUserRoleId = subscriptionResourceId(
 )
 
 resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, kmsMi.id, keyVaultCryptoUserRoleId, keyVault.id)
-  scope: keyVault
+  name: guid(resourceGroup().id, kmsMi.id, keyVaultCryptoUserRoleId, customerKeyVault.id)
+  scope: customerKeyVault
   properties: {
     principalId: kmsMi.properties.principalId
     principalType: 'ServicePrincipal'
@@ -676,7 +661,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       managedResourceGroup: managedResourceGroupName
       subnetId: subnet.id
       outboundType: 'LoadBalancer'
-      networkSecurityGroupId: nsg.id
+      networkSecurityGroupId: customerNsg.id
       operatorsAuthentication: {
         userAssignedIdentities: userAssignedIdentitiesValue
       }
