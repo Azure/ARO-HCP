@@ -119,7 +119,18 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType("kms").Kms(arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(arohcpv1alpha1.NewAzureKmsKey().KeyName("test").KeyVaultName("test").KeyVersion("test-version"))))),
+							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test").
+										KeyVaultName("test").
+										KeyVersion("test-version"),
+									),
+								),
+							),
+						),
 					),
 				),
 			want: clusterResource(

@@ -67,41 +67,23 @@ func NewTestLogger() *slog.Logger {
 func NewTestValidator() *validator.Validate {
 	validate := NewValidator()
 
+	validate.RegisterAlias("enum_clusterimageregistryprofilestate", EnumValidateTag(
+		ClusterImageRegistryProfileStateEnabled,
+		ClusterImageRegistryProfileStateDisabled,
+	))
 	validate.RegisterAlias("enum_diskstorageaccounttype", EnumValidateTag(
 		DiskStorageAccountTypePremium_LRS,
 		DiskStorageAccountTypeStandardSSD_LRS,
-		DiskStorageAccountTypeStandard_LRS))
+		DiskStorageAccountTypeStandard_LRS,
+	))
 	validate.RegisterAlias("enum_effect", EnumValidateTag(
 		EffectNoExecute,
 		EffectNoSchedule,
-		EffectPreferNoSchedule))
-	validate.RegisterAlias("enum_networktype", EnumValidateTag(
-		NetworkTypeOVNKubernetes,
-		NetworkTypeOther))
-	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(
-		OutboundTypeLoadBalancer))
-	validate.RegisterAlias("enum_visibility", EnumValidateTag(
-		VisibilityPublic,
-		VisibilityPrivate))
-	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
-		arm.ManagedServiceIdentityTypeNone,
-		arm.ManagedServiceIdentityTypeSystemAssigned,
-		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
-		arm.ManagedServiceIdentityTypeUserAssigned))
-	validate.RegisterAlias("enum_clusterimageregistryprofilestate", EnumValidateTag(
-		ClusterImageRegistryProfileStateEnabled,
-		ClusterImageRegistryProfileStateDisabled))
+		EffectPreferNoSchedule,
+	))
 	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,
-	))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
-		UsernameClaimPrefixPolicyTypePrefix,
-		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeNone,
-	))
-	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
-		TokenValidationRuleTypeRequiredClaim,
 	))
 	validate.RegisterAlias("enum_externalauthconditiontype", EnumValidateTag(
 		ExternalAuthConditionTypeAvailable,
@@ -112,6 +94,31 @@ func NewTestValidator() *validator.Validate {
 		ConditionStatusTypeFalse,
 		ConditionStatusTypeTrue,
 		ConditionStatusTypeUnknown,
+	))
+	validate.RegisterAlias("enum_managedserviceidentitytype", EnumValidateTag(
+		arm.ManagedServiceIdentityTypeNone,
+		arm.ManagedServiceIdentityTypeSystemAssigned,
+		arm.ManagedServiceIdentityTypeSystemAssignedUserAssigned,
+		arm.ManagedServiceIdentityTypeUserAssigned,
+	))
+	validate.RegisterAlias("enum_networktype", EnumValidateTag(
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther,
+	))
+	validate.RegisterAlias("enum_outboundtype", EnumValidateTag(
+		OutboundTypeLoadBalancer,
+	))
+	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
+		TokenValidationRuleTypeRequiredClaim,
+	))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
+		UsernameClaimPrefixPolicyTypePrefix,
+		UsernameClaimPrefixPolicyTypeNoPrefix,
+		UsernameClaimPrefixPolicyTypeNone,
+	))
+	validate.RegisterAlias("enum_visibility", EnumValidateTag(
+		VisibilityPublic,
+		VisibilityPrivate,
 	))
 
 	return validate
@@ -149,17 +156,10 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 }
 
 func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
-	dummyURL := "https://www.redhat.com"
 	resource := NewDefaultHCPOpenShiftClusterExternalAuth()
-	resource.Properties.Issuer = TokenIssuerProfile{
-		Url:       dummyURL,
-		Audiences: []string{"audience1"},
-	}
-	resource.Properties.Claim.Mappings = TokenClaimMappingsProfile{
-		Username: UsernameClaimProfile{
-			Claim: "my-cool-claim",
-		},
-	}
+	resource.Properties.Issuer.Url = "https://www.redhat.com"
+	resource.Properties.Issuer.Audiences = []string{"audience1"}
+	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
 	return resource
 }
 
