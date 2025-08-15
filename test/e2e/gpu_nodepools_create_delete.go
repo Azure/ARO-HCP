@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -56,10 +57,8 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 			labels.Critical,
 			labels.Positive,
 			func(ctx context.Context) {
-				const (
-					customerClusterName = "gpu-nodepool-cluster"
-					location            = "uksouth"
-				)
+				customerClusterName := "gpu-nodepool-cluster-" + rand.String(6)
+				location := "uksouth"
 
 				tc := framework.NewTestContext()
 
