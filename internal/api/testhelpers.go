@@ -113,6 +113,8 @@ func NewTestValidator() *validator.Validate {
 		ConditionStatusTypeTrue,
 		ConditionStatusTypeUnknown,
 	))
+	validate.RegisterAlias("enum_persistence", EnumValidateTag(
+		PersistenceTypePersistent, PersistenceTypeEphemeral))
 
 	return validate
 }
