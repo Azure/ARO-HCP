@@ -22,7 +22,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
   - [CS PR environment](cspr.md)
   - [Personal perfscale environment](perscale-deployment.md)
 - MSFT deployment environments
-  - [MSIT INT](msit-int.md)
+  - [MSIT INT](environments.md#msit-corp-tenant-msft-int-tenant)
 
 ### Networking
 
