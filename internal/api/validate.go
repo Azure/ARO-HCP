@@ -389,6 +389,13 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
 						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, jsonName)
 					}
+				case "excluded_unless":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					if len(params) > 1 {
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' can only be set when '%s' is '%s'", fieldErr.Field(), jsonName, params[1])
+					}
 				case "gtefield":
 					if len(params) > 0 {
 						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
@@ -421,6 +428,13 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 								message += fmt.Sprintf(" (must be at least %s)", params[0])
 							}
 						}
+					}
+				case "required_if":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					if len(params) > 1 {
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' is required when '%s' is '%s'", fieldErr.Field(), jsonName, params[1])
 					}
 				case "required_unless":
 					// The parameter format is pairs of "fieldName fieldValue".
