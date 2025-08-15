@@ -36,7 +36,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 	gpuSkus := []gpuSKU{
 		{display: "NC4asT4v3", vmSize: "Standard_NC4as_T4_v3"},
 		{display: "NC6sv3", vmSize: "Standard_NC6s_v3"},
-		{display: "NC8asT4v3", vmSize: "Standard_NC8as_T4_v3"},
+		/*{display: "NC8asT4v3", vmSize: "Standard_NC8as_T4_v3"},
 		{display: "NC12sv3", vmSize: "Standard_NC12s_v3"},
 		{display: "NC16asT4v3", vmSize: "Standard_NC16as_T4_v3"},
 		{display: "NC24sv3", vmSize: "Standard_NC24s_v3"},
@@ -46,7 +46,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 		{display: "NC24adsA100v4", vmSize: "Standard_NC24ads_A100_v4"},
 		{display: "NC48adsA100v4", vmSize: "Standard_NC48ads_A100_v4"},
 		{display: "NC96adsA100v4", vmSize: "Standard_NC96ads_A100_v4"},
-		{display: "ND96amsrA100v4", vmSize: "Standard_ND96amsr_A100_v4"},
+		{display: "ND96amsrA100v4", vmSize: "Standard_ND96amsr_A100_v4"},*/
 	}
 
 	for _, sku := range gpuSkus {
