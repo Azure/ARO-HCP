@@ -119,7 +119,7 @@ initialize_etcd_encryption_json_map() {
 EOF
 )
 
-  KEY_VAULT_KEY_VERSION=$(az rest --method GET --uri /subscriptions/${SUBSCRIPTION_ID}/resourcegroups/${CUSTOMER_RG_NAME}/providers/Microsoft.KeyVault/vaults/${CUSTOMER_KV_NAME}/keys/${ETCD_ENCRYPTION_KEY_NAME}/versions?api-version=2024-12-01-preview | jq -r '.value[0].name')
+  KEY_VAULT_KEY_VERSION=$(az rest --method GET --uri /subscriptions/${SUBSCRIPTION_ID}/resourcegroups/${CUSTOMER_RG_NAME}/providers/Microsoft.KeyVault/vaults/${CUSTOMER_KV_NAME}/keys/${ETCD_ENCRYPTION_KEY_NAME}/versions?api-version=2024-12-01-preview --output json | jq -r '.value[0].name')
   ETCD_ENCRYPTION_JSON_MAP=$(echo -n "${ETCD_ENCRYPTION_JSON_MAP}" | jq \
     --arg vault_name "$CUSTOMER_KV_NAME" \
     --arg key_name "$ETCD_ENCRYPTION_KEY_NAME" \

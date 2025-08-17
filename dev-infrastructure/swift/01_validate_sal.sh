@@ -10,7 +10,7 @@ if ! is_service_principal; then
     source login_fpa.sh
 fi
 
-parent_guid=$(az network vnet list -g $resource_group | jq -r '.[].resourceGuid')
+parent_guid=$(az network vnet list -g $resource_group -o json | jq -r '.[].resourceGuid')
 api_version=2021-08-01
 body=$( jq -n \
     --arg rn $resource \
