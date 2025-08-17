@@ -115,7 +115,7 @@ type GroupClaimProfile struct {
 type UsernameClaimProfile struct {
 	Claim        string                        `json:"claim"        validate:"required,max=256"`
 	Prefix       string                        `json:"prefix"       validate:"omitempty"`
-	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"omitempty,enum_usernameclaimprefixpolicytype"`
+	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicytype"`
 }
 
 // External Auth claim validation rule

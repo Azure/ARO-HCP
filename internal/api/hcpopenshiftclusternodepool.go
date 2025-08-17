@@ -67,7 +67,7 @@ type NodePoolPlatformProfile struct {
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
 	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
-	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
+	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
 	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
 
