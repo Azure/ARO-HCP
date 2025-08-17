@@ -30,7 +30,7 @@ import (
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required_for_put"`
-	Identity   arm.ManagedServiceIdentity    `json:"identity,omitempty"`
+	Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -167,9 +167,6 @@ type ClusterImageRegistryProfile struct {
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
-		Identity: arm.ManagedServiceIdentity{
-			Type: arm.ManagedServiceIdentityTypeNone,
-		},
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",
@@ -405,10 +402,12 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	// exactly once by either ControlPlaneOperators or ServiceManagedIdentity.
 
 	userAssignedIdentities := make(map[string]int)
-	for key := range cluster.Identity.UserAssignedIdentities {
-		// Resource IDs are case-insensitive. Don't assume they
-		// have consistent casing, even within the same resource.
-		userAssignedIdentities[strings.ToLower(key)] = 0
+	if cluster.Identity != nil {
+		for key := range cluster.Identity.UserAssignedIdentities {
+			// Resource IDs are case-insensitive. Don't assume they
+			// have consistent casing, even within the same resource.
+			userAssignedIdentities[strings.ToLower(key)] = 0
+		}
 	}
 
 	tallyIdentity := func(identity, target string) {
@@ -434,28 +433,30 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 		tallyIdentity(serviceManagedIdentity, baseTarget+".serviceManagedIdentity")
 	}
 
-	for identity := range cluster.Identity.UserAssignedIdentities {
-		key := strings.ToLower(identity)
-		if tally, ok := userAssignedIdentities[key]; ok {
-			switch tally {
-			case 0:
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity '%s' is assigned to this resource but not used",
-						identity),
-					Target: "identity.userAssignedIdentities",
-				})
-			case 1:
-				// Valid: Identity is referenced once.
-			default:
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity '%s' is used multiple times",
-						identity),
-					Target: baseTarget,
-				})
+	if cluster.Identity != nil {
+		for identity := range cluster.Identity.UserAssignedIdentities {
+			key := strings.ToLower(identity)
+			if tally, ok := userAssignedIdentities[key]; ok {
+				switch tally {
+				case 0:
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
+						Message: fmt.Sprintf(
+							"Identity '%s' is assigned to this resource but not used",
+							identity),
+						Target: "identity.userAssignedIdentities",
+					})
+				case 1:
+					// Valid: Identity is referenced once.
+				default:
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
+						Message: fmt.Sprintf(
+							"Identity '%s' is used multiple times",
+							identity),
+						Target: baseTarget,
+					})
+				}
 			}
 		}
 	}

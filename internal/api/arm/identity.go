@@ -18,7 +18,7 @@ package arm
 type ManagedServiceIdentity struct {
 	PrincipalID            string                           `json:"principalId,omitempty"            visibility:"read"`
 	TenantID               string                           `json:"tenantId,omitempty"               visibility:"read"`
-	Type                   ManagedServiceIdentityType       `json:"type"                                               validate:"omitempty,enum_managedserviceidentitytype"`
+	Type                   ManagedServiceIdentityType       `json:"type"                                               validate:"required,enum_managedserviceidentitytype"`
 	UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"                   validate:"dive,keys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities,endkeys"`
 }
 

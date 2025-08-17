@@ -225,6 +225,9 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{},
+		Identity: &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		},
 	}
 	for _, opt := range opts {
 		opt(c)
