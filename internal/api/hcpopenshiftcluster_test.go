@@ -39,7 +39,7 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-func TestClusterRequiredForPut(t *testing.T) {
+func TestClusterRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftCluster
@@ -162,7 +162,7 @@ func TestClusterRequiredForPut(t *testing.T) {
 }
 
 func TestClusterValidate(t *testing.T) {
-	// Note "required_for_put" validation tests are above.
+	// Note "required" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string

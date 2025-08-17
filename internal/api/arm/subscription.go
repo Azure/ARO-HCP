@@ -28,8 +28,8 @@ type Subscription struct {
 	// The resource provider contract gives an example RegistrationDate
 	// in RFC1123 format but does not explicitly state a required format
 	// so we leave it a plain string.
-	State            SubscriptionState       `json:"state"            validate:"required_for_put,enum_subscriptionstate"`
-	RegistrationDate *string                 `json:"registrationDate" validate:"required_for_put"`
+	State            SubscriptionState       `json:"state"            validate:"required,enum_subscriptionstate"`
+	RegistrationDate *string                 `json:"registrationDate" validate:"required"`
 	Properties       *SubscriptionProperties `json:"properties"`
 
 	// LastUpdated is a copy of the Cosmos DB system generated

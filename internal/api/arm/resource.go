@@ -44,7 +44,7 @@ func (src *Resource) Copy(dst *Resource) {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required_for_put"`
+	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 

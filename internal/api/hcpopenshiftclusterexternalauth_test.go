@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func TestExternalAuthRequiredForPut(t *testing.T) {
+func TestExternalAuthRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftClusterExternalAuth
@@ -86,7 +86,7 @@ func TestExternalAuthValidate(t *testing.T) {
 	ClientComponentName := "A"
 	ClientComponentNamespace := "B"
 
-	// Note "required_for_put" validation tests are above.
+	// Note "required" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string

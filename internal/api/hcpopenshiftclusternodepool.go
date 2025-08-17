@@ -29,7 +29,7 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required_for_put"`
+	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -57,7 +57,7 @@ type NodePoolVersionProfile struct {
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
 	SubnetID               string        `json:"subnetId,omitempty"         validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	VMSize                 string        `json:"vmSize,omitempty"           validate:"required_for_put"`
+	VMSize                 string        `json:"vmSize,omitempty"           validate:"required"`
 	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	OSDisk                 OSDiskProfile `json:"osDisk"`
 	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
@@ -81,9 +81,9 @@ type NodePoolAutoScaling struct {
 // Taint represents a Kubernetes taint for a node.
 // Visibility for the entire struct is "read create update".
 type Taint struct {
-	Effect Effect `json:"effect,omitempty" validate:"required_for_put,enum_effect"`
-	Key    string `json:"key,omitempty"    validate:"required_for_put,k8s_qualified_name"`
-	Value  string `json:"value,omitempty"  validate:"required_for_put,k8s_label_value"`
+	Effect Effect `json:"effect,omitempty" validate:"required,enum_effect"`
+	Key    string `json:"key,omitempty"    validate:"required,k8s_qualified_name"`
+	Value  string `json:"value,omitempty"  validate:"required,k8s_label_value"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {

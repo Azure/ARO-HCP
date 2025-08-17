@@ -29,7 +29,7 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required_for_put"`
+	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
 	Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 }
 
@@ -86,9 +86,9 @@ type APIProfile struct {
 // Visibility for (almost) the entire struct is "read create".
 type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"omitempty,enum_outboundtype"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required_for_put,resource_id=Microsoft.Network/networkSecurityGroups"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
