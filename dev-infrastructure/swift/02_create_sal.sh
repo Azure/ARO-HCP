@@ -7,10 +7,10 @@ set -o pipefail
 source swift_env_vars
 if ! is_redhat_user; then
     az login
-    parent_guid=$(az network vnet list -g $resource_group | jq -r '.[].resourceGuid')
+    parent_guid=$(az network vnet list -g $resource_group -o json | jq -r '.[].resourceGuid')
 fi
 
-parent_guid=$(az network vnet list -g $resource_group | jq -r '.[].resourceGuid')
+parent_guid=$(az network vnet list -g $resource_group -o json | jq -r '.[].resourceGuid')
 
 if ! is_service_principal; then
     source login_fpa.sh
