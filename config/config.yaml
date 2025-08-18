@@ -430,6 +430,15 @@ defaults:
     kusto:
       sku: ""
       clusterName: ""
+      clusterPrincipals:
+      - name: ""
+        id: ""
+        role: ""
+        tenantId: ""
+        type: ""
+      dstsGroups:
+      - name: ""
+        description: ""
     eventHub:
       namespace: ""
       subscriptionId: ""
