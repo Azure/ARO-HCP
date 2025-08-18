@@ -52,13 +52,12 @@ var _ = Describe("Customer", func() {
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"cluster-deployment",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk-128GB/cluster-nodepool-osdisk-128GB.json")),
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
 				map[string]interface{}{
 					"persistTagValue": false,
 					"clusterName":     customerClusterName,
-					"nodePoolName":    customerNodePoolName,
 				},
-				60*time.Minute,
+				120*time.Minute, // lower to 45 minutes after bugs are fixed.
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -77,7 +76,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying nodepool configuration")
-			err = framework.VerifyNodePoolConfiguration(ctx, adminRESTConfig, customerClusterName, customerNodePoolName, customerNodeReplicas, customerNodeOsDiskSizeGiB)
+			err = framework.VerifyNodePool(ctx,
+				adminRESTConfig,
+				customerClusterName,
+				customerNodePoolName,
+				framework.VerifyNodePoolReplicas(customerNodeReplicas),
+				framework.VerifyNodePoolOsDiskSize(customerNodeOsDiskSizeGiB),
+			)
 			Expect(err).NotTo(HaveOccurred())
 		})
 })

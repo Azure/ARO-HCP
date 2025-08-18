@@ -1,0 +1,49 @@
+@description('If set to true, the cluster will not be deleted automatically after few days.')
+param persistTagValue bool = false
+
+@description('Name of the hypershift cluster')
+param clusterName string
+
+@description('Node pool osDisk Size')
+param nodePoolOsDiskSize int = 128
+
+module customerInfra 'modules/customer-infra.bicep' = {
+  name: 'customerInfra'
+  params: {
+    persistTagValue: persistTagValue
+  }
+}
+
+module managedIdentities 'modules/managed-identities.bicep' = {
+  name: 'managedIdentities'
+  params: {
+    clusterName: clusterName
+    vnetName: customerInfra.outputs.vnetName
+    subnetName: customerInfra.outputs.vnetSubnetName
+    nsgName: customerInfra.outputs.nsgName
+    keyVaultName: customerInfra.outputs.keyVaultName
+  }
+}
+
+module AroHcpCluster 'modules/cluster.bicep' = {
+  name: 'cluster'
+  params: {
+    clusterName: clusterName
+    vnetName: customerInfra.outputs.vnetName
+    subnetName: customerInfra.outputs.vnetSubnetName
+    nsgName: customerInfra.outputs.nsgName
+    userAssignedIdentitiesValue: managedIdentities.outputs.userAssignedIdentitiesValue
+    identityValue: managedIdentities.outputs.identityValue
+    keyVaultName: customerInfra.outputs.keyVaultName
+    etcdEncryptionKeyName: customerInfra.outputs.etcdEncryptionKeyName
+  }
+}
+
+module AroHcpNodePool 'modules/nodepool.bicep' = {
+  name: 'nodepool-128GiB'
+  params: {
+    clusterName: AroHcpCluster.outputs.name
+    nodePoolName: 'nodepool-128GiB'
+    osDiskSizeGiB: nodePoolOsDiskSize
+  }
+}

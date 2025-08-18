@@ -249,9 +249,73 @@ func DeleteAllHCPClusters(
 	return nil
 }
 
-// VerifyNodePoolConfiguration verifies that a NodePool has the expected number of replicas and osDisk size.
+// VerifyNodePool verifies that a NodePool has the expected configuration.
 // This function uses the Kubernetes client to check the HyperShift NodePool CRD in the cluster namespace.
-func VerifyNodePoolConfiguration(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string, expectedReplicas int32, expectedOsDiskSizeGiB int32) error {
+func VerifyNodePool(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string, additionalVerifiers ...NodePoolVerifier) error {
+	// Default verifiers that always run
+	defaultVerifiers := []NodePoolVerifier{
+		verifyNodePoolBasicAccess{clusterName: clusterName, nodePoolName: nodePoolName},
+	}
+
+	allVerifiers := append(defaultVerifiers, additionalVerifiers...)
+
+	errs := []error{}
+	for _, verifier := range allVerifiers {
+		err := verifier.Verify(ctx, adminRESTConfig, clusterName, nodePoolName)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%v failed: %w", verifier.Name(), err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+type NodePoolVerifier interface {
+	Name() string
+	Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error
+}
+
+// verifyNodePoolBasicAccess verifies basic access to the NodePool resource
+type verifyNodePoolBasicAccess struct {
+	clusterName  string
+	nodePoolName string
+}
+
+func (v verifyNodePoolBasicAccess) Name() string {
+	return "VerifyNodePoolBasicAccess"
+}
+
+func (v verifyNodePoolBasicAccess) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	nodePoolGVR := schema.GroupVersionResource{
+		Group:    "hypershift.openshift.io",
+		Version:  "v1beta1",
+		Resource: "nodepools",
+	}
+
+	namespace := clusterName
+	_, err = dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
+	}
+
+	return nil
+}
+
+// verifyNodePoolReplicas verifies the expected number of replicas
+type verifyNodePoolReplicas struct {
+	expectedReplicas int32
+}
+
+func (v verifyNodePoolReplicas) Name() string {
+	return "VerifyNodePoolReplicas"
+}
+
+func (v verifyNodePoolReplicas) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
 	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -269,7 +333,6 @@ func VerifyNodePoolConfiguration(ctx context.Context, adminRESTConfig *rest.Conf
 		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
 	}
 
-	// Verify replicas
 	replicas, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "replicas")
 	if err != nil {
 		return fmt.Errorf("failed to get replicas from NodePool spec: %w", err)
@@ -277,11 +340,40 @@ func VerifyNodePoolConfiguration(ctx context.Context, adminRESTConfig *rest.Conf
 	if !found {
 		return fmt.Errorf("replicas not found in NodePool spec")
 	}
-	if replicas != int64(expectedReplicas) {
-		return fmt.Errorf("expected %d replicas, got %d", expectedReplicas, replicas)
+	if replicas != int64(v.expectedReplicas) {
+		return fmt.Errorf("expected %d replicas, got %d", v.expectedReplicas, replicas)
 	}
 
-	// Verify osDisk.sizeGiB
+	return nil
+}
+
+// verifyNodePoolOsDiskSize verifies the expected OS disk size
+type verifyNodePoolOsDiskSize struct {
+	expectedOsDiskSizeGiB int32
+}
+
+func (v verifyNodePoolOsDiskSize) Name() string {
+	return "VerifyNodePoolOsDiskSize"
+}
+
+func (v verifyNodePoolOsDiskSize) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	nodePoolGVR := schema.GroupVersionResource{
+		Group:    "hypershift.openshift.io",
+		Version:  "v1beta1",
+		Resource: "nodepools",
+	}
+
+	namespace := clusterName
+	nodePool, err := dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
+	}
+
 	diskSize, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "platform", "azure", "osDisk", "sizeGiB")
 	if err != nil {
 		return fmt.Errorf("failed to get osDisk.sizeGiB from NodePool spec: %w", err)
@@ -289,9 +381,18 @@ func VerifyNodePoolConfiguration(ctx context.Context, adminRESTConfig *rest.Conf
 	if !found {
 		return fmt.Errorf("osDisk.sizeGiB not found in NodePool spec")
 	}
-	if diskSize != int64(expectedOsDiskSizeGiB) {
-		return fmt.Errorf("expected osDisk.sizeGiB %d, got %d", expectedOsDiskSizeGiB, diskSize)
+	if diskSize != int64(v.expectedOsDiskSizeGiB) {
+		return fmt.Errorf("expected osDisk.sizeGiB %d, got %d", v.expectedOsDiskSizeGiB, diskSize)
 	}
 
 	return nil
+}
+
+// Helper functions to create verifiers with specific parameters
+func VerifyNodePoolReplicas(expectedReplicas int32) NodePoolVerifier {
+	return verifyNodePoolReplicas{expectedReplicas: expectedReplicas}
+}
+
+func VerifyNodePoolOsDiskSize(expectedOsDiskSizeGiB int32) NodePoolVerifier {
+	return verifyNodePoolOsDiskSize{expectedOsDiskSizeGiB: expectedOsDiskSizeGiB}
 }
