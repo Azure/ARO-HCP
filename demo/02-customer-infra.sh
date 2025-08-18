@@ -31,8 +31,11 @@ else
   echo "Key vault ${CUSTOMER_KV_NAME} already exists, skipping creation."
 fi
 
-az keyvault key create \
-  --vault-name "${CUSTOMER_KV_NAME}" \
-  --name "${ETCD_ENCRYPTION_KEY_NAME}" \
-  --kty RSA \
-  --size 2048
+# use the ARM apis instead of dataplane for key vault (az keyvault key create)
+az rest --method PUT --uri "/subscriptions/${SUBSCRIPTION_ID}/resourcegroups/${CUSTOMER_RG_NAME}/providers/Microsoft.KeyVault/vaults/${CUSTOMER_KV_NAME}/keys/${ETCD_ENCRYPTION_KEY_NAME}?api-version=2024-12-01-preview" \
+  --body '{
+    "properties": {
+      "keySize": 2048,
+      "kty": "RSA"
+    }
+  }' --headers 'Content-Type=application/json'

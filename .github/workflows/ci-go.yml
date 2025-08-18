@@ -3,16 +3,29 @@ on:
   pull_request:
     branches:
     - 'main'
-    paths:
-    - '**/*.go'
-    - '**/go.mod'
-    - '**/go.sum'
-    - '**/go.work'
-    - '**/go.work.sum'
-    - '**/Makefile'
-    - '**/.golangci.{yml,yaml}'
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+    - uses: actions/checkout@v5
+    - name: Filter paths
+      id: filter
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          go:
+            - '**/*.go'
+            - '**/go.mod'
+            - '**/go.sum'
+            - '**/go.work'
+            - '**/go.work.sum'
+            - '**/Makefile'
+            - '**/.golangci.{yml,yaml}'
   test:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     permissions:
       id-token: 'write'
       contents: 'read'
@@ -29,7 +42,7 @@ jobs:
         client-id: ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
       with:
         fetch-depth: 1
     - name: 'Set up Go'
@@ -66,11 +79,13 @@ jobs:
     - name: 'Test'
       run: E2E_MC_CLUSTER=dev-westus3-mgmt-1 JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
   lint:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     permissions:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
       with:
         fetch-depth: 1
     - name: 'Set up Go'

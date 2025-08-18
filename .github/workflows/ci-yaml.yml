@@ -3,17 +3,34 @@ on:
   pull_request:
     branches:
     - 'main'
-    paths:
-    - '**/*.{yml,yaml}'
-    - '**/Makefile'
-    - 'yamlfmt.{wrap,unwrap}.sh'
+  push:
+    branches:
+    - 'main'
 jobs:
+  path-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      yaml: ${{ steps.filter.outputs.yaml }}
+    steps:
+    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
+      with:
+        fetch-depth: 1
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          yaml:
+            - '**/*.{yml,yaml}'
+            - '**/Makefile'
+            - 'yamlfmt.{wrap,unwrap}.sh'
   format:
+    needs: path-filter
+    if: needs.path-filter.outputs.yaml == 'true'
     permissions:
       contents: 'read'
     runs-on: 'ubuntu-latest'
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
       with:
         fetch-depth: 1
     - name: 'Set up Go'

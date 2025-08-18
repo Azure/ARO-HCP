@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools v0.0.0-20250813184532-4c656e87e8ef h1:gU7j3ryBzWdAX8iTZ/SMVHpAJdkTk+RHINyCpmJoMTI=
-github.com/Azure/ARO-Tools v0.0.0-20250813184532-4c656e87e8ef/go.mod h1:CNFSZBQhsSjLul0BwHX2+TlCRW/b/NJPjKyJwjMq8l0=
+github.com/Azure/ARO-Tools v0.0.0-20250818140852-7e3cf0d417b9 h1:iAFXnuGPgYPIJDJATBePmnVQO30PM+HBB854BnZTPhc=
+github.com/Azure/ARO-Tools v0.0.0-20250818140852-7e3cf0d417b9/go.mod h1:CNFSZBQhsSjLul0BwHX2+TlCRW/b/NJPjKyJwjMq8l0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1 h1:Wc1ml6QlJs2BHQ/9Bqu1jiyggbsSjramq2oUmp5WeIo=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1/go.mod h1:Ot/6aikWnKWi4l9QB7qVSwa8iMphQNqkWALMoNT3rzM=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1 h1:B+blDbyVIG3WaikNxPnhPiJ1MThR03b3vKGtER95TP4=
