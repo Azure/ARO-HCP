@@ -16,4 +16,4 @@ data:
         # this is to ensure that the enabled release images are synchronized to ACR in lockstep
         minVersion: 4.19.0
         # maxVersion is exclusive, contrary to oc-mirror which defines that boundary as inclusive.
-        maxVersion: 4.19.1
+        maxVersion: 4.19.7
