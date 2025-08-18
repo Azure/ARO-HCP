@@ -153,10 +153,12 @@ def delete_stale_dashboard(
     g: GrafanaRunner,
     azure_managed_folders: list[str],
 ) -> None:
-    if f"{d['folderUid']}_{d['title']}" not in dashboards_visited:
+    # Some dashboards may not have a folderUid field
+    folder_uid = d.get("folderUid", "")
+    if f"{folder_uid}_{d['title']}" not in dashboards_visited:
         for amf in azure_managed_folders:
             uid = get_folder_uid(amf, existing_folders)
-            if uid and uid == d["folderUid"]:
+            if uid and uid == folder_uid:
                 return
         g.delete_dashboard(d["title"])
 
