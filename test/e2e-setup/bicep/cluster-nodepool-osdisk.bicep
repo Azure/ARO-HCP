@@ -4,8 +4,14 @@ param persistTagValue bool = false
 @description('Name of the hypershift cluster')
 param clusterName string
 
-@description('Node pool osDisk Size')
-param nodePoolOsDiskSize int = 128
+@description('Node pool osDisk Size in GiB')
+param nodePoolOsDiskSizeGiB int = 128
+
+@description('Name of the node pool')
+param nodePoolName string = 'nodepool-${nodePoolOsDiskSizeGiB}GiB'
+
+@description('Number of replicas in the node pool')
+param nodeReplicas int = 2
 
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
@@ -40,10 +46,11 @@ module AroHcpCluster 'modules/cluster.bicep' = {
 }
 
 module AroHcpNodePool 'modules/nodepool.bicep' = {
-  name: 'nodepool-128GiB'
+  name: 'nodepool'
   params: {
     clusterName: AroHcpCluster.outputs.name
-    nodePoolName: 'nodepool-128GiB'
-    osDiskSizeGiB: nodePoolOsDiskSize
+    nodePoolName: nodePoolName
+    osDiskSizeGiB: nodePoolOsDiskSizeGiB
+    replicas: nodeReplicas
   }
 }

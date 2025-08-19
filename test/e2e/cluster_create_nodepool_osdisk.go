@@ -54,8 +54,11 @@ var _ = Describe("Customer", func() {
 				"cluster-deployment",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
 				map[string]interface{}{
-					"persistTagValue": false,
-					"clusterName":     customerClusterName,
+					"persistTagValue":   false,
+					"clusterName":       customerClusterName,
+					"nodePoolName":      customerNodePoolName,
+					"nodeOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
+					"nodeReplicas":      customerNodeReplicas,
 				},
 				120*time.Minute, // lower to 45 minutes after bugs are fixed.
 			)
