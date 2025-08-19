@@ -163,7 +163,7 @@ defaults:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--enable-cpo-overrides'
   # Log settings
   logs:
     mdsd:
@@ -719,7 +719,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:86dbb522948be740908865a6eed8564101ef400b3fa2a8a0da9ac46159971fa8
+          digest: sha256:9c0915fed0341dcc7939133413dad4c506a11103d818fbf9e744d81405ec1221
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -748,7 +748,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+          digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
       # Backplane API
       backplaneAPI:
         image:

@@ -7,7 +7,7 @@ data:
   aro-hcp-ocp-versions-config.yaml: |
     defaultVersion:
       channelGroupName: stable
-      version: 4.19.0
+      version: 4.19.7
     channelGroups:
       # the URL to cincinnati will be the same across all environments, other URLs also need to be whitelisted
       - url: https://api.openshift.com/api/upgrades_info/graph
@@ -16,4 +16,4 @@ data:
         # this is to ensure that the enabled release images are synchronized to ACR in lockstep
         minVersion: 4.19.0
         # maxVersion is exclusive, contrary to oc-mirror which defines that boundary as inclusive.
-        maxVersion: 4.19.1
+        maxVersion: 4.19.8
