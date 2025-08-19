@@ -69,67 +69,17 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a customer-infra")
-			customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"customer-infra",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-				map[string]interface{}{
-					"persistTagValue":        false,
-					"customerNsgName":        customerNetworkSecurityGroupName,
-					"customerVnetName":       customerVnetName,
-					"customerVnetSubnetName": customerVnetSubnetName,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a managed identities")
-			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"managed-identities",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				map[string]interface{}{
-					"clusterName":  customerClusterName,
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
-					"keyVaultName": keyVaultName,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating the cluster")
-			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-			Expect(err).NotTo(HaveOccurred())
-			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-			Expect(err).NotTo(HaveOccurred())
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			By("deploying the demo cluster bicep template")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
 				map[string]interface{}{
-					"openshiftVersionId":          openshiftControlPlaneVersionId,
-					"clusterName":                 customerClusterName,
-					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
-					"userAssignedIdentitiesValue": userAssignedIdentities,
-					"identityValue":               identity,
-					"keyVaultName":                keyVaultName,
-					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
+					"persistTagValue": false,
+					"clusterName":     customerClusterName,
 				},
-				45*time.Minute,
+				120*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
