@@ -568,7 +568,7 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
-      serverVersion: '12'
+      serverVersion: '17'
       serverStorageSizeGB: 128
       databaseName: clusters-service
       zoneRedundantMode: 'Auto'
@@ -876,10 +876,6 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
-          # Clusters Service
-          clustersService:
-            postgres:
-              serverVersion: '17'
           # Maestro
           maestro:
             server:
@@ -933,10 +929,6 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
-          # Clusters Service
-          clustersService:
-            postgres:
-              serverVersion: '17'
           # Maestro
           maestro:
             restrictIstioIngress: false

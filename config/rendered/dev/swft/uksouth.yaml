@@ -129,7 +129,7 @@ clustersService:
     name: arohcp-swft-dbcs-lnstest
     private: false
     serverStorageSizeGB: 128
-    serverVersion: "12"
+    serverVersion: "17"
     zoneRedundantMode: Auto
   tracing:
     address: ""

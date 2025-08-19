@@ -129,7 +129,7 @@ clustersService:
     name: arohcp-pers-dbcs-usw3test
     private: false
     serverStorageSizeGB: 128
-    serverVersion: "12"
+    serverVersion: "17"
     zoneRedundantMode: Auto
   tracing:
     address: http://ingest.observability:4318
