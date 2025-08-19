@@ -3,7 +3,7 @@ clouds:
     environments:
       cspr:
         regions:
-          westus3: cc01276e1c4ecceaa692a1aafdd097161f752be51cd06cd78017be879ba5b31a
+          westus3: 16e26b8ff6363d615b8b6ec88d250f0e49aa1e5f86a7434e17a8d205c22058e4
       dev:
         regions:
           westus3: f214beb2c4e74bdb8ef47bdb30a54e76e7386ed31727f9ec0f2f6ce4f70f77a2
