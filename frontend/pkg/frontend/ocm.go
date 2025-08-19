@@ -289,9 +289,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
-		Identity: &arm.ManagedServiceIdentity{
-			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
-		},
 	}
 
 	// Only set etcd encryption settings if they exist in the cluster service response
@@ -314,6 +311,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	// - The operator-specific maps under OperatorsAuthentication mimics the
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
+		hcpcluster.Identity = &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		}
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
