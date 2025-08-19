@@ -340,3 +340,11 @@ resourceGroups:
       configRef: kubeEvents.image.registry
     - name: ENABLED
       configRef: kubeEvents.enabled
+    dependsOn:
+    - resourceGroup: service
+      step: svc-cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId

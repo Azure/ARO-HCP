@@ -388,3 +388,11 @@ resourceGroups:
       configRef: kubeEvents.image.registry
     - name: ENABLED
       configRef: kubeEvents.enabled
+    dependsOn:
+    - resourceGroup: management
+      step: mgmt-cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
