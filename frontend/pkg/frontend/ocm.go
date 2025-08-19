@@ -54,80 +54,96 @@ const (
 	csCustomerManagedEncryptionTypeKms    string = "kms"
 )
 
-func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
+func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) api.Visibility {
 	switch listening {
 	case arohcpv1alpha1.ListeningMethodExternal:
-		visibility = api.VisibilityPublic
+		return api.VisibilityPublic
 	case arohcpv1alpha1.ListeningMethodInternal:
-		visibility = api.VisibilityPrivate
+		return api.VisibilityPrivate
+	default:
+		// FIXME Return an error instead.
+		return api.Visibility("")
 	}
-	return
 }
 
-func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1alpha1.ListeningMethod) {
+func convertVisibilityToListening(visibility api.Visibility) arohcpv1alpha1.ListeningMethod {
 	switch visibility {
 	case api.VisibilityPublic:
-		listening = arohcpv1alpha1.ListeningMethodExternal
+		return arohcpv1alpha1.ListeningMethodExternal
 	case api.VisibilityPrivate:
-		listening = arohcpv1alpha1.ListeningMethodInternal
+		return arohcpv1alpha1.ListeningMethodInternal
+	default:
+		// FIXME Return an error instead.
+		return arohcpv1alpha1.ListeningMethod("")
 	}
-	return
 }
 
-func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
+func convertOutboundTypeCSToRP(outboundTypeCS string) api.OutboundType {
 	switch outboundTypeCS {
 	case csPlatformOutboundType:
-		outboundTypeRP = api.OutboundTypeLoadBalancer
+		return api.OutboundTypeLoadBalancer
+	default:
+		// FIXME Return an error instead.
+		return api.OutboundType("")
 	}
-	return
 }
 
-func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
+func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) string {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		outboundTypeCS = csPlatformOutboundType
+		return csPlatformOutboundType
+	default:
+		// FIXME Return an error instead.
+		return ""
 	}
-	return
 }
 
-func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (encryptionTypeRP api.CustomerManagedEncryptionType) {
+func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) api.CustomerManagedEncryptionType {
 	switch encryptionTypeCS {
 	case csCustomerManagedEncryptionTypeKms:
-		encryptionTypeRP = api.CustomerManagedEncryptionTypeKMS
+		return api.CustomerManagedEncryptionTypeKMS
+	default:
+		// FIXME Return an error instead.
+		return ""
 	}
-	return
 }
 
-func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) (encryptionTypeCS string) {
+func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) string {
 	switch encryptionTypeRP {
 	case api.CustomerManagedEncryptionTypeKMS:
-		encryptionTypeCS = csCustomerManagedEncryptionTypeKms
+		return csCustomerManagedEncryptionTypeKms
+	default:
+		// FIXME Return an error instead.
+		return ""
 	}
-	return
 }
 
-func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (prefixPolicyRP api.UsernameClaimPrefixPolicyType) {
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) api.UsernameClaimPrefixPolicyType {
 	switch prefixPolicyCS {
 	case csUsernameClaimPrefixPolicyPrefix:
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypePrefix
+		return api.UsernameClaimPrefixPolicyTypePrefix
 	case csUsernameClaimPrefixPolicyNoPrefix:
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNoPrefix
+		return api.UsernameClaimPrefixPolicyTypeNoPrefix
 	case "":
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNone
+		return api.UsernameClaimPrefixPolicyTypeNone
+	default:
+		// FIXME Return an error instead.
+		return api.UsernameClaimPrefixPolicyType("")
 	}
-	return
 }
 
 func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (prefixPolicyCS string) {
 	switch prefixPolicyRP {
 	case api.UsernameClaimPrefixPolicyTypePrefix:
-		prefixPolicyCS = csUsernameClaimPrefixPolicyPrefix
+		return csUsernameClaimPrefixPolicyPrefix
 	case api.UsernameClaimPrefixPolicyTypeNoPrefix:
-		prefixPolicyCS = csUsernameClaimPrefixPolicyNoPrefix
+		return csUsernameClaimPrefixPolicyNoPrefix
 	case api.UsernameClaimPrefixPolicyTypeNone:
-		prefixPolicyCS = ""
+		return ""
+	default:
+		// FIXME Return an error instead.
+		return ""
 	}
-	return
 }
 
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
@@ -174,24 +190,28 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
-func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) {
+func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) api.EtcdDataEncryptionKeyManagementModeType {
 	switch keyManagementModeCS {
 	case csKeyManagementModePlatformManaged:
-		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+		return api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 	case csKeyManagementModeCustomerManaged:
-		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+		return api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	default:
+		// FIXME Return an error instead.
+		return api.EtcdDataEncryptionKeyManagementModeType("")
 	}
-	return
 }
 
-func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) (keyManagementModeCS string) {
+func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) string {
 	switch keyManagementModeRP {
 	case api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged:
-		keyManagementModeCS = csKeyManagementModePlatformManaged
+		return csKeyManagementModePlatformManaged
 	case api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged:
-		keyManagementModeCS = csKeyManagementModeCustomerManaged
+		return csKeyManagementModeCustomerManaged
+	default:
+		// FIXME Return an error instead.
+		return ""
 	}
-	return
 }
 
 func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
