@@ -30,6 +30,7 @@ import (
 
 func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
 	nowString := time.Now().Format(time.RFC3339)
+	dryRun := false
 
 	cmd := &cobra.Command{
 		Use:          "delete-expired-resource-groups",
@@ -83,6 +84,10 @@ func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
 				fmt.Printf("Deleting resource group %s\n", *resourceGroup.Name)
 				expiredResourceGroupsNames = append(expiredResourceGroupsNames, *resourceGroup.Name)
 			}
+			if dryRun {
+				return nil
+			}
+
 			err = framework.CleanupResourceGroups(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(),
@@ -96,6 +101,7 @@ func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&nowString, "now", nowString, "The current time")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", dryRun, "Print what would be deleted, but don't actually delete anything")
 
 	return cmd
 }
