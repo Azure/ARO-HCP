@@ -49,6 +49,8 @@ const (
 	csPlatformOutboundType                string = "load_balancer"
 	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
 	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
+	csKeyManagementModeCustomerManaged    string = "customer_managed"
+	csKeyManagementModePlatformManaged    string = "platform_managed"
 	csCustomerManagedEncryptionTypeKms    string = "kms"
 )
 
@@ -174,9 +176,9 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 
 func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) {
 	switch keyManagementModeCS {
-	case "platform_managed":
+	case csKeyManagementModePlatformManaged:
 		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-	case "customer_managed":
+	case csKeyManagementModeCustomerManaged:
 		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 	}
 	return
@@ -185,9 +187,9 @@ func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (keyManageme
 func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) (keyManagementModeCS string) {
 	switch keyManagementModeRP {
 	case api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged:
-		keyManagementModeCS = "platform_managed"
+		keyManagementModeCS = csKeyManagementModePlatformManaged
 	case api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged:
-		keyManagementModeCS = "customer_managed"
+		keyManagementModeCS = csKeyManagementModeCustomerManaged
 	}
 	return
 }

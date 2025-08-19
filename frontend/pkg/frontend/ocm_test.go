@@ -103,7 +103,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged))),
+							KeyManagementMode(csKeyManagementModePlatformManaged)),
 					),
 				),
 			want: clusterResource(
@@ -119,7 +119,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
