@@ -27,6 +27,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+// The patch version is managed by Red Hat.
+const OpenShift419Patch = "7"
+
 type ClusterServiceClientSpec interface {
 	// AddProperties injects the some additional properties into the ClusterBuilder.
 	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
@@ -506,7 +509,9 @@ func NewOpenShiftVersionXYZ(v string) string {
 	if len(parts) == 1 {
 		parts = append(parts, "0")
 	}
-	parts = append(parts[:2], "0")
+	// FIXME This assumes X.Y is 4.19. Eventually
+	//       we may need a switch statement here.
+	parts = append(parts[:2], OpenShift419Patch)
 	return api.OpenShiftVersionPrefix + strings.Join(parts, ".")
 }
 
