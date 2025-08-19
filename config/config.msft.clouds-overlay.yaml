@@ -51,11 +51,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
+              digest: sha256:df7506c4b69be5f0a06dfc925fd23d55746431f36b59ad42bfd728d85edc7e44
           # RP Backend
           backend:
             image:
-              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
+              digest: sha256:817ba4fb3a276e9029b7e1a9a82aaa7a55e49a11789ac09458346eb88254a7e0
           # Hypershift
           hypershift:
             image:
@@ -118,11 +118,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
+              digest: sha256:df7506c4b69be5f0a06dfc925fd23d55746431f36b59ad42bfd728d85edc7e44
           # RP Backend
           backend:
             image:
-              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
+              digest: sha256:817ba4fb3a276e9029b7e1a9a82aaa7a55e49a11789ac09458346eb88254a7e0
           # Hypershift
           hypershift:
             image:
@@ -185,11 +185,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:15d5ae265e5faa27eb96b01beff6a1cf636c676b1f7746e92022e306398d644b
+              digest: sha256:df7506c4b69be5f0a06dfc925fd23d55746431f36b59ad42bfd728d85edc7e44
           # RP Backend
           backend:
             image:
-              digest: sha256:e9bc618fd0952525a7ece944ac19123b73e7195f274944703404445c32055551
+              digest: sha256:817ba4fb3a276e9029b7e1a9a82aaa7a55e49a11789ac09458346eb88254a7e0
           # Hypershift
           hypershift:
             image:
