@@ -98,6 +98,13 @@ defaults:
         registry: linuxgeneva-microsoft.azurecr.io
         repository: genevamdsd
         digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+  # Kube Events
+  kubeEvents:
+    enabled: true
+    image:
+      registry: ""
+      repository: ""
+      digest: ""
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -430,6 +437,15 @@ defaults:
     kusto:
       sku: ""
       clusterName: ""
+      clusterPrincipals:
+      - name: ""
+        id: ""
+        role: ""
+        tenantId: ""
+        type: ""
+      dstsGroups:
+      - name: ""
+        description: ""
     eventHub:
       namespace: ""
       subscriptionId: ""
@@ -638,6 +654,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      kubeEvents:
+        enabled: false
       automationDryRun: false
       arobit:
         mdsd:
@@ -689,7 +707,7 @@ clouds:
       # ACR Pull
       acrPull:
         image:
-          digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0 #v0.1.14
+          digest: sha256:8535e678398d0c15bccc6e4383483f15ab9e248405c0fc1ce587e3999b39e664 #v0.1.18
       # Secret Sync Controller
       secretSyncController:
         image:
@@ -927,6 +945,12 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          hypershift:
+            additionalInstallArg: '--enable-cpo-overrides=true'
+            image:
+              registry: quay.io
+              repository: acm-d/rhtap-hypershift-operator
+              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:

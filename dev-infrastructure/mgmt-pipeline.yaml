@@ -313,7 +313,7 @@ resourceGroups:
   - name: arobit
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: make -C ../arobit deploy
+    command: make -C ../observability/arobit deploy
     dryRun:
       variables:
       - name: DRY_RUN
@@ -371,3 +371,20 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+  - name: kube-events
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make -C ../observability/kube-events deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: IMAGE_REGISTRY
+      configRef: kubeEvents.image.digest
+    - name: IMAGE_REPOSITORY
+      configRef: kubeEvents.image.repository
+    - name: IMAGE_DIGEST
+      configRef: kubeEvents.image.registry
+    - name: ENABLED
+      configRef: kubeEvents.enabled

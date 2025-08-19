@@ -29,7 +29,7 @@ acr:
     zoneRedundantMode: Disabled
 acrPull:
   image:
-    digest: sha256:c802a91b3b0fe4a3875a03904140a14eb54c8b94db1d510946c9c438d28689c0
+    digest: sha256:8535e678398d0c15bccc6e4383483f15ab9e248405c0fc1ce587e3999b39e664
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 administration:
@@ -74,6 +74,15 @@ billing:
     subscriptionId: ""
   kusto:
     clusterName: ""
+    clusterPrincipals:
+    - id: ""
+      name: ""
+      role: ""
+      tenantId: ""
+      type: ""
+    dstsGroups:
+    - description: ""
+      name: ""
     sku: ""
   pav2:
     cloudName: ""
@@ -258,6 +267,12 @@ imageSync:
   ondemandSync:
     pullSecretName: component-sync-pull-secret
   outboundServiceTags: ""
+kubeEvents:
+  enabled: false
+  image:
+    digest: ""
+    registry: ""
+    repository: ""
 kusto:
   cluster: ""
   resourceGroup: ""
