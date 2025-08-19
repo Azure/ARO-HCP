@@ -103,34 +103,40 @@ type ClusterAutoscalingProfile struct {
 	PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
 }
 
-// The ETCD settings and configuration options
-// If not specified platform managed keys are used.
+// EtcdProfile represents an ETCD configuration.
+// Visibility for the entire struct is "read create".
 type EtcdProfile struct {
-	DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty" visibility:"read create"`
+	DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
 }
 
-// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+// EtcdDataEncryptionProfile represents a data encryption configuration for ETCD.
+// Visibility for the entire struct is "read create".
 type EtcdDataEncryptionProfile struct {
-	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty" visibility:"read create"`
-	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" visibility:"read create"`
+	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
+	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty"`
 }
 
-// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+// CustomerManagedEncryptionProfile repesents a data encryption configuration for
+// ETCD using customer-managed keys.
+// Visibility for the entire struct is "read create".
 type CustomerManagedEncryptionProfile struct {
-	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" visibility:"read create"`
-	Kms            *KmsEncryptionProfile         `json:"kms,omitempty" visibility:"read create" validate:"omitempty"`
+	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"omitempty"`
 }
 
-// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key.
+// KmsEncryptionProfile represents a data encryption configuration for ETCD using
+// customer-managed Key Management Service (KMS) keys.
+// Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
-	ActiveKey KmsKey `json:"activeKey,omitempty" visibility:"read create"`
+	ActiveKey KmsKey `json:"activeKey,omitempty"`
 }
 
-// KmsKey - A representation of a KeyVault Secret.
+// KmsKey represents an Azure KeyVault secret.
+// Visibility for the entire struct is "read create".
 type KmsKey struct {
-	Name      string `json:"name" validate:"required,min=1,max=255"`
+	Name      string `json:"name"      validate:"required,min=1,max=255"`
 	VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
-	Version   string `json:"version" validate:"required,min=1,max=255"`
+	Version   string `json:"version"   validate:"required,min=1,max=255"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for

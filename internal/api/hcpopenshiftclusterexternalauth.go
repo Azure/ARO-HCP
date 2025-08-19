@@ -41,90 +41,95 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 	Claim             ExternalAuthClaimProfile          `json:"claim"                   visibility:"read create update"       validate:"required_for_put"`
 }
 
-/** Condition defines an observation of the external auth state. */
+// Condition defines an observation of the external auth state.
+// Visibility for the entire struct is "read".
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"                     visibility:"read"              validate:"enum_externalauthconditiontype"`
-	Status             ConditionStatusType       `json:"status"                   visibility:"read"              validate:"enum_externalauthconditionstatustype"`
-	LastTransitionTime time.Time                 `json:"lastTransitionTime"       visibility:"read"`
-	Reason             string                    `json:"reason"                   visibility:"read"`
-	Message            string                    `json:"message"                  visibility:"read"`
+	ConditionType      ExternalAuthConditionType `json:"type"               validate:"enum_externalauthconditiontype"`
+	Status             ConditionStatusType       `json:"status"             validate:"enum_externalauthconditionstatustype"`
+	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
+	Reason             string                    `json:"reason"`
+	Message            string                    `json:"message"`
 }
 
-/** Token issuer profile
- * This configures how the platform interacts with the identity provider and
- * how tokens issued from the identity provider are evaluated by the Kubernetes API server.
- */
+// Token issuer profile
+// This configures how the platform interacts with the identity provider and
+// how tokens issued from the identity provider are evaluated by the Kubernetes API server.
+// Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
-	Url       string   `json:"url"              visibility:"read create update"       validate:"required_for_put,url,startswith=https://"`
-	Audiences []string `json:"audiences"        visibility:"read create update"       validate:"required_for_put,min=0,max=10"`
-	Ca        *string  `json:"ca"               visibility:"read create update"       validate:"omitempty,pem_certificates"`
+	Url       string   `json:"url"       validate:"required_for_put,url,startswith=https://"`
+	Audiences []string `json:"audiences" validate:"required_for_put,min=0,max=10"`
+	Ca        *string  `json:"ca"        validate:"omitempty,pem_certificates"`
 }
 
-/** External Auth client profile
- * This configures how on-cluster, platform clients should request tokens from the identity provider.
- */
+// External Auth client profile
+// This configures how on-cluster, platform clients should request tokens from the identity provider.
+// Visibility for the entire struct is "read create update".
 type ExternalAuthClientProfile struct {
-	Component                     ExternalAuthClientComponentProfile `json:"component"           visibility:"read create update"       validate:"required_for_put"`
-	ClientId                      string                             `json:"clientId"            visibility:"read create update"       validate:"required_for_put"`
-	ExtraScopes                   []string                           `json:"extraScopes"         visibility:"read create update"       validate:"omitempty"`
-	ExternalAuthClientProfileType ExternalAuthClientType             `json:"type"                visibility:"read create update"       validate:"required_for_put,enum_externalauthclienttype"`
+	Component                     ExternalAuthClientComponentProfile `json:"component"   validate:"required_for_put"`
+	ClientId                      string                             `json:"clientId"    validate:"required_for_put"`
+	ExtraScopes                   []string                           `json:"extraScopes" validate:"omitempty"`
+	ExternalAuthClientProfileType ExternalAuthClientType             `json:"type"        validate:"required_for_put,enum_externalauthclienttype"`
 }
 
-/** External Auth component profile
- * Must have unique namespace/name pairs.
- */
+// External Auth component profile
+// Must have unique namespace/name pairs.
+// Visibility for the entire struct is "read create update".
 type ExternalAuthClientComponentProfile struct {
-	Name                string `json:"name"                   visibility:"read create update"     validate:"required_for_put,max=256"`
-	AuthClientNamespace string `json:"authClientNamespace"    visibility:"read create update"     validate:"required_for_put,max=63"`
+	Name                string `json:"name"                validate:"required_for_put,max=256"`
+	AuthClientNamespace string `json:"authClientNamespace" validate:"required_for_put,max=63"`
 }
 
-/** External Auth claim profile */
+// External Auth claim profile
+// Visibility for the entire struct is "read create update".
 type ExternalAuthClaimProfile struct {
-	Mappings        TokenClaimMappingsProfile  `json:"mappings"           visibility:"read create update"        validate:"required_for_put"`
-	ValidationRules []TokenClaimValidationRule `json:"validationRules"    visibility:"read create update"        validate:"omitempty"`
+	Mappings        TokenClaimMappingsProfile  `json:"mappings"        validate:"required_for_put"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules" validate:"omitempty"`
 }
 
-/** External Auth claim mappings profile.
- * At a minimum username or groups must be defined.
- */
+// External Auth claim mappings profile.
+// At a minimum username or groups must be defined.
+// Visibility for the entire struct is "read create update".
 type TokenClaimMappingsProfile struct {
-	Username UsernameClaimProfile `json:"username"        visibility:"read create update"        validate:"required_for_put"`
-	Groups   *GroupClaimProfile   `json:"groups"          visibility:"read create update"        validate:"omitempty"`
+	Username UsernameClaimProfile `json:"username" validate:"required_for_put"`
+	Groups   *GroupClaimProfile   `json:"groups"   validate:"omitempty"`
 }
 
-/** External Auth claim profile
- * This configures how the groups of a cluster identity should be constructed
- * from the claims in a JWT token issued by the identity provider. When
- * referencing a claim, if the claim is present in the JWT token, its value
- * must be a list of groups separated by a comma (',').
- *
- * For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
- */
+// External Auth claim profile
+// This configures how the groups of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider. When
+// referencing a claim, if the claim is present in the JWT token, its value
+// must be a list of groups separated by a comma (',').
+//
+// For example - '"example"' and '"exampleOne", "exampleTwo", "exampleThree"' are valid claim values.
+//
+// Visibility for the entire struct is "read create update".
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"         visibility:"read create update"      validate:"required_for_put,max=256"`
-	Prefix string `json:"prefix"        visibility:"read create update"      validate:"omitempty"`
+	Claim  string `json:"claim"  validate:"required_for_put,max=256"`
+	Prefix string `json:"prefix" validate:"omitempty"`
 }
 
-/** External Auth claim profile
- * This configures how the username of a cluster identity should be constructed
- * from the claims in a JWT token issued by the identity provider.
- */
+// External Auth claim profile
+// This configures how the username of a cluster identity should be constructed
+// from the claims in a JWT token issued by the identity provider.
+// Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
-	Claim        string                        `json:"claim"             visibility:"read create update"      validate:"required_for_put,max=256"`
-	Prefix       string                        `json:"prefix"            visibility:"read create update"      validate:"omitempty"`
-	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy"      visibility:"read create update"      validate:"omitempty,enum_usernameclaimprefixpolicytype"`
+	Claim        string                        `json:"claim"        validate:"required_for_put,max=256"`
+	Prefix       string                        `json:"prefix"       validate:"omitempty"`
+	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"omitempty,enum_usernameclaimprefixpolicytype"`
 }
 
-/** External Auth claim validation rule */
+// External Auth claim validation rule
+// Visibility for the entire struct is "read create update".
 type TokenClaimValidationRule struct {
-	TokenClaimValidationRuleType TokenValidationRuleType `json:"type"                visibility:"read create update"      validate:"required_for_put,enum_tokenvalidationruletyperequiredclaim"`
-	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim"       visibility:"read create update"      validate:"omitempty"`
+	TokenClaimValidationRuleType TokenValidationRuleType `json:"type"          validate:"required_for_put,enum_tokenvalidationruletyperequiredclaim"`
+	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim" validate:"omitempty"`
 }
 
-/** Token required claim validation rule. */
+// Token required claim validation rule.
+// Visibility for the entire struct is "read create update".
 type TokenRequiredClaim struct {
-	Claim         string `json:"claim"             visibility:"read create update"      validate:"required_for_put"`
-	RequiredValue string `json:"requiredValue"     visibility:"read create update"      validate:"required_for_put"`
+	Claim         string `json:"claim"         validate:"required_for_put"`
+	RequiredValue string `json:"requiredValue" validate:"required_for_put"`
 }
 
 func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAuth {

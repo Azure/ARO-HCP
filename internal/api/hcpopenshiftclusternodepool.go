@@ -47,16 +47,17 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
+// Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create update" validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
-	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	ID           string `json:"id,omitempty"           validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ChannelGroup string `json:"channelGroup,omitempty"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string        `json:"subnetId,omitempty"               validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	VMSize                 string        `json:"vmSize,omitempty"                 validate:"required_for_put"`
+	SubnetID               string        `json:"subnetId,omitempty"         validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	VMSize                 string        `json:"vmSize,omitempty"           validate:"required_for_put"`
 	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	OSDisk                 OSDiskProfile `json:"osDisk"`
 	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
@@ -65,9 +66,9 @@ type NodePoolPlatformProfile struct {
 // OSDiskProfile represents a OS Disk configuration.
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
-	SizeGiB                int32                  `json:"sizeGiB,omitempty"            validate:"min=1"`
+	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"omitempty,enum_diskstorageaccounttype"`
-	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"    validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
+	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.

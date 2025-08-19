@@ -373,13 +373,6 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 					}
 				case "required", "required_for_put": // custom tag
 					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
-				case "required_unless":
-					// The parameter format is pairs of "fieldName fieldValue".
-					// Multiple pairs are possible but we currently only use one.
-					if len(params) > 1 {
-						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
-						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), jsonName, params[1])
-					}
 				case "resource_id": // custom tag
 					if len(params) > 0 {
 						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", params[0])
@@ -428,6 +421,13 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 								message += fmt.Sprintf(" (must be at least %s)", params[0])
 							}
 						}
+					}
+				case "required_unless":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					if len(params) > 1 {
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' is required when '%s' is not '%s'", fieldErr.Field(), jsonName, params[1])
 					}
 				case "startswith":
 					if len(params) > 0 {
