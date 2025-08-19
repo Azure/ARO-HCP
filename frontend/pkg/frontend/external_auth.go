@@ -98,7 +98,13 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		hcpExternalAuth := ConvertCStoExternalAuth(resourceID, csExternalAuth)
+		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
@@ -255,7 +261,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 // the necessary conversions for the API version of the request.
 func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpExternalAuth := ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+	hcpExternalAuth, err := ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+	if err != nil {
+		return nil, err
+	}
+
 	hcpExternalAuth.SystemData = doc.SystemData
 	// TODO: Use the correct state from the document when CS returns ir.
 	hcpExternalAuth.Properties.ProvisioningState = arm.ExternalAuthProvisioningStateSucceeded

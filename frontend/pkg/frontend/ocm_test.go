@@ -187,7 +187,8 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			expectHcpCluster.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
 			expectHcpCluster.Properties.Autoscaling.PodPriorityThreshold = 0
 
-			actualHcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+			require.NoError(t, err)
 
 			assert.Equal(t, expectHcpCluster, actualHcpCluster)
 		})
@@ -212,14 +213,16 @@ func TestWithImmutableAttributes(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
-			result, err := withImmutableAttributes(
+			builder, err := withImmutableAttributes(
 				ocmClusterDefaults(),
 				api.ClusterTestCase(t, tc.hcpCluster),
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestLocation,
 				api.TestTenantID,
-				"").Build()
+				"")
+			require.NoError(t, err)
+			result, err := builder.Build()
 			require.NoError(t, err)
 			buf.Reset()
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(result, &buf))
@@ -552,7 +555,8 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
-			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			generatedCSExternalAuth, err := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}
