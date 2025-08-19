@@ -313,7 +313,7 @@ resourceGroups:
   - name: arobit
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: make -C ../arobit deploy
+    command: make -C ../observability/arobit deploy
     dryRun:
       variables:
       - name: DRY_RUN

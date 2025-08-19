@@ -11,14 +11,14 @@ ignore:
 - 'cluster-service/deploy/templates/deployment.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.yaml'
 - 'secret-sync-controller/deploy/templates/*.yaml'
-- 'arobit/deploy/templates/forwarder-clusterrolebinding.yaml'
-- 'arobit/deploy/templates/forwarder-clusterrole.yaml'
-- 'arobit/deploy/templates/forwarder-daemonset.yaml'
-- 'arobit/deploy/templates/forwarder-exporter-configmap.yaml'
-- 'arobit/deploy/templates/forwarder-configmap.yaml'
-- 'arobit/deploy/templates/forwarder-service.yaml'
-- 'arobit/deploy/templates/serviceaccount.yaml'
-- 'arobit/deploy/templates/forwarder-secretprovider.yaml'
+- 'observability/arobit/deploy/templates/forwarder-clusterrolebinding.yaml'
+- 'observability/arobit/deploy/templates/forwarder-clusterrole.yaml'
+- 'observability/arobit/deploy/templates/forwarder-daemonset.yaml'
+- 'observability/arobit/deploy/templates/forwarder-exporter-configmap.yaml'
+- 'observability/arobit/deploy/templates/forwarder-configmap.yaml'
+- 'observability/arobit/deploy/templates/forwarder-service.yaml'
+- 'observability/arobit/deploy/templates/serviceaccount.yaml'
+- 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
 rules:
   brackets: enable
   colons: enable
