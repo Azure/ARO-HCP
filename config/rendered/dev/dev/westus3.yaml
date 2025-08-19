@@ -267,6 +267,12 @@ imageSync:
   ondemandSync:
     pullSecretName: component-sync-pull-secret
   outboundServiceTags: ""
+kubeEvents:
+  enabled: false
+  image:
+    digest: ""
+    registry: ""
+    repository: ""
 kusto:
   cluster: ""
   resourceGroup: ""
