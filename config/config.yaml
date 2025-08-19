@@ -936,6 +936,12 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          hypershift:
+            additionalInstallArg: '--enable-cpo-overrides=true'
+            image:
+              registry: quay.io
+              repository: acm-d/rhtap-hypershift-operator
+              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
