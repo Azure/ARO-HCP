@@ -429,6 +429,7 @@ mgmt:
         poll: true
       Microsoft.Storage:
         poll: true
+    usePlannedQuota: true
 mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false
@@ -650,4 +651,5 @@ svc:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+    usePlannedQuota: true
 tenantId: ""
