@@ -19,6 +19,7 @@ ignore:
 - 'observability/arobit/deploy/templates/forwarder-service.yaml'
 - 'observability/arobit/deploy/templates/serviceaccount.yaml'
 - 'observability/arobit/deploy/templates/forwarder-secretprovider.yaml'
+- 'observability/kube-events/deploy/templates/deployment.yaml'
 rules:
   brackets: enable
   colons: enable

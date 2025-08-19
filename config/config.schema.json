@@ -1515,11 +1515,22 @@
             "image"
           ]
         }
+      }
+    },
+    "kubeEvents": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false,
       "required": [
-        "forwarder",
-        "mdsd"
+        "image",
+        "enabled"
       ]
     },
     "acrPull": {
