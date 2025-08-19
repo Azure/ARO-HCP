@@ -626,6 +626,9 @@
         "providers": {
           "$ref": "#/definitions/registrationConfig"
         },
+        "usePlannedQuota":{
+          "type": "boolean"
+        },
         "featureFlags": {
           "type": "array",
           "items": {

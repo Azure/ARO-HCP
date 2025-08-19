@@ -427,6 +427,7 @@ mgmt:
         poll: true
       Microsoft.Storage:
         poll: true
+    usePlannedQuota: true
 mgmtKeyVault:
   name: ah-cspr-mg-usw3-1
   private: false
@@ -646,4 +647,5 @@ svc:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+    usePlannedQuota: true
 tenantId: ""
