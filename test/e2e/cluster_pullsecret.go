@@ -52,16 +52,10 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 		labels.Positive,
 		func(ctx context.Context) {
 			const (
-				customerNetworkSecurityGroupName = "customer-nsg-name"
-				customerVnetName                 = "customer-vnet-name"
-				customerVnetSubnetName           = "customer-vnet-subnet1"
-				customerClusterName              = "pullsecret-hcp-cluster"
-				customerNodePoolName             = "np-1"
-				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.0"
-				testPullSecretHost               = "host.example.com"
-				testPullSecretPassword           = "my_password"
-				testPullSecretEmail              = "noreply@example.com"
+				customerClusterName    = "pullsecret-hcp-cluster"
+				testPullSecretHost     = "host.example.com"
+				testPullSecretPassword = "my_password"
+				testPullSecretEmail    = "noreply@example.com"
 			)
 			tc := framework.NewTestContext()
 
