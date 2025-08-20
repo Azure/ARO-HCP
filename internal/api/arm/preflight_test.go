@@ -26,7 +26,7 @@ func TestDetectTLE(t *testing.T) {
 				"properties": map[string]any{
 					"version": map[string]any{
 						"id":           "4.18",
-						"channelGroup": "stable",
+						"channelGroup": "fast",
 					},
 					"dns": map[string]any{},
 					"network": map[string]any{

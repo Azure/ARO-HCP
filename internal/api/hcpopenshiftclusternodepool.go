@@ -49,7 +49,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 // NodePoolVersionProfile represents the worker node pool version.
 // Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"           validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ID           string `json:"id,omitempty"           validate:"required_unless=ChannelGroup fast,omitempty,openshift_version"`
 	ChannelGroup string `json:"channelGroup,omitempty"`
 }
 
@@ -90,7 +90,7 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: "fast",
 			},
 			Platform: NodePoolPlatformProfile{
 				OSDisk: OSDiskProfile{

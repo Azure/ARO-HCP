@@ -533,3 +533,28 @@ func ConvertOpenShiftVersionAddPrefix(v string) string {
 	}
 	return v
 }
+
+// ConvertOpenShiftVersionToCS parses the given version an channel group and converts it in a
+// CS readable version "openshift-v<X.Y.Z>" or "openshift-v<X.Y.Z>-channel_group"
+func ConvertOpenShiftVersionToCS(v, cg string) string {
+	var csVersion string
+	if len(v) > 0 {
+		csVersion = NewOpenShiftVersionXYZ(v)
+		if cg == "stable" {
+			return csVersion
+		}
+		csVersion = fmt.Sprintf("%v-%v", csVersion, cg)
+	}
+	return csVersion
+}
+
+// Convert a CS version openshift-v<X.Y.Z>-<channel_group> to
+// an OpenShift version <X.Y.Z>
+func ConvertCSVersionToOpenShiftVersion(v string) string {
+	// Remove the openshift-v prefix
+	withoutPrefix := ConvertOpenShiftVersionNoPrefix(v)
+	// Split on dash to get version and channel group parts
+	parts := strings.Split(withoutPrefix, "-")
+	// Return the first part which is the version
+	return parts[0]
+}

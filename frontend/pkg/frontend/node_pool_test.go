@@ -51,7 +51,7 @@ var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, api.TestNodeP
 
 var dummyLocation = "Spain"
 var dummyVMSize = "Big"
-var dummyVersionID = "4.18.0"
+var dummyVersionID = "4.19.7"
 
 func TestCreateNodePool(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
@@ -67,7 +67,7 @@ func TestCreateNodePool(t *testing.T) {
 		Properties: &generated.NodePoolProperties{
 			Version: &generated.NodePoolVersionProfile{
 				ID:           &dummyVersionID,
-				ChannelGroup: api.Ptr("stable"),
+				ChannelGroup: api.Ptr("fast"),
 			},
 			Platform: &generated.NodePoolPlatformProfile{
 				VMSize: &dummyVMSize,
@@ -91,8 +91,8 @@ func TestCreateNodePool(t *testing.T) {
 		Labels(make(map[string]string)).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v" + dummyVersionID).
-			ChannelGroup("stable"),
+			ID("openshift-v" + dummyVersionID + "-fast").
+			ChannelGroup("fast"),
 		).
 		Replicas(0).
 		AutoRepair(true).Build()
@@ -164,7 +164,7 @@ func TestCreateNodePool(t *testing.T) {
 					ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 						State(csImageRegistryStateEnabled)).
 					Version(arohcpv1alpha1.NewVersion().
-						ChannelGroup("stable")).
+						ChannelGroup("fast")).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().

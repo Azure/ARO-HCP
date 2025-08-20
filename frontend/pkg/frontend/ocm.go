@@ -583,7 +583,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID:           ocm.ConvertOpenShiftVersionNoPrefix(np.Version().ID()),
+				ID:           ocm.ConvertCSVersionToOpenShiftVersion(np.Version().ID()),
 				ChannelGroup: np.Version().ChannelGroup(),
 			},
 			Platform: api.NodePoolPlatformProfile{
@@ -640,7 +640,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(ocm.ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)).
+				ID(ocm.ConvertOpenShiftVersionToCS(nodePool.Properties.Version.ID, nodePool.Properties.Version.ChannelGroup)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
