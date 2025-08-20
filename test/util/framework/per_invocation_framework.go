@@ -54,7 +54,8 @@ var (
 )
 
 const (
-	StandardPollInterval = 10 * time.Second
+	StandardPollInterval            = 10 * time.Second
+	StandardResourceGroupExpiration = 4 * time.Hour
 )
 
 // InvocationContext requires the following env vars

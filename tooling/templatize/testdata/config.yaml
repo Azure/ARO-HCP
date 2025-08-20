@@ -21,10 +21,10 @@ defaults:
   enableOptionalStep: false
   globalMSIId: whatever
 clouds:
-  fairfax:
-    defaults:
+  ff:
+    defaults: {}
   public:
-    defaults:
+    defaults: {}
     environments:
       dev:
         defaults:

@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func TestNodePoolRequiredForPut(t *testing.T) {
+func TestNodePoolRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftClusterNodePool
@@ -112,7 +112,7 @@ func TestNodePoolValidate(t *testing.T) {
 	value = strings.Repeat("x", maxQualifiedNameLength+1)
 	k8sLabelValueTooLong := k8sValidationError{value, k8svalidation.IsValidLabelValue(value)[0]}
 
-	// Note "required_for_put" validation tests are above.
+	// Note "required" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string

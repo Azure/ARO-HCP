@@ -44,7 +44,7 @@ func (src *Resource) Copy(dst *Resource) {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required_for_put"`
+	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
@@ -79,13 +79,13 @@ type SystemData struct {
 	// CreatedBy is a string identifier for the identity that created the resource
 	CreatedBy string `json:"createdBy,omitempty"`
 	// CreatedByType is the type of identity that created the resource: User, Application, ManagedIdentity
-	CreatedByType CreatedByType `json:"createdByType,omitempty"      validate:"omitempty,enum_createdbytype"`
+	CreatedByType CreatedByType `json:"createdByType,omitempty"`
 	// The timestamp of resource creation (UTC)
 	CreatedAt *time.Time `json:"createdAt,omitempty"`
 	// LastModifiedBy is a string identifier for the identity that last modified the resource
 	LastModifiedBy string `json:"lastModifiedBy,omitempty"`
 	// LastModifiedByType is the type of identity that last modified the resource: User, Application, ManagedIdentity
-	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty" validate:"omitempty,enum_createdbytype"`
+	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
 	// LastModifiedAt is the timestamp of resource last modification (UTC)
 	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
 }

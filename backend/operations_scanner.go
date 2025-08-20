@@ -596,7 +596,24 @@ func (s *OperationsScanner) pollExternalAuthOperation(ctx context.Context, op op
 	defer s.updateOperationMetrics(pollExternalAuthOperationLabel)()
 	op.setSpanAttributes(span)
 
-	err := s.updateOperationStatus(ctx, op, arm.ProvisioningStateSucceeded, nil)
+	_, err := s.clusterService.GetExternalAuth(ctx, op.doc.InternalID)
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound && op.doc.Request == database.OperationRequestDelete {
+			err = s.setDeleteOperationAsCompleted(ctx, op)
+			if err != nil {
+				s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
+				op.logger.Error(fmt.Sprintf("Failed to handle a completed deletion: %v", err))
+			}
+		} else {
+			s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
+			op.logger.Error(fmt.Sprintf("Failed to get external auth status: %v", err))
+		}
+
+		return
+	}
+
+	err = s.updateOperationStatus(ctx, op, arm.ProvisioningStateSucceeded, nil)
 	if err != nil {
 		s.recordOperationError(ctx, pollExternalAuthOperationLabel, err)
 		op.logger.Error(fmt.Sprintf("Failed to update operation status: %v", err))

@@ -1,12 +1,10 @@
 -include ../setup-env.mk
 
 deploy:
-	helm uninstall arobit --namespace mds || true && \
-	kubectl delete namespace mds || true && \
 	kubectl create namespace arobit --dry-run=client -o json | kubectl apply -f - && \
 	CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	../hack/helm.sh arobit deploy arobit \
+	../../hack/helm.sh arobit deploy arobit \
 		--set forwarder.fluentbit.image.registry=${AROBIT_FORWARDER_REGISTRY} \
 		--set forwarder.fluentbit.image.repository=${AROBIT_FORWARDER_REPOSITORY} \
 		--set forwarder.fluentbit.image.digest=${AROBIT_FORWARDER_DIGEST} \

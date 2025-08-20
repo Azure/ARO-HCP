@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.24.3
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20250813184532-4c656e87e8ef
+	github.com/Azure/ARO-Tools v0.0.0-20250820014220-4c90dceb795f
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2

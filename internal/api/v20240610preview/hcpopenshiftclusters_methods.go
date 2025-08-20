@@ -16,6 +16,7 @@ package v20240610preview
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -155,13 +156,6 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Type:     api.PtrOrNil(from.Type),
 			Location: api.PtrOrNil(from.Location),
 			Tags:     api.StringMapToStringPtrMap(from.Tags),
-			Identity: &generated.ManagedServiceIdentity{
-				Type:        api.PtrOrNil(generated.ManagedServiceIdentityType(from.Identity.Type)),
-				PrincipalID: api.PtrOrNil(from.Identity.PrincipalID),
-				TenantID:    api.PtrOrNil(from.Identity.TenantID),
-				//as UserAssignedIdentities is of a different type so using convertUserAssignedIdentities instead of StringMapToStringPtrMap
-				UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
-			},
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Version:                 newVersionProfile(&from.Properties.Version),
@@ -176,6 +170,15 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Etcd:                    newEtcdProfile(&from.Properties.Etcd),
 			},
 		},
+	}
+
+	if from.Identity != nil {
+		out.Identity = &generated.ManagedServiceIdentity{
+			Type:                   api.PtrOrNil(generated.ManagedServiceIdentityType(from.Identity.Type)),
+			PrincipalID:            api.PtrOrNil(from.Identity.PrincipalID),
+			TenantID:               api.PtrOrNil(from.Identity.TenantID),
+			UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
+		}
 	}
 
 	if from.SystemData != nil {
@@ -228,6 +231,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 		out.Location = *c.Location
 	}
 	if c.Identity != nil {
+		out.Identity = &arm.ManagedServiceIdentity{}
 		if c.Identity.PrincipalID != nil {
 			out.Identity.PrincipalID = *c.Identity.PrincipalID
 		}
@@ -414,7 +418,8 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 
 func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
 	if p.EncryptionType != nil {
-		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
+		// FIXME Temporarily allow "kms" instead of "KMS".
+		out.EncryptionType = api.CustomerManagedEncryptionType(strings.ToUpper(string(*p.EncryptionType)))
 	}
 	if p.Kms != nil && p.Kms.ActiveKey != nil {
 		if out.Kms == nil {

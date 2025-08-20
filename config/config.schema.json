@@ -89,6 +89,50 @@
         "roleNames"
       ]
     },
+    "clusterPrincipals": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "tenantId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "id",
+        "type",
+        "role",
+        "tenantId"
+      ]
+    },
+    "dstsGroups": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ]
+    },
     "certificateRef": {
       "type": "object",
       "properties": {
@@ -582,6 +626,9 @@
         "providers": {
           "$ref": "#/definitions/registrationConfig"
         },
+        "usePlannedQuota":{
+          "type": "boolean"
+        },
         "featureFlags": {
           "type": "array",
           "items": {
@@ -994,11 +1041,25 @@
             },
             "clusterName": {
               "type": "string"
+            },
+            "clusterPrincipals": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/clusterPrincipals"
+              }
+            },
+            "dstsGroups": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/dstsGroups"
+              }
             }
           },
           "required": [
             "sku",
-            "clusterName"
+            "clusterName",
+            "clusterPrincipals",
+            "dstsGroups"
           ]
         },
         "eventHub": {
@@ -1457,11 +1518,22 @@
             "image"
           ]
         }
+      }
+    },
+    "kubeEvents": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false,
       "required": [
-        "forwarder",
-        "mdsd"
+        "image",
+        "enabled"
       ]
     },
     "acrPull": {

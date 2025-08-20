@@ -25,7 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func TestExternalAuthRequiredForPut(t *testing.T) {
+func TestExternalAuthRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftClusterExternalAuth
@@ -86,7 +86,7 @@ func TestExternalAuthValidate(t *testing.T) {
 	ClientComponentName := "A"
 	ClientComponentNamespace := "B"
 
-	// Note "required_for_put" validation tests are above.
+	// Note "required" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
@@ -140,11 +140,21 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "Empty properties.issuer.ca",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: TokenIssuerProfile{
+						Ca: "",
+					},
+				},
+			},
+		},
+		{
 			name: "Bad properties.issuer.ca",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: Ptr("NOT A PEM DOC"),
+						Ca: "NOT A PEM DOC",
 					},
 				},
 			},
@@ -172,7 +182,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad properties.issuer.url - Not  starting with https://",
+			name: "Bad properties.issuer.url - Not starting with https://",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
@@ -198,9 +208,73 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 			expectErrors: nil,
 		},
+		{
+			name: "Missing prefix when policy is Prefix",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{
+								PrefixPolicy: UsernameClaimPrefixPolicyTypePrefix,
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'prefix' is required when 'prefixPolicy' is 'Prefix'",
+					Target:  "properties.claim.mappings.username.prefix",
+				},
+			},
+		},
+		{
+			name: "No username prefix when policy is NoPrefix",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{
+								Prefix:       "prefix",
+								PrefixPolicy: UsernameClaimPrefixPolicyTypeNoPrefix,
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'prefix' can only be set when 'prefixPolicy' is 'Prefix'",
+					Target:  "properties.claim.mappings.username.prefix",
+				},
+			},
+		},
+		{
+			name: "No username prefix when policy is None",
+			tweaks: &HCPOpenShiftClusterExternalAuth{
+				Properties: HCPOpenShiftClusterExternalAuthProperties{
+					Claim: ExternalAuthClaimProfile{
+						Mappings: TokenClaimMappingsProfile{
+							Username: UsernameClaimProfile{
+								Prefix:       "prefix",
+								PrefixPolicy: UsernameClaimPrefixPolicyTypeNone,
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'prefix' can only be set when 'prefixPolicy' is 'Prefix'",
+					Target:  "properties.claim.mappings.username.prefix",
+				},
+			},
+		},
+
 		//--------------------------------
 		// Complex field validation
 		//--------------------------------
+
 		{
 			name: "Valid ClientId in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
@@ -302,29 +376,6 @@ func TestExternalAuthValidate(t *testing.T) {
 						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2,
 					),
 					Target: "properties.clients",
-				},
-			},
-		},
-		{
-			name: "Invalid UsernamePrefixPolicy - A Policy of Prefix but none is set",
-			tweaks: &HCPOpenShiftClusterExternalAuth{
-				Properties: HCPOpenShiftClusterExternalAuthProperties{
-					Claim: ExternalAuthClaimProfile{
-						Mappings: TokenClaimMappingsProfile{
-							Username: UsernameClaimProfile{
-								Claim:        "email",
-								Prefix:       "",
-								PrefixPolicy: "Prefix",
-							},
-						},
-					},
-				},
-			},
-			expectErrors: []arm.CloudErrorBody{
-				{
-					Code:    "InvalidRequestContent",
-					Message: "UsernameClaimProfile has a PrefixPolicy of 'Prefix' but Username.Prefix is unset",
-					Target:  "properties.claim.mappings.username.prefix",
 				},
 			},
 		},

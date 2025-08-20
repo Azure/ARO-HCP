@@ -273,7 +273,7 @@ resourceGroups:
   - name: arobit
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: make -C ../arobit deploy
+    command: make -C ../observability/arobit deploy
     dryRun:
       variables:
       - name: DRY_RUN
@@ -315,6 +315,31 @@ resourceGroups:
       configRef: region
     - name: GENEVA_ENVIRONMENT
       configRef: geneva.logs.environment
+    dependsOn:
+    - resourceGroup: service
+      step: svc-cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: kube-events
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make -C ../observability/kube-events deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: IMAGE_REGISTRY
+      configRef: kubeEvents.image.registry
+    - name: IMAGE_REPOSITORY
+      configRef: kubeEvents.image.repository
+    - name: IMAGE_DIGEST
+      configRef: kubeEvents.image.digest
+    - name: ENABLED
+      configRef: kubeEvents.enabled
     dependsOn:
     - resourceGroup: service
       step: svc-cluster
