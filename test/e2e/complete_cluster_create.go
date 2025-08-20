@@ -51,7 +51,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "setup-scripts", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "basic-cluster", "uksouth")
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a customer-infra")
