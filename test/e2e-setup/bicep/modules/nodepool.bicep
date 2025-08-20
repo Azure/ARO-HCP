@@ -8,7 +8,7 @@ param nodePoolName string
 param replicas int = 2
 
 @description('OpenShift Version ID to use')
-param openshiftVersionId string = '4.19.0'
+param openshiftVersionId string = '4.19.7'
 
 @description('VM size for the nodepool VMs')
 param vmSize string = 'Standard_D8s_v3'

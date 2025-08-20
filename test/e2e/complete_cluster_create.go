@@ -46,7 +46,7 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "basic-hcp-cluster"
 				customerNodePoolName             = "np-1"
 				openshiftControlPlaneVersionId   = "4.19"
-				openshiftNodeVersionId           = "4.19.0"
+				openshiftNodeVersionId           = "4.19.7"
 			)
 			tc := framework.NewTestContext()
 
