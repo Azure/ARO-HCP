@@ -411,7 +411,8 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 					PrefixPolicy(""),
 				),
 			),
-		)
+		).
+		Clients()
 }
 
 func TestBuildCSExternalAuth(t *testing.T) {
