@@ -381,11 +381,11 @@ resourceGroups:
         value: "true"
     variables:
     - name: IMAGE_REGISTRY
-      configRef: kubeEvents.image.digest
+      configRef: kubeEvents.image.registry
     - name: IMAGE_REPOSITORY
       configRef: kubeEvents.image.repository
     - name: IMAGE_DIGEST
-      configRef: kubeEvents.image.registry
+      configRef: kubeEvents.image.digest
     - name: ENABLED
       configRef: kubeEvents.enabled
     dependsOn:
