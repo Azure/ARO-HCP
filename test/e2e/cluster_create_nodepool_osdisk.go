@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -60,7 +61,7 @@ var _ = Describe("Customer", func() {
 					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
 					"nodeReplicas":          customerNodeReplicas,
 				},
-				120*time.Minute, // lower to 45 minutes after bugs are fixed.
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -77,6 +78,17 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for the node pool to be ready")
+			provisioningState, err := framework.WaitForNodePoolReady(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(provisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
 
 			By("verifying nodepool configuration")
 			err = framework.VerifyNodePool(ctx,

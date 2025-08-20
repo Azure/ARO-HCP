@@ -443,3 +443,49 @@ func GetNodePool(
 
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
+
+// WaitForNodePoolReady waits for a nodepool to reach the "Succeeded" provisioning state
+func WaitForNodePoolReady(
+	ctx context.Context,
+	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	timeout time.Duration,
+) (hcpapi20240610.ProvisioningState, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(StandardPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("timeout waiting for nodepool=%q in cluster=%q resourcegroup=%q to be ready: %w", nodePoolName, hcpClusterName, resourceGroupName, ctx.Err())
+		case <-ticker.C:
+			nodePool, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if err != nil {
+				return "", fmt.Errorf("failed to get nodepool=%q in cluster=%q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+			}
+
+			if nodePool.Properties == nil || nodePool.Properties.ProvisioningState == nil {
+				continue
+			}
+
+			provisioningState := *nodePool.Properties.ProvisioningState
+			switch provisioningState {
+			case hcpapi20240610.ProvisioningStateSucceeded:
+				return provisioningState, nil
+			case hcpapi20240610.ProvisioningStateFailed, hcpapi20240610.ProvisioningStateCanceled:
+				return provisioningState, fmt.Errorf("nodepool=%q in cluster=%q resourcegroup=%q failed with provisioning state: %s", nodePoolName, hcpClusterName, resourceGroupName, provisioningState)
+			case hcpapi20240610.ProvisioningStateAccepted, hcpapi20240610.ProvisioningStateProvisioning, hcpapi20240610.ProvisioningStateUpdating:
+				// Continue waiting for these non-terminal states
+				continue
+			default:
+				// Unknown state, continue waiting but log it
+				continue
+			}
+		}
+	}
+}
