@@ -73,7 +73,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 					"persistTagValue": false,
 					"clusterName":     customerClusterName,
 				},
-				120*time.Minute,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
