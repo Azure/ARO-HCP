@@ -100,7 +100,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum((max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d])))))",
+          "expr": "((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum((max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d]))))) or vector(1))",
           "instant": false,
           "legendFormat": "Availability",
           "range": true,
@@ -203,7 +203,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(1 - (sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d]))))) / (1 - 0.99)",
+          "expr": "((1 - (sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d]))))) / (1 - 0.99)) or vector(0)",
           "instant": false,
           "legendFormat": "Error budget burn rate",
           "range": true,
@@ -278,7 +278,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(1 - (sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d]))))) / (1 - 0.99)",
+          "expr": "((1 - (sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code!~\"5..\", service=\"clusters-service-metrics\"}[28d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[28d]))))) / (1 - 0.99)) or vector(0)",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -377,7 +377,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[5m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[5m]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[5m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[5m]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 5m",
@@ -390,7 +390,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[1h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[1h]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[1h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[1h]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 1h",
@@ -490,7 +490,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[30m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[30m]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[30m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[30m]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 30m",
@@ -503,7 +503,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[6h]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[6h]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 6h",
@@ -603,7 +603,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", code=~\"5..\", service=\"clusters-service-metrics\"}[2h])))\n/\nsum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[2h])))))/(1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", code=~\"5..\", service=\"clusters-service-metrics\"}[2h])))\n/\nsum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[2h])))))/(1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 2h",
@@ -616,7 +616,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", code=~\"5..\", service=\"clusters-service-metrics\"}[1d])))\n/\nsum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[1d])))))/(1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", code=~\"5..\", service=\"clusters-service-metrics\"}[1d])))\n/\nsum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[1d])))))/(1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 1d",
@@ -716,7 +716,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[6h]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[6h]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 6h",
@@ -729,7 +729,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[3d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[3d]))))) / (1 - 0.99), 0)",
+          "expr": "clamp_min((((sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\",code=~\"5..\", service=\"clusters-service-metrics\"}[3d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}[3d]))))) / (1 - 0.99)) or vector(0), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "Burn Rate - 3d",
