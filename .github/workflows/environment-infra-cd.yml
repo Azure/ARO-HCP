@@ -60,7 +60,7 @@ jobs:
         az config set bicep.use_binary_from_path=false
         az bicep install
         cd dev-infrastructure/
-        make region
+        make region monitoring
   deploy_service_cluster_rg:
     needs:
     - deploy_region_rg
