@@ -163,7 +163,7 @@ defaults:
       registry: quay.io
       repository: acm-d/rhtap-hypershift-operator
     namespace: hypershift
-    additionalInstallArg: ''
+    additionalInstallArg: '--enable-cpo-overrides'
   # Log settings
   logs:
     mdsd:
@@ -221,6 +221,7 @@ defaults:
   # SVC cluster specifics
   svc:
     subscription:
+      usePlannedQuota: true
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - SVC"
       providers:
@@ -315,6 +316,7 @@ defaults:
   # MGMT cluster specifics
   mgmt:
     subscription:
+      usePlannedQuota: true
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - MGMT - {{ .ctx.stamp }}"
       providers:
@@ -568,7 +570,7 @@ defaults:
       deploy: true
       private: false
       minTLSVersion: 'TLSV1.2'
-      serverVersion: '12'
+      serverVersion: '17'
       serverStorageSizeGB: 128
       databaseName: clusters-service
       zoneRedundantMode: 'Auto'
@@ -717,7 +719,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:86dbb522948be740908865a6eed8564101ef400b3fa2a8a0da9ac46159971fa8
+          digest: sha256:1af5d39b3bafa292e2335bb87cf418a72f854ccceb1db6886744948647b8234e
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -746,7 +748,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+          digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
       # Backplane API
       backplaneAPI:
         image:
@@ -876,10 +878,6 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
-          # Clusters Service
-          clustersService:
-            postgres:
-              serverVersion: '17'
           # Maestro
           maestro:
             server:
@@ -933,10 +931,6 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
-          # Clusters Service
-          clustersService:
-            postgres:
-              serverVersion: '17'
           # Maestro
           maestro:
             restrictIstioIngress: false
@@ -950,7 +944,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:8ad6f8249dcef32d60ffbe39e6bf3f6db32dd32af63a7302e93e1b1667468b9a
+              digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1058,6 +1052,12 @@ clouds:
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
+          hypershift:
+            additionalInstallArg: '--enable-cpo-overrides=true'
+            image:
+              registry: quay.io
+              repository: acm-d/rhtap-hypershift-operator
+              digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

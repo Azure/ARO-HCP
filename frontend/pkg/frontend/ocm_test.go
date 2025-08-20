@@ -119,14 +119,25 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType("kms").Kms(arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(arohcpv1alpha1.NewAzureKmsKey().KeyName("test").KeyVaultName("test").KeyVersion("test-version"))))),
+							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test").
+										KeyVaultName("test").
+										KeyVersion("test-version"),
+									),
+								),
+							),
+						),
 					),
 				),
 			want: clusterResource(
 				func(hsc *api.HCPOpenShiftCluster) {
 					hsc.Properties.Etcd.DataEncryption = api.EtcdDataEncryptionProfile{
 						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: "kms",
+							EncryptionType: "KMS",
 							Kms: &api.KmsEncryptionProfile{
 								ActiveKey: api.KmsKey{
 									Name:      "test",
@@ -214,6 +225,9 @@ func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCl
 			},
 		},
 		Properties: api.HCPOpenShiftClusterProperties{},
+		Identity: &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		},
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -373,7 +387,8 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
-			URL("")).
+			URL("").
+			CA("")).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
 			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
 				UserName(arohcpv1alpha1.NewUsernameClaim().
@@ -418,7 +433,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Issuer = api.TokenIssuerProfile{
-						Ca:        &dummyCA,
+						Ca:        dummyCA,
 						Url:       dummyURL,
 						Audiences: dummyAudiences,
 					}

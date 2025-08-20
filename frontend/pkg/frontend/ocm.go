@@ -49,6 +49,7 @@ const (
 	csPlatformOutboundType                string = "load_balancer"
 	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
 	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
+	csCustomerManagedEncryptionTypeKms    string = "kms"
 )
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
@@ -83,6 +84,22 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS 
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
 		outboundTypeCS = csPlatformOutboundType
+	}
+	return
+}
+
+func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (encryptionTypeRP api.CustomerManagedEncryptionType) {
+	switch encryptionTypeCS {
+	case csCustomerManagedEncryptionTypeKms:
+		encryptionTypeRP = api.CustomerManagedEncryptionTypeKMS
+	}
+	return
+}
+
+func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) (encryptionTypeCS string) {
+	switch encryptionTypeRP {
+	case api.CustomerManagedEncryptionTypeKMS:
+		encryptionTypeCS = csCustomerManagedEncryptionTypeKms
 	}
 	return
 }
@@ -178,7 +195,7 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
 	if customerManaged, ok := in.GetCustomerManaged(); ok {
 		return &api.CustomerManagedEncryptionProfile{
-			EncryptionType: api.CustomerManagedEncryptionType(customerManaged.EncryptionType()),
+			EncryptionType: convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType()),
 			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
 		}
 	}
@@ -203,8 +220,12 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
 	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode))
 	if in.DataEncryption.CustomerManaged != nil {
-		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().EncryptionType(string(in.DataEncryption.CustomerManaged.EncryptionType))
-		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+			EncryptionType(convertCustomerManagedEncryptionTypeRPToCS(in.DataEncryption.CustomerManaged.EncryptionType))
+		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
+			KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
+			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
+			KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
 		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
 		azureEtcdDataEncryptionCustomerManagedBuilder = azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
@@ -266,6 +287,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
+		Identity: &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		},
 	}
 
 	// Only set etcd encryption settings if they exist in the cluster service response
@@ -289,7 +313,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-			hcpcluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
@@ -580,7 +603,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
 				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        api.PtrOrNil(csExternalAuth.Issuer().CA()),
+				Ca:        csExternalAuth.Issuer().CA(),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -644,11 +667,9 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
 	}
 
-	issuerBuilder := arohcpv1alpha1.NewTokenIssuer()
-	issuerBuilder.URL(externalAuth.Properties.Issuer.Url)
-	if externalAuth.Properties.Issuer.Ca != nil {
-		issuerBuilder.CA(*externalAuth.Properties.Issuer.Ca)
-	}
+	issuerBuilder := arohcpv1alpha1.NewTokenIssuer().
+		URL(externalAuth.Properties.Issuer.Url).
+		CA(externalAuth.Properties.Issuer.Ca)
 	if len(externalAuth.Properties.Issuer.Audiences) > 0 {
 		issuerBuilder.Audiences(externalAuth.Properties.Issuer.Audiences...)
 	}

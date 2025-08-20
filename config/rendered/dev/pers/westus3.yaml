@@ -113,7 +113,7 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:86dbb522948be740908865a6eed8564101ef400b3fa2a8a0da9ac46159971fa8
+    digest: sha256:1af5d39b3bafa292e2335bb87cf418a72f854ccceb1db6886744948647b8234e
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -129,7 +129,7 @@ clustersService:
     name: arohcp-pers-dbcs-usw3test
     private: false
     serverStorageSizeGB: 128
-    serverVersion: "12"
+    serverVersion: "17"
     zoneRedundantMode: Auto
   tracing:
     address: http://ingest.observability:4318
@@ -248,9 +248,9 @@ global:
           poll: true
         poll: true
 hypershift:
-  additionalInstallArg: ""
+  additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:e470a4ad44f23684d36e1352a36892cffa8cbc604bac76b17a7e9b5d9dff5ed1
+    digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -429,6 +429,7 @@ mgmt:
         poll: true
       Microsoft.Storage:
         poll: true
+    usePlannedQuota: true
 mgmtKeyVault:
   name: ah-pers-mg-usw3test-1
   private: false
@@ -650,4 +651,5 @@ svc:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+    usePlannedQuota: true
 tenantId: ""

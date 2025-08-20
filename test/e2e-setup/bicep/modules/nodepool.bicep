@@ -9,7 +9,6 @@ param replicas int = 2
 
 @description('OpenShift Version ID to use')
 param openshiftVersionId string = '4.19.7'
-
 @description('Size of the osDisk for the node pool in GiB')
 param osDiskSizeGiB int = 64
 

@@ -29,8 +29,8 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required_for_put"`
-	Identity   arm.ManagedServiceIdentity    `json:"identity,omitempty"`
+	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
+	Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -63,7 +63,7 @@ type DNSProfile struct {
 // NetworkProfile represents a cluster network configuration.
 // Visibility for the entire struct is "read create".
 type NetworkProfile struct {
-	NetworkType NetworkType `json:"networkType,omitempty" validate:"omitempty,enum_networktype"`
+	NetworkType NetworkType `json:"networkType,omitempty" validate:"enum_networktype"`
 	PodCIDR     string      `json:"podCidr,omitempty"     validate:"omitempty,cidrv4"`
 	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"omitempty,cidrv4"`
 	MachineCIDR string      `json:"machineCidr,omitempty" validate:"omitempty,cidrv4"`
@@ -79,16 +79,16 @@ type ConsoleProfile struct {
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
 	URL        string     `json:"url,omitempty"        visibility:"read"`
-	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"omitempty,enum_visibility"`
+	Visibility Visibility `json:"visibility,omitempty" visibility:"read create" validate:"enum_visibility"`
 }
 
 // PlatformProfile represents the Azure platform configuration.
 // Visibility for (almost) the entire struct is "read create".
 type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required_for_put,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"omitempty,enum_outboundtype"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required_for_put,resource_id=Microsoft.Network/networkSecurityGroups"`
+	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required,resource_id=Microsoft.Network/virtualNetworks/subnets"`
+	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"enum_outboundtype"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
 }
@@ -103,34 +103,40 @@ type ClusterAutoscalingProfile struct {
 	PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
 }
 
-// The ETCD settings and configuration options
-// If not specified platform managed keys are used.
+// EtcdProfile represents an ETCD configuration.
+// Visibility for the entire struct is "read create".
 type EtcdProfile struct {
-	DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty" visibility:"read create"`
+	DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
 }
 
-// EtcdDataEncryptionProfile - The ETCD data encryption settings.
+// EtcdDataEncryptionProfile represents a data encryption configuration for ETCD.
+// Visibility for the entire struct is "read create".
 type EtcdDataEncryptionProfile struct {
-	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty" visibility:"read create"`
-	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" visibility:"read create"`
+	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" validate:"enum_etcddataencryptionkeymanagementmodetype"`
+	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"   validate:"required_if=KeyManagementMode CustomerManaged,excluded_unless=KeyManagementMode CustomerManaged,omitempty"`
 }
 
-// CustomerManagedEncryptionProfile - Customer managed encryption key profile.
+// CustomerManagedEncryptionProfile repesents a data encryption configuration for
+// ETCD using customer-managed keys.
+// Visibility for the entire struct is "read create".
 type CustomerManagedEncryptionProfile struct {
-	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" visibility:"read create"`
-	Kms            *KmsEncryptionProfile         `json:"kms,omitempty" visibility:"read create" validate:"omitempty"`
+	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"required_if=EncryptionType KMS,excluded_unless=EncryptionType KMS,omitempty"`
 }
 
-// KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key.
+// KmsEncryptionProfile represents a data encryption configuration for ETCD using
+// customer-managed Key Management Service (KMS) keys.
+// Visibility for the entire struct is "read create".
 type KmsEncryptionProfile struct {
-	ActiveKey KmsKey `json:"activeKey,omitempty" visibility:"read create"`
+	ActiveKey KmsKey `json:"activeKey,omitempty"`
 }
 
-// KmsKey - A representation of a KeyVault Secret.
+// KmsKey represents an Azure KeyVault secret.
+// Visibility for the entire struct is "read create".
 type KmsKey struct {
-	Name      string `json:"name" validate:"required,min=1,max=255"`
+	Name      string `json:"name"      validate:"required,min=1,max=255"`
 	VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
-	Version   string `json:"version" validate:"required,min=1,max=255"`
+	Version   string `json:"version"   validate:"required,min=1,max=255"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
@@ -155,15 +161,12 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"omitempty,enum_clusterimageregistryprofilestate"`
+	State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"enum_clusterimageregistryprofilestate"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
-		Identity: arm.ManagedServiceIdentity{
-			Type: arm.ManagedServiceIdentityTypeNone,
-		},
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",
@@ -399,10 +402,12 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	// exactly once by either ControlPlaneOperators or ServiceManagedIdentity.
 
 	userAssignedIdentities := make(map[string]int)
-	for key := range cluster.Identity.UserAssignedIdentities {
-		// Resource IDs are case-insensitive. Don't assume they
-		// have consistent casing, even within the same resource.
-		userAssignedIdentities[strings.ToLower(key)] = 0
+	if cluster.Identity != nil {
+		for key := range cluster.Identity.UserAssignedIdentities {
+			// Resource IDs are case-insensitive. Don't assume they
+			// have consistent casing, even within the same resource.
+			userAssignedIdentities[strings.ToLower(key)] = 0
+		}
 	}
 
 	tallyIdentity := func(identity, target string) {
@@ -428,28 +433,30 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 		tallyIdentity(serviceManagedIdentity, baseTarget+".serviceManagedIdentity")
 	}
 
-	for identity := range cluster.Identity.UserAssignedIdentities {
-		key := strings.ToLower(identity)
-		if tally, ok := userAssignedIdentities[key]; ok {
-			switch tally {
-			case 0:
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity '%s' is assigned to this resource but not used",
-						identity),
-					Target: "identity.userAssignedIdentities",
-				})
-			case 1:
-				// Valid: Identity is referenced once.
-			default:
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						"Identity '%s' is used multiple times",
-						identity),
-					Target: baseTarget,
-				})
+	if cluster.Identity != nil {
+		for identity := range cluster.Identity.UserAssignedIdentities {
+			key := strings.ToLower(identity)
+			if tally, ok := userAssignedIdentities[key]; ok {
+				switch tally {
+				case 0:
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
+						Message: fmt.Sprintf(
+							"Identity '%s' is assigned to this resource but not used",
+							identity),
+						Target: "identity.userAssignedIdentities",
+					})
+				case 1:
+					// Valid: Identity is referenced once.
+				default:
+					errorDetails = append(errorDetails, arm.CloudErrorBody{
+						Code: arm.CloudErrorCodeInvalidRequestContent,
+						Message: fmt.Sprintf(
+							"Identity '%s' is used multiple times",
+							identity),
+						Target: baseTarget,
+					})
+				}
 			}
 		}
 	}
