@@ -525,7 +525,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       dataEncryption: {
         keyManagementMode: 'CustomerManaged'
         customerManaged: {
-          encryptionType: 'kms'
+          encryptionType: 'KMS'
           kms: {
              activeKey: {
               vaultName: keyVaultName
