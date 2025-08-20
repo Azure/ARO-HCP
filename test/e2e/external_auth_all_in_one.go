@@ -54,6 +54,8 @@ const (
 	rpFrontendPort = 8443
 )
 
+// ---------- small helpers (scoped to this file) ----------
+
 type eaEntraSecret struct {
 	TenantID     string    `json:"tenant_id"`
 	AppObjectID  string    `json:"app_object_id"`
@@ -63,8 +65,6 @@ type eaEntraSecret struct {
 	CreatedAt    time.Time `json:"created_at"`
 	ExpiresAt    time.Time `json:"secret_expires_at"`
 }
-
-// --- Tiny utils (unique prefixes to avoid clashes) ---
 
 func eaMustWriteJSON(path string, v any) {
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
@@ -79,7 +79,6 @@ func eaHTTP() *http.Client {
 }
 
 func eaRun(ctx context.Context, name string, args ...string) (string, error) {
-	// keep kubectl tolerant
 	if name == "kubectl" || name == "oc" {
 		args = append(args, "--insecure-skip-tls-verify")
 	}
@@ -159,8 +158,6 @@ func eaConsoleHost(ctx context.Context) (string, error) {
 	}
 	return host, err
 }
-
-// --- Microsoft Graph (minimal) ---
 
 func eaGraphCred(ctx context.Context) (azcore.TokenCredential, string, error) {
 	if c, err := azidentity.NewAzureCLICredential(nil); err == nil {
@@ -249,8 +246,6 @@ func eaPatchRedirects(ctx context.Context, token, appObjectID string, redirects 
 		token, map[string]any{"web": map[string]any{"redirectUris": redirects}}, nil, http.StatusNoContent)
 }
 
-// --- RP call ---
-
 func eaPublishExternalAuth(ctx context.Context, baseURL, clusterName string, payload []byte) {
 	u := strings.TrimRight(baseURL, "/") + fmt.Sprintf("/api/aro_hcp/v1alpha1/clusters/%s/external_auth_config/external_auths", clusterName)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(payload))
@@ -261,149 +256,171 @@ func eaPublishExternalAuth(ctx context.Context, baseURL, clusterName string, pay
 	Expect(resp.StatusCode).To(BeElementOf(http.StatusOK, http.StatusCreated), "unexpected status from RP")
 }
 
-// --- TEST ---
+// ---------- TEST ----------
 
-var _ = Describe("ExternalAuth All-in-One creates Entra app+secret, provisions HCP, configures OIDC via RP, and verifies", labels.RequireNothing, labels.Critical, labels.Positive, func() {
-	It("creates Entra app, provisions HCP, gets kubeconfig, and publishes ExternalAuth to RP", func(ctx context.Context) {
-		// 1) Entra app + secret
-		By("creating Entra app + secret")
-		cred, tenantHint, err := eaGraphCred(ctx)
-		if err != nil {
-			Skip("no Azure login/creds: " + err.Error())
-		}
-		tok, err := eaGraphToken(ctx, cred)
-		Expect(err).NotTo(HaveOccurred())
-		app, err := eaCreateAppAndSecret(ctx, tok, fmt.Sprintf("e2e-hypershift-%d", time.Now().Unix()), 48*time.Hour)
-		Expect(err).NotTo(HaveOccurred())
-		if app.TenantID == "" {
-			app.TenantID = tenantHint
-		}
-		Expect(app.TenantID).NotTo(BeEmpty())
-		_ = os.MkdirAll(eaOutDir, 0o755)
-		eaMustWriteJSON(eaSecretJSONPath, app)
+var _ = Describe("ExternalAuth All-in-One creates Entra app+secret, provisions HCP, creates nodepool, configures OIDC via RP, and verifies",
+	labels.RequireNothing, labels.Critical, labels.Positive, func() {
 
-		// 2) Infra → Managed Identities → Cluster
-		const (
-			customerNSG    = "customer-nsg-name"
-			customerVnet   = "customer-vnet-name"
-			customerSubnet = "customer-vnet-subnet1"
-			clusterName    = "external-auth-smoke"
-			versionCP      = "4.19"
-		)
-		tc := framework.NewTestContext()
-
-		By("creating a resource group")
-		rg, err := tc.NewResourceGroup(ctx, "external-auth-smoke", "uksouth")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("deploying customer-infra (KV + etcd key)")
-		infra, err := framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-			*rg.Name, "customer-infra",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-			map[string]any{
-				"persistTagValue":        false,
-				"customerNsgName":        customerNSG,
-				"customerVnetName":       customerVnet,
-				"customerVnetSubnetName": customerSubnet,
-			}, 45*time.Minute)
-		Expect(err).NotTo(HaveOccurred())
-
-		keyVaultName, err := framework.GetOutputValue(infra, "keyVaultName")
-		Expect(err).NotTo(HaveOccurred())
-		etcdKeyName, err := framework.GetOutputValue(infra, "etcdEncryptionKeyName")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("deploying managed-identities (with KV access)")
-		mi, err := framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-			*rg.Name, "managed-identities",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-			map[string]any{
-				"clusterName":  clusterName,
-				"nsgName":      customerNSG,
-				"vnetName":     customerVnet,
-				"subnetName":   customerSubnet,
-				"keyVaultName": keyVaultName,
-			}, 50*time.Minute)
-		Expect(err).NotTo(HaveOccurred())
-
-		userAssignedIdentities, err := framework.GetOutputValue(mi, "userAssignedIdentitiesValue")
-		Expect(err).NotTo(HaveOccurred())
-		identity, err := framework.GetOutputValue(mi, "identityValue")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("deploying HCP cluster")
-		mrg := framework.SuffixName(*rg.Name, "-managed", 64)
-		_, err = framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-			*rg.Name, "cluster",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-			map[string]any{
-				"openshiftVersionId":          versionCP,
-				"clusterName":                 clusterName,
-				"managedResourceGroupName":    mrg,
-				"nsgName":                     customerNSG,
-				"subnetName":                  customerSubnet,
-				"vnetName":                    customerVnet,
-				"userAssignedIdentitiesValue": userAssignedIdentities,
-				"identityValue":               identity,
-				"keyVaultName":                keyVaultName,
-				"etcdEncryptionKeyName":       etcdKeyName,
-			}, 60*time.Minute)
-		Expect(err).NotTo(HaveOccurred())
-
-		// 3) kubeconfig (admin) for hosted cluster
-		By("getting admin kubeconfig")
-		adminRC, err := framework.GetAdminRESTConfigForHCPCluster(
-			ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-			*rg.Name, clusterName, 10*time.Minute)
-		Expect(err).NotTo(HaveOccurred())
-		tmpKC := filepath.Join(eaOutDir, "breakglass.kubeconfig")
-		Expect(eaWriteKubeconfig(tmpKC, adminRC)).To(Succeed())
-		Expect(os.Setenv("KUBECONFIG", tmpKC)).To(Succeed())
-
-		// 4) console redirect + RP publish
-		By("patching app redirect URIs")
-		consoleHost, err := eaConsoleHost(ctx)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(eaPatchRedirects(ctx, tok, app.AppObjectID, []string{"https://" + consoleHost + "/oauth/callback"})).To(Succeed())
-
-		By("publishing ExternalAuth to RP frontend")
-		payload := map[string]any{
-			"id": "e2e-hypershift-oidc",
-			"issuer": map[string]any{
-				"url":       fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", app.TenantID),
-				"audiences": []string{app.ClientID},
-			},
-			"claim": map[string]any{
-				"mappings": map[string]any{
-					"userName": map[string]any{"claim": "email"},
-					"groups":   map[string]any{"claim": "groups"},
-				},
-				"validation_rules": []map[string]any{},
-			},
-			"clients": []map[string]any{
-				{
-					"component": map[string]any{"name": "console", "namespace": "openshift-console"},
-					"id":        app.ClientID,
-					"secret":    "", // not needed for OIDC auth code w/ public client
-				},
-			},
-		}
-		body, _ := json.Marshal(payload)
-
-		if base := strings.TrimSpace(os.Getenv("RP_BASE_URL")); base != "" {
-			eaPublishExternalAuth(ctx, base, clusterName, body)
-		} else {
-			ns, err := eaFindSvcNS(ctx, rpFrontendSvc)
+		It("creates Entra app, provisions HCP, creates nodepool, gets kubeconfig, and publishes ExternalAuth to RP", func(ctx context.Context) {
+			// 1) Entra app + secret
+			By("creating Entra app + secret")
+			cred, tenantHint, err := eaGraphCred(ctx)
+			if err != nil {
+				Skip("no Azure login/creds: " + err.Error())
+			}
+			tok, err := eaGraphToken(ctx, cred)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(eaWithPF(ctx, ns, rpFrontendSvc, rpFrontendPort, func(baseURL string) {
-				eaPublishExternalAuth(ctx, baseURL, clusterName, body)
-			})).To(Succeed())
-		}
+			app, err := eaCreateAppAndSecret(ctx, tok, fmt.Sprintf("e2e-hypershift-%d", time.Now().Unix()), 48*time.Hour)
+			Expect(err).NotTo(HaveOccurred())
+			if app.TenantID == "" {
+				app.TenantID = tenantHint
+			}
+			Expect(app.TenantID).NotTo(BeEmpty())
+			_ = os.MkdirAll(eaOutDir, 0o755)
+			eaMustWriteJSON(eaSecretJSONPath, app)
 
-		// final sanity
-		Expect(framework.VerifyHCPCluster(ctx, adminRC)).To(Succeed())
+			// 2) Infra → Managed Identities → Cluster
+			const (
+				customerNSG    = "customer-nsg-name"
+				customerVnet   = "customer-vnet-name"
+				customerSubnet = "customer-vnet-subnet1"
+
+				clusterName = "external-auth-smoke"
+				versionCP   = "4.19"   // control-plane MAJOR.MINOR
+				versionNP   = "4.19.0" // nodepool FULL version
+			)
+			tc := framework.NewTestContext()
+
+			By("creating a resource group")
+			rg, err := tc.NewResourceGroup(ctx, "external-auth-smoke", "uksouth")
+			Expect(err).NotTo(HaveOccurred())
+
+			By("deploying customer-infra (KV + etcd key)")
+			infra, err := framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*rg.Name, "customer-infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+				map[string]any{
+					"persistTagValue":        false,
+					"customerNsgName":        customerNSG,
+					"customerVnetName":       customerVnet,
+					"customerVnetSubnetName": customerSubnet,
+				}, 45*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+
+			keyVaultName, err := framework.GetOutputValue(infra, "keyVaultName")
+			Expect(err).NotTo(HaveOccurred())
+			etcdKeyName, err := framework.GetOutputValue(infra, "etcdEncryptionKeyName")
+			Expect(err).NotTo(HaveOccurred())
+
+			By("deploying managed-identities (with KV access)")
+			mi, err := framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*rg.Name, "managed-identities",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+				map[string]any{
+					"clusterName":  clusterName,
+					"nsgName":      customerNSG,
+					"vnetName":     customerVnet,
+					"subnetName":   customerSubnet,
+					"keyVaultName": keyVaultName,
+				}, 50*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+
+			userAssignedIdentities, err := framework.GetOutputValue(mi, "userAssignedIdentitiesValue")
+			Expect(err).NotTo(HaveOccurred())
+			identity, err := framework.GetOutputValue(mi, "identityValue")
+			Expect(err).NotTo(HaveOccurred())
+
+			By("deploying HCP cluster")
+			mrg := framework.SuffixName(*rg.Name, "-managed", 64)
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*rg.Name, "cluster",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
+				map[string]any{
+					"openshiftVersionId":          versionCP,
+					"clusterName":                 clusterName,
+					"managedResourceGroupName":    mrg,
+					"nsgName":                     customerNSG,
+					"subnetName":                  customerSubnet,
+					"vnetName":                    customerVnet,
+					"userAssignedIdentitiesValue": userAssignedIdentities,
+					"identityValue":               identity,
+					"keyVaultName":                keyVaultName,
+					"etcdEncryptionKeyName":       etcdKeyName,
+				}, 60*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 2b) Nodepool (required for console)
+			By("creating the node pool")
+			const (
+				nodePoolName = "np-1"
+				replicas     = 2
+			)
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*rg.Name, "node-pool",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+				map[string]any{
+					"openshiftVersionId": versionNP,
+					"clusterName":        clusterName,
+					"nodePoolName":       nodePoolName,
+					"replicas":           replicas,
+				}, 45*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+
+			// 3) kubeconfig (admin) for hosted cluster
+			By("getting admin kubeconfig")
+			adminRC, err := framework.GetAdminRESTConfigForHCPCluster(
+				ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*rg.Name, clusterName, 10*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+			tmpKC := filepath.Join(eaOutDir, "breakglass.kubeconfig")
+			Expect(eaWriteKubeconfig(tmpKC, adminRC)).To(Succeed())
+			Expect(os.Setenv("KUBECONFIG", tmpKC)).To(Succeed())
+
+			// 4) console redirect + RP publish
+			By("patching app redirect URIs")
+			consoleHost, err := eaConsoleHost(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(eaPatchRedirects(ctx, tok, app.AppObjectID, []string{"https://" + consoleHost + "/oauth/callback"})).To(Succeed())
+
+			By("publishing ExternalAuth to RP frontend")
+			payload := map[string]any{
+				"id": "e2e-hypershift-oidc",
+				"issuer": map[string]any{
+					"url":       fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", app.TenantID),
+					"audiences": []string{app.ClientID},
+				},
+				"claim": map[string]any{
+					"mappings": map[string]any{
+						"userName": map[string]any{"claim": "email"},
+						"groups":   map[string]any{"claim": "groups"},
+					},
+					"validation_rules": []map[string]any{},
+				},
+				"clients": []map[string]any{
+					{
+						"component": map[string]any{"name": "console", "namespace": "openshift-console"},
+						"id":        app.ClientID,
+						"secret":    "",
+					},
+				},
+			}
+			body, _ := json.Marshal(payload)
+
+			if base := strings.TrimSpace(os.Getenv("RP_BASE_URL")); base != "" {
+				eaPublishExternalAuth(ctx, base, clusterName, body)
+			} else {
+				ns, err := eaFindSvcNS(ctx, rpFrontendSvc)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(eaWithPF(ctx, ns, rpFrontendSvc, rpFrontendPort, func(baseURL string) {
+					eaPublishExternalAuth(ctx, baseURL, clusterName, body)
+				})).To(Succeed())
+			}
+
+			// 5) final sanity
+			Expect(framework.VerifyHCPCluster(ctx, adminRC)).To(Succeed())
+		})
 	})
-})
