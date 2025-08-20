@@ -57,7 +57,7 @@ type ExternalAuthCondition struct {
 // Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
 	Url       string   `json:"url"       validate:"required,url,startswith=https://"`
-	Audiences []string `json:"audiences" validate:"required,min=0,max=10"`
+	Audiences []string `json:"audiences" validate:"required,max=10"`
 	Ca        string   `json:"ca"        validate:"omitempty,pem_certificates"`
 }
 

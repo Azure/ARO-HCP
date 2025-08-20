@@ -751,13 +751,11 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
 	}
 
-	issuerBuilder := arohcpv1alpha1.NewTokenIssuer().
+	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
 		URL(externalAuth.Properties.Issuer.Url).
-		CA(externalAuth.Properties.Issuer.Ca)
-	if len(externalAuth.Properties.Issuer.Audiences) > 0 {
-		issuerBuilder.Audiences(externalAuth.Properties.Issuer.Audiences...)
-	}
-	externalAuthBuilder.Issuer(issuerBuilder)
+		CA(externalAuth.Properties.Issuer.Ca).
+		Audiences(externalAuth.Properties.Issuer.Audiences...),
+	)
 
 	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
 	for _, t := range externalAuth.Properties.Clients {
