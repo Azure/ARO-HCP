@@ -114,7 +114,7 @@ var _ = Describe("Customer", func() {
 					45*time.Minute,
 				)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(MatchError(MatchRegexp("Version .* doesn't exist")))
+				Expect(err).To(MatchError(MatchRegexp("Version .* (doesn't exist|is disabled)")))
 			},
 		)
 	}
