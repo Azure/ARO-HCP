@@ -287,6 +287,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
 			},
 		},
+		Identity: &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		},
 	}
 
 	// Only set etcd encryption settings if they exist in the cluster service response
@@ -310,7 +313,6 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-			hcpcluster.Identity.UserAssignedIdentities = make(map[string]*arm.UserAssignedIdentity)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
@@ -601,7 +603,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
 				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        api.PtrOrNil(csExternalAuth.Issuer().CA()),
+				Ca:        csExternalAuth.Issuer().CA(),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -665,11 +667,9 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
 	}
 
-	issuerBuilder := arohcpv1alpha1.NewTokenIssuer()
-	issuerBuilder.URL(externalAuth.Properties.Issuer.Url)
-	if externalAuth.Properties.Issuer.Ca != nil {
-		issuerBuilder.CA(*externalAuth.Properties.Issuer.Ca)
-	}
+	issuerBuilder := arohcpv1alpha1.NewTokenIssuer().
+		URL(externalAuth.Properties.Issuer.Url).
+		CA(externalAuth.Properties.Issuer.Ca)
 	if len(externalAuth.Properties.Issuer.Audiences) > 0 {
 		issuerBuilder.Audiences(externalAuth.Properties.Issuer.Audiences...)
 	}

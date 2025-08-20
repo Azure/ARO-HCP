@@ -84,6 +84,10 @@ func NewTestValidator() *validator.Validate {
 		EffectNoSchedule,
 		EffectPreferNoSchedule,
 	))
+	validate.RegisterAlias("enum_etcddataencryptionkeymanagementmodetype", EnumValidateTag(
+		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+	))
 	validate.RegisterAlias("enum_externalauthclienttype", EnumValidateTag(
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,

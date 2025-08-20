@@ -15,14 +15,11 @@
 package api
 
 import (
-	"context"
-	"net/http"
 	"reflect"
 	"testing"
 
 	validator "github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetJSONTagName(t *testing.T) {
@@ -70,8 +67,16 @@ type TestAPIVersionTag struct {
 	APIVersion string `validate:"api_version"`
 }
 
-type TestRequiredForPutTag struct {
-	StructField any `json:"field" validate:"required_for_put"`
+type TestRequiredIntTag struct {
+	StructField int `json:"field" validate:"required"`
+}
+
+type TestRequiredStringTag struct {
+	StructField string `json:"field" validate:"required"`
+}
+
+type TestRequiredTag struct {
+	StructField any `json:"field" validate:"required"`
 }
 
 func TestNewValidator(t *testing.T) {
@@ -84,20 +89,17 @@ func TestNewValidator(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		method      string
 		resource    any
 		expectError bool
 	}{
 		{
-			name:   "Validation passes on known API version",
-			method: http.MethodGet,
+			name: "Validation passes on known API version",
 			resource: TestAPIVersionTag{
 				APIVersion: "valid-api-version",
 			},
 		},
 		{
-			name:   "Validation fails on unknown API version",
-			method: http.MethodGet,
+			name: "Validation fails on unknown API version",
 			resource: TestAPIVersionTag{
 				APIVersion: "bogus-api-version",
 			},
@@ -105,76 +107,71 @@ func TestNewValidator(t *testing.T) {
 		},
 		{
 			name:     "Zero value is ok when not required",
-			method:   http.MethodPut,
-			resource: struct{ StructField any }{int(0)},
+			resource: struct{ StructField int }{0},
 		},
 		{
-			name:   "Zero value on required field is error when method is PUT",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
-				StructField: int(0),
+			name: "Zero value on required field is error",
+			resource: TestRequiredIntTag{
+				StructField: 0,
 			},
 			expectError: true,
 		},
 		{
-			name:   "Zero value on required field is ok when method is not PUT",
-			method: http.MethodGet,
-			resource: TestRequiredForPutTag{
-				StructField: int(0),
-			},
+			name:     "Empty string is ok when not required",
+			resource: struct{ StructField string }{""},
 		},
 		{
-			name:   "Validation fails on nil slice",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Empty string on required field is error",
+			resource: TestRequiredStringTag{
+				StructField: "",
+			},
+			expectError: true,
+		},
+		{
+			name: "Validation fails on nil slice",
+			resource: TestRequiredTag{
 				StructField: nilSlice,
 			},
 			expectError: true,
 		},
 		{
-			name:   "Validation passes on empty slice",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation passes on empty slice",
+			resource: TestRequiredTag{
 				StructField: []int{},
 			},
 		},
 		{
-			name:   "Validation fails on nil map",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation fails on nil map",
+			resource: TestRequiredTag{
 				StructField: nilMap,
 			},
 			expectError: true,
 		},
 		{
-			name:   "Validation passes on empty map",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation passes on empty map",
+			resource: TestRequiredTag{
 				StructField: map[int]int{},
 			},
 		},
 		{
-			name:   "Validation fails on nil pointer",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation fails on nil pointer",
+			resource: TestRequiredTag{
 				StructField: nilPointer,
 			},
 			expectError: true,
 		},
 		{
 			// FieldLevel.ExtractType dives into nullable types.
-			name:   "Validation fails on pointer to zero value",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation fails on pointer to zero value",
+			resource: TestRequiredTag{
 				StructField: Ptr(nilSlice),
 			},
 			expectError: true,
 		},
 		{
 			// FieldLevel.ExtractType dives into nullable types.
-			name:   "Validation passes on pointer to non-zero value",
-			method: http.MethodPut,
-			resource: TestRequiredForPutTag{
+			name: "Validation passes on pointer to non-zero value",
+			resource: TestRequiredTag{
 				StructField: Ptr([]int{}),
 			},
 		},
@@ -184,11 +181,7 @@ func TestNewValidator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(tt.method, "localhost", nil)
-			require.NoError(t, err)
-
-			ctx := context.WithValue(context.Background(), contextKeyRequest, request)
-			err = validate.StructCtx(ctx, tt.resource)
+			err := validate.Struct(tt.resource)
 
 			if err == nil {
 				if tt.expectError {
@@ -201,7 +194,7 @@ func TestNewValidator(t *testing.T) {
 					switch fieldError.Tag() {
 					case "api_version":
 						// Valid tag, nothing more to check.
-					case "required_for_put":
+					case "required":
 						// Verify the validate instance is using GetJSONTagName.
 						assert.Equal(t, "field", fieldError.Field())
 						assert.Equal(t, "StructField", fieldError.StructField())

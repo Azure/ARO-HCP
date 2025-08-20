@@ -15,7 +15,6 @@
 package api
 
 import (
-	"context"
 	"crypto/x509"
 	"fmt"
 	"net/http"
@@ -28,13 +27,6 @@ import (
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-)
-
-type contextKey int
-
-const (
-	contextKeyRequest contextKey = iota
-	contextKeyResourceType
 )
 
 // GetJSONTagName extracts the JSON field name from the "json" key in
@@ -169,51 +161,6 @@ func NewValidator() *validator.Validate {
 		panic(err)
 	}
 
-	// Use this for fields required in PUT requests. Do not apply to read-only fields.
-	err = validate.RegisterValidationCtx("required_for_put", func(ctx context.Context, fl validator.FieldLevel) bool {
-		var method string
-
-		if request, ok := ctx.Value(contextKeyRequest).(*http.Request); ok {
-			if request != nil {
-				method = request.Method
-			}
-		} else {
-			panic(fmt.Sprintf("Could not obtain http.Request for %q validation", fl.GetTag()))
-		}
-
-		switch method {
-		case http.MethodPut:
-			// proceed
-		case http.MethodPost:
-			// For deployment preflight we evaluate resources as though it were a PUT.
-			resourceType, ok := ctx.Value(contextKeyResourceType).(azcorearm.ResourceType)
-			if !ok || !strings.EqualFold(resourceType.String(), PreflightResourceType.String()) {
-				return true
-			}
-		default:
-			return true
-		}
-
-		// This is replicating the implementation of "required".
-		// See https://github.com/go-playground/validator/issues/492
-		// Sounds like "hasValue" is unlikely to be exported and
-		// "validate.Var" does not seem like a safe alternative.
-		field := fl.Field()
-		_, kind, nullable := fl.ExtractType(field)
-		switch kind {
-		case reflect.Slice, reflect.Map, reflect.Ptr, reflect.Interface, reflect.Chan, reflect.Func:
-			return !field.IsNil()
-		default:
-			if nullable && field.Interface() != nil {
-				return true
-			}
-			return field.IsValid() && !field.IsZero()
-		}
-	})
-	if err != nil {
-		panic(err)
-	}
-
 	// Use this for string fields specifying an Azure resource ID.
 	// The optional argument further enforces a specific resource type.
 	err = validate.RegisterValidation("resource_id", func(fl validator.FieldLevel) bool {
@@ -321,18 +268,9 @@ func fieldErrorToTarget(fe validator.FieldError) string {
 }
 
 func ValidateRequest[T any](validate *validator.Validate, request *http.Request, resource T) []arm.CloudErrorBody {
-	var ctx = context.Background()
 	var errorDetails []arm.CloudErrorBody
 
-	ctx = context.WithValue(ctx, contextKeyRequest, request)
-	if request != nil && request.URL != nil {
-		resourceType, err := azcorearm.ParseResourceType(request.URL.Path)
-		if err == nil {
-			ctx = context.WithValue(ctx, contextKeyResourceType, resourceType)
-		}
-	}
-	err := validate.StructCtx(ctx, resource)
-
+	err := validate.Struct(resource)
 	if err == nil {
 		return nil
 	}
@@ -371,8 +309,6 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 						errList := k8svalidation.IsQualifiedName(value)
 						message += fmt.Sprintf(" (%s)", strings.Join(errList, "; "))
 					}
-				case "required", "required_for_put": // custom tag
-					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
 				case "resource_id": // custom tag
 					if len(params) > 0 {
 						message += fmt.Sprintf(" (must be a valid '%s' resource ID)", params[0])
@@ -388,6 +324,13 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 						zero := reflect.Zero(fieldErr.Type()).Interface()
 						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
 						message = fmt.Sprintf("Field '%s' must be %v when '%s' is specified", fieldErr.Field(), zero, jsonName)
+					}
+				case "excluded_unless":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					if len(params) > 1 {
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' can only be set when '%s' is '%s'", fieldErr.Field(), jsonName, params[1])
 					}
 				case "gtefield":
 					if len(params) > 0 {
@@ -421,6 +364,15 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 								message += fmt.Sprintf(" (must be at least %s)", params[0])
 							}
 						}
+					}
+				case "required":
+					message = fmt.Sprintf("Missing required field '%s'", fieldErr.Field())
+				case "required_if":
+					// The parameter format is pairs of "fieldName fieldValue".
+					// Multiple pairs are possible but we currently only use one.
+					if len(params) > 1 {
+						jsonName := fieldNameToJSONName[T](fieldErr, params[0])
+						message = fmt.Sprintf("Field '%s' is required when '%s' is '%s'", fieldErr.Field(), jsonName, params[1])
 					}
 				case "required_unless":
 					// The parameter format is pairs of "fieldName fieldValue".

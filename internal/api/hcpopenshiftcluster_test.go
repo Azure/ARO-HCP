@@ -39,7 +39,7 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 		cmpopts.IgnoreFields(arm.CloudErrorBody{}, "Code"))
 }
 
-func TestClusterRequiredForPut(t *testing.T) {
+func TestClusterRequired(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftCluster
@@ -96,7 +96,8 @@ func TestClusterRequiredForPut(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						NewTestUserAssignedIdentity("MyManagedIdentity"): &arm.UserAssignedIdentity{},
 					},
@@ -117,7 +118,8 @@ func TestClusterRequiredForPut(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
 					},
@@ -160,7 +162,7 @@ func TestClusterRequiredForPut(t *testing.T) {
 }
 
 func TestClusterValidate(t *testing.T) {
-	// Note "required_for_put" validation tests are above.
+	// Note "required" validation tests are above.
 	// This function tests all the other validators in use.
 	tests := []struct {
 		name         string
@@ -270,7 +272,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad enum_managedserviceidentitytype",
 			tweaks: &HCPOpenShiftCluster{
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
 					Type: "brokenServiceType",
 				},
 			},
@@ -406,6 +408,92 @@ func TestClusterValidate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'customerManaged' is required when 'keyManagementMode' is 'CustomerManaged'",
+					Target:  "properties.etcd.dataEncryption.customerManaged",
+				},
+			},
+		},
+		{
+			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+							CustomerManaged:   &CustomerManagedEncryptionProfile{},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'customerManaged' can only be set when 'keyManagementMode' is 'CustomerManaged'",
+					Target:  "properties.etcd.dataEncryption.customerManaged",
+				},
+			},
+		},
+		{
+			name: "Customer managed Key Management Service (KMS) requires Kms fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &CustomerManagedEncryptionProfile{
+								EncryptionType: CustomerManagedEncryptionTypeKMS,
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Field 'kms' is required when 'encryptionType' is 'KMS'",
+					Target:  "properties.etcd.dataEncryption.customerManaged.kms",
+				},
+			},
+		},
+		{
+			// FIXME Use a valid alternate EncryptionType once we have one.
+			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
+			tweaks: &HCPOpenShiftCluster{
+				Properties: HCPOpenShiftClusterProperties{
+					Etcd: EtcdProfile{
+						DataEncryption: EtcdDataEncryptionProfile{
+							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &CustomerManagedEncryptionProfile{
+								EncryptionType: "Alternate",
+								Kms:            &KmsEncryptionProfile{},
+							},
+						},
+					},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'Alternate' for field 'encryptionType' (must be KMS)",
+					Target:  "properties.etcd.dataEncryption.customerManaged.encryptionType",
+				},
+				{
+					Message: "Field 'kms' can only be set when 'encryptionType' is 'KMS'",
+					Target:  "properties.etcd.dataEncryption.customerManaged.kms",
+				},
+			},
+		},
+
 		//--------------------------------
 		// Complex multi-field validation
 		//--------------------------------
@@ -532,7 +620,8 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						strings.ToUpper(managedIdentity1): &arm.UserAssignedIdentity{},
 						strings.ToUpper(managedIdentity2): &arm.UserAssignedIdentity{},
@@ -555,7 +644,8 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						managedIdentity3: &arm.UserAssignedIdentity{},
 					},
@@ -592,7 +682,8 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						managedIdentity1: &arm.UserAssignedIdentity{},
 					},
@@ -619,7 +710,8 @@ func TestClusterValidate(t *testing.T) {
 						},
 					},
 				},
-				Identity: arm.ManagedServiceIdentity{
+				Identity: &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
 						managedIdentity1: &arm.UserAssignedIdentity{},
 					},
