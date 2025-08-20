@@ -67,7 +67,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
-				"cluster",
+				"pull-secret-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
 				map[string]interface{}{
 					"persistTagValue": false,
