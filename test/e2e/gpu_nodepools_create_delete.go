@@ -91,7 +91,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(framework.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
 				// Use Bicep template to create a nodepool with the specified parameters
-				npName := "np-gpu-" + sku.display
+				npName := sku.display
 				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
