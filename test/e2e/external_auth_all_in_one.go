@@ -222,7 +222,7 @@ func eaCreateAppAndSecret(ctx context.Context, token, name string, ttl time.Dura
 	var pwd struct{ SecretText, End string }
 	if err := eaGraphReq(ctx, http.MethodPost,
 		fmt.Sprintf("https://graph.microsoft.com/v1.0/applications/%s/addPassword", app.ID),
-		token, map[string]any{"passwordCredential": map[string]any{"displayName": "e2e-secret", "endDateTime": secEnd}},
+		token, map[string]any{"passwordCredential": map[string]any{"displayName": "console-secret", "endDateTime": secEnd}},
 		&pwd, http.StatusOK); err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ var _ = Describe("ExternalAuth All-in-One creates Entra app+secret, provisions H
 			}
 			tok, err := eaGraphToken(ctx, cred)
 			Expect(err).NotTo(HaveOccurred())
-			app, err := eaCreateAppAndSecret(ctx, tok, fmt.Sprintf("e2e-hypershift-%d", time.Now().Unix()), 48*time.Hour)
+			app, err := eaCreateAppAndSecret(ctx, tok, fmt.Sprintf("entra-%d", time.Now().Unix()), 48*time.Hour)
 			Expect(err).NotTo(HaveOccurred())
 			if app.TenantID == "" {
 				app.TenantID = tenantHint
@@ -286,8 +286,8 @@ var _ = Describe("ExternalAuth All-in-One creates Entra app+secret, provisions H
 				customerSubnet = "customer-vnet-subnet1"
 
 				clusterName = "external-auth-smoke"
-				versionCP   = "4.19"   // control-plane MAJOR.MINOR
-				versionNP   = "4.19.0" // nodepool FULL version
+				versionCP   = "4.19.7" // control-plane MAJOR.MINOR
+				versionNP   = "4.19.7" // nodepool FULL version
 			)
 			tc := framework.NewTestContext()
 
