@@ -29,10 +29,12 @@ import (
 var _ = Describe("ARO-HCP Cluster Deletion", func() {
 	var clusterName string
 	var resourceGroup string
+	var managedResourceGroupName *string
 
 	BeforeEach(func() {
 		clusterName = e2eSetup.Cluster.Name
 		resourceGroup = e2eSetup.CustomerEnv.CustomerRGName
+		managedResourceGroupName = e2eSetup.Cluster.ARMData.Properties.Platform.ManagedResourceGroup
 	})
 
 	It("should confirm the HCP cluster is deleted (not found)", labels.TeardownValidation, labels.Critical, func(ctx context.Context) {
@@ -42,6 +44,19 @@ var _ = Describe("ARO-HCP Cluster Deletion", func() {
 		_, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
 		Expect(err).ToNot(BeNil())
 		errMessage := fmt.Sprintf("The Resource 'Microsoft.RedHatOpenShift/HCPOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
+		Expect(err.Error()).To(ContainSubstring(errMessage))
+	})
+
+	It("should confirm the managed resource group is deleted (not found)", labels.TeardownValidation, labels.Critical, func(ctx context.Context) {
+		tc := framework.NewTestContext()
+		if managedResourceGroupName == nil || *managedResourceGroupName == "" {
+			Fail("Managed resource group is not present in ARM data, cannot validate deletion")
+		}
+		resourceGroupsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient()
+		By("checking that the managed resource group is not present")
+		_, err := resourceGroupsClient.Get(ctx, *managedResourceGroupName, nil)
+		Expect(err).ToNot(BeNil())
+		errMessage := fmt.Sprintf("The Resource 'Microsoft.Resources/resourceGroups/%s' was not found.", *managedResourceGroupName)
 		Expect(err.Error()).To(ContainSubstring(errMessage))
 	})
 })
