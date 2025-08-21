@@ -28,7 +28,5 @@ demo/external-auth-payload.json
 *.sha256
 test/e2e/bicep-templates/
 test/e2e/out/
-<<<<<<< HEAD
-=======
-.openshift-tests-extension/
->>>>>>> 2b3f0017 (chore: ignore .openshift-tests-extension/)
+*.openshift-tests-extension/
+
