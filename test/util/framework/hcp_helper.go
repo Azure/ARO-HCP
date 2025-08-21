@@ -248,6 +248,11 @@ func DeleteAllHCPClusters(
 	return nil
 }
 
+// getNodePoolLabelSelector generates the standard LabelSelector for a nodepool
+func getNodePoolLabelSelector(clusterName, nodePoolName string) string {
+	return fmt.Sprintf("hypershift.openshift.io/nodePool=%s-%s", strings.ToLower(clusterName), strings.ToLower(nodePoolName))
+}
+
 // VerifyNodePool verifies that a NodePool has the expected configuration.
 // This function uses the Kubernetes nodes API to check the actual nodes belonging to the nodepool.
 // Since HyperShift NodePool CRDs are not accessible from the hosted cluster, this approach
@@ -294,7 +299,7 @@ func (v verifyNodePoolBasicAccess) Verify(ctx context.Context, adminRESTConfig *
 
 	// List nodes with the nodepool label
 	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+		LabelSelector: getNodePoolLabelSelector(clusterName, nodePoolName),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
@@ -357,7 +362,7 @@ func (v verifyNodePoolReplicas) Verify(ctx context.Context, adminRESTConfig *res
 
 	// List nodes with the nodepool label
 	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+		LabelSelector: getNodePoolLabelSelector(clusterName, nodePoolName),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
@@ -388,7 +393,7 @@ func (v verifyNodePoolOsDiskSize) Verify(ctx context.Context, adminRESTConfig *r
 
 	// List nodes with the nodepool label
 	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+		LabelSelector: getNodePoolLabelSelector(clusterName, nodePoolName),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
