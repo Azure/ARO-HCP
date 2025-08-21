@@ -88,7 +88,7 @@ output globalMSIId string = globalMSI.id
 //   G L O B A L   KV
 //
 
-resource globalKV 'Microsoft.KeyVault/vaults@2023-06-01' existing = {
+resource globalKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: globalKVName
 }
 
