@@ -1,3 +1,20 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright 2025 Microsoft
+// Licensed under the Apache License, Version 2.0.
+
 package e2e
 
 import (
@@ -25,23 +42,39 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-const eaOut = "test/e2e/out"
+/*
+Env (required)
+  SUBSCRIPTION_ID
+  RESOURCE_GROUP
+  CLUSTER_NAME
+  ENTRA_TENANT_ID
+  ENTRA_CLIENT_ID
 
-// -------- helpers (unique names) --------
+Env (optional)
+  EXTERNAL_AUTH_NAME      default: "entra"
+  ENTRA_CLIENT_SECRET     if set, writes secret to openshift-config/oidc-client-secret
+  RP_API_VERSION          default: 2024-06-10-preview
+  RP_BASE_URL             if set (e.g. http://localhost:8443), uses RP frontend; else ARM
+  RP_BEARER_TOKEN         optional bearer for RP frontend
+  INSECURE_SKIP_TLS       "true" to skip TLS verify
+*/
 
-func eoMustWrite(path string, b []byte) {
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	Expect(os.WriteFile(path, b, 0o644)).To(Succeed())
-}
+const ea2OutDir = "test/e2e/out"
 
-func eoHTTPClient() *http.Client {
-	// allow skipping TLS for dev RP if using https + self-signed
+// --------- local helpers (unique names to avoid collisions) ---------
+
+func ea2HTTP() *http.Client {
 	insecure := strings.EqualFold(os.Getenv("INSECURE_SKIP_TLS"), "true")
 	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}}
 	return &http.Client{Transport: tr, Timeout: 45 * time.Second}
 }
 
-func eoARMToken(ctx context.Context) (string, error) {
+func ea2MustWrite(path string, b []byte) {
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	Expect(os.WriteFile(path, b, 0o644)).To(Succeed())
+}
+
+func ea2ARMToken(ctx context.Context) (string, error) {
 	if t := strings.TrimSpace(os.Getenv("ARM_BEARER_TOKEN")); t != "" {
 		return t, nil
 	}
@@ -49,22 +82,12 @@ func eoARMToken(ctx context.Context) (string, error) {
 		"--resource=https://management.azure.com/", "--query", "accessToken", "-o", "tsv")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("az get ARM token: %v: %s", err, string(out))
+		return "", fmt.Errorf("az get-access-token: %v: %s", err, string(out))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-func eoBreakglass(ctx context.Context, rg, cluster string, timeout time.Duration) *rest.Config {
-	rc, err := framework.GetAdminRESTConfigForHCPCluster(
-		ctx,
-		framework.NewTestContext().Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-		rg, cluster, timeout,
-	)
-	Expect(err).NotTo(HaveOccurred())
-	return rc
-}
-
-func eoWriteKubeconfig(path string, rc *rest.Config) {
+func ea2WriteKubeconfig(path string, rc *rest.Config) {
 	cfg := clientcmdapi.NewConfig()
 	cfg.Clusters["hc"] = &clientcmdapi.Cluster{
 		Server:                   rc.Host,
@@ -76,26 +99,26 @@ func eoWriteKubeconfig(path string, rc *rest.Config) {
 		ClientCertificateData: rc.CertData,
 		ClientKeyData:         rc.KeyData,
 	}
-	cfg.Contexts["ctx"] = &clientcmdapi.Context{Cluster: "hc", AuthInfo: "hc-admin"}
-	cfg.CurrentContext = "ctx"
+	cfg.Contexts["hc"] = &clientcmdapi.Context{Cluster: "hc", AuthInfo: "hc-admin"}
+	cfg.CurrentContext = "hc"
 	Expect(clientcmd.WriteToFile(*cfg, path)).To(Succeed())
 }
 
-func eoRun(ctx context.Context, name string, args ...string) (string, error) {
-	if name == "kubectl" || name == "oc" {
-		args = append(args, "--insecure-skip-tls-verify")
-	}
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
+func ea2Kubectl(ctx context.Context, args ...string) (string, error) {
+	args = append(args, "--insecure-skip-tls-verify")
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	b, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(b)), err
 }
 
-var _ = Describe("ExternalAuth minimal OIDC (ARM, console+cli clients)", labels.RequireNothing, labels.Critical, labels.Positive, func() {
-	It("applies minimal OIDC (PUT via ARM), optionally stores secret in cluster, and verifies", func(ctx context.Context) {
+// --------------------------- TEST ---------------------------
+
+var _ = Describe("ExternalAuth minimal OIDC (ARM/RP), console+cli", labels.RequireNothing, labels.Critical, labels.Positive, func() {
+	It("applies minimal OIDC via PUT, logs into cluster via helper, optionally stores secret, then verifies via GET", func(ctx context.Context) {
+		// Inputs
 		subID := strings.TrimSpace(os.Getenv("SUBSCRIPTION_ID"))
 		rg := strings.TrimSpace(os.Getenv("RESOURCE_GROUP"))
 		cluster := strings.TrimSpace(os.Getenv("CLUSTER_NAME"))
-
 		tenantID := strings.TrimSpace(os.Getenv("ENTRA_TENANT_ID"))
 		clientID := strings.TrimSpace(os.Getenv("ENTRA_CLIENT_ID"))
 		clientSecret := strings.TrimSpace(os.Getenv("ENTRA_CLIENT_SECRET"))
@@ -115,34 +138,35 @@ var _ = Describe("ExternalAuth minimal OIDC (ARM, console+cli clients)", labels.
 		Expect(tenantID).NotTo(BeEmpty(), "ENTRA_TENANT_ID")
 		Expect(clientID).NotTo(BeEmpty(), "ENTRA_CLIENT_ID")
 
-		// Compose base + path once. The important fix: externalAuths/<EXTERNAL_AUTH_NAME> (e.g. "entra"), NOT cluster name.
-		path := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/externalAuths/%s?api-version=%s",
-			subID, rg, cluster, externalAuthName, apiVersion)
+		// ARM path (note: externalAuths/<name>, not cluster name)
+		path := fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/externalAuths/%s?api-version=%s",
+			subID, rg, cluster, externalAuthName, apiVersion,
+		)
 
-		// Decide target (RP vs ARM)
-		rpBase := strings.TrimSpace(os.Getenv("RP_BASE_URL")) // e.g. http://localhost:8443
+		// Decide RP vs ARM
+		rpBase := strings.TrimSpace(os.Getenv("RP_BASE_URL"))
 		useRP := rpBase != ""
 
 		var url string
-		var reqHeaders http.Header = make(http.Header)
+		reqHeaders := make(http.Header)
 		if useRP {
 			url = strings.TrimRight(rpBase, "/") + path
-			// Dev RP accepts these ARM-like headers:
 			reqHeaders.Set("X-Ms-Arm-Resource-System-Data",
-				fmt.Sprintf(`{"createdBy":"e2e","createdByType":"User","createdAt":"%s"}`, time.Now().UTC().Format(time.RFC3339)))
+				fmt.Sprintf(`{"createdBy": "mfreer@redhat.com", "createdByType": "User", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339)))
 			reqHeaders.Set("X-Ms-Identity-Url", "https://dummy.identity.azure.net")
 			if tok := strings.TrimSpace(os.Getenv("RP_BEARER_TOKEN")); tok != "" {
 				reqHeaders.Set("Authorization", "Bearer "+tok)
 			}
 		} else {
 			url = "https://management.azure.com" + path
-			tok, err := eoARMToken(ctx)
+			tok, err := ea2ARMToken(ctx)
 			Expect(err).NotTo(HaveOccurred())
 			reqHeaders.Set("Authorization", "Bearer "+tok)
 		}
 
-		// 1) PUT minimal ExternalAuth (console confidential + cli public)
-		By("PUT minimal ExternalAuth")
+		// -------- PUT minimal ExternalAuth (console confidential + cli public) --------
+		By("PUT minimal ExternalAuth (console+cli)")
 		putBody := map[string]any{
 			"properties": map[string]any{
 				"issuer": map[string]any{
@@ -174,46 +198,54 @@ var _ = Describe("ExternalAuth minimal OIDC (ARM, console+cli clients)", labels.
 				},
 			},
 		}
-		bodyJSON, _ := json.Marshal(putBody)
+		putJSON, _ := json.Marshal(putBody)
 
-		req, _ := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(bodyJSON))
+		putReq, _ := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(putJSON))
 		for k, vs := range reqHeaders {
 			for _, v := range vs {
-				req.Header.Add(k, v)
+				putReq.Header.Add(k, v)
 			}
 		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := eoHTTPClient().Do(req)
+		putReq.Header.Set("Content-Type", "application/json")
+		putResp, err := ea2HTTP().Do(putReq)
 		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		respBody, _ := io.ReadAll(resp.Body)
+		defer putResp.Body.Close()
+		putRespBody, _ := io.ReadAll(putResp.Body)
 
-		_ = os.MkdirAll(eaOut, 0o755)
-		eoMustWrite(filepath.Join(eaOut, "external_auth_put.body.json"), respBody)
-		eoMustWrite(filepath.Join(eaOut, "external_auth_put.status.txt"), []byte(fmt.Sprintf("%d", resp.StatusCode)))
+		_ = os.MkdirAll(ea2OutDir, 0o755)
+		ea2MustWrite(filepath.Join(ea2OutDir, "external_auth_put.body.json"), putRespBody)
+		ea2MustWrite(filepath.Join(ea2OutDir, "external_auth_put.status.txt"), []byte(fmt.Sprintf("%d", putResp.StatusCode)))
 
-		Expect(resp.StatusCode).To(BeElementOf(http.StatusOK, http.StatusCreated, http.StatusAccepted),
-			"PUT %s status=%d body=%s", url, resp.StatusCode, string(respBody))
+		Expect(putResp.StatusCode).To(BeElementOf(http.StatusOK, http.StatusCreated, http.StatusAccepted),
+			"PUT %s status=%d body=%s", url, putResp.StatusCode, string(putRespBody))
 
-		// 2) Optional: write confidential client secret into the hosted cluster
+		// -------- Breakglass admin login via helper & optionally write secret --------
+		By("obtaining admin REST config (helper) and logging into cluster")
+		tc := framework.NewTestContext()
+		adminRC, err := framework.GetAdminRESTConfigForHCPCluster(
+			ctx,
+			tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+			rg,
+			cluster,
+			10*time.Minute,
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		kcPath := filepath.Join(ea2OutDir, "breakglass.kubeconfig")
+		ea2WriteKubeconfig(kcPath, adminRC)
+		Expect(os.Setenv("KUBECONFIG", kcPath)).To(Succeed())
+
 		if clientSecret != "" {
-			By("breakglass -> create openshift-config/oidc-client-secret")
-			rc := eoBreakglass(ctx, rg, cluster, 10*time.Minute)
-			kcPath := filepath.Join(eaOut, "breakglass.kubeconfig")
-			eoWriteKubeconfig(kcPath, rc)
-			Expect(os.Setenv("KUBECONFIG", kcPath)).To(Succeed())
-
-			// ensure ns exists + create/replace secret
-			_, err = eoRun(ctx, "kubectl", "get", "ns", "openshift-config", "-o", "name")
+			By("creating/overwriting secret openshift-config/oidc-client-secret")
+			_, err = ea2Kubectl(ctx, "get", "ns", "openshift-config", "-o", "name")
 			Expect(err).NotTo(HaveOccurred())
-			_, _ = eoRun(ctx, "kubectl", "-n", "openshift-config", "delete", "secret", "oidc-client-secret", "--ignore-not-found")
-			_, err = eoRun(ctx, "kubectl", "-n", "openshift-config", "create", "secret", "generic", "oidc-client-secret",
+			_, _ = ea2Kubectl(ctx, "-n", "openshift-config", "delete", "secret", "oidc-client-secret", "--ignore-not-found")
+			_, err = ea2Kubectl(ctx, "-n", "openshift-config", "create", "secret", "generic", "oidc-client-secret",
 				"--from-literal", "clientSecret="+clientSecret)
 			Expect(err).NotTo(HaveOccurred())
 		}
 
-		// 3) GET to verify
+		// -------- GET verify with exact spacing you requested --------
 		By("GET verify ExternalAuth")
 		getReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		for k, vs := range reqHeaders {
@@ -221,15 +253,17 @@ var _ = Describe("ExternalAuth minimal OIDC (ARM, console+cli clients)", labels.
 				getReq.Header.Add(k, v)
 			}
 		}
-		getResp, err := eoHTTPClient().Do(getReq)
+		getResp, err := ea2HTTP().Do(getReq)
 		Expect(err).NotTo(HaveOccurred())
 		defer getResp.Body.Close()
-		getBody, _ := io.ReadAll(getResp.Body)
-		eoMustWrite(filepath.Join(eaOut, "external_auth_get.body.json"), getBody)
-		eoMustWrite(filepath.Join(eaOut, "external_auth_get.status.txt"), []byte(fmt.Sprintf("%d", getResp.StatusCode)))
-		Expect(getResp.StatusCode).To(Equal(http.StatusOK), "GET %s status=%d body=%s", url, getResp.StatusCode, string(getBody))
+		getRespBody, _ := io.ReadAll(getResp.Body)
 
-		Expect(string(getBody)).To(ContainSubstring(`"name":"` + externalAuthName + `"`))
-		Expect(string(getBody)).To(ContainSubstring(`"type":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"`))
+		ea2MustWrite(filepath.Join(ea2OutDir, "external_auth_get.body.json"), getRespBody)
+		ea2MustWrite(filepath.Join(ea2OutDir, "external_auth_get.status.txt"), []byte(fmt.Sprintf("%d", getResp.StatusCode)))
+
+		Expect(getResp.StatusCode).To(Equal(http.StatusOK),
+			"GET %s status=%d body=%s", url, getResp.StatusCode, string(getRespBody))
+		Expect(string(getRespBody)).To(ContainSubstring(`"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"`))
+		Expect(string(getRespBody)).To(ContainSubstring(`"name": "` + externalAuthName + `"`))
 	})
 })
