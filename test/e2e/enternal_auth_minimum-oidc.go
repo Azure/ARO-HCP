@@ -82,7 +82,7 @@ var _ = Describe("ExternalAuth minimal OIDC (existing Entra app) via RP frontend
 
 			const apiVersion = "2024-06-10-preview"
 			resourcePath := fmt.Sprintf(
-				"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/externalAuths/e2e-hypershift?api-version=%s",
+				"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/externalAuths/entra?api-version=%s",
 				subID, rg, cluster, apiVersion,
 			)
 
@@ -138,7 +138,7 @@ var _ = Describe("ExternalAuth minimal OIDC (existing Entra app) via RP frontend
 			ea4WriteOut("min_oidc_get", getResp.Header, getRespBody)
 			Expect(getResp.StatusCode).To(Equal(http.StatusOK),
 				"GET status=%d body=%s", getResp.StatusCode, string(getRespBody))
-			Expect(string(getRespBody)).To(ContainSubstring(`"type":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"`))
-			Expect(string(getRespBody)).To(ContainSubstring(`"name":"entra"`))
+			Expect(string(getRespBody)).To(ContainSubstring(`"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"`))
+			Expect(string(getRespBody)).To(ContainSubstring(`"name": "entra"`))
 		})
 	})

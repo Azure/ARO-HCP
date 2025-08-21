@@ -154,7 +154,7 @@ var _ = Describe("ExternalEntra Create", func() {
 			tenantID, err := entraResolveTenantID(ctx, token)
 			Expect(err).NotTo(HaveOccurred())
 
-			displayName := "e2e-hypershift-oidc"
+			displayName := "e2e-hypershift"
 			outFile := os.Getenv("ENTRA_E2E_SECRET_PATH")
 			if outFile == "" {
 				outFile = "test/e2e/out/entra_app_secret.json"
