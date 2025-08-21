@@ -96,7 +96,6 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
@@ -105,7 +104,6 @@ var _ = Describe("Customer", func() {
 				map[string]interface{}{
 					"openshiftVersionId":          openshiftControlPlaneVersionId,
 					"clusterName":                 customerClusterName,
-					"managedResourceGroupName":    managedResourceGroupName,
 					"nsgName":                     customerNetworkSecurityGroupName,
 					"subnetName":                  customerVnetSubnetName,
 					"vnetName":                    customerVnetName,

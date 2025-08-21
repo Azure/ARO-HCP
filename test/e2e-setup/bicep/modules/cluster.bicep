@@ -2,7 +2,7 @@
 param clusterName string
 
 @description('The Hypershift cluster managed resource group name')
-param managedResourceGroupName string = '${clusterName}-rg'
+param managedResourceGroupName string = ''
 
 @description('The Network security group name for the hcp cluster resources')
 param nsgName string
