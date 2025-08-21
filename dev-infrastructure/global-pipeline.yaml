@@ -20,6 +20,15 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: global
+      step: infra
   - name: onecert-private-kv-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -31,7 +40,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: global
-        step: infra
+        step: output
         name: globalKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
@@ -43,15 +52,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: global
       step: onecert-private-kv-issuer
-  - name: output
-    action: ARM
-    template: templates/output-global.bicep
-    parameters: configurations/output-global.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
-    dependsOn:
-    - resourceGroup: global
-      step: infra
   - name: housekeeping
     action: Shell
     command: scripts/global-housekeeping.sh
@@ -67,6 +67,9 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: infra
   - name: grafana-dashboards
     action: Shell
     command: cd ../observability/grafana && ./deploy.sh
