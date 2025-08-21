@@ -9,12 +9,19 @@ is_stg_testing_subscription() {
     return $(test "$(az account show --query name --output tsv)" = "ARO HCP - STAGE testing (EA Subscription)")
 }
 
+is_prod_testing_subscription() {
+    return $(test "$(az account show --query name --output tsv)" = "ARO Hosted Control Planes (EA Subscription 1)")
+}
+
 if is_int_testing_subscription; then
     export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
     DEMO_ENV_NAME=int
 elif is_stg_testing_subscription; then
     export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
     DEMO_ENV_NAME=stg
+elif is_prod_testing_subscription; then
+    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
+    DEMO_ENV_NAME=prod
 else
     export FRONTEND_HOST="http://localhost:8443"
     DEMO_ENV_NAME=${DEPLOY_ENV:-pers}
@@ -49,8 +56,13 @@ if [ -z "${NP_NAME:-}" ]; then
     export NP_NAME="np-1"
 fi
 
+if [ -z "${EXTERNAL_AUTH_NAME:-}" ]; then
+    export EXTERNAL_AUTH_NAME="entra"
+fi
+
 export SUBSCRIPTION_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}"
 export RESOURCE_GROUP_RESOURCE_ID="${SUBSCRIPTION_RESOURCE_ID}/resourceGroups/${CUSTOMER_RG_NAME}"
 export CLUSTER_RESOURCE_ID="${RESOURCE_GROUP_RESOURCE_ID}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/${CLUSTER_NAME}"
 export NODE_POOL_RESOURCE_ID="${CLUSTER_RESOURCE_ID}/nodePools/${NP_NAME}"
+export EXTERNAL_AUTH_RESOURCE_ID="${CLUSTER_RESOURCE_ID}/externalAuths/${EXTERNAL_AUTH_NAME}"
 export FRONTEND_API_VERSION="2024-06-10-preview"

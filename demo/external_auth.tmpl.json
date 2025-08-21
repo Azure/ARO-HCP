@@ -1,0 +1,17 @@
+{
+    "properties": {
+        "claim": {
+            "mappings": {
+                "username": {
+                    "claim": "email"
+                }
+            }
+        },
+        "issuer": {
+            "url": "https://login.microsoftonline.com/fa5d3dd8-b8ec-4407-a55c-ced639f1c8c5/v2.0",
+            "audiences": [
+                "73cb8474-bbd2-418a-b4a9-2da9ecf26383"
+            ]
+        }
+    }
+}
