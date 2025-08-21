@@ -27,10 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -404,24 +401,24 @@ func (v verifyNodePoolOsDiskSize) Verify(ctx context.Context, adminRESTConfig *r
 	// Check the first node's ephemeral storage capacity to infer disk size
 	node := nodes.Items[0]
 	ephemeralStorage := node.Status.Capacity["ephemeral-storage"]
-	
+
 	// Convert from Ki to GiB
 	storageKi, err := strconv.ParseInt(strings.TrimSuffix(ephemeralStorage.String(), "Ki"), 10, 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse ephemeral-storage value %s: %w", ephemeralStorage.String(), err)
 	}
-	
+
 	// Convert Ki to GiB: Ki -> bytes -> GiB
 	storageGiB := storageKi / 1024 / 1024
-	
+
 	// Allow for filesystem overhead: typically 5-10% less than the raw disk size
 	// For a 64GiB disk, we expect ~60-63 GiB available
 	// For a 128GiB disk, we expect ~120-125 GiB available
 	minExpectedGiB := int64(float64(v.expectedOsDiskSizeGiB) * 0.90) // 90% of expected
 	maxExpectedGiB := int64(v.expectedOsDiskSizeGiB)
-	
+
 	if storageGiB < minExpectedGiB || storageGiB > maxExpectedGiB {
-		return fmt.Errorf("expected disk size around %d GiB (allowing for filesystem overhead), but node %s shows %d GiB ephemeral storage", 
+		return fmt.Errorf("expected disk size around %d GiB (allowing for filesystem overhead), but node %s shows %d GiB ephemeral storage",
 			v.expectedOsDiskSizeGiB, node.Name, storageGiB)
 	}
 
