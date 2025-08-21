@@ -86,8 +86,8 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	var updating = (resourceDoc != nil)
 	var operationRequest database.OperationRequest
 
-	var currentExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
-	var requestExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var versionedCurrentExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var versionedRequestExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
 	var successStatusCode int
 
 	if updating {
@@ -110,12 +110,12 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
-			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
-			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
-			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
-			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			successStatusCode = http.StatusAccepted
 		}
 	} else {
@@ -123,8 +123,8 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 		switch request.Method {
 		case http.MethodPut:
-			currentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
-			requestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
@@ -150,13 +150,13 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	if err = json.Unmarshal(body, requestExternalAuth); err != nil {
+	if err = json.Unmarshal(body, versionedRequestExternalAuth); err != nil {
 		logger.Error(err.Error())
 		arm.WriteInvalidRequestContentError(writer, err)
 		return
 	}
 
-	cloudError = requestExternalAuth.ValidateStatic(currentExternalAuth, updating, request)
+	cloudError = versionedRequestExternalAuth.ValidateStatic(versionedCurrentExternalAuth, updating, request)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -164,7 +164,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
-	requestExternalAuth.Normalize(hcpExternalAuth)
+	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
 
 	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
 	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
