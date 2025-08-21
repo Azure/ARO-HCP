@@ -1315,7 +1315,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 		hcpCluster.Identity.Type = doc.Identity.Type
 	}
 
-	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)
+	return arm.MarshalJSON(hcpCluster.NewVersioned(versionedInterface))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1496,6 +1496,6 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
-	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
-	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
+	hcpVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
+	return arm.MarshalJSON(hcpVersion.NewVersioned(versionedInterface))
 }

@@ -329,7 +329,3 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 	}
 	return out
 }
-
-func (v version) MarshalHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) ([]byte, error) {
-	return arm.MarshalJSON(v.NewHCPOpenShiftClusterExternalAuth(from))
-}

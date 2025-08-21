@@ -86,11 +86,7 @@ type Version interface {
 	NewHCPOpenShiftVersion(*HCPOpenShiftVersion) VersionedHCPOpenShiftVersion
 
 	// Response Marshaling
-	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
-	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
-	MarshalHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) ([]byte, error)
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
-	MarshalHCPOpenShiftVersion(*HCPOpenShiftVersion) ([]byte, error)
 }
 
 // apiRegistry is the map of registered API versions

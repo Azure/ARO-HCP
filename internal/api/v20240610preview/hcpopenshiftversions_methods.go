@@ -16,7 +16,6 @@ package v20240610preview
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
@@ -37,10 +36,6 @@ func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.Versi
 			},
 		},
 	}
-}
-
-func (v version) MarshalHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) ([]byte, error) {
-	return arm.MarshalJSON(v.NewHCPOpenShiftVersion(from))
 }
 
 func (v *HcpOpenShiftVersion) GetVersion() api.Version {
