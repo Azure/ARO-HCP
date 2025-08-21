@@ -67,7 +67,7 @@ var _ = Describe("ExternalAuth GET (RP smoke, local PF on 8443)", labels.Require
 		Expect(cluster).NotTo(BeEmpty(), "set CLUSTER_NAME")
 
 		const apiVersion = "2024-06-10-preview"
-		baseURL := "http://localhost:8443"
+		baseURL := "https://management.azure.com/"
 		path := fmt.Sprintf(
 			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/externalAuths/entra?api-version=%s",
 			subID, rg, cluster, apiVersion,
