@@ -236,11 +236,11 @@ var _ = Describe("ExternalAuth minimal OIDC (ARM/RP), console+cli", labels.Requi
 		Expect(os.Setenv("KUBECONFIG", kcPath)).To(Succeed())
 
 		if clientSecret != "" {
-			By("creating/overwriting secret openshift-config/oidc-client-secret")
+			By("creating/overwriting secret openshift-config/ext-auth-client-entra")
 			_, err = ea2Kubectl(ctx, "get", "ns", "openshift-config", "-o", "name")
 			Expect(err).NotTo(HaveOccurred())
-			_, _ = ea2Kubectl(ctx, "-n", "openshift-config", "delete", "secret", "oidc-client-secret", "--ignore-not-found")
-			_, err = ea2Kubectl(ctx, "-n", "openshift-config", "create", "secret", "generic", "oidc-client-secret",
+			_, _ = ea2Kubectl(ctx, "-n", "openshift-config", "delete", "secret", "ext-auth-client-entra", "--ignore-not-found")
+			_, err = ea2Kubectl(ctx, "-n", "openshift-config", "create", "secret", "generic", "ext-auth-client-entra",
 				"--from-literal", "clientSecret="+clientSecret)
 			Expect(err).NotTo(HaveOccurred())
 		}
