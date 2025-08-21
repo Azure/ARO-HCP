@@ -51,7 +51,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:7ea750064350fa81a70d2623e3c68aeb440ad244cb3c49e83edc4a23a5b53ee0
+              digest: sha256:b3e044720fcba2cb3d75369c999d834e16e484ad7566bad60f442cbf54765b9d
           # RP Backend
           backend:
             image:
@@ -118,7 +118,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:7ea750064350fa81a70d2623e3c68aeb440ad244cb3c49e83edc4a23a5b53ee0
+              digest: sha256:b3e044720fcba2cb3d75369c999d834e16e484ad7566bad60f442cbf54765b9d
           # RP Backend
           backend:
             image:
@@ -185,7 +185,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:7ea750064350fa81a70d2623e3c68aeb440ad244cb3c49e83edc4a23a5b53ee0
+              digest: sha256:b3e044720fcba2cb3d75369c999d834e16e484ad7566bad60f442cbf54765b9d
           # RP Backend
           backend:
             image:
