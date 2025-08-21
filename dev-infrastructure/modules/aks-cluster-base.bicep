@@ -586,7 +586,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     poolZones: infraAgentPoolZones
     poolCount: infraAgentPoolCount
     poolRole: 'infra'
-    enableSwitftV2: enableSwiftV2Nodepools
+    enableSwitftV2: false
     minCount: infraAgentMinCount
     maxCount: infraAgentMaxCount
     vmSize: infraAgentVMSize
