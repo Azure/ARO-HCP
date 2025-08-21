@@ -460,6 +460,11 @@ monitoring:
     connectionName: ""
     environment: ""
     manageConnection: false
+    msft:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
     sl:
       actionGroupName: ""
       actionGroupShortName: ""

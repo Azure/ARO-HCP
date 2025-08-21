@@ -33,6 +33,19 @@ param icmRoutingIdSL string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSL string
 
+@description('Name of the ICM Action Group')
+param icmActionGroupNameMSFT string
+
+@description('Name of the ICM Action Group')
+@maxLength(8)
+param icmActionGroupShortNameMSFT string
+
+@description('ICM routing ID')
+param icmRoutingIdMSFT string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledMSFT string
+
 resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-sre'
   location: 'global'
@@ -81,5 +94,30 @@ resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   }
 }
 
+resource icmmsft 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
+  name: 'icm-action-group-msft'
+  location: 'global'
+  properties: {
+    enabled: true
+    groupShortName: icmActionGroupShortNameMSFT
+    incidentReceivers: [
+      {
+        name: icmActionGroupNameMSFT
+        incidentManagementService: 'Icm'
+        connection: {
+          name: icmConnectionName
+          id: icmConnectionId
+        }
+        mappings: {
+          'Icm.occurringlocation.environment': icmEnvironment
+          'Icm.routingid': icmRoutingIdMSFT
+          'Icm.automitigationenabled': icmAutomitigationEnabledMSFT
+        }
+      }
+    ]
+  }
+}
+
 output actionGroupsSRE string = icmsre.id
 output actionGroupsSL string = icmsl.id
+output actionGroupsMSFT string = icmmsft.id

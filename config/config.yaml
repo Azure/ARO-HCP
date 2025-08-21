@@ -203,6 +203,11 @@ defaults:
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
+      msft:
+        actionGroupName: ""
+        actionGroupShortName: ""
+        routingId: ""
+        automitigationEnabled: ""
   # Route Monitor Operator
   routeMonitorOperator:
     # Bundle version is not used in runtime, it's used to generate
