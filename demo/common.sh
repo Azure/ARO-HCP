@@ -91,13 +91,13 @@ rp_request() {
             JSON_RESULT=$(echo "${FULL_RESULT}" | tr -d '\r' | jq -Rs 'split("\n\n")[1] | fromjson?')
 
             # If the response body is JSON, try to extract and write a kubeconfig file.
-            KUBECONFIG=$(echo "${JSON_RESULT}" | jq -r '.kubeconfig')
-            if [ -n "$KUBECONFIG" ]; then
-                echo "${KUBECONFIG}" > kubeconfig
-                echo "Wrote kubeconfig"
-            else
-                echo "${FULL_RESULT}"
-            fi
+            # KUBECONFIG=$(echo "${JSON_RESULT}" | jq -r '.kubeconfig')
+            # if [ -n "$KUBECONFIG" ]; then
+            #     echo "${KUBECONFIG}" > kubeconfig
+            #     echo "Wrote kubeconfig"
+            # else
+            echo "${FULL_RESULT}"
+            # fi
         else
             echo "${OUTPUT}"
         fi
@@ -119,6 +119,9 @@ rp_get_request() {
             HEADERS=$(authorization_header)
             ;;
     esac
+    # echo "${FRONTEND_HOST}"
+    # echo "HEADERS: ${HEADERS}"
+    echo "${URL}"
     rp_request GET "${URL}" "${HEADERS}"
 }
 
@@ -136,6 +139,7 @@ rp_put_request() {
             HEADERS=$(authorization_header)
             ;;
     esac
+    echo "${URL}"
     rp_request PUT "${URL}" "${HEADERS}" "${2}"
 }
 
@@ -169,4 +173,22 @@ rp_post_request() {
             ;;
     esac
     rp_request POST "${URL}" "${HEADERS}"
+}
+
+rp_patch_request() {
+    # Arguments:
+    # $1 = Request URL path
+    # $2 = Request JSON body
+    # $3 = (optional) API version
+    URL="${FRONTEND_HOST}${1}?api-version=${3:-${FRONTEND_API_VERSION}}"
+    case "${FRONTEND_HOST}" in
+        *localhost*)
+            HEADERS=$(arm_system_data_header; correlation_headers; arm_x_ms_identity_url_header)
+            ;;
+        *)
+            HEADERS=$(authorization_header)
+            ;;
+    esac
+    echo "${URL}"
+    rp_request PATCH "${URL}" "${HEADERS}" "${2}"
 }

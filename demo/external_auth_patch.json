@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "claim": {
+      "mappings": {
+        "username": {
+          "prefixPolicy": "Prefix"
+        }
+      }
+    }
+  }
+}
