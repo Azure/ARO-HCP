@@ -18,7 +18,20 @@ detect-change: materialize
 	fi
 .PHONY: detect-change
 
-validate:
+# This target validates that all object types in the schema have the `additionalProperties` field defined
+validate-additional-properties:
+	@paths=$$(jq -r 'paths(objects | select(has("type") and .type == "object" and (has("additionalProperties") | not))) | "$$." + (map(tostring) | join("."))' ./config.schema.json); \
+	if [ -n "$$paths" ]; then \
+		echo "****************************** Schema error ******************************"; \
+		echo "Object definitions missing an \`additionalProperties\` property found at:"; \
+		echo "$$paths"; \
+		echo "Please add \`\"additionalProperties\": false\` to the object definitions in config.schema.yaml."; \
+		echo "If you are sure that the object should allow additional properties, you can set \`\"additionalProperties\": true\` instead."; \
+		echo "**************************************************************************"; \
+		exit 1; \
+	fi
+
+validate: validate-additional-properties
 	$(MAKE) -C ./../tooling/templatize templatize
 	USER='test' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
 	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
