@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -250,7 +252,9 @@ func DeleteAllHCPClusters(
 }
 
 // VerifyNodePool verifies that a NodePool has the expected configuration.
-// This function uses the Kubernetes client to check the HyperShift NodePool CRD in the cluster namespace.
+// This function uses the Kubernetes nodes API to check the actual nodes belonging to the nodepool.
+// Since HyperShift NodePool CRDs are not accessible from the hosted cluster, this approach
+// verifies the nodepool configuration by examining the nodes themselves.
 func VerifyNodePool(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string, additionalVerifiers ...NodePoolVerifier) error {
 	// Default verifiers that always run
 	defaultVerifiers := []NodePoolVerifier{
@@ -275,7 +279,7 @@ type NodePoolVerifier interface {
 	Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error
 }
 
-// verifyNodePoolBasicAccess verifies basic access to the NodePool resource
+// verifyNodePoolBasicAccess verifies basic access to nodes belonging to the nodepool
 type verifyNodePoolBasicAccess struct {
 	clusterName  string
 	nodePoolName string
@@ -286,22 +290,23 @@ func (v verifyNodePoolBasicAccess) Name() string {
 }
 
 func (v verifyNodePoolBasicAccess) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
-	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	nodePoolGVR := schema.GroupVersionResource{
-		Group:    "hypershift.openshift.io",
-		Version:  "v1beta1",
-		Resource: "nodepools",
+	// List nodes with the nodepool label
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
 	}
 
-	namespace := clusterName
-	_, err = dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes found for nodepool %s", nodePoolName)
 	}
+
 	return nil
 }
 
@@ -338,7 +343,7 @@ func DeleteNodePool(
 	return nil
 }
 
-// verifyNodePoolReplicas verifies the expected number of replicas
+// verifyNodePoolReplicas verifies the expected number of replicas by counting actual nodes
 type verifyNodePoolReplicas struct {
 	expectedReplicas int32
 }
@@ -348,38 +353,28 @@ func (v verifyNodePoolReplicas) Name() string {
 }
 
 func (v verifyNodePoolReplicas) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
-	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	nodePoolGVR := schema.GroupVersionResource{
-		Group:    "hypershift.openshift.io",
-		Version:  "v1beta1",
-		Resource: "nodepools",
+	// List nodes with the nodepool label
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
 	}
 
-	namespace := clusterName
-	nodePool, err := dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
-	}
-
-	replicas, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "replicas")
-	if err != nil {
-		return fmt.Errorf("failed to get replicas from NodePool spec: %w", err)
-	}
-	if !found {
-		return fmt.Errorf("replicas not found in NodePool spec")
-	}
-	if replicas != int64(v.expectedReplicas) {
-		return fmt.Errorf("expected %d replicas, got %d", v.expectedReplicas, replicas)
+	actualReplicas := int32(len(nodes.Items))
+	if actualReplicas != v.expectedReplicas {
+		return fmt.Errorf("expected %d replicas, got %d", v.expectedReplicas, actualReplicas)
 	}
 
 	return nil
 }
 
-// verifyNodePoolOsDiskSize verifies the expected OS disk size
+// verifyNodePoolOsDiskSize verifies the expected OS disk size by examining node capacity
 type verifyNodePoolOsDiskSize struct {
 	expectedOsDiskSizeGiB int32
 }
@@ -389,32 +384,45 @@ func (v verifyNodePoolOsDiskSize) Name() string {
 }
 
 func (v verifyNodePoolOsDiskSize) Verify(ctx context.Context, adminRESTConfig *rest.Config, clusterName, nodePoolName string) error {
-	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	nodePoolGVR := schema.GroupVersionResource{
-		Group:    "hypershift.openshift.io",
-		Version:  "v1beta1",
-		Resource: "nodepools",
+	// List nodes with the nodepool label
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("hypershift.openshift.io/nodePool=%s", nodePoolName),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list nodes for nodepool %s: %w", nodePoolName, err)
 	}
 
-	namespace := clusterName
-	nodePool, err := dynamicClient.Resource(nodePoolGVR).Namespace(namespace).Get(ctx, nodePoolName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get NodePool %s in namespace %s: %w", nodePoolName, namespace, err)
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes found for nodepool %s", nodePoolName)
 	}
 
-	diskSize, found, err := unstructured.NestedInt64(nodePool.Object, "spec", "platform", "azure", "osDisk", "sizeGiB")
+	// Check the first node's ephemeral storage capacity to infer disk size
+	node := nodes.Items[0]
+	ephemeralStorage := node.Status.Capacity["ephemeral-storage"]
+	
+	// Convert from Ki to GiB
+	storageKi, err := strconv.ParseInt(strings.TrimSuffix(ephemeralStorage.String(), "Ki"), 10, 64)
 	if err != nil {
-		return fmt.Errorf("failed to get osDisk.sizeGiB from NodePool spec: %w", err)
+		return fmt.Errorf("failed to parse ephemeral-storage value %s: %w", ephemeralStorage.String(), err)
 	}
-	if !found {
-		return fmt.Errorf("osDisk.sizeGiB not found in NodePool spec")
-	}
-	if diskSize != int64(v.expectedOsDiskSizeGiB) {
-		return fmt.Errorf("expected osDisk.sizeGiB %d, got %d", v.expectedOsDiskSizeGiB, diskSize)
+	
+	// Convert Ki to GiB: Ki -> bytes -> GiB
+	storageGiB := storageKi / 1024 / 1024
+	
+	// Allow for filesystem overhead: typically 5-10% less than the raw disk size
+	// For a 64GiB disk, we expect ~60-63 GiB available
+	// For a 128GiB disk, we expect ~120-125 GiB available
+	minExpectedGiB := int64(float64(v.expectedOsDiskSizeGiB) * 0.90) // 90% of expected
+	maxExpectedGiB := int64(v.expectedOsDiskSizeGiB)
+	
+	if storageGiB < minExpectedGiB || storageGiB > maxExpectedGiB {
+		return fmt.Errorf("expected disk size around %d GiB (allowing for filesystem overhead), but node %s shows %d GiB ephemeral storage", 
+			v.expectedOsDiskSizeGiB, node.Name, storageGiB)
 	}
 
 	return nil
