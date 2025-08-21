@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -58,6 +57,12 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
+	}
+
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
@@ -147,15 +152,10 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestExternalAuth); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestExternalAuth)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
