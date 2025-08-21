@@ -37,6 +37,18 @@ param icmRoutingIdSL string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSL string
 
+@description('Name of the ICM Action Group')
+param icmActionGroupNameMSFT string
+
+@description('Name of the ICM Action Group')
+param icmActionGroupShortNameMSFT string
+
+@description('ICM routing ID')
+param icmRoutingIdMSFT string
+
+@description('ICM automitigation enabled ID')
+param icmAutomitigationEnabledMSFT string
+
 @description('Enable creating ICM action groups')
 param manageConnection bool
 
@@ -54,11 +66,16 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmActionGroupShortNameSL: icmActionGroupShortNameSL
     icmRoutingIdSL: icmRoutingIdSL
     icmAutomitigationEnabledSL: icmAutomitigationEnabledSL
+    icmActionGroupNameMSFT: icmActionGroupNameMSFT
+    icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
+    icmRoutingIdMSFT: icmRoutingIdMSFT
+    icmAutomitigationEnabledMSFT: icmAutomitigationEnabledMSFT
   }
 }
 
 var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
 var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
+var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
@@ -73,5 +90,13 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: sreActionGroups
+  }
+}
+
+module msftAlerts '../modules/metrics/msft-rules.bicep' = {
+  name: 'msftAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: msftActionGroups
   }
 }

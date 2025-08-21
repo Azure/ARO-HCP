@@ -1778,6 +1778,9 @@
             },
             "sl": {
               "$ref": "#/definitions/icmConnection"
+            },
+            "msft": {
+              "$ref": "#/definitions/icmConnection"
             }
           },
           "additionalProperties": false,
