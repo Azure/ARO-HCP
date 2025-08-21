@@ -468,6 +468,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -565,15 +572,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestCluster)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 

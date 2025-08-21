@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -55,6 +54,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -175,15 +181,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestNodePool)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
