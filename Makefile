@@ -222,3 +222,10 @@ validate-config:
 ARO-Tools:
 	pushd tooling/templatize/; GOPROXY=direct go get github.com/Azure/ARO-Tools@main; popd; go work sync && make all-tidy
 .PHONY: ARO-Tools
+
+#
+# Generated SDKs
+#
+generate-kiota:
+	@tooling/kiota/generate.sh
+.PHONY: generate-kiota
