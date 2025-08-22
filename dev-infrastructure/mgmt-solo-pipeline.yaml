@@ -41,7 +41,7 @@ resourceGroups:
         step: output
         name: logAnalyticsWorkspaceId
   # Build the MC
-  - name: mgmt-cluster
+  - name: cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
@@ -93,9 +93,9 @@ resourceGroups:
       configRef: acrPull.image.registry
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
   # Install cluster patches
-  - name: mgmt-fixes
+  - name: fixes
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
@@ -108,4 +108,4 @@ resourceGroups:
       configRef: mgmt.applyKubeletFixes
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
