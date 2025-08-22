@@ -647,6 +647,8 @@ svc:
         poll: true
       Microsoft.Dashboard:
         poll: true
+      Microsoft.DbForPostgreSQL:
+        poll: true
       Microsoft.Insights:
         poll: true
       Microsoft.Network:

@@ -249,6 +249,8 @@ defaults:
           features:
           - name: IstioNativeSidecarModePreview
             poll: true
+        'Microsoft.DbForPostgreSQL':
+          poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
