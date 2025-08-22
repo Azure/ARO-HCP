@@ -9,7 +9,7 @@ source env_vars
 LOCATION=${LOCATION:-uksouth}
 SUBSCRIPTION=$(az account show --query 'name' -o tsv)
 
-PROVIDER_JSON=$(az provider show --namespace Microsoft.RedHatOpenShift)
+PROVIDER_JSON=$(az provider show --namespace Microsoft.RedHatOpenShift -o json)
 
 if [[ "Registered" != "$(echo ${PROVIDER_JSON} | jq -r .registrationState)" ]]; then
   echo "ERROR: Microsoft.RedHatOpenShift provider is not registered."
