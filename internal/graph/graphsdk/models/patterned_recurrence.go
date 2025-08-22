@@ -4,159 +4,171 @@
 package models
 
 import (
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
 )
 
 type PatternedRecurrence struct {
-    // Stores model information.
-    backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	// Stores model information.
+	backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
 }
+
 // NewPatternedRecurrence instantiates a new PatternedRecurrence and sets the default values.
-func NewPatternedRecurrence()(*PatternedRecurrence) {
-    m := &PatternedRecurrence{
-    }
-    m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance();
-    return m
+func NewPatternedRecurrence() *PatternedRecurrence {
+	m := &PatternedRecurrence{}
+	m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance()
+	return m
 }
+
 // CreatePatternedRecurrenceFromDiscriminatorValue creates a new instance of the appropriate class based on discriminator value
 // returns a Parsable when successful
-func CreatePatternedRecurrenceFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
-    return NewPatternedRecurrence(), nil
+func CreatePatternedRecurrenceFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) (i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
+	return NewPatternedRecurrence(), nil
 }
+
 // GetBackingStore gets the BackingStore property value. Stores model information.
 // returns a BackingStore when successful
-func (m *PatternedRecurrence) GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
-    return m.backingStore
+func (m *PatternedRecurrence) GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore {
+	return m.backingStore
 }
+
 // GetFieldDeserializers the deserialization information for the current model
 // returns a map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error) when successful
-func (m *PatternedRecurrence) GetFieldDeserializers()(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error)) {
-    res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error))
-    res["@odata.type"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetStringValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetOdataType(val)
-        }
-        return nil
-    }
-    res["pattern"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetObjectValue(CreateRecurrencePatternFromDiscriminatorValue)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetPattern(val.(RecurrencePatternable))
-        }
-        return nil
-    }
-    res["range"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetObjectValue(CreateRecurrenceRangeFromDiscriminatorValue)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetRangeEscaped(val.(RecurrenceRangeable))
-        }
-        return nil
-    }
-    return res
+func (m *PatternedRecurrence) GetFieldDeserializers() map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+	res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error)
+	res["@odata.type"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetStringValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetOdataType(val)
+		}
+		return nil
+	}
+	res["pattern"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(CreateRecurrencePatternFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetPattern(val.(RecurrencePatternable))
+		}
+		return nil
+	}
+	res["range"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(CreateRecurrenceRangeFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetRangeEscaped(val.(RecurrenceRangeable))
+		}
+		return nil
+	}
+	return res
 }
+
 // GetOdataType gets the @odata.type property value. The OdataType property
 // returns a *string when successful
-func (m *PatternedRecurrence) GetOdataType()(*string) {
-    val, err := m.GetBackingStore().Get("odataType")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*string)
-    }
-    return nil
+func (m *PatternedRecurrence) GetOdataType() *string {
+	val, err := m.GetBackingStore().Get("odataType")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*string)
+	}
+	return nil
 }
+
 // GetPattern gets the pattern property value. The frequency of an event.  For access reviews: Do not specify this property for a one-time access review.  Only interval, dayOfMonth, and type (weekly, absoluteMonthly) properties of recurrencePattern are supported.
 // returns a RecurrencePatternable when successful
-func (m *PatternedRecurrence) GetPattern()(RecurrencePatternable) {
-    val, err := m.GetBackingStore().Get("pattern")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(RecurrencePatternable)
-    }
-    return nil
+func (m *PatternedRecurrence) GetPattern() RecurrencePatternable {
+	val, err := m.GetBackingStore().Get("pattern")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(RecurrencePatternable)
+	}
+	return nil
 }
+
 // GetRangeEscaped gets the range property value. The duration of an event.
 // returns a RecurrenceRangeable when successful
-func (m *PatternedRecurrence) GetRangeEscaped()(RecurrenceRangeable) {
-    val, err := m.GetBackingStore().Get("rangeEscaped")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(RecurrenceRangeable)
-    }
-    return nil
+func (m *PatternedRecurrence) GetRangeEscaped() RecurrenceRangeable {
+	val, err := m.GetBackingStore().Get("rangeEscaped")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(RecurrenceRangeable)
+	}
+	return nil
 }
+
 // Serialize serializes information the current object
-func (m *PatternedRecurrence) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter)(error) {
-    {
-        err := writer.WriteStringValue("@odata.type", m.GetOdataType())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err := writer.WriteObjectValue("pattern", m.GetPattern())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err := writer.WriteObjectValue("range", m.GetRangeEscaped())
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+func (m *PatternedRecurrence) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter) error {
+	{
+		err := writer.WriteStringValue("@odata.type", m.GetOdataType())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err := writer.WriteObjectValue("pattern", m.GetPattern())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err := writer.WriteObjectValue("range", m.GetRangeEscaped())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
 // SetBackingStore sets the BackingStore property value. Stores model information.
-func (m *PatternedRecurrence) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)() {
-    m.backingStore = value
+func (m *PatternedRecurrence) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
+	m.backingStore = value
 }
+
 // SetOdataType sets the @odata.type property value. The OdataType property
-func (m *PatternedRecurrence) SetOdataType(value *string)() {
-    err := m.GetBackingStore().Set("odataType", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *PatternedRecurrence) SetOdataType(value *string) {
+	err := m.GetBackingStore().Set("odataType", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetPattern sets the pattern property value. The frequency of an event.  For access reviews: Do not specify this property for a one-time access review.  Only interval, dayOfMonth, and type (weekly, absoluteMonthly) properties of recurrencePattern are supported.
-func (m *PatternedRecurrence) SetPattern(value RecurrencePatternable)() {
-    err := m.GetBackingStore().Set("pattern", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *PatternedRecurrence) SetPattern(value RecurrencePatternable) {
+	err := m.GetBackingStore().Set("pattern", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetRangeEscaped sets the range property value. The duration of an event.
-func (m *PatternedRecurrence) SetRangeEscaped(value RecurrenceRangeable)() {
-    err := m.GetBackingStore().Set("rangeEscaped", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *PatternedRecurrence) SetRangeEscaped(value RecurrenceRangeable) {
+	err := m.GetBackingStore().Set("rangeEscaped", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 type PatternedRecurrenceable interface {
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
-    GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
-    GetOdataType()(*string)
-    GetPattern()(RecurrencePatternable)
-    GetRangeEscaped()(RecurrenceRangeable)
-    SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)()
-    SetOdataType(value *string)()
-    SetPattern(value RecurrencePatternable)()
-    SetRangeEscaped(value RecurrenceRangeable)()
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
+	GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	GetOdataType() *string
+	GetPattern() RecurrencePatternable
+	GetRangeEscaped() RecurrenceRangeable
+	SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
+	SetOdataType(value *string)
+	SetPattern(value RecurrencePatternable)
+	SetRangeEscaped(value RecurrenceRangeable)
 }

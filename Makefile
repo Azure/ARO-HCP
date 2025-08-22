@@ -35,7 +35,7 @@ install-tools: $(BINGO)
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
-	$(ADDLICENSE) -c 'Microsoft Corporation' -l apache $(shell find . -type f -name '*.go')
+	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
 
 # There is currently no convenient way to run golangci-lint against a whole Go workspace
 # https://github.com/golang/go/issues/50745
@@ -228,4 +228,5 @@ ARO-Tools:
 #
 generate-kiota:
 	@tooling/kiota/generate.sh
+	$(MAKE) licenses
 .PHONY: generate-kiota

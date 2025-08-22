@@ -4,196 +4,210 @@
 package models
 
 import (
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
 )
 
 type ResultInfo struct {
-    // Stores model information.
-    backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	// Stores model information.
+	backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
 }
+
 // NewResultInfo instantiates a new ResultInfo and sets the default values.
-func NewResultInfo()(*ResultInfo) {
-    m := &ResultInfo{
-    }
-    m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance();
-    return m
+func NewResultInfo() *ResultInfo {
+	m := &ResultInfo{}
+	m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance()
+	return m
 }
+
 // CreateResultInfoFromDiscriminatorValue creates a new instance of the appropriate class based on discriminator value
 // returns a Parsable when successful
-func CreateResultInfoFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
-    return NewResultInfo(), nil
+func CreateResultInfoFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) (i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
+	return NewResultInfo(), nil
 }
+
 // GetBackingStore gets the BackingStore property value. Stores model information.
 // returns a BackingStore when successful
-func (m *ResultInfo) GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
-    return m.backingStore
+func (m *ResultInfo) GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore {
+	return m.backingStore
 }
+
 // GetCode gets the code property value. The result code.
 // returns a *int32 when successful
-func (m *ResultInfo) GetCode()(*int32) {
-    val, err := m.GetBackingStore().Get("code")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*int32)
-    }
-    return nil
+func (m *ResultInfo) GetCode() *int32 {
+	val, err := m.GetBackingStore().Get("code")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*int32)
+	}
+	return nil
 }
+
 // GetFieldDeserializers the deserialization information for the current model
 // returns a map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error) when successful
-func (m *ResultInfo) GetFieldDeserializers()(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error)) {
-    res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error))
-    res["code"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetInt32Value()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetCode(val)
-        }
-        return nil
-    }
-    res["message"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetStringValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetMessage(val)
-        }
-        return nil
-    }
-    res["@odata.type"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetStringValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetOdataType(val)
-        }
-        return nil
-    }
-    res["subcode"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetInt32Value()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetSubcode(val)
-        }
-        return nil
-    }
-    return res
+func (m *ResultInfo) GetFieldDeserializers() map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+	res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error)
+	res["code"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetInt32Value()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetCode(val)
+		}
+		return nil
+	}
+	res["message"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetStringValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetMessage(val)
+		}
+		return nil
+	}
+	res["@odata.type"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetStringValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetOdataType(val)
+		}
+		return nil
+	}
+	res["subcode"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetInt32Value()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetSubcode(val)
+		}
+		return nil
+	}
+	return res
 }
+
 // GetMessage gets the message property value. The message.
 // returns a *string when successful
-func (m *ResultInfo) GetMessage()(*string) {
-    val, err := m.GetBackingStore().Get("message")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*string)
-    }
-    return nil
+func (m *ResultInfo) GetMessage() *string {
+	val, err := m.GetBackingStore().Get("message")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*string)
+	}
+	return nil
 }
+
 // GetOdataType gets the @odata.type property value. The OdataType property
 // returns a *string when successful
-func (m *ResultInfo) GetOdataType()(*string) {
-    val, err := m.GetBackingStore().Get("odataType")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*string)
-    }
-    return nil
+func (m *ResultInfo) GetOdataType() *string {
+	val, err := m.GetBackingStore().Get("odataType")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*string)
+	}
+	return nil
 }
+
 // GetSubcode gets the subcode property value. The result subcode.
 // returns a *int32 when successful
-func (m *ResultInfo) GetSubcode()(*int32) {
-    val, err := m.GetBackingStore().Get("subcode")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*int32)
-    }
-    return nil
+func (m *ResultInfo) GetSubcode() *int32 {
+	val, err := m.GetBackingStore().Get("subcode")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*int32)
+	}
+	return nil
 }
+
 // Serialize serializes information the current object
-func (m *ResultInfo) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter)(error) {
-    {
-        err := writer.WriteInt32Value("code", m.GetCode())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err := writer.WriteStringValue("message", m.GetMessage())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err := writer.WriteStringValue("@odata.type", m.GetOdataType())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err := writer.WriteInt32Value("subcode", m.GetSubcode())
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+func (m *ResultInfo) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter) error {
+	{
+		err := writer.WriteInt32Value("code", m.GetCode())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err := writer.WriteStringValue("message", m.GetMessage())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err := writer.WriteStringValue("@odata.type", m.GetOdataType())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err := writer.WriteInt32Value("subcode", m.GetSubcode())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
 // SetBackingStore sets the BackingStore property value. Stores model information.
-func (m *ResultInfo) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)() {
-    m.backingStore = value
+func (m *ResultInfo) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
+	m.backingStore = value
 }
+
 // SetCode sets the code property value. The result code.
-func (m *ResultInfo) SetCode(value *int32)() {
-    err := m.GetBackingStore().Set("code", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ResultInfo) SetCode(value *int32) {
+	err := m.GetBackingStore().Set("code", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetMessage sets the message property value. The message.
-func (m *ResultInfo) SetMessage(value *string)() {
-    err := m.GetBackingStore().Set("message", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ResultInfo) SetMessage(value *string) {
+	err := m.GetBackingStore().Set("message", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetOdataType sets the @odata.type property value. The OdataType property
-func (m *ResultInfo) SetOdataType(value *string)() {
-    err := m.GetBackingStore().Set("odataType", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ResultInfo) SetOdataType(value *string) {
+	err := m.GetBackingStore().Set("odataType", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetSubcode sets the subcode property value. The result subcode.
-func (m *ResultInfo) SetSubcode(value *int32)() {
-    err := m.GetBackingStore().Set("subcode", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ResultInfo) SetSubcode(value *int32) {
+	err := m.GetBackingStore().Set("subcode", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 type ResultInfoable interface {
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
-    GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
-    GetCode()(*int32)
-    GetMessage()(*string)
-    GetOdataType()(*string)
-    GetSubcode()(*int32)
-    SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)()
-    SetCode(value *int32)()
-    SetMessage(value *string)()
-    SetOdataType(value *string)()
-    SetSubcode(value *int32)()
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
+	GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	GetCode() *int32
+	GetMessage() *string
+	GetOdataType() *string
+	GetSubcode() *int32
+	SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
+	SetCode(value *int32)
+	SetMessage(value *string)
+	SetOdataType(value *string)
+	SetSubcode(value *int32)
 }

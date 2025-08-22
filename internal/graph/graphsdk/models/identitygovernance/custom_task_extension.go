@@ -4,228 +4,245 @@
 package identitygovernance
 
 import (
-    i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e "time"
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
-    i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
+	i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e "time"
+
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
+
+	i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
 )
 
 type CustomTaskExtension struct {
-    i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomCalloutExtension
+	i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomCalloutExtension
 }
+
 // NewCustomTaskExtension instantiates a new CustomTaskExtension and sets the default values.
-func NewCustomTaskExtension()(*CustomTaskExtension) {
-    m := &CustomTaskExtension{
-        CustomCalloutExtension: *i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.NewCustomCalloutExtension(),
-    }
-    odataTypeValue := "#microsoft.graph.identityGovernance.customTaskExtension"
-    m.SetOdataType(&odataTypeValue)
-    return m
+func NewCustomTaskExtension() *CustomTaskExtension {
+	m := &CustomTaskExtension{
+		CustomCalloutExtension: *i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.NewCustomCalloutExtension(),
+	}
+	odataTypeValue := "#microsoft.graph.identityGovernance.customTaskExtension"
+	m.SetOdataType(&odataTypeValue)
+	return m
 }
+
 // CreateCustomTaskExtensionFromDiscriminatorValue creates a new instance of the appropriate class based on discriminator value
 // returns a Parsable when successful
-func CreateCustomTaskExtensionFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
-    return NewCustomTaskExtension(), nil
+func CreateCustomTaskExtensionFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) (i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
+	return NewCustomTaskExtension(), nil
 }
+
 // GetCallbackConfiguration gets the callbackConfiguration property value. The callback configuration for a custom task extension.
 // returns a CustomExtensionCallbackConfigurationable when successful
-func (m *CustomTaskExtension) GetCallbackConfiguration()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable) {
-    val, err := m.GetBackingStore().Get("callbackConfiguration")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)
-    }
-    return nil
+func (m *CustomTaskExtension) GetCallbackConfiguration() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable {
+	val, err := m.GetBackingStore().Get("callbackConfiguration")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)
+	}
+	return nil
 }
+
 // GetCreatedBy gets the createdBy property value. The unique identifier of the Microsoft Entra user that created the custom task extension.Supports $filter(eq, ne) and $expand.
 // returns a Userable when successful
-func (m *CustomTaskExtension) GetCreatedBy()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable) {
-    val, err := m.GetBackingStore().Get("createdBy")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
-    }
-    return nil
+func (m *CustomTaskExtension) GetCreatedBy() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable {
+	val, err := m.GetBackingStore().Get("createdBy")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
+	}
+	return nil
 }
+
 // GetCreatedDateTime gets the createdDateTime property value. When the custom task extension was created.Supports $filter(lt, le, gt, ge, eq, ne) and $orderby.
 // returns a *Time when successful
-func (m *CustomTaskExtension) GetCreatedDateTime()(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time) {
-    val, err := m.GetBackingStore().Get("createdDateTime")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
-    }
-    return nil
+func (m *CustomTaskExtension) GetCreatedDateTime() *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time {
+	val, err := m.GetBackingStore().Get("createdDateTime")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
+	}
+	return nil
 }
+
 // GetFieldDeserializers the deserialization information for the current model
 // returns a map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error) when successful
-func (m *CustomTaskExtension) GetFieldDeserializers()(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error)) {
-    res := m.CustomCalloutExtension.GetFieldDeserializers()
-    res["callbackConfiguration"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateCustomExtensionCallbackConfigurationFromDiscriminatorValue)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetCallbackConfiguration(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable))
-        }
-        return nil
-    }
-    res["createdBy"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateUserFromDiscriminatorValue)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetCreatedBy(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable))
-        }
-        return nil
-    }
-    res["createdDateTime"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetTimeValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetCreatedDateTime(val)
-        }
-        return nil
-    }
-    res["lastModifiedBy"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateUserFromDiscriminatorValue)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetLastModifiedBy(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable))
-        }
-        return nil
-    }
-    res["lastModifiedDateTime"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetTimeValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetLastModifiedDateTime(val)
-        }
-        return nil
-    }
-    return res
+func (m *CustomTaskExtension) GetFieldDeserializers() map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+	res := m.CustomCalloutExtension.GetFieldDeserializers()
+	res["callbackConfiguration"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateCustomExtensionCallbackConfigurationFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetCallbackConfiguration(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable))
+		}
+		return nil
+	}
+	res["createdBy"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateUserFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetCreatedBy(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable))
+		}
+		return nil
+	}
+	res["createdDateTime"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetTimeValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetCreatedDateTime(val)
+		}
+		return nil
+	}
+	res["lastModifiedBy"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CreateUserFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetLastModifiedBy(val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable))
+		}
+		return nil
+	}
+	res["lastModifiedDateTime"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetTimeValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetLastModifiedDateTime(val)
+		}
+		return nil
+	}
+	return res
 }
+
 // GetLastModifiedBy gets the lastModifiedBy property value. The unique identifier of the Microsoft Entra user that modified the custom task extension last.Supports $filter(eq, ne) and $expand.
 // returns a Userable when successful
-func (m *CustomTaskExtension) GetLastModifiedBy()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable) {
-    val, err := m.GetBackingStore().Get("lastModifiedBy")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
-    }
-    return nil
+func (m *CustomTaskExtension) GetLastModifiedBy() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable {
+	val, err := m.GetBackingStore().Get("lastModifiedBy")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
+	}
+	return nil
 }
+
 // GetLastModifiedDateTime gets the lastModifiedDateTime property value. When the custom extension was last modified.Supports $filter(lt, le, gt, ge, eq, ne) and $orderby.
 // returns a *Time when successful
-func (m *CustomTaskExtension) GetLastModifiedDateTime()(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time) {
-    val, err := m.GetBackingStore().Get("lastModifiedDateTime")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
-    }
-    return nil
+func (m *CustomTaskExtension) GetLastModifiedDateTime() *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time {
+	val, err := m.GetBackingStore().Get("lastModifiedDateTime")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
+	}
+	return nil
 }
+
 // Serialize serializes information the current object
-func (m *CustomTaskExtension) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter)(error) {
-    err := m.CustomCalloutExtension.Serialize(writer)
-    if err != nil {
-        return err
-    }
-    {
-        err = writer.WriteObjectValue("callbackConfiguration", m.GetCallbackConfiguration())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err = writer.WriteObjectValue("createdBy", m.GetCreatedBy())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err = writer.WriteTimeValue("createdDateTime", m.GetCreatedDateTime())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err = writer.WriteObjectValue("lastModifiedBy", m.GetLastModifiedBy())
-        if err != nil {
-            return err
-        }
-    }
-    {
-        err = writer.WriteTimeValue("lastModifiedDateTime", m.GetLastModifiedDateTime())
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+func (m *CustomTaskExtension) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter) error {
+	err := m.CustomCalloutExtension.Serialize(writer)
+	if err != nil {
+		return err
+	}
+	{
+		err = writer.WriteObjectValue("callbackConfiguration", m.GetCallbackConfiguration())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err = writer.WriteObjectValue("createdBy", m.GetCreatedBy())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err = writer.WriteTimeValue("createdDateTime", m.GetCreatedDateTime())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err = writer.WriteObjectValue("lastModifiedBy", m.GetLastModifiedBy())
+		if err != nil {
+			return err
+		}
+	}
+	{
+		err = writer.WriteTimeValue("lastModifiedDateTime", m.GetLastModifiedDateTime())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
 // SetCallbackConfiguration sets the callbackConfiguration property value. The callback configuration for a custom task extension.
-func (m *CustomTaskExtension) SetCallbackConfiguration(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)() {
-    err := m.GetBackingStore().Set("callbackConfiguration", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *CustomTaskExtension) SetCallbackConfiguration(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable) {
+	err := m.GetBackingStore().Set("callbackConfiguration", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetCreatedBy sets the createdBy property value. The unique identifier of the Microsoft Entra user that created the custom task extension.Supports $filter(eq, ne) and $expand.
-func (m *CustomTaskExtension) SetCreatedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)() {
-    err := m.GetBackingStore().Set("createdBy", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *CustomTaskExtension) SetCreatedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable) {
+	err := m.GetBackingStore().Set("createdBy", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetCreatedDateTime sets the createdDateTime property value. When the custom task extension was created.Supports $filter(lt, le, gt, ge, eq, ne) and $orderby.
-func (m *CustomTaskExtension) SetCreatedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)() {
-    err := m.GetBackingStore().Set("createdDateTime", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *CustomTaskExtension) SetCreatedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time) {
+	err := m.GetBackingStore().Set("createdDateTime", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetLastModifiedBy sets the lastModifiedBy property value. The unique identifier of the Microsoft Entra user that modified the custom task extension last.Supports $filter(eq, ne) and $expand.
-func (m *CustomTaskExtension) SetLastModifiedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)() {
-    err := m.GetBackingStore().Set("lastModifiedBy", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *CustomTaskExtension) SetLastModifiedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable) {
+	err := m.GetBackingStore().Set("lastModifiedBy", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetLastModifiedDateTime sets the lastModifiedDateTime property value. When the custom extension was last modified.Supports $filter(lt, le, gt, ge, eq, ne) and $orderby.
-func (m *CustomTaskExtension) SetLastModifiedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)() {
-    err := m.GetBackingStore().Set("lastModifiedDateTime", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *CustomTaskExtension) SetLastModifiedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time) {
+	err := m.GetBackingStore().Set("lastModifiedDateTime", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 type CustomTaskExtensionable interface {
-    i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomCalloutExtensionable
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
-    GetCallbackConfiguration()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)
-    GetCreatedBy()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
-    GetCreatedDateTime()(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
-    GetLastModifiedBy()(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
-    GetLastModifiedDateTime()(*i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
-    SetCallbackConfiguration(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)()
-    SetCreatedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)()
-    SetCreatedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)()
-    SetLastModifiedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)()
-    SetLastModifiedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)()
+	i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomCalloutExtensionable
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
+	GetCallbackConfiguration() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable
+	GetCreatedBy() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable
+	GetCreatedDateTime() *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time
+	GetLastModifiedBy() i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable
+	GetLastModifiedDateTime() *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time
+	SetCallbackConfiguration(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.CustomExtensionCallbackConfigurationable)
+	SetCreatedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
+	SetCreatedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
+	SetLastModifiedBy(value i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Userable)
+	SetLastModifiedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
 }

@@ -4,123 +4,133 @@
 package models
 
 import (
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91 "github.com/microsoft/kiota-abstractions-go/serialization"
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e "github.com/microsoft/kiota-abstractions-go/store"
 )
 
 type ConditionalAccessAuthenticationFlows struct {
-    // Stores model information.
-    backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	// Stores model information.
+	backingStore ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
 }
+
 // NewConditionalAccessAuthenticationFlows instantiates a new ConditionalAccessAuthenticationFlows and sets the default values.
-func NewConditionalAccessAuthenticationFlows()(*ConditionalAccessAuthenticationFlows) {
-    m := &ConditionalAccessAuthenticationFlows{
-    }
-    m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance();
-    return m
+func NewConditionalAccessAuthenticationFlows() *ConditionalAccessAuthenticationFlows {
+	m := &ConditionalAccessAuthenticationFlows{}
+	m.backingStore = ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStoreFactoryInstance()
+	return m
 }
+
 // CreateConditionalAccessAuthenticationFlowsFromDiscriminatorValue creates a new instance of the appropriate class based on discriminator value
 // returns a Parsable when successful
-func CreateConditionalAccessAuthenticationFlowsFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
-    return NewConditionalAccessAuthenticationFlows(), nil
+func CreateConditionalAccessAuthenticationFlowsFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) (i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable, error) {
+	return NewConditionalAccessAuthenticationFlows(), nil
 }
+
 // GetBackingStore gets the BackingStore property value. Stores model information.
 // returns a BackingStore when successful
-func (m *ConditionalAccessAuthenticationFlows) GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
-    return m.backingStore
+func (m *ConditionalAccessAuthenticationFlows) GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore {
+	return m.backingStore
 }
+
 // GetFieldDeserializers the deserialization information for the current model
 // returns a map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error) when successful
-func (m *ConditionalAccessAuthenticationFlows) GetFieldDeserializers()(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error)) {
-    res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error))
-    res["@odata.type"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetStringValue()
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetOdataType(val)
-        }
-        return nil
-    }
-    res["transferMethods"] = func (n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
-        val, err := n.GetEnumValue(ParseConditionalAccessTransferMethods)
-        if err != nil {
-            return err
-        }
-        if val != nil {
-            m.SetTransferMethods(val.(*ConditionalAccessTransferMethods))
-        }
-        return nil
-    }
-    return res
+func (m *ConditionalAccessAuthenticationFlows) GetFieldDeserializers() map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+	res := make(map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error)
+	res["@odata.type"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetStringValue()
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetOdataType(val)
+		}
+		return nil
+	}
+	res["transferMethods"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetEnumValue(ParseConditionalAccessTransferMethods)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetTransferMethods(val.(*ConditionalAccessTransferMethods))
+		}
+		return nil
+	}
+	return res
 }
+
 // GetOdataType gets the @odata.type property value. The OdataType property
 // returns a *string when successful
-func (m *ConditionalAccessAuthenticationFlows) GetOdataType()(*string) {
-    val, err := m.GetBackingStore().Get("odataType")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*string)
-    }
-    return nil
+func (m *ConditionalAccessAuthenticationFlows) GetOdataType() *string {
+	val, err := m.GetBackingStore().Get("odataType")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*string)
+	}
+	return nil
 }
+
 // GetTransferMethods gets the transferMethods property value. The transferMethods property
 // returns a *ConditionalAccessTransferMethods when successful
-func (m *ConditionalAccessAuthenticationFlows) GetTransferMethods()(*ConditionalAccessTransferMethods) {
-    val, err := m.GetBackingStore().Get("transferMethods")
-    if err != nil {
-        panic(err)
-    }
-    if val != nil {
-        return val.(*ConditionalAccessTransferMethods)
-    }
-    return nil
+func (m *ConditionalAccessAuthenticationFlows) GetTransferMethods() *ConditionalAccessTransferMethods {
+	val, err := m.GetBackingStore().Get("transferMethods")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(*ConditionalAccessTransferMethods)
+	}
+	return nil
 }
+
 // Serialize serializes information the current object
-func (m *ConditionalAccessAuthenticationFlows) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter)(error) {
-    {
-        err := writer.WriteStringValue("@odata.type", m.GetOdataType())
-        if err != nil {
-            return err
-        }
-    }
-    if m.GetTransferMethods() != nil {
-        cast := (*m.GetTransferMethods()).String()
-        err := writer.WriteStringValue("transferMethods", &cast)
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+func (m *ConditionalAccessAuthenticationFlows) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.SerializationWriter) error {
+	{
+		err := writer.WriteStringValue("@odata.type", m.GetOdataType())
+		if err != nil {
+			return err
+		}
+	}
+	if m.GetTransferMethods() != nil {
+		cast := (*m.GetTransferMethods()).String()
+		err := writer.WriteStringValue("transferMethods", &cast)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
 // SetBackingStore sets the BackingStore property value. Stores model information.
-func (m *ConditionalAccessAuthenticationFlows) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)() {
-    m.backingStore = value
+func (m *ConditionalAccessAuthenticationFlows) SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore) {
+	m.backingStore = value
 }
+
 // SetOdataType sets the @odata.type property value. The OdataType property
-func (m *ConditionalAccessAuthenticationFlows) SetOdataType(value *string)() {
-    err := m.GetBackingStore().Set("odataType", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ConditionalAccessAuthenticationFlows) SetOdataType(value *string) {
+	err := m.GetBackingStore().Set("odataType", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 // SetTransferMethods sets the transferMethods property value. The transferMethods property
-func (m *ConditionalAccessAuthenticationFlows) SetTransferMethods(value *ConditionalAccessTransferMethods)() {
-    err := m.GetBackingStore().Set("transferMethods", value)
-    if err != nil {
-        panic(err)
-    }
+func (m *ConditionalAccessAuthenticationFlows) SetTransferMethods(value *ConditionalAccessTransferMethods) {
+	err := m.GetBackingStore().Set("transferMethods", value)
+	if err != nil {
+		panic(err)
+	}
 }
+
 type ConditionalAccessAuthenticationFlowsable interface {
-    ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
-    i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
-    GetBackingStore()(ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
-    GetOdataType()(*string)
-    GetTransferMethods()(*ConditionalAccessTransferMethods)
-    SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)()
-    SetOdataType(value *string)()
-    SetTransferMethods(value *ConditionalAccessTransferMethods)()
+	ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackedModel
+	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
+	GetBackingStore() ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore
+	GetOdataType() *string
+	GetTransferMethods() *ConditionalAccessTransferMethods
+	SetBackingStore(value ie8677ce2c7e1b4c22e9c3827ecd078d41185424dd9eeb92b7d971ed2d49a392e.BackingStore)
+	SetOdataType(value *string)
+	SetTransferMethods(value *ConditionalAccessTransferMethods)
 }
