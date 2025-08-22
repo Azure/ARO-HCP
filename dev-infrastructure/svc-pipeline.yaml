@@ -342,7 +342,7 @@ resourceGroups:
       configRef: kubeEvents.enabled
     dependsOn:
     - resourceGroup: service
-      step: svc-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global

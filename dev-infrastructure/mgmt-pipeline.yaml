@@ -390,7 +390,7 @@ resourceGroups:
       configRef: kubeEvents.enabled
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
