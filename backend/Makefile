@@ -3,7 +3,10 @@
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_BACKEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
+
+ifeq ($(ARO_HCP_IMAGE_REGISTRY:%.azurecr.io=azurecr.io),azurecr.io)
+ARO_HCP_IMAGE_REGISTRY_IS_ACR = 1
+endif
 
 .DEFAULT_GOAL := backend
 
@@ -30,22 +33,44 @@ image:
 	                         --build-arg PLATFORM=linux/amd64 \
 	                         --build-arg REVISION=${ARO_HCP_REVISION} \
 	                         --build-arg TAG=${ARO_HCP_IMAGE_TAG} \
-	                         --tag ${ARO_HCP_BACKEND_IMAGE}"
+	                         --tag ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}"
 .PHONY: image
 
-push: image
+login:
+ifdef ARO_HCP_IMAGE_REGISTRY_IS_ACR
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_BACKEND_IMAGE}
+else
+	docker login ${ARO_HCP_IMAGE_REGISTRY}
+endif
+.PHONY: login
+
+push: image login
+	docker push \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
+ifndef ARO_HCP_IMAGE_REGISTRY_IS_ACR
+	# The floating "latest" tag tracks the most recently pushed image for "deploy" to use.
+	docker tag \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG} \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:latest
+endif
 .PHONY: push
 
 config:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) && \
 	yq --inplace '.clouds.*.environments.*.defaults.backend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
 	git diff
 .PHONY: config
 
 deploy:
-	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpbackend) \
+	if [ -n "${ARO_HCP_IMAGE_REGISTRY_IS_ACR}" ]; \
+	then \
+		IMAGE_TAG=${ARO_HCP_IMAGE_TAG} && \
+		DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) && \
+		ARO_HCP_IMAGE_DIGEST=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST}; \
+	else \
+		ARO_HCP_IMAGE_DIGEST=$$(docker inspect --format '{{ index .RepoDigests 0 }}' \
+			${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:latest); \
+	fi; \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n backend \
@@ -58,11 +83,11 @@ deploy:
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
+		--set configMap.currentVersion="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set configMap.location=${LOCATION} \
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
-		--set deployment.imageName=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
+		--set deployment.imageName="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER}
 .PHONY: deploy
