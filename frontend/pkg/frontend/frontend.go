@@ -514,6 +514,15 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		hcpCluster.SystemData = resourceDoc.SystemData
+		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
+		if resourceDoc.Identity != nil {
+			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
+			hcpCluster.Identity.TenantID = resourceDoc.Identity.TenantID
+			hcpCluster.Identity.Type = resourceDoc.Identity.Type
+		}
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
