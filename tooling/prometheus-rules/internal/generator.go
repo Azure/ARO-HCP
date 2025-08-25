@@ -364,8 +364,8 @@ func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, in
 resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: '{{.groups.Name}}'
   location: resourceGroup().location
-  interval: '{{.groups.Properties.Interval}}'
   properties: {
+    interval: '{{.groups.Properties.Interval}}'
     rules: [
 {{- range .groups.Properties.Rules}}
       {
