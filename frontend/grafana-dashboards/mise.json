@@ -1,94 +1,96 @@
 {
-    "title": "MISE",
-    "uid": "mise-envoy-dashboard",
-    "description": "ARO HCP MISE Component",
-    "timezone": "browser",
-    "schemaVersion": 39,
-    "version": 1,
-    "graphTooltip": 1,
-    "tags": [],
-    "time": {
-      "from": "now-6h",
-      "to": "now"
-    },
-    "templating": {
-      "list": [
-        {
-          "name": "datasource",
-          "type": "datasource",
-          "label": "Data Source",
-          "query": "prometheus",
-          "refresh": 1,
-          "hide": 0
-        },
-        {
-          "name": "cluster",
-          "type": "query",
-          "label": "cluster",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "definition": "label_values(up,cluster)",
-          "query": {
-            "query": "label_values(up,cluster)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery",
-            "qryType": 1
-          },
-          "refresh": 1,
-          "hide": 0
-        }
-      ]
-    },
-    "panels": [
+  "title": "MISE",
+  "uid": "mise-envoy-dashboard",
+  "description": "ARO HCP MISE Component",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "graphTooltip": 1,
+  "tags": [],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
       {
-        "id": 1,
-        "type": "timeseries",
-        "title": "SLO Availability: MISE Envoy Up",
-        "description": "up{job=\"envoy-stats\", namespace=\"mise\"} where 1 is good and 0 is bad",
+        "name": "datasource",
+        "type": "datasource",
+        "label": "Data Source",
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "hide": 0
+      },
+      {
+        "name": "cluster",
+        "type": "query",
+        "label": "cluster",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "targets": [
-          {
-            "expr": "max without(prometheus_replica) (up{job=\"envoy-stats\", namespace=\"mise\", cluster=\"$cluster\"})",
-            "legendFormat": "__auto",
-            "refId": "A",
-            "editorMode": "code",
-            "datasource": {
-              "type": "prometheus",
-              "uid": "${datasource}"
-            }
-          }
-        ],
-        "gridPos": {
-          "x": 0,
-          "y": 0,
-          "w": 24,
-          "h": 10
+        "definition": "label_values(up,cluster)",
+        "query": {
+          "query": "label_values(up,cluster)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery",
+          "qryType": 1
         },
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "fillOpacity": 10,
-              "gradientMode": "hue",
-              "showPoints": "never"
-            }
-          }
-        },
-        "options": {
-          "legend": {
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true,
-            "calcs": []
-          },
-          "tooltip": {
-            "mode": "single",
-            "sort": "none"
-          }
-        }
+        "refresh": 1,
+        "regex": "^.*-svc-\\d+$",
+        "hide": 0
       }
     ]
-  }
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "SLO Availability: MISE Envoy Up",
+      "description": "up{job=\"envoy-stats\", namespace=\"mise\"} where 1 is good and 0 is bad",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "expr": "max without(prometheus_replica) (up{job=\"envoy-stats\", namespace=\"mise\", cluster=\"$cluster\"})",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "editorMode": "code",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "gradientMode": "hue",
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}

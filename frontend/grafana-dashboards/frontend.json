@@ -746,7 +746,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_services-.*$",
         "skipUrlSync": false,
         "type": "datasource"
       },
@@ -769,7 +769,7 @@
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
-        "regex": "",
+        "regex": "^.*-svc-\\d+$",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"

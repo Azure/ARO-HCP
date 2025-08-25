@@ -16,3 +16,14 @@ grafana-dashboards:
 ```
 
 The pipeline will create a folder in Grafana named `istio` and put the dashboards in grafan-dashboards folder there.
+
+### Dashboards datasources and other variables
+
+It is highly recommended to set a regex filter on your datasource variable to ensure only datasources which are relevant to your dashboard are shown. Consider the following regexes for datasources:
+
+| Regex                                      | Source     | Will show ...                        |
+|--------------------------------------------|------------|--------------------------------------|
+| `^Managed_Prometheus_hcps-.*$`             | datasource | Hypershift Control Plane datasources |
+| `^Managed_Prometheus_services-.*$`         | datasource | Service datasources                  |
+| `^.*-mgmt-\\d+$`                           | cluster    | Management clusters                  |
+| `^.*-svc-\\d+$`                            | cluster    | Service clusters                     |
