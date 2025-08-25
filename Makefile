@@ -229,4 +229,5 @@ ARO-Tools:
 generate-kiota:
 	@tooling/kiota/generate.sh
 	$(MAKE) licenses
+	$(MAKE) fmt
 .PHONY: generate-kiota

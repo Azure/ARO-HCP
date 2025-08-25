@@ -14,8 +14,6 @@ import (
 
 	idf7caef0f65f266a3e5a784cea8c38bec3b37b48bd3f97fa13346951840ed725 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications"
 	ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/groups"
-	if6046e80789a0c5773d5f75b200aee44c49709771ab916d2fd8cf39111f1d89c "github.com/Azure/ARO-HCP/internal/graph/graphsdk/me"
-	id86d5ac6eda9ad1b16a2ed4d018f5828dd93e94ac1eb130b0a06ed8a2d1e0d73 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/organization"
 )
 
 // GraphBaseServiceClient the main entry point of the SDK, exposes the configuration and the fluent API.
@@ -67,16 +65,4 @@ func NewGraphBaseServiceClient(requestAdapter i2ae4187f7daee263371cb1c977df63981
 // returns a *GroupsRequestBuilder when successful
 func (m *GraphBaseServiceClient) Groups() *ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8.GroupsRequestBuilder {
 	return ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8.NewGroupsRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
-}
-
-// Me provides operations to manage the user singleton.
-// returns a *MeRequestBuilder when successful
-func (m *GraphBaseServiceClient) Me() *if6046e80789a0c5773d5f75b200aee44c49709771ab916d2fd8cf39111f1d89c.MeRequestBuilder {
-	return if6046e80789a0c5773d5f75b200aee44c49709771ab916d2fd8cf39111f1d89c.NewMeRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
-}
-
-// Organization provides operations to manage the collection of organization entities.
-// returns a *OrganizationRequestBuilder when successful
-func (m *GraphBaseServiceClient) Organization() *id86d5ac6eda9ad1b16a2ed4d018f5828dd93e94ac1eb130b0a06ed8a2d1e0d73.OrganizationRequestBuilder {
-	return id86d5ac6eda9ad1b16a2ed4d018f5828dd93e94ac1eb130b0a06ed8a2d1e0d73.NewOrganizationRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
 }

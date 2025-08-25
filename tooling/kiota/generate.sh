@@ -6,9 +6,18 @@ set -euo pipefail
 main() {
     echo "Starting Kiota SDK generation..."
 
+    verify_kiota
     generate_microsoft_graph_sdk
 
     echo "All SDK generation complete!"
+}
+
+
+verify_kiota() {
+    if ! command -v kiota >/dev/null 2>&1; then
+        echo "Error: kiota is not installed or not in PATH." >&2
+        exit 1
+    fi
 }
 
 # Generate Microsoft Graph SDK
@@ -28,9 +37,7 @@ generate_microsoft_graph_sdk() {
         --include-path "/applications/{application-id}" \
         --include-path "/applications/{application-id}/addPassword" \
         --include-path "/applications/{application-id}/removePassword" \
-        --include-path "/groups" \
-        --include-path "/me" \
-        --include-path "/organization"
+        --include-path "/groups"
 
     # Fix import paths to use correct case
     echo "Fixing import paths..."
