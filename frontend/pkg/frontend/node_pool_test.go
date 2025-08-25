@@ -156,7 +156,15 @@ func TestCreateNodePool(t *testing.T) {
 			mockCSClient.EXPECT().
 				GetCluster(gomock.Any(), clusterDoc.InternalID).
 				Return(arohcpv1alpha1.NewCluster().
-					Version(arohcpv1alpha1.NewVersion().ChannelGroup("stable")).
+					API(arohcpv1alpha1.NewClusterAPI().
+						Listening(arohcpv1alpha1.ListeningMethodExternal)).
+					Azure(arohcpv1alpha1.NewAzure().
+						NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+							OutboundType(csPlatformOutboundType))).
+					ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
+						State(csImageRegistryStateEnabled)).
+					Version(arohcpv1alpha1.NewVersion().
+						ChannelGroup("stable")).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().

@@ -49,83 +49,100 @@ const (
 	csPlatformOutboundType                string = "load_balancer"
 	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
 	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
+	csKeyManagementModeCustomerManaged    string = "customer_managed"
+	csKeyManagementModePlatformManaged    string = "platform_managed"
 	csCustomerManagedEncryptionTypeKms    string = "kms"
 )
 
-func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (visibility api.Visibility) {
+// Sentinel error for use with errors.Is
+var ErrUnknownValue = errors.New("unknown value")
+
+func conversionError[T any](v any) error {
+	return fmt.Errorf("cannot convert %T(%q) to %T: %w", v, v, *new(T), ErrUnknownValue)
+}
+
+func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (api.Visibility, error) {
 	switch listening {
 	case arohcpv1alpha1.ListeningMethodExternal:
-		visibility = api.VisibilityPublic
+		return api.VisibilityPublic, nil
 	case arohcpv1alpha1.ListeningMethodInternal:
-		visibility = api.VisibilityPrivate
+		return api.VisibilityPrivate, nil
+	default:
+		return "", conversionError[api.Visibility](listening)
 	}
-	return
 }
 
-func convertVisibilityToListening(visibility api.Visibility) (listening arohcpv1alpha1.ListeningMethod) {
+func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.ListeningMethod, error) {
 	switch visibility {
 	case api.VisibilityPublic:
-		listening = arohcpv1alpha1.ListeningMethodExternal
+		return arohcpv1alpha1.ListeningMethodExternal, nil
 	case api.VisibilityPrivate:
-		listening = arohcpv1alpha1.ListeningMethodInternal
+		return arohcpv1alpha1.ListeningMethodInternal, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ListeningMethod](visibility)
 	}
-	return
 }
 
-func convertOutboundTypeCSToRP(outboundTypeCS string) (outboundTypeRP api.OutboundType) {
+func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
 	switch outboundTypeCS {
 	case csPlatformOutboundType:
-		outboundTypeRP = api.OutboundTypeLoadBalancer
+		return api.OutboundTypeLoadBalancer, nil
+	default:
+		return "", conversionError[api.OutboundType](outboundTypeCS)
 	}
-	return
 }
 
-func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (outboundTypeCS string) {
+func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		outboundTypeCS = csPlatformOutboundType
+		return csPlatformOutboundType, nil
+	default:
+		return "", conversionError[string](outboundTypeRP)
 	}
-	return
 }
 
-func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (encryptionTypeRP api.CustomerManagedEncryptionType) {
+func convertCustomerManagedEncryptionTypeCSToRP(encryptionTypeCS string) (api.CustomerManagedEncryptionType, error) {
 	switch encryptionTypeCS {
 	case csCustomerManagedEncryptionTypeKms:
-		encryptionTypeRP = api.CustomerManagedEncryptionTypeKMS
+		return api.CustomerManagedEncryptionTypeKMS, nil
+	default:
+		return "", conversionError[api.CustomerManagedEncryptionType](encryptionTypeCS)
 	}
-	return
 }
 
-func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) (encryptionTypeCS string) {
+func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerManagedEncryptionType) (string, error) {
 	switch encryptionTypeRP {
 	case api.CustomerManagedEncryptionTypeKMS:
-		encryptionTypeCS = csCustomerManagedEncryptionTypeKms
+		return csCustomerManagedEncryptionTypeKms, nil
+	default:
+		return "", conversionError[string](encryptionTypeRP)
 	}
-	return
 }
 
-func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (prefixPolicyRP api.UsernameClaimPrefixPolicyType) {
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicyType, error) {
 	switch prefixPolicyCS {
 	case csUsernameClaimPrefixPolicyPrefix:
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypePrefix
+		return api.UsernameClaimPrefixPolicyTypePrefix, nil
 	case csUsernameClaimPrefixPolicyNoPrefix:
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNoPrefix
+		return api.UsernameClaimPrefixPolicyTypeNoPrefix, nil
 	case "":
-		prefixPolicyRP = api.UsernameClaimPrefixPolicyTypeNone
+		return api.UsernameClaimPrefixPolicyTypeNone, nil
+	default:
+		return "", conversionError[api.UsernameClaimPrefixPolicyType](prefixPolicyCS)
 	}
-	return
 }
 
-func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (prefixPolicyCS string) {
+func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (string, error) {
 	switch prefixPolicyRP {
 	case api.UsernameClaimPrefixPolicyTypePrefix:
-		prefixPolicyCS = csUsernameClaimPrefixPolicyPrefix
+		return csUsernameClaimPrefixPolicyPrefix, nil
 	case api.UsernameClaimPrefixPolicyTypeNoPrefix:
-		prefixPolicyCS = csUsernameClaimPrefixPolicyNoPrefix
+		return csUsernameClaimPrefixPolicyNoPrefix, nil
 	case api.UsernameClaimPrefixPolicyTypeNone:
-		prefixPolicyCS = ""
+		return "", nil
+	default:
+		return "", conversionError[string](prefixPolicyRP)
 	}
-	return
 }
 
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
@@ -140,27 +157,26 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
 }
 
-func convertClusterImageRegistryToCSBuilder(in api.ClusterImageRegistryProfile) *arohcpv1alpha1.ClusterImageRegistryBuilder {
-	var state string
+func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) (string, error) {
 	switch in.State {
 	case api.ClusterImageRegistryProfileStateDisabled:
-		state = csImageRegistryStateDisabled
+		return csImageRegistryStateDisabled, nil
 	case api.ClusterImageRegistryProfileStateEnabled:
-		state = csImageRegistryStateEnabled
+		return csImageRegistryStateEnabled, nil
+	default:
+		return "", conversionError[string](in)
 	}
-	return arohcpv1alpha1.NewClusterImageRegistry().State(state)
 }
 
-func convertClusterImageRegistryStateCSToRP(state string) api.ClusterImageRegistryProfileState {
-	var registryState api.ClusterImageRegistryProfileState
+func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
 	switch state {
 	case csImageRegistryStateDisabled:
-		registryState = api.ClusterImageRegistryProfileStateDisabled
+		return api.ClusterImageRegistryProfileStateDisabled, nil
 	case csImageRegistryStateEnabled:
-		registryState = api.ClusterImageRegistryProfileStateEnabled
+		return api.ClusterImageRegistryProfileStateEnabled, nil
+	default:
+		return "", conversionError[api.ClusterImageRegistryProfileState](state)
 	}
-
-	return registryState
 }
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
@@ -172,34 +188,42 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	return 0
 }
 
-func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) {
+func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (api.EtcdDataEncryptionKeyManagementModeType, error) {
 	switch keyManagementModeCS {
-	case "platform_managed":
-		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-	case "customer_managed":
-		keyManagementModeRP = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	case csKeyManagementModePlatformManaged:
+		return api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged, nil
+	case csKeyManagementModeCustomerManaged:
+		return api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged, nil
+	default:
+		return "", conversionError[api.EtcdDataEncryptionKeyManagementModeType](keyManagementModeCS)
 	}
-	return
 }
 
-func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) (keyManagementModeCS string) {
+func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncryptionKeyManagementModeType) (string, error) {
 	switch keyManagementModeRP {
 	case api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged:
-		keyManagementModeCS = "platform_managed"
+		return csKeyManagementModePlatformManaged, nil
 	case api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged:
-		keyManagementModeCS = "customer_managed"
+		return csKeyManagementModeCustomerManaged, nil
+	default:
+		return "", conversionError[string](keyManagementModeRP)
 	}
-	return
 }
 
-func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) *api.CustomerManagedEncryptionProfile {
+func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) (*api.CustomerManagedEncryptionProfile, error) {
 	if customerManaged, ok := in.GetCustomerManaged(); ok {
-		return &api.CustomerManagedEncryptionProfile{
-			EncryptionType: convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType()),
-			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
+		encryptionType, err := convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType())
+		if err != nil {
+			return nil, err
 		}
+
+		return &api.CustomerManagedEncryptionProfile{
+			EncryptionType: encryptionType,
+			Kms:            convertKmsEncryptionCSToRP(in.CustomerManaged()),
+		}, nil
 	}
-	return nil
+
+	return nil, nil
 }
 
 func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustomerManaged) *api.KmsEncryptionProfile {
@@ -217,11 +241,21 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 	return nil
 }
 
-func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBuilder {
-	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode))
+func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
+	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
+	if err != nil {
+		return nil, err
+	}
+
+	azureEtcdDataEncryptionBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryption().KeyManagementMode(keyManagementMode)
 	if in.DataEncryption.CustomerManaged != nil {
+		encryptionType, err := convertCustomerManagedEncryptionTypeRPToCS(in.DataEncryption.CustomerManaged.EncryptionType)
+		if err != nil {
+			return nil, err
+		}
+
 		azureEtcdDataEncryptionCustomerManagedBuilder := arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
-			EncryptionType(convertCustomerManagedEncryptionTypeRPToCS(in.DataEncryption.CustomerManaged.EncryptionType))
+			EncryptionType(encryptionType)
 		azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
 			KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
 			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
@@ -230,11 +264,11 @@ func convertEtcdRPToCS(in api.EtcdProfile) *arohcpv1alpha1.AzureEtcdEncryptionBu
 		azureEtcdDataEncryptionCustomerManagedBuilder = azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
-	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder)
+	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
-func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) *api.HCPOpenShiftCluster {
+func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
 	// HCPOpenShiftCluster struct along with the ARM metadata that
@@ -243,6 +277,20 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	// defer that to the backend pod so that the ProvisioningState
 	// stays consistent with the Status of any active non-terminal
 	// operation on the cluster.
+
+	apiVisibility, err := convertListeningToVisibility(cluster.API().Listening())
+	if err != nil {
+		return nil, err
+	}
+	outboundType, err := convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType())
+	if err != nil {
+		return nil, err
+	}
+	clusterImageRegistryState, err := convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State())
+	if err != nil {
+		return nil, err
+	}
+
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Location: cluster.Region().ID(),
@@ -273,22 +321,19 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			API: api.APIProfile{
 				URL:        cluster.API().URL(),
-				Visibility: convertListeningToVisibility(cluster.API().Listening()),
+				Visibility: apiVisibility,
 			},
 			Platform: api.PlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
 				SubnetID:               cluster.Azure().SubnetResourceID(),
-				OutboundType:           convertOutboundTypeCSToRP(cluster.Azure().NodesOutboundConnectivity().OutboundType()),
+				OutboundType:           outboundType,
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
-				State: convertClusterImageRegistryStateCSToRP(cluster.ImageRegistry().State()),
+				State: clusterImageRegistryState,
 			},
-		},
-		Identity: &arm.ManagedServiceIdentity{
-			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
 		},
 	}
 
@@ -296,10 +341,19 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	if cluster.Azure().EtcdEncryption() != nil {
 		dataEncryption := cluster.Azure().EtcdEncryption().DataEncryption()
 		if dataEncryption != nil {
+			customerManaged, err := convertCustomerManagedEncryptionCSToRP(dataEncryption)
+			if err != nil {
+				return nil, err
+			}
+			keyManagementMode, err := convertKeyManagementModeTypeCSToRP(dataEncryption.KeyManagementMode())
+			if err != nil {
+				return nil, err
+			}
+
 			hcpcluster.Properties.Etcd = api.EtcdProfile{
 				DataEncryption: api.EtcdDataEncryptionProfile{
-					CustomerManaged:   convertCustomerManagedEncryptionCSToRP(dataEncryption),
-					KeyManagementMode: convertKeyManagementModeTypeCSToRP(dataEncryption.KeyManagementMode()),
+					CustomerManaged:   customerManaged,
+					KeyManagementMode: keyManagementMode,
 				},
 			}
 		}
@@ -312,6 +366,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	// - The operator-specific maps under OperatorsAuthentication mimics the
 	//   Cluster Service maps but just has operator-to-resourceID pairings.
 	if cluster.Azure().OperatorsAuthentication() != nil {
+		hcpcluster.Identity = &arm.ManagedServiceIdentity{
+			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
+		}
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
 			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
@@ -334,7 +391,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 		}
 	}
 
-	return hcpcluster
+	return hcpcluster, nil
 }
 
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
@@ -355,6 +412,7 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 
 // BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
 func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.Cluster, error) {
+	var err error
 
 	// Ensure required headers are present.
 	tenantID := requestHeader.Get(arm.HeaderNameHomeTenantID)
@@ -370,13 +428,16 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
 		// Add attributes that cannot be updated after cluster creation.
-		clusterBuilder = withImmutableAttributes(clusterBuilder, hcpCluster,
+		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			f.location,
 			tenantID,
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	clusterBuilder = clusterBuilder.
@@ -389,7 +450,20 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	return clusterBuilder.Build()
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, location, tenantID, identityURL string) *arohcpv1alpha1.ClusterBuilder {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, location, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+	apiListening, err := convertVisibilityToListening(hcpCluster.Properties.API.Visibility)
+	if err != nil {
+		return nil, err
+	}
+	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.Properties.ClusterImageRegistry)
+	if err != nil {
+		return nil, err
+	}
+	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)
+	if err != nil {
+		return nil, err
+	}
+
 	clusterBuilder = clusterBuilder.
 		Name(hcpCluster.Name).
 		Flavour(cmv1.NewFlavour().
@@ -413,8 +487,9 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(convertVisibilityToListening(hcpCluster.Properties.API.Visibility))).
-		ImageRegistry(convertClusterImageRegistryToCSBuilder(hcpCluster.Properties.ClusterImageRegistry))
+			Listening(apiListening)).
+		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
+			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(subscriptionID).
@@ -423,11 +498,15 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 		SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-			OutboundType(convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)))
+			OutboundType(outboundType))
 
 	// Only add etcd encryption if it's actually configured
 	if hcpCluster.Properties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.Properties.Etcd.DataEncryption.CustomerManaged != nil {
-		azureBuilder = azureBuilder.EtcdEncryption(convertEtcdRPToCS(hcpCluster.Properties.Etcd))
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.Properties.Etcd)
+		if err != nil {
+			return nil, err
+		}
+		azureBuilder = azureBuilder.EtcdEncryption(etcdEncryption)
 	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
@@ -469,7 +548,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		clusterBuilder = clusterBuilder.
 			DomainPrefix(hcpCluster.Properties.DNS.BaseDomainPrefix)
 	}
-	return clusterBuilder
+
+	return clusterBuilder, nil
 }
 
 // ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
@@ -589,7 +669,12 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 }
 
 // ConvertCStoExternalAuth converts a CS External Auth object into HCPOpenShiftClusterExternalAuth object
-func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) *api.HCPOpenShiftClusterExternalAuth {
+func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
+	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy())
+	if err != nil {
+		return nil, err
+	}
+
 	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
@@ -611,7 +696,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 					Username: api.UsernameClaimProfile{
 						Claim:        csExternalAuth.Claim().Mappings().UserName().Claim(),
 						Prefix:       csExternalAuth.Claim().Mappings().UserName().Prefix(),
-						PrefixPolicy: convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy()),
+						PrefixPolicy: usernameClaimPrefixPolicy,
 					},
 				},
 			},
@@ -623,7 +708,6 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			Claim:  groups.Claim(),
 			Prefix: groups.Prefix(),
 		}
-
 	}
 
 	clients := make([]api.ExternalAuthClientProfile, 0, len(csExternalAuth.Clients()))
@@ -655,7 +739,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	}
 	externalAuth.Properties.Claim.ValidationRules = validationRules
 
-	return externalAuth
+	return externalAuth, nil
 }
 
 // BuildCSExternalAuth creates a CS External Auth object from an HCPOpenShiftClusterExternalAuth object
@@ -691,19 +775,27 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
 	}
 
-	buildClaims(externalAuthBuilder, *externalAuth)
+	err := buildClaims(externalAuthBuilder, *externalAuth)
+	if err != nil {
+		return nil, err
+	}
 
 	return externalAuthBuilder.Build()
 }
 
-func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) {
+func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {
+	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)
+	if err != nil {
+		return err
+	}
+
 	claimBuilder := arohcpv1alpha1.NewExternalAuthClaim()
 
 	mappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings()
 	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
 		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
 		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-		PrefixPolicy(convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)),
+		PrefixPolicy(usernameClaimPrefixPolicy),
 	)
 
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
@@ -726,6 +818,8 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 	}
 
 	externalAuthBuilder.Claim(claimBuilder)
+
+	return nil
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential.
