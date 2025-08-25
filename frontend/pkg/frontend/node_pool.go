@@ -105,6 +105,9 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		hcpNodePool.SystemData = resourceDoc.SystemData
+		hcpNodePool.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.

@@ -105,6 +105,9 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
+		hcpExternalAuth.SystemData = resourceDoc.SystemData
+		hcpExternalAuth.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
