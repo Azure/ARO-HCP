@@ -267,8 +267,7 @@ func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *data
 	}
 
 	hcpExternalAuth.SystemData = doc.SystemData
-	// TODO: Use the correct state from the document when CS returns ir.
-	hcpExternalAuth.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
+	hcpExternalAuth.Properties.ProvisioningState = doc.ProvisioningState
 
 	return versionedInterface.MarshalHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 }
