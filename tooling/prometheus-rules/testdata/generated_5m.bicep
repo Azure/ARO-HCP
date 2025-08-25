@@ -7,8 +7,8 @@ param actionGroups array
 resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'InstancesDownV1'
   location: resourceGroup().location
-  interval: 'PT5M'
   properties: {
+    interval: 'PT5M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
