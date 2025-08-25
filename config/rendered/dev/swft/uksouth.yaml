@@ -212,6 +212,7 @@ genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
   billing:
+    digest: placeholder
     rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
