@@ -28,7 +28,7 @@ if err != nil {
 }
 
 // Create an application
-app, err := graphClient.CreateApplication(ctx, "my-app", "AzureADMyOrg", []string{})
+app, err := graphClient.CreateApplication(ctx, "my-app", []string{})
 if err != nil {
     return err
 }
@@ -57,39 +57,3 @@ To add new operations:
     - **Use the generated SDK** (`../graphsdk`) for the underlying implementation
     - **Provide a simplified interface** that hides complexity
     - **Include proper error handling and godocs**
-
-## Integration Tests
-
-⚠️ **WARNING: Integration tests create and modify Azure Entra resources. They require high-privilege access to your Azure tenant.**
-
-### Running Tests
-
-```bash
-# Set up required environment variables
-export INTEGRATION_TEST_CONSENT=true
-export TEST_AZURE_TENANT_ID="your-test-tenant-id"
-export AZURE_TENANT_ID="your-test-tenant-id"
-export TEST_RESOURCE_PREFIX="my-test-prefix"
-export AZURE_CLIENT_ID="your-client-id"
-export AZURE_CLIENT_SECRET="your-client-secret"
-
-# Run tests
-cd internal/graph
-make test-integration-dry-run        # Safe validation (no resources modified)
-make test-integration                # Full integration tests
-```
-
-### Required Environment Variables
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `INTEGRATION_TEST_CONSENT` | Yes | Explicit consent to run tests |
-| `TEST_AZURE_TENANT_ID` | Yes | Test tenant ID for safety |
-| `TEST_RESOURCE_PREFIX` | Yes | Prefix for test resources |
-| `AZURE_TENANT_ID` | Yes | Must match TEST_AZURE_TENANT_ID |
-| `AZURE_CLIENT_ID` | Yes* | Service principal client ID |
-| `AZURE_CLIENT_SECRET` | Yes* | Service principal secret |
-| `ALLOW_AZ_CLI_FALLBACK` | No | Allow Azure CLI authentication |
-| `INTEGRATION_TEST_DRY_RUN` | No | Enable dry-run mode |
-
-*Required unless using Azure CLI authentication
