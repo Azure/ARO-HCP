@@ -54,7 +54,7 @@ jobs:
         sudo mv oc /usr/local/bin/oc
         chmod +x /usr/local/bin/oc
     # Used to deploy Maestro Server, Frontend
-    - uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+    - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
       with:
         version: 'v3.13.3'
     - uses: oras-project/setup-oras@v1
@@ -100,7 +100,7 @@ jobs:
         sudo mv oc /usr/local/bin/oc
         chmod +x /usr/local/bin/oc
     # Used to deploy Maestro Server, Frontend
-    - uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+    - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
       with:
         version: 'v3.13.3'
     - uses: azure/use-kubelogin@76597ae0fcbaace21b05e13a2cbf8daee2c6e820 # v1.2
