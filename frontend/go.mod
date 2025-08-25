@@ -42,6 +42,7 @@ require (
 	github.com/openshift-online/ocm-api-model/model v0.0.424 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
