@@ -17,21 +17,23 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func setupTestFiles(tmpDir string) error {
+func setupTestFiles(tmpDir string, defaultEvaluationInterval string) error {
 	config := `
 prometheusRules:
+  defaultEvaluationInterval: ${defaultEvaluationInterval}
   rulesFolders:
   - ./alerts
   untestedRules: []
   outputBicep: zzz_generated_AlertingRules.bicep
 `
-
-	err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(config), 0660)
+	updatedConfig := strings.Replace(config, "${defaultEvaluationInterval}", defaultEvaluationInterval, 1)
+	err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(updatedConfig), 0660)
 	if err != nil {
 		return err
 	}
@@ -47,29 +49,44 @@ func copyFile(fileToCopy, targetDir string) error {
 }
 
 func TestPrometheusRules(t *testing.T) {
-	tmpDir := t.TempDir()
-	assert.NoError(t, setupTestFiles(tmpDir))
 
-	for _, testfile := range []string{
-		"./testdata/alerts/testing-prometheusRule_test.yaml",
-		"./testdata/alerts/testing-prometheusRule.yaml"} {
-		assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
+	testCases := []struct {
+		name                      string
+		defaultEvaluationInterval string
+		generatedFile             string
+	}{
+		{name: "1m", defaultEvaluationInterval: "1m", generatedFile: "generated.bicep"},
+		{name: "5m", defaultEvaluationInterval: "5m", generatedFile: "generated_5m.bicep"},
 	}
-	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
-	assert.NoError(t, err)
 
-	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
-	assert.NoError(t, err)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			assert.NoError(t, setupTestFiles(tmpDir, testCase.defaultEvaluationInterval))
 
-	expectedContent, err := os.ReadFile(filepath.Join("testdata", "generated.bicep"))
-	assert.NoError(t, err)
+			for _, testfile := range []string{
+				"./testdata/alerts/testing-prometheusRule_test.yaml",
+				"./testdata/alerts/testing-prometheusRule.yaml"} {
+				assert.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
+			}
+			err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
+			assert.NoError(t, err)
 
-	assert.Equal(t, string(expectedContent), string(generatedFile))
+			generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
+			assert.NoError(t, err)
+
+			expectedContent, err := os.ReadFile(filepath.Join("testdata", testCase.generatedFile))
+			assert.NoError(t, err)
+
+			assert.Equal(t, string(expectedContent), string(generatedFile))
+		})
+	}
+
 }
 
 func TestPrometheusRulesMissingTest(t *testing.T) {
 	tmpDir := t.TempDir()
-	assert.NoError(t, setupTestFiles(tmpDir))
+	assert.NoError(t, setupTestFiles(tmpDir, ""))
 
 	for _, testfile := range []string{
 		"./testdata/alerts/testing-prometheusRule.yaml"} {
@@ -81,7 +98,7 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 
 func TestPrometheusRulesMixedRulesNotAllowed(t *testing.T) {
 	tmpDir := t.TempDir()
-	assert.NoError(t, setupTestFiles(tmpDir))
+	assert.NoError(t, setupTestFiles(tmpDir, ""))
 
 	// Create a rule file with mixed alert and recording rules in the same group
 	mixedRulesContent := `apiVersion: monitoring.coreos.com/v1

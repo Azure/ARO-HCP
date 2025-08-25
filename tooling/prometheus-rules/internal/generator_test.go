@@ -394,7 +394,7 @@ func TestBicepName(t *testing.T) {
 	}
 }
 
-func TestFormatDuration(t *testing.T) {
+func TestParseToAzureDurationString(t *testing.T) {
 	tests := []struct {
 		input    *monitoringv1.Duration
 		expected *string
@@ -407,7 +407,7 @@ func TestFormatDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("input_%v", tt.input), func(t *testing.T) {
-			result := formatDuration(tt.input)
+			result := parseToAzureDurationString(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {
