@@ -163,15 +163,21 @@ func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api
 }
 
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
-	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = h.ValidateVisibility(current, updating)
 
-	h.Normalize(&normalized)
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized api.HCPOpenShiftClusterNodePool
 
-	// Run additional validation on the "normalized" node pool model.
-	errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
+		h.Normalize(&normalized)
+
+		// Run additional validation on the "normalized" node pool model.
+		errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
+	}
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)

@@ -90,15 +90,21 @@ func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource
 }
 
 func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
-	var normalized api.HCPOpenShiftClusterExternalAuth
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = c.ValidateVisibility(current, updating)
 
-	c.Normalize(&normalized)
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized api.HCPOpenShiftClusterExternalAuth
 
-	// Run additional validation on the "normalized" cluster model.
-	errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+		c.Normalize(&normalized)
+
+		// Run additional validation on the "normalized" cluster model.
+		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+	}
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)
