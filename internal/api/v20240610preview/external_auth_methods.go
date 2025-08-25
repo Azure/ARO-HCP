@@ -57,7 +57,7 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
-			out.Properties.ProvisioningState = arm.ExternalAuthProvisioningState(*h.Properties.ProvisioningState)
+			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
 		}
 
 		// TODO: Add this when we support Condition

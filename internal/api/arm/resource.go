@@ -124,6 +124,9 @@ const (
 	ProvisioningStateDeleting     ProvisioningState = "Deleting"
 	ProvisioningStateProvisioning ProvisioningState = "Provisioning"
 	ProvisioningStateUpdating     ProvisioningState = "Updating"
+
+	// Exclusive to ExternalAuth
+	ProvisioningStateAwaitingSecret ProvisioningState = "AwaitingSecret"
 )
 
 // IsTerminal returns true if the state is terminal.
@@ -147,21 +150,6 @@ func ListProvisioningStates() iter.Seq[ProvisioningState] {
 		ProvisioningStateDeleting,
 		ProvisioningStateProvisioning,
 		ProvisioningStateUpdating,
+		ProvisioningStateAwaitingSecret,
 	})
 }
-
-type ExternalAuthProvisioningState string
-
-const (
-	// Terminal states, defined by ARM
-	ExternalAuthProvisioningStateCanceled  ExternalAuthProvisioningState = "Canceled"
-	ExternalAuthProvisioningStateFailed    ExternalAuthProvisioningState = "Failed"
-	ExternalAuthProvisioningStateSucceeded ExternalAuthProvisioningState = "Succeeded"
-
-	// Non-terminal states, defined by ARO-HCP
-	ExternalAuthProvisioningStateAccepted       ExternalAuthProvisioningState = "Accepted"
-	ExternalAuthProvisioningStateAwaitingSecret ExternalAuthProvisioningState = "AwaitingSecret"
-	ExternalAuthProvisioningStateDeleting       ExternalAuthProvisioningState = "Deleting"
-	ExternalAuthProvisioningStateProvisioning   ExternalAuthProvisioningState = "Provisioning"
-	ExternalAuthProvisioningStateUpdating       ExternalAuthProvisioningState = "Updating"
-)

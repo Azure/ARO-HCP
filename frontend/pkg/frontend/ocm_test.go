@@ -401,6 +401,7 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			Audiences().
 			URL("").
 			CA("")).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
@@ -411,7 +412,8 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 					PrefixPolicy(""),
 				),
 			),
-		)
+		).
+		Clients()
 }
 
 func TestBuildCSExternalAuth(t *testing.T) {
