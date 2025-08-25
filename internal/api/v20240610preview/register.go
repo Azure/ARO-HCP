@@ -84,4 +84,5 @@ func init() {
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
 	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyTypeValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+	validate.RegisterAlias("enum_persistence", api.EnumValidateTag(generated.PossiblePersistenceTypeValues()...))
 }

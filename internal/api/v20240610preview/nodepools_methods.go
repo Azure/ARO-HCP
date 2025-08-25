@@ -150,6 +150,9 @@ func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) 
 	if p.EncryptionSetID != nil {
 		out.EncryptionSetId = *p.EncryptionSetID
 	}
+	if p.Persistence != nil {
+		out.Persistence = api.PersistenceType(*p.Persistence)
+	}
 }
 
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
@@ -205,6 +208,8 @@ func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
 	return &generated.OsDiskProfile{
 		SizeGiB:                api.PtrOrNil(from.SizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetId),
+		Persistence:            api.PtrOrNil(generated.PersistenceType(from.Persistence)),
 	}
 }
 
