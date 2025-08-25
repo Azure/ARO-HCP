@@ -59,6 +59,16 @@ func main() {
 		Parallelism: 15,
 	})
 
+	ext.AddSuite(e.Suite{
+		Name: "prod/parallel",
+		Qualifiers: []string{
+			// Remember that the label constants are (currently) slices, not items.
+			// TODO we will need per-env markers eventually, but it's ok to start here
+			fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0]),
+		},
+		Parallelism: 15,
+	})
+
 	// If using Ginkgo, build test specs automatically
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
