@@ -3,7 +3,16 @@
 ARO_HCP_REVISION = $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-ARO_HCP_FRONTEND_IMAGE ?= ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
+
+ifeq ($(ARO_HCP_IMAGE_REGISTRY:%.azurecr.io=azurecr.io),azurecr.io)
+ARO_HCP_IMAGE_REGISTRY_IS_ACR = 1
+endif
+
+ifeq (${DEPLOY_MISE},true)
+# ARO_HCP_IMAGE_REGISTRY can be overridden.
+# This MUST be an Azure Container Registry.
+MISE_IMAGE_REGISTRY = ${ARO_HCP_IMAGE_ACR}.azurecr.io
+endif
 
 .DEFAULT_GOAL := frontend
 
@@ -30,22 +39,44 @@ image:
 	                         --build-arg PLATFORM=linux/amd64 \
 	                         --build-arg REVISION=${ARO_HCP_REVISION} \
 	                         --build-arg TAG=${ARO_HCP_IMAGE_TAG} \
-	                         --tag ${ARO_HCP_FRONTEND_IMAGE}"
+	                         --tag ${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}"
 .PHONY: image
 
-push: image
+login:
+ifdef ARO_HCP_IMAGE_REGISTRY_IS_ACR
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
-	docker push ${ARO_HCP_FRONTEND_IMAGE}
+else
+	docker login ${ARO_HCP_IMAGE_REGISTRY}
+endif
+.PHONY: login
+
+push: image login
+	docker push \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG}
+ifndef ARO_HCP_IMAGE_REGISTRY_IS_ACR
+	# The floating "latest" tag tracks the most recently pushed image for "deploy" to use.
+	docker tag \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:${ARO_HCP_IMAGE_TAG} \
+		${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:latest
+endif
 .PHONY: push
 
 config:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) && \
 	yq --inplace '.clouds.*.environments.*.defaults.frontend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
 	git diff
 .PHONY: config
 
 deploy:
-	DIGEST=$$(IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ../get-digest.sh ${ARO_HCP_IMAGE_ACR} arohcpfrontend) \
+	if [ -n "${ARO_HCP_IMAGE_REGISTRY_IS_ACR}" ]; \
+	then \
+		IMAGE_TAG=${ARO_HCP_IMAGE_TAG} && \
+		DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) && \
+		ARO_HCP_IMAGE_DIGEST=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST}; \
+	else \
+		ARO_HCP_IMAGE_DIGEST=$$(docker inspect --format '{{ index .RepoDigests 0 }}' \
+			${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}:latest); \
+	fi; \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
 			-n frontend \
@@ -84,16 +115,16 @@ deploy:
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
-		--set configMap.currentVersion=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
+		--set configMap.currentVersion="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set configMap.location=${LOCATION}  \
-		--set deployment.imageName=${ARO_HCP_IMAGE_REGISTRY}/${ARO_HCP_IMAGE_REPOSITORY}@$${DIGEST} \
-		--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
+		--set deployment.imageName="$${ARO_HCP_IMAGE_DIGEST}" \
+		--set pullBinding.registry=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployMise=${DEPLOY_MISE} \
 		--set mise.namespace=mise \
-		--set mise.imageRegistry=${ARO_HCP_IMAGE_REGISTRY} \
+		--set mise.imageRegistry=${MISE_IMAGE_REGISTRY} \
 		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
 		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
 		--set mise.tenantId=${MISE_TENANT_ID} \
