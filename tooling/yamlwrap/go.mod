@@ -15,5 +15,5 @@ require (
 	github.com/spf13/pflag v1.0.7 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	sigs.k8s.io/yaml v1.5.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )
