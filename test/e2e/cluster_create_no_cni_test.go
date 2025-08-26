@@ -16,13 +16,13 @@ package e2e
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	// hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
