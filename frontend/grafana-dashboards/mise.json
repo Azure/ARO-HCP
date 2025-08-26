@@ -47,14 +47,14 @@
       "id": 1,
       "type": "timeseries",
       "title": "SLO Availability: MISE Envoy Up",
-      "description": "up{job=\"envoy-stats\", namespace=\"mise\"} where 1 is good and 0 is bad",
+      "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
       "targets": [
         {
-          "expr": "max without(prometheus_replica) (up{job=\"envoy-stats\", namespace=\"mise\", cluster=\"$cluster\"})",
+          "expr": "max without(prometheus_replica) (up{job=\"mise\", namespace=\"mise\", cluster=\"$cluster\"})",
           "legendFormat": "__auto",
           "refId": "A",
           "editorMode": "code",
