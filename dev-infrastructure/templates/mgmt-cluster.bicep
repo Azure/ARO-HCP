@@ -219,7 +219,7 @@ resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
 }
 
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
-  name: 'cluster'
+  name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
   params: {
     location: location
