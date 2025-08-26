@@ -56,7 +56,7 @@ endif
 .PHONY: push
 
 config:
-	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) && \
+	DIGEST=$$(../get-digest.sh ${ARO_HCP_IMAGE_ACR} ${ARO_HCP_IMAGE_REPOSITORY}) \
 	yq --inplace '.clouds.*.environments.*.defaults.backend.image.digest = strenv(DIGEST)' ../config/config.msft.clouds-overlay.yaml && \
 	git diff
 .PHONY: config
