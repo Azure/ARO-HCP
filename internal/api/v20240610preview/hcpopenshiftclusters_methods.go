@@ -293,12 +293,13 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 }
 
 func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := api.GetVisibilityFlags(clusterStructTagMap[path])
+	flags, ok := clusterVisibilityMap[path]
 	return flags, ok
 }
 
 func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
-	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterStructTagMap, updating)
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftCluster]()
+	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterVisibilityMap, structTagMap, updating)
 }
 
 func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {

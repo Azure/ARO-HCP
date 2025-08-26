@@ -17,8 +17,10 @@ package api
 import (
 	"io"
 	"log/slog"
+	"maps"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -223,4 +225,34 @@ func AssertJSONPath[T any](t *testing.T, path string) bool {
 	}
 
 	return true
+}
+
+// SkipVisibilityTest is for fields that are not validated but
+// may set a default visibility value for its descendant fields.
+const SkipVisibilityTest = VisibilityFlags(0)
+
+// TestVersionedVisibilityMap is a reusable test that versioned APIs can use
+// to verify their expected field visibilities against their VisibilityMaps,
+// which may include version-specific overrides.
+func TestVersionedVisibilityMap[T any](t *testing.T, actualVisibility VisibilityMap, expectedVisibility VisibilityMap) {
+	// Ensure the VisibilityMap keys are in agreement with generated field names.
+	assert.Equal(t,
+		slices.Sorted(maps.Keys(GetStructTagMap[T]())),
+		slices.Sorted(maps.Keys(actualVisibility)),
+		"Discrepancies exist between the generated model and its VisibilityMap")
+
+	checklist := maps.Clone(actualVisibility)
+
+	for path, expectedFlags := range expectedVisibility {
+		t.Run(path, func(t *testing.T) {
+			actualFlags := actualVisibility[path]
+			if expectedFlags != SkipVisibilityTest {
+				assert.Equalf(t, expectedFlags, actualFlags, "%s: expected %q, actual %q", path, expectedFlags, actualFlags)
+			}
+			delete(checklist, path)
+		})
+	}
+
+	// Make sure expectedVisibility didn't miss any fields.
+	assert.Empty(t, checklist)
 }

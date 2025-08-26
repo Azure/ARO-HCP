@@ -80,12 +80,13 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 }
 
 func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := api.GetVisibilityFlags(externalAuthStructTagMap[path])
+	flags, ok := externalAuthVisibilityMap[path]
 	return flags, ok
 }
 
 func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
-	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthStructTagMap, updating)
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
+	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
 }
 
 func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
