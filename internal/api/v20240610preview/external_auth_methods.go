@@ -83,12 +83,14 @@ func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterEx
 	var normalized api.HCPOpenShiftClusterExternalAuth
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded ExternalAuth struct so the
-	// struct field names match the externalAuthStructTagMap keys.
+	// Pass the embedded ExternalAuth struct so the struct
+	// field names match the externalAuthVisibilityMap keys.
 	errorDetails = api.ValidateVisibility(
 		c.ExternalAuth,
 		current.(*ExternalAuth).ExternalAuth,
-		externalAuthStructTagMap, updating)
+		externalAuthVisibilityMap,
+		api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth](),
+		updating)
 
 	c.Normalize(&normalized)
 

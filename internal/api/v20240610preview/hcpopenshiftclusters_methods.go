@@ -296,11 +296,13 @@ func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCl
 	var errorDetails []arm.CloudErrorBody
 
 	// Pass the embedded HcpOpenShiftCluster struct so the
-	// struct field names match the clusterStructTagMap keys.
+	// struct field names match the clusterVisibilityMap keys.
 	errorDetails = api.ValidateVisibility(
 		c.HcpOpenShiftCluster,
 		current.(*HcpOpenShiftCluster).HcpOpenShiftCluster,
-		clusterStructTagMap, updating)
+		clusterVisibilityMap,
+		api.GetStructTagMap[api.HCPOpenShiftCluster](),
+		updating)
 
 	c.Normalize(&normalized)
 

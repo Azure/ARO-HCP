@@ -157,11 +157,13 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 	var errorDetails []arm.CloudErrorBody
 
 	// Pass the embedded NodePool struct so the struct
-	// field names match the nodePoolStructTagMap keys.
+	// field names match the nodePoolVisibilityMap keys.
 	errorDetails = api.ValidateVisibility(
 		h.NodePool,
 		current.(*NodePool).NodePool,
-		nodePoolStructTagMap, updating)
+		nodePoolVisibilityMap,
+		api.GetStructTagMap[api.HCPOpenShiftClusterNodePool](),
+		updating)
 
 	h.Normalize(&normalized)
 
