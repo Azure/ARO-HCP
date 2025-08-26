@@ -239,8 +239,11 @@ func TestVersionedVisibilityMap(t *testing.T, actualVisibility VisibilityMap, ex
 	checklist := maps.Clone(actualVisibility)
 
 	for path, expectedFlags := range expectedVisibility {
-		if expectedFlags != SkipVisibilityTest {
-			actualFlags := actualVisibility[path]
+		actualFlags := actualVisibility[path]
+		if expectedFlags == SkipVisibilityTest {
+			// Skipped cases should not be nullable.
+			assert.False(t, actualFlags.IsNullable(), "%s is nullable and should not be skipped", path)
+		} else {
 			assert.Equalf(t, expectedFlags, actualFlags, "%s: expected %q, actual %q", path, expectedFlags, actualFlags)
 		}
 		delete(checklist, path)
