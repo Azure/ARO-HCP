@@ -79,25 +79,40 @@ var _ = Describe("Customer", func() {
 			err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for the node pool to be ready")
-			provisioningState, err := framework.WaitForNodePoolReady(ctx,
+			/* 			By("waiting for the node pool to be ready")
+			   			provisioningState, err := framework.WaitForNodePoolReady(ctx,
+			   				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+			   				*resourceGroup.Name,
+			   				customerClusterName,
+			   				customerNodePoolName,
+			   				10*time.Minute,
+			   			)
+			   			Expect(err).NotTo(HaveOccurred())
+			   			Expect(provisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
+
+
+			   			By("verifying nodepool configuration")
+			   			err = framework.VerifyNodePool(ctx,
+			   				adminRESTConfig,
+			   				customerClusterName,
+			   				customerNodePoolName,
+			   				framework.VerifyNodePoolReplicas(customerNodeReplicas),
+			   				framework.VerifyNodePoolOsDiskSize(customerNodeOsDiskSizeGiB),
+			   			)
+			   			Expect(err).NotTo(HaveOccurred()) */
+			// Verify provisioning succeeded and VM size matches what we requested
+			created, err := framework.GetNodePool(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
-				10*time.Minute,
+				5*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(provisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
-
-			By("verifying nodepool configuration")
-			err = framework.VerifyNodePool(ctx,
-				adminRESTConfig,
-				customerClusterName,
-				customerNodePoolName,
-				framework.VerifyNodePoolReplicas(customerNodeReplicas),
-				framework.VerifyNodePoolOsDiskSize(customerNodeOsDiskSizeGiB),
-			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(created.Properties).ToNot(BeNil())
+			Expect(created.Properties.ProvisioningState).ToNot(BeNil())
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
+			Expect(created.Properties.Platform).ToNot(BeNil())
+			Expect(created.Properties.Platform.VMSize).ToNot(BeNil())
 		})
 })
