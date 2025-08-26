@@ -39,6 +39,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.ExternalAuth,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "ea-nsg-name"
@@ -150,13 +151,22 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("creating an app registration with a client secret")
+			app, err := tc.NewAppRegistration(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			graphClient, err := tc.GetGraphClient(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating an external auth config")
 			extAuth := generated.ExternalAuth{
 				Properties: &generated.ExternalAuthProperties{
 					Issuer: &generated.TokenIssuerProfile{
-						URL: to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
-						// TODO (bvesel): use msgraph /me endpoint to get audience
-						Audiences: []*string{to.Ptr("https://example.com/audience")},
+						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
+						Audiences: []*string{to.Ptr(app.AppID)},
 					},
 					Claim: &generated.ExternalAuthClaimProfile{
 						Mappings: &generated.TokenClaimMappingsProfile{
@@ -168,10 +178,36 @@ var _ = Describe("Customer", func() {
 							},
 						},
 					},
+					// TODO: ARO-20830 - External Auth Client types are meant to be lowercase it appears
+					// Clients: []*generated.ExternalAuthClientProfile{
+					// 	{
+					// 		ClientID: to.Ptr(app.ID),
+					// 		Component: &generated.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("console"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
+					// 	},
+					// 	{
+					// 		ClientID: to.Ptr(app.AppID),
+					// 		Component: &generated.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("cli"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(generated.ExternalAuthClientTypePublic),
+					// 	},
+					// },
 				},
 			}
 
 			_, err = framework.CreateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying ExternalAuth via GET")
+			_, err = framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a cluster role and cluster role binding for the entra application")
+
 		})
 })

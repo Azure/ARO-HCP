@@ -12,7 +12,6 @@ OUTPUT_DIR="${1:-${ACTUAL_OUTPUT_DIR}}"
 mkdir -p "${OUTPUT_DIR}/standard-cluster-create"
 mkdir -p "${OUTPUT_DIR}/illegal-install-version"
 mkdir -p "${OUTPUT_DIR}/image-registry"
-mkdir -p "${OUTPUT_DIR}/external-auth"
 
 # Function to calculate SHA256 hash of a file
 calculate_hash() {
@@ -70,17 +69,3 @@ if [ -d "${project_root}/test/e2e-setup/bicep" ]; then
       convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
   done
 fi
-
-# Explicit e2e test artifacts (your additions)
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" \
-                      "${OUTPUT_DIR}/illegal-install-version/cluster.json"
-
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/external-auth/external-auth-cluster.bicep" \
-                      "${OUTPUT_DIR}/external-auth/external-auth-cluster.json"
-
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" \
-                      "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/illegal-install-version/cluster.bicep" "${OUTPUT_DIR}/illegal-install-version/cluster.json"
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/external-auth/external-auth-cluster.bicep" "${OUTPUT_DIR}/external-auth/external-auth-cluster.json"
-convert_bicep_to_json "${project_root}/test/e2e/test-artifacts/image-registry/disabled-image-registry-cluster.bicep" "${OUTPUT_DIR}/image-registry/disabled-image-registry-cluster.json"
-
