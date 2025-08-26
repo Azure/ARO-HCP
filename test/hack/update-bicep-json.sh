@@ -12,6 +12,7 @@ OUTPUT_DIR="${1:-${ACTUAL_OUTPUT_DIR}}"
 mkdir -p "${OUTPUT_DIR}/standard-cluster-create"
 mkdir -p "${OUTPUT_DIR}/illegal-install-version"
 mkdir -p "${OUTPUT_DIR}/image-registry"
+mkdir -p "${OUTPUT_DIR}/customer-managed-kms-etcd"
 
 # Function to calculate SHA256 hash of a file
 calculate_hash() {
@@ -66,6 +67,6 @@ if [ -d "${project_root}/test/e2e-setup/bicep" ]; then
       output_dir="${OUTPUT_DIR}/${rel_path}"
       mkdir -p "$output_dir"
 
-    # Convert bicep to json
-    convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
-done
+      convert_bicep_to_json "$bicep_file" "${output_dir}/${json_filename}"
+  done
+fi
