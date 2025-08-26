@@ -1,0 +1,433 @@
+{
+  "description": "ARO HCP Maestro Server Component",
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "maestro server availability where 1 is good and 0 is bad",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "gradientMode": "hue",
+            "showPoints": "never"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(kube_deployment_status_replicas_available{deployment=\"maestro\"}[28d]) / sum_over_time(kube_deployment_spec_replicas{deployment=\"maestro\"}[28d])",
+          "legendFormat": "__auto"
+        }
+      ],
+      "title": "SLO Availability: Maestro Server",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 9,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Measure the percentage of successful API requests (non-5xx)",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 16
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum((rate(rest_api_inbound_request_count{code!~\"5..\"}[5m])))\n/\nsum((rate(rest_api_inbound_request_count{}[5m])))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Availability: Maestro Server Request Success Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro server's requests taking less than 1 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 30
+          },
+          "id": 3,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum by(path,method,code) (rate(rest_api_inbound_request_duration_bucket{le=~\"^1(\\\\.0)?$\"}[5m]))\n/\nsum by(path,method,code) (rate(rest_api_inbound_request_duration_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Latency: Maestro Server Request Latency",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro Server REST HTTP Request",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 14,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro server's advisory lock with duration less than 0.5 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(rate(advisory_lock_duration_bucket{le=~\"^0(\\\\.5)?$\"}[5m]))\n/\nsum(rate(advisory_lock_duration_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Duration: Maestro Server Advisory Lock Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro server's advisory lock release to advisory lock acquisition",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(rate(advisory_unlock_count{status=\"OK\"}[5m]))\n/\nsum(rate(advisory_lock_count{status=\"OK\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Available: Maestro Server Advisory Lock Release Ratio",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro Server Advisory Lock",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 8,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro gRPC server call duration less than 0.5 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 20
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(grpc_server_processed_duration_seconds_bucket{le=~\"^0(\\\\.5)?$\"}[5m]))\n/\nsum(rate(grpc_server_processed_duration_seconds_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Duration: Maestro gRPC Server Call Duration",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro gRPC Server",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 11,
+      "panels": [          
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro server spec resync call takes less than 10 seconds",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 21
+          },
+          "id": 12,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(resources_spec_resync_duration_seconds_bucket{le=~\"^10(\\\\.0)?$\"}[5m]))\n/\nsum(rate(resources_spec_resync_duration_seconds_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "Maestro Server Spec Resync Duration",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro Server Spec Recync",
+      "type": "row"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Maestro Server SLO",
+  "uid": "maestro-server-slo",
+  "version": 1,
+  "weekStart": ""
+}
