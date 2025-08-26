@@ -106,7 +106,9 @@ func TestCreateExternalAuth(t *testing.T) {
 					PrefixPolicy(""),
 				),
 			),
-		).Build()
+		).
+		Clients().
+		Build()
 	tests := []struct {
 		name                   string
 		urlPath                string
