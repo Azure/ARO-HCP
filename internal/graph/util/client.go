@@ -20,7 +20,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	abstractions "github.com/microsoft/kiota-abstractions-go"
 	kiotahttp "github.com/microsoft/kiota-http-go"
 
@@ -49,12 +48,7 @@ func (a *azureAuthProvider) AuthenticateRequest(ctx context.Context, request *ab
 }
 
 // NewClient creates a new Graph client with automatic authentication
-func NewClient(ctx context.Context) (*Client, error) {
-	cred, err := getCredential(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get credential: %w", err)
-	}
-
+func NewClient(ctx context.Context, cred azcore.TokenCredential) (*Client, error) {
 	authProvider := &azureAuthProvider{cred: cred}
 
 	httpClient, err := kiotahttp.NewNetHttpRequestAdapter(authProvider)
@@ -67,16 +61,6 @@ func NewClient(ctx context.Context) (*Client, error) {
 	return &Client{
 		graphClient: graphClient,
 	}, nil
-}
-
-// getCredential implements a fallback chain for authentication
-func getCredential(ctx context.Context) (azcore.TokenCredential, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err == nil {
-		return cred, nil
-	}
-
-	return nil, fmt.Errorf("no valid authentication method found")
 }
 
 // GetGraphClient returns the underlying Graph SDK client for advanced operations

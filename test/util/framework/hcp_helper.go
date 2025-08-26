@@ -31,7 +31,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 type HostedClusterVerifier interface {
@@ -119,7 +119,7 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 
 func GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *generated.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
@@ -145,7 +145,7 @@ func GetAdminRESTConfigForHCPCluster(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+	case generated.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
 		return readStaticRESTConfig(m.Kubeconfig)
 	default:
 		return nil, fmt.Errorf("unknown type %T", m)
@@ -169,7 +169,7 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 // DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
 func DeleteHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *generated.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
@@ -190,7 +190,7 @@ func DeleteHCPCluster(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.HcpOpenShiftClustersClientDeleteResponse:
+	case generated.HcpOpenShiftClustersClientDeleteResponse:
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
@@ -202,7 +202,7 @@ func DeleteHCPCluster(
 // DeleteResourceGroup deletes a resource group and waits for the operation to complete
 func DeleteAllHCPClusters(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *generated.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	timeout time.Duration,
 ) error {
@@ -244,7 +244,7 @@ func DeleteAllHCPClusters(
 // DeleteNodePool deletes a nodepool and waits for the operation to complete
 func DeleteNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	nodePoolsClient *generated.NodePoolsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -266,7 +266,7 @@ func DeleteNodePool(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.NodePoolsClientDeleteResponse:
+	case generated.NodePoolsClientDeleteResponse:
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
@@ -278,14 +278,56 @@ func DeleteNodePool(
 // GetNodePool fetches a nodepool resource
 func GetNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	nodePoolsClient *generated.NodePoolsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
 	timeout time.Duration,
-) (hcpapi20240610.NodePoolsClientGetResponse, error) {
+) (generated.NodePoolsClientGetResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+}
+
+// CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
+func CreateExternalAuthAndWait(
+	ctx context.Context,
+	externalAuthClient *generated.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	externalAuth generated.ExternalAuth,
+	timeout time.Duration,
+) (*generated.ExternalAuth, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	pollerResp, err := externalAuthClient.BeginCreateOrUpdate(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		externalAuthName,
+		externalAuth,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case generated.ExternalAuthsClientCreateOrUpdateResponse:
+		// TODO someone may want this return value.  We'll have to work it out then.
+		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
+		return &m.ExternalAuth, nil
+	default:
+		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
 }

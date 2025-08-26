@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 )
 
 type perItOrDescribeTestContext struct {
@@ -43,6 +44,7 @@ type perItOrDescribeTestContext struct {
 	clientFactory20240610         *hcpapi20240610.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
+	graphClient                   *graphutil.Client
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
@@ -377,6 +379,36 @@ func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Cont
 	return tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
 }
 
+func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*graphutil.Client, error) {
+	tc.contextLock.RLock()
+	if tc.graphClient != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.graphClient, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getGraphClientUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context) (*graphutil.Client, error) {
+	if tc.graphClient != nil {
+		return tc.graphClient, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	return graphutil.NewClient(ctx, creds)
+}
+
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
+}
+
+func (tc *perItOrDescribeTestContext) TenantID() string {
+	return tc.perBinaryInvocationTestContext.tenantID
 }
