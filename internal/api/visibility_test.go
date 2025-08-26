@@ -16,6 +16,7 @@ package api
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -126,31 +127,31 @@ var (
 
 func TestVisibilityMap(t *testing.T) {
 	expectedVisibilityMap := VisibilityMap{
-		"A":                  VisibilityDefault,
-		"A.Implicit":         VisibilityDefault,
+		"A":                  VisibilityDefault | VisibilityNullable,
+		"A.Implicit":         VisibilityDefault | VisibilityNullable,
 		"A.Read":             VisibilityRead,
 		"A.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
 		"A.ReadCreate":       VisibilityRead | VisibilityCreate,
-		"A.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"A.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
 		"B":                  VisibilityRead,
 		"B.Implicit":         VisibilityRead,
 		"B.Read":             VisibilityRead,
 		"B.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
 		"B.ReadCreate":       VisibilityRead | VisibilityCreate,
-		"B.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"B.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
 		"C":                  VisibilityRead,
-		"D":                  VisibilityUpdate | VisibilityCaseInsensitive,
-		"D.Implicit":         VisibilityUpdate | VisibilityCaseInsensitive,
+		"D":                  VisibilityUpdate | VisibilityCaseInsensitive | VisibilityNullable,
+		"D.Implicit":         VisibilityUpdate | VisibilityCaseInsensitive | VisibilityNullable,
 		"D.Read":             VisibilityRead,
 		"D.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
 		"D.ReadCreate":       VisibilityRead | VisibilityCreate,
-		"D.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
-		"E":                  VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive,
-		"E.Implicit":         VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive,
+		"D.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
+		"E":                  VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive | VisibilityNullable,
+		"E.Implicit":         VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive | VisibilityNullable,
 		"E.Read":             VisibilityRead,
 		"E.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
 		"E.ReadCreate":       VisibilityRead | VisibilityCreate,
-		"E.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"E.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
 		"F":                  VisibilityRead,
 	}
 
@@ -159,18 +160,26 @@ func TestVisibilityMap(t *testing.T) {
 }
 
 func TestValidateVisibility(t *testing.T) {
-	testValues := TestModelSubtype{
-		Implicit:         Ptr("cherry"),
-		Read:             Ptr("strawberry"),
-		ReadNoCase:       Ptr("peach"),
-		ReadCreate:       Ptr("apple"),
-		ReadCreateUpdate: Ptr("melon"),
-	}
+	var (
+		testValueImplicit         = "cherry"
+		testValueRead             = "strawberry"
+		testValueReadNoCase       = "peach"
+		testValueReadCreate       = "apple"
+		testValueReadCreateUpdate = "melon"
 
-	testImplicitVisibility := TestModelType{
-		A: &testValues,
-		B: &testValues,
-	}
+		testValues = TestModelSubtype{
+			Implicit:         Ptr(testValueImplicit),
+			Read:             Ptr(testValueRead),
+			ReadNoCase:       Ptr(testValueReadNoCase),
+			ReadCreate:       Ptr(testValueReadCreate),
+			ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
+		}
+
+		testImplicitVisibility = TestModelType{
+			A: &testValues,
+			B: &testValues,
+		}
+	)
 
 	tests := []struct {
 		name           string
@@ -182,18 +191,8 @@ func TestValidateVisibility(t *testing.T) {
 	}{
 		{
 			// Required fields are out of scope for visibility tests.
-			name:           "Create: Empty structure is accepted",
-			v:              TestModelSubtype{},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       false,
-			errorsExpected: 0,
-		},
-		{
-			name: "Create: Set read-only field to same value is accepted",
-			v: TestModelSubtype{
-				Read: Ptr("strawberry"),
-			},
+			name:           "Create: Identical structure is accepted",
+			v:              testValues,
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
@@ -202,7 +201,11 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Create: Set read-only field to same but differently cased value is rejected",
 			v: TestModelSubtype{
-				Read: Ptr("STRAWBERRY"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(strings.ToUpper(testValueRead)),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -212,7 +215,11 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Create: Set read-only field to different value is rejected",
 			v: TestModelSubtype{
-				Read: Ptr("pretzel"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr("pretzel"),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -220,19 +227,13 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 1,
 		},
 		{
-			name: "Create: Set case-insensitive read-only field to same value is accepted",
-			v: TestModelSubtype{
-				ReadNoCase: Ptr("peach"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       false,
-			errorsExpected: 0,
-		},
-		{
 			name: "Create: Set case-insensitive read-only field to same but differently cased value is accepted",
 			v: TestModelSubtype{
-				ReadNoCase: Ptr("PEACH"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(strings.ToUpper(testValueReadNoCase)),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -242,7 +243,11 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Create: Set case-insensitive read-only field to different value is rejected",
 			v: TestModelSubtype{
-				ReadNoCase: Ptr("pretzel"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr("pretzel"),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -250,29 +255,13 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 1,
 		},
 		{
-			name: "Create: Set read/create field to same value is accepted",
-			v: TestModelSubtype{
-				ReadCreate: Ptr("apple"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       false,
-			errorsExpected: 0,
-		},
-		{
 			name: "Create: Set read/create field to different value is accepted",
 			v: TestModelSubtype{
-				ReadCreate: Ptr("pear"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       false,
-			errorsExpected: 0,
-		},
-		{
-			name: "Create: Set read/create/update field to same value is accepted",
-			v: TestModelSubtype{
-				ReadCreateUpdate: Ptr("melon"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr("pear"),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -282,6 +271,10 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Create: Set read/create/update field to different value is accepted",
 			v: TestModelSubtype{
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
 				ReadCreateUpdate: Ptr("banana"),
 			},
 			w:              testValues,
@@ -291,18 +284,8 @@ func TestValidateVisibility(t *testing.T) {
 		},
 		{
 			// Required fields are out of scope for visibility tests.
-			name:           "Update: Empty structure is accepted",
-			v:              TestModelSubtype{},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       true,
-			errorsExpected: 0,
-		},
-		{
-			name: "Update: Set read-only field to same value is accepted",
-			v: TestModelSubtype{
-				Read: Ptr("strawberry"),
-			},
+			name:           "Update: Identical structure is accepted",
+			v:              testValues,
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
@@ -311,7 +294,11 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Update: Set read-only field to same but differently cased value is rejected",
 			v: TestModelSubtype{
-				Read: Ptr("STRAWBERRY"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(strings.ToUpper(testValueRead)),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -321,7 +308,11 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Update: Set read-only field to different value is rejected",
 			v: TestModelSubtype{
-				Read: Ptr("pretzel"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr("pretzel"),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -329,19 +320,13 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 1,
 		},
 		{
-			name: "Update: Set case-insensitive read-only field to same value is accepted",
-			v: TestModelSubtype{
-				ReadNoCase: Ptr("peach"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       true,
-			errorsExpected: 0,
-		},
-		{
 			name: "Update: Set case-insensitive read-only field to same but differently cased value is accepted",
 			v: TestModelSubtype{
-				ReadNoCase: Ptr("PEACH"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(strings.ToUpper(testValueReadNoCase)),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -351,27 +336,25 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Update: Set case-insensitive read-only field to different value is rejected",
 			v: TestModelSubtype{
-				ReadNoCase: Ptr("pretzel"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr("pretzel"),
+				ReadCreate:       Ptr(testValueReadCreate),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 1,
-		},
-		{
-			name: "Update: Set read/create field to same value is accepted",
-			v: TestModelSubtype{
-				ReadCreate: Ptr("apple"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       true,
-			errorsExpected: 0,
 		},
 		{
 			name: "Update: Set read/create field to different value is rejected",
 			v: TestModelSubtype{
-				ReadCreate: Ptr("pear"),
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr("pear"),
+				ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 			},
 			w:              testValues,
 			m:              TestModelSubtypeVisibilityMap,
@@ -379,18 +362,12 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 1,
 		},
 		{
-			name: "Update: Set read/create/update field to same value is accepted",
-			v: TestModelSubtype{
-				ReadCreateUpdate: Ptr("melon"),
-			},
-			w:              testValues,
-			m:              TestModelSubtypeVisibilityMap,
-			updating:       true,
-			errorsExpected: 0,
-		},
-		{
 			name: "Update: Set read/create/update field to different value is accepted",
 			v: TestModelSubtype{
+				Implicit:         Ptr(testValueImplicit),
+				Read:             Ptr(testValueRead),
+				ReadNoCase:       Ptr(testValueReadNoCase),
+				ReadCreate:       Ptr(testValueReadCreate),
 				ReadCreateUpdate: Ptr("banana"),
 			},
 			w:              testValues,
@@ -399,12 +376,8 @@ func TestValidateVisibility(t *testing.T) {
 			errorsExpected: 0,
 		},
 		{
-			name: "Set implicit read/create/update field to same value is accepted",
-			v: TestModelType{
-				A: &TestModelSubtype{
-					Implicit: Ptr("cherry"),
-				},
-			},
+			name:           "Set implicit fields to same value is accepted",
+			v:              testImplicitVisibility,
 			w:              testImplicitVisibility,
 			m:              TestModelTypeVisibilityMap,
 			updating:       false,
@@ -414,20 +387,13 @@ func TestValidateVisibility(t *testing.T) {
 			name: "Set implicit read/create/update field to different value is accepted",
 			v: TestModelType{
 				A: &TestModelSubtype{
-					Implicit: Ptr("bell"),
+					Implicit:         Ptr("bell"),
+					Read:             Ptr(testValueRead),
+					ReadNoCase:       Ptr(testValueReadNoCase),
+					ReadCreate:       Ptr(testValueReadCreate),
+					ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 				},
-			},
-			w:              testImplicitVisibility,
-			m:              TestModelTypeVisibilityMap,
-			updating:       false,
-			errorsExpected: 0,
-		},
-		{
-			name: "Set implicit read-only field to same value is accepted",
-			v: TestModelType{
-				B: &TestModelSubtype{
-					Implicit: Ptr("cherry"),
-				},
+				B: &testValues,
 			},
 			w:              testImplicitVisibility,
 			m:              TestModelTypeVisibilityMap,
@@ -437,8 +403,13 @@ func TestValidateVisibility(t *testing.T) {
 		{
 			name: "Set implicit read-only field to different value is rejected",
 			v: TestModelType{
+				A: &testValues,
 				B: &TestModelSubtype{
-					Implicit: Ptr("bell"),
+					Implicit:         Ptr("bell"),
+					Read:             Ptr(testValueRead),
+					ReadNoCase:       Ptr(testValueReadNoCase),
+					ReadCreate:       Ptr(testValueReadCreate),
+					ReadCreateUpdate: Ptr(testValueReadCreateUpdate),
 				},
 			},
 			w:              testImplicitVisibility,
