@@ -40,10 +40,8 @@ type PasswordCredential struct {
 
 // CreateApplication creates a new Microsoft Entra application
 func (c *Client) CreateApplication(ctx context.Context, displayName string, redirectURIs []string) (*Application, error) {
-	aud := "AzureADMyOrganization"
 	app := models.NewApplication()
 	app.SetDisplayName(&displayName)
-	app.SetSignInAudience(&aud)
 
 	// Create web application with redirect URIs
 	webApp := models.NewWebApplication()

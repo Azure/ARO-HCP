@@ -29,15 +29,10 @@ generate_microsoft_graph_sdk() {
         -l go \
         -o ./internal/graph/graphsdk \
         -n "github.com/Azure/ARO-HCP/internal/graph/graphsdk" \
-        -d https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/master/openapi/v1.0/openapi.yaml \
+        -d ./tooling/kiota/openapi.yaml \
         -c GraphBaseServiceClient \
         --additional-data=False \
-        --backing-store=True \
-        --include-path "/applications" \
-        --include-path "/applications/{application-id}" \
-        --include-path "/applications/{application-id}/addPassword" \
-        --include-path "/applications/{application-id}/removePassword" \
-        --include-path "/groups"
+        --backing-store=True
 
     # Fix import paths to use correct case
     echo "Fixing import paths..."

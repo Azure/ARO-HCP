@@ -1,6 +1,6 @@
 {
-  "descriptionHash": "308E0B3D073C8D560BEA1C03D8DAE9A6E4994955AC92C31E703EFFD35012716F985E8D5A63BDE80C0BA859C013B4B33A0745AF812CE5B0132C644328261BDEA5",
-  "descriptionLocation": "https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/master/openapi/v1.0/openapi.yaml",
+  "descriptionHash": "B1F8FE870A9C0A8B379F88B6E925B33C7833C1338A563BB71D676AE93B96EC032768DA012BD71ED4511A6DBD53A6B9293D9DE93DFD1319734D0BA107BC772670",
+  "descriptionLocation": "../../../tooling/kiota/openapi.yaml",
   "lockFileVersion": "1.0.0",
   "kiotaVersion": "1.28.0",
   "clientClassName": "GraphBaseServiceClient",
@@ -28,13 +28,7 @@
     "application/x-www-form-urlencoded;q=0.2",
     "multipart/form-data;q=0.1"
   ],
-  "includePatterns": [
-    "/applications",
-    "/applications/{application-id}",
-    "/applications/{application-id}/addPassword",
-    "/applications/{application-id}/removePassword",
-    "/groups"
-  ],
+  "includePatterns": [],
   "excludePatterns": [],
   "disabledValidationRules": []
 }

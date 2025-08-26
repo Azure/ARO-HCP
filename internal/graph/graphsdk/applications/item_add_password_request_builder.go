@@ -40,7 +40,7 @@ func NewItemAddPasswordRequestBuilder(rawUrl string, requestAdapter i2ae4187f7da
 	return NewItemAddPasswordRequestBuilderInternal(urlParams, requestAdapter)
 }
 
-// Post adds a strong password or secret to an application. You can also add passwords while creating the application.
+// Post adds a strong password or secret to an application.
 // returns a PasswordCredentialable when successful
 // returns a ODataError error when the service returns a 4XX or 5XX status code
 // [Find more info here]
@@ -64,7 +64,7 @@ func (m *ItemAddPasswordRequestBuilder) Post(ctx context.Context, body ItemAddPa
 	return res.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.PasswordCredentialable), nil
 }
 
-// ToPostRequestInformation adds a strong password or secret to an application. You can also add passwords while creating the application.
+// ToPostRequestInformation adds a strong password or secret to an application.
 // returns a *RequestInformation when successful
 func (m *ItemAddPasswordRequestBuilder) ToPostRequestInformation(ctx context.Context, body ItemAddPasswordPostRequestBodyable, requestConfiguration *ItemAddPasswordRequestBuilderPostRequestConfiguration) (*i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.RequestInformation, error) {
 	requestInfo := i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.NewRequestInformationWithMethodAndUrlTemplateAndPathParameters(i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.POST, m.BaseRequestBuilder.UrlTemplate, m.BaseRequestBuilder.PathParameters)

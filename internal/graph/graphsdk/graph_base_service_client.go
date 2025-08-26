@@ -13,7 +13,7 @@ import (
 	i7294a22093d408fdca300f11b81a887d89c47b764af06c8b803e2323973fdb83 "github.com/microsoft/kiota-serialization-text-go"
 
 	idf7caef0f65f266a3e5a784cea8c38bec3b37b48bd3f97fa13346951840ed725 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications"
-	ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/groups"
+	i1cf72d00d8b9f424739b4127f1a166682abe5384004c3593a6292a580bdf45b7 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/serviceprincipals"
 )
 
 // GraphBaseServiceClient the main entry point of the SDK, exposes the configuration and the fluent API.
@@ -61,8 +61,8 @@ func NewGraphBaseServiceClient(requestAdapter i2ae4187f7daee263371cb1c977df63981
 	return m
 }
 
-// Groups provides operations to manage the collection of group entities.
-// returns a *GroupsRequestBuilder when successful
-func (m *GraphBaseServiceClient) Groups() *ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8.GroupsRequestBuilder {
-	return ibc6bfade455db9db1706624865fd650f94d335ef7a8a2327e8d13fb2ed0309d8.NewGroupsRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
+// ServicePrincipals provides operations to manage the collection of servicePrincipal entities.
+// returns a *ServicePrincipalsRequestBuilder when successful
+func (m *GraphBaseServiceClient) ServicePrincipals() *i1cf72d00d8b9f424739b4127f1a166682abe5384004c3593a6292a580bdf45b7.ServicePrincipalsRequestBuilder {
+	return i1cf72d00d8b9f424739b4127f1a166682abe5384004c3593a6292a580bdf45b7.NewServicePrincipalsRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
 }

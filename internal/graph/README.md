@@ -10,9 +10,6 @@ Likely - you want to prefer `./util` over direct calls to `./graphsdk`, but I'll
 - **`./util`** - helper functions, the prefered API for Microsoft Graph calls (with distinct files per openapi spec path in the official SDK)
     - **`client.go`** - Core client with authentication and common utilities
     - **`applications.go`** - Application management operations (create, read, update, delete, password management)
-    - **`groups.go`** - Group management operations (security group creation)
-    - **`organization.go`** - Organization operations (tenant information)
-    - **`me.go`** - User operations (current user information)
 
 ## Usage
 
@@ -39,11 +36,6 @@ if err != nil {
     return err
 }
 
-// Create a security group
-group, err := graphClient.CreateSecurityGroup(ctx, "my-group", "description")
-if err != nil {
-    return err
-}
 ```
 
 ## Adding New Operations

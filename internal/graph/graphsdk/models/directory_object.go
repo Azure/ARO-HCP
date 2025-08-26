@@ -36,72 +36,10 @@ func CreateDirectoryObjectFromDiscriminatorValue(parseNode i878a80d2330e89d26896
 			}
 			if mappingValue != nil {
 				switch *mappingValue {
-				case "#microsoft.graph.activityBasedTimeoutPolicy":
-					return NewActivityBasedTimeoutPolicy(), nil
-				case "#microsoft.graph.administrativeUnit":
-					return NewAdministrativeUnit(), nil
 				case "#microsoft.graph.application":
 					return NewApplication(), nil
-				case "#microsoft.graph.appManagementPolicy":
-					return NewAppManagementPolicy(), nil
-				case "#microsoft.graph.appRoleAssignment":
-					return NewAppRoleAssignment(), nil
-				case "#microsoft.graph.authorizationPolicy":
-					return NewAuthorizationPolicy(), nil
-				case "#microsoft.graph.certificateAuthorityDetail":
-					return NewCertificateAuthorityDetail(), nil
-				case "#microsoft.graph.certificateBasedAuthPki":
-					return NewCertificateBasedAuthPki(), nil
-				case "#microsoft.graph.claimsMappingPolicy":
-					return NewClaimsMappingPolicy(), nil
-				case "#microsoft.graph.contract":
-					return NewContract(), nil
-				case "#microsoft.graph.crossTenantAccessPolicy":
-					return NewCrossTenantAccessPolicy(), nil
-				case "#microsoft.graph.device":
-					return NewDevice(), nil
-				case "#microsoft.graph.directoryObjectPartnerReference":
-					return NewDirectoryObjectPartnerReference(), nil
-				case "#microsoft.graph.directoryRole":
-					return NewDirectoryRole(), nil
-				case "#microsoft.graph.directoryRoleTemplate":
-					return NewDirectoryRoleTemplate(), nil
-				case "#microsoft.graph.endpoint":
-					return NewEndpoint(), nil
-				case "#microsoft.graph.extensionProperty":
-					return NewExtensionProperty(), nil
-				case "#microsoft.graph.group":
-					return NewGroup(), nil
-				case "#microsoft.graph.groupSettingTemplate":
-					return NewGroupSettingTemplate(), nil
-				case "#microsoft.graph.homeRealmDiscoveryPolicy":
-					return NewHomeRealmDiscoveryPolicy(), nil
-				case "#microsoft.graph.identitySecurityDefaultsEnforcementPolicy":
-					return NewIdentitySecurityDefaultsEnforcementPolicy(), nil
-				case "#microsoft.graph.multiTenantOrganizationMember":
-					return NewMultiTenantOrganizationMember(), nil
-				case "#microsoft.graph.organization":
-					return NewOrganization(), nil
-				case "#microsoft.graph.orgContact":
-					return NewOrgContact(), nil
-				case "#microsoft.graph.permissionGrantPolicy":
-					return NewPermissionGrantPolicy(), nil
-				case "#microsoft.graph.policyBase":
-					return NewPolicyBase(), nil
-				case "#microsoft.graph.resourceSpecificPermissionGrant":
-					return NewResourceSpecificPermissionGrant(), nil
 				case "#microsoft.graph.servicePrincipal":
 					return NewServicePrincipal(), nil
-				case "#microsoft.graph.stsPolicy":
-					return NewStsPolicy(), nil
-				case "#microsoft.graph.tenantAppManagementPolicy":
-					return NewTenantAppManagementPolicy(), nil
-				case "#microsoft.graph.tokenIssuancePolicy":
-					return NewTokenIssuancePolicy(), nil
-				case "#microsoft.graph.tokenLifetimePolicy":
-					return NewTokenLifetimePolicy(), nil
-				case "#microsoft.graph.user":
-					return NewUser(), nil
 				}
 			}
 		}

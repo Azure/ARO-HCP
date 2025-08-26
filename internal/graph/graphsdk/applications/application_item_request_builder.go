@@ -8,6 +8,7 @@ import (
 
 	i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f "github.com/microsoft/kiota-abstractions-go"
 
+	i8a7f679ebf164a64501246db6d5eb82d31dce255c17d98f3113555f8861fcb53 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications/item"
 	i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035 "github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
 	ib74729b4523c5f01686574660da4dcdaf5ad08b33986f91ff22cfcda6d06031e "github.com/Azure/ARO-HCP/internal/graph/graphsdk/models/odataerrors"
 )
@@ -28,9 +29,15 @@ type ApplicationItemRequestBuilderDeleteRequestConfiguration struct {
 // ApplicationItemRequestBuilderGetQueryParameters get the properties and relationships of an application object.
 type ApplicationItemRequestBuilderGetQueryParameters struct {
 	// Expand related entities
+	// Deprecated: This property is deprecated, use ExpandAsGetExpandQueryParameterType instead
 	Expand []string `uriparametername:"%24expand"`
+	// Expand related entities
+	ExpandAsGetExpandQueryParameterType []i8a7f679ebf164a64501246db6d5eb82d31dce255c17d98f3113555f8861fcb53.GetExpandQueryParameterType `uriparametername:"%24expand"`
 	// Select properties to be returned
+	// Deprecated: This property is deprecated, use SelectAsGetSelectQueryParameterType instead
 	Select []string `uriparametername:"%24select"`
+	// Select properties to be returned
+	SelectAsGetSelectQueryParameterType []i8a7f679ebf164a64501246db6d5eb82d31dce255c17d98f3113555f8861fcb53.GetSelectQueryParameterType `uriparametername:"%24select"`
 }
 
 // ApplicationItemRequestBuilderGetRequestConfiguration configuration for the request such as headers, query parameters, and middleware options.
@@ -116,12 +123,12 @@ func (m *ApplicationItemRequestBuilder) Get(ctx context.Context, requestConfigur
 	return res.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Applicationable), nil
 }
 
-// Patch create a new application object if it doesn't exist, or update the properties of an existing application object.
+// Patch update the properties of an application object.
 // returns a Applicationable when successful
 // returns a ODataError error when the service returns a 4XX or 5XX status code
 // [Find more info here]
 //
-// [Find more info here]: https://learn.microsoft.com/graph/api/application-upsert?view=graph-rest-1.0
+// [Find more info here]: https://learn.microsoft.com/graph/api/application-update?view=graph-rest-1.0
 func (m *ApplicationItemRequestBuilder) Patch(ctx context.Context, body i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Applicationable, requestConfiguration *ApplicationItemRequestBuilderPatchRequestConfiguration) (i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Applicationable, error) {
 	requestInfo, err := m.ToPatchRequestInformation(ctx, body, requestConfiguration)
 	if err != nil {
@@ -138,12 +145,6 @@ func (m *ApplicationItemRequestBuilder) Patch(ctx context.Context, body i1064077
 		return nil, nil
 	}
 	return res.(i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Applicationable), nil
-}
-
-// RemovePassword provides operations to call the removePassword method.
-// returns a *ItemRemovePasswordRequestBuilder when successful
-func (m *ApplicationItemRequestBuilder) RemovePassword() *ItemRemovePasswordRequestBuilder {
-	return NewItemRemovePasswordRequestBuilderInternal(m.BaseRequestBuilder.PathParameters, m.BaseRequestBuilder.RequestAdapter)
 }
 
 // ToDeleteRequestInformation delete an application object. When deleted, apps are moved to a temporary container and can be restored within 30 days. After that time, they are permanently deleted.
@@ -173,7 +174,7 @@ func (m *ApplicationItemRequestBuilder) ToGetRequestInformation(ctx context.Cont
 	return requestInfo, nil
 }
 
-// ToPatchRequestInformation create a new application object if it doesn't exist, or update the properties of an existing application object.
+// ToPatchRequestInformation update the properties of an application object.
 // returns a *RequestInformation when successful
 func (m *ApplicationItemRequestBuilder) ToPatchRequestInformation(ctx context.Context, body i1064077c0deed3e13037469d51458ffc82d2db75e239cd9605f39aaa91186035.Applicationable, requestConfiguration *ApplicationItemRequestBuilderPatchRequestConfiguration) (*i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.RequestInformation, error) {
 	requestInfo := i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.NewRequestInformationWithMethodAndUrlTemplateAndPathParameters(i2ae4187f7daee263371cb1c977df639813ab50ffa529013b7437480d1ec0158f.PATCH, m.BaseRequestBuilder.UrlTemplate, m.BaseRequestBuilder.PathParameters)

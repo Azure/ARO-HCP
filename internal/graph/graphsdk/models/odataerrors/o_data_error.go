@@ -33,7 +33,7 @@ func CreateODataErrorFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a3
 // Error the primary error message.
 // returns a string when successful
 func (m *ODataError) Error() string {
-	return *(m.GetErrorEscaped().GetMessage())
+	return m.ApiError.Error()
 }
 
 // GetBackingStore gets the BackingStore property value. Stores model information.
