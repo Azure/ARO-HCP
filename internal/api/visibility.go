@@ -97,26 +97,81 @@ func GetVisibilityFlags(tag reflect.StructTag) (VisibilityFlags, bool) {
 	return flags, ok
 }
 
+// VisibilityMap maps dot-separated struct field names to visibility flags.
+type VisibilityMap map[string]VisibilityFlags
+
+func buildVisibilityMap(visibilityMap VisibilityMap, t reflect.Type, path string, implicitFlags VisibilityFlags) {
+	switch t.Kind() {
+	case reflect.Map, reflect.Pointer, reflect.Slice:
+		buildVisibilityMap(visibilityMap, t.Elem(), path, implicitFlags)
+
+	case reflect.Struct:
+		for i := 0; i < t.NumField(); i++ {
+			var subpath string
+
+			field := t.Field(i)
+
+			if !field.IsExported() {
+				continue
+			}
+
+			flags := implicitFlags
+
+			// Omit embedded field names from the key.
+			// Generated API structs do not have them.
+			if field.Anonymous {
+				subpath = path
+			} else {
+				subpath = join(path, field.Name)
+
+				explicitFlags, found := GetVisibilityFlags(field.Tag)
+				if found {
+					flags = explicitFlags
+				}
+				visibilityMap[subpath] = flags
+			}
+
+			buildVisibilityMap(visibilityMap, field.Type, subpath, flags)
+		}
+	}
+}
+
+// NewVisibilityMap returns a mapping of dot-separated struct field names
+// to visibility flags for the given type. Each versioned API should create
+// its own visibility map for resource types with PUT and PATCH methods.
+//
+// Note: This assumes field names for internal and versioned structs are
+// identical where visibility is explicitly specified. If some divergence
+// emerges, one workaround could be to pass a field name override map.
+func NewVisibilityMap[T any]() VisibilityMap {
+	visibilityMap := VisibilityMap{}
+	buildVisibilityMap(visibilityMap, reflect.TypeFor[T](), "", VisibilityDefault)
+	return visibilityMap
+}
+
 type validateVisibility struct {
-	structTagMap StructTagMap
-	updating     bool
-	errs         []arm.CloudErrorBody
+	visibilityMap VisibilityMap
+	structTagMap  StructTagMap
+	updating      bool
+	errs          []arm.CloudErrorBody
 }
 
 // ValidateVisibility compares the new value (newVal) to the current value
 // (curVal) and returns any violations of visibility restrictions as defined
-// by structTagMap.
-func ValidateVisibility(newVal, curVal interface{}, structTagMap StructTagMap, updating bool) []arm.CloudErrorBody {
+// by visibilityMap.
+func ValidateVisibility(newVal, curVal interface{}, visibilityMap VisibilityMap, structTagMap StructTagMap, updating bool) []arm.CloudErrorBody {
 	vv := validateVisibility{
-		structTagMap: structTagMap,
-		updating:     updating,
+		visibilityMap: visibilityMap,
+		structTagMap:  structTagMap,
+		updating:      updating,
 	}
-	vv.recurse(reflect.ValueOf(newVal), reflect.ValueOf(curVal), "", "", "", VisibilityDefault)
+	vv.recurse(reflect.ValueOf(newVal), reflect.ValueOf(curVal), "", "", "")
 	return vv.errs
 }
 
-// mapKey is a lookup key for the StructTagMap.  It DOES NOT include subscripts
-// for arrays, maps or slices since all elements are the same type.
+// mapKey is a lookup key for VisibilityMap and StructTagMap.  It DOES NOT
+// include subscripts for arrays, maps or slices since all elements are the
+// same type.
 //
 // namespace is the struct field path up to but not including the field being
 // evaluated, analogous to path.Dir.  It DOES include subscripts for arrays,
@@ -125,11 +180,8 @@ func ValidateVisibility(newVal, curVal interface{}, structTagMap StructTagMap, u
 // fieldname is the current field being evaluated, analgous to path.Base.  It
 // also includes subscripts for arrays, maps and slices when evaluating their
 // immediate elements.
-func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, namespace, fieldname string, implicitVisibility VisibilityFlags) {
-	flags, ok := GetVisibilityFlags(vv.structTagMap[mapKey])
-	if !ok {
-		flags = implicitVisibility
-	}
+func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, namespace, fieldname string) {
+	flags := vv.visibilityMap[mapKey]
 
 	if newVal.Type() != curVal.Type() {
 		panic(fmt.Sprintf("%s: value types differ (%s vs %s)", join(namespace, fieldname), newVal.Type().Name(), curVal.Type().Name()))
@@ -197,7 +249,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		} else {
 			for i := 0; i < min(newVal.Len(), curVal.Len()); i++ {
 				subscript := fmt.Sprintf("[%d]", i)
-				vv.recurse(newVal.Index(i), curVal.Index(i), mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.Index(i), curVal.Index(i), mapKey, namespace, fieldname+subscript)
 			}
 		}
 
@@ -206,7 +258,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		if curVal.IsNil() {
 			vv.checkFlags(flags, namespace, fieldname)
 		} else {
-			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname, flags)
+			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname)
 		}
 
 	case reflect.Map:
@@ -249,9 +301,9 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 			k := iter.Key()
 			subscript := fmt.Sprintf("[%q]", k.Interface())
 			if curVal.IsNil() || !curVal.MapIndex(k).IsValid() {
-				vv.recurse(newVal.MapIndex(k), zeroVal, mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.MapIndex(k), zeroVal, mapKey, namespace, fieldname+subscript)
 			} else {
-				vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript)
 			}
 		}
 
@@ -260,7 +312,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 			structField := newVal.Type().Field(i)
 
 			if structField.Anonymous {
-				vv.recurse(newVal.Field(i), curVal.Field(i), mapKey, namespace, fieldname, flags)
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKey, namespace, fieldname)
 			} else {
 				mapKeyNext := join(mapKey, structField.Name)
 				namespaceNext := join(namespace, fieldname)
@@ -268,7 +320,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 				if fieldnameNext == "" {
 					fieldnameNext = structField.Name
 				}
-				vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext, flags)
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext)
 			}
 		}
 	}

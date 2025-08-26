@@ -120,42 +120,42 @@ type TestModelSubtype struct {
 }
 
 var (
-	TestModelTypeStructTagMap    = GetStructTagMap[TestModelType]()
-	TestModelSubtypeStructTagMap = GetStructTagMap[TestModelSubtype]()
+	TestModelTypeVisibilityMap    = NewVisibilityMap[TestModelType]()
+	TestModelSubtypeVisibilityMap = NewVisibilityMap[TestModelSubtype]()
 )
 
-func TestStructTagMap(t *testing.T) {
-	expectedStructTagMap := StructTagMap{
-		"A":                  reflect.StructTag(""),
-		"A.Implicit":         reflect.StructTag(""),
-		"A.Read":             reflect.StructTag("visibility:\"read\""),
-		"A.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
-		"A.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
-		"A.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"B":                  reflect.StructTag("visibility:\"read\""),
-		"B.Implicit":         reflect.StructTag(""),
-		"B.Read":             reflect.StructTag("visibility:\"read\""),
-		"B.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
-		"B.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
-		"B.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"C":                  reflect.StructTag("visibility:\"read\""),
-		"D":                  reflect.StructTag("visibility:\"update nocase\""),
-		"D.Implicit":         reflect.StructTag(""),
-		"D.Read":             reflect.StructTag("visibility:\"read\""),
-		"D.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
-		"D.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
-		"D.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"E":                  reflect.StructTag("visibility:\"read create update nocase\""),
-		"E.Implicit":         reflect.StructTag(""),
-		"E.Read":             reflect.StructTag("visibility:\"read\""),
-		"E.ReadNoCase":       reflect.StructTag("visibility:\"read nocase\""),
-		"E.ReadCreate":       reflect.StructTag("visibility:\"read create\""),
-		"E.ReadCreateUpdate": reflect.StructTag("visibility:\"read create update\""),
-		"F":                  reflect.StructTag("visibility:\"read\""),
+func TestVisibilityMap(t *testing.T) {
+	expectedVisibilityMap := VisibilityMap{
+		"A":                  VisibilityDefault,
+		"A.Implicit":         VisibilityDefault,
+		"A.Read":             VisibilityRead,
+		"A.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
+		"A.ReadCreate":       VisibilityRead | VisibilityCreate,
+		"A.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"B":                  VisibilityRead,
+		"B.Implicit":         VisibilityRead,
+		"B.Read":             VisibilityRead,
+		"B.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
+		"B.ReadCreate":       VisibilityRead | VisibilityCreate,
+		"B.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"C":                  VisibilityRead,
+		"D":                  VisibilityUpdate | VisibilityCaseInsensitive,
+		"D.Implicit":         VisibilityUpdate | VisibilityCaseInsensitive,
+		"D.Read":             VisibilityRead,
+		"D.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
+		"D.ReadCreate":       VisibilityRead | VisibilityCreate,
+		"D.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"E":                  VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive,
+		"E.Implicit":         VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityCaseInsensitive,
+		"E.Read":             VisibilityRead,
+		"E.ReadNoCase":       VisibilityRead | VisibilityCaseInsensitive,
+		"E.ReadCreate":       VisibilityRead | VisibilityCreate,
+		"E.ReadCreateUpdate": VisibilityRead | VisibilityCreate | VisibilityUpdate,
+		"F":                  VisibilityRead,
 	}
 
 	// The test cases are encoded into the type itself.
-	assert.Equal(t, expectedStructTagMap, TestModelTypeStructTagMap)
+	assert.Equal(t, expectedVisibilityMap, TestModelTypeVisibilityMap)
 }
 
 func TestValidateVisibility(t *testing.T) {
@@ -176,7 +176,7 @@ func TestValidateVisibility(t *testing.T) {
 		name           string
 		v              any
 		w              any
-		m              StructTagMap
+		m              VisibilityMap
 		updating       bool
 		errorsExpected int
 	}{
@@ -185,7 +185,7 @@ func TestValidateVisibility(t *testing.T) {
 			name:           "Create: Empty structure is accepted",
 			v:              TestModelSubtype{},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -195,7 +195,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("strawberry"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -205,7 +205,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("STRAWBERRY"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -215,7 +215,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("pretzel"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -225,7 +225,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("peach"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -235,7 +235,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("PEACH"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -245,7 +245,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("pretzel"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -255,7 +255,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreate: Ptr("apple"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -265,7 +265,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreate: Ptr("pear"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -275,7 +275,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreateUpdate: Ptr("melon"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -285,7 +285,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreateUpdate: Ptr("banana"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -294,7 +294,7 @@ func TestValidateVisibility(t *testing.T) {
 			name:           "Update: Empty structure is accepted",
 			v:              TestModelSubtype{},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -304,7 +304,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("strawberry"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -314,7 +314,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("STRAWBERRY"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 1,
 		},
@@ -324,7 +324,7 @@ func TestValidateVisibility(t *testing.T) {
 				Read: Ptr("pretzel"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 1,
 		},
@@ -334,7 +334,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("peach"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -344,7 +344,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("PEACH"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -354,7 +354,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadNoCase: Ptr("pretzel"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 1,
 		},
@@ -364,7 +364,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreate: Ptr("apple"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -374,7 +374,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreate: Ptr("pear"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 1,
 		},
@@ -384,7 +384,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreateUpdate: Ptr("melon"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -394,7 +394,7 @@ func TestValidateVisibility(t *testing.T) {
 				ReadCreateUpdate: Ptr("banana"),
 			},
 			w:              testValues,
-			m:              TestModelSubtypeStructTagMap,
+			m:              TestModelSubtypeVisibilityMap,
 			updating:       true,
 			errorsExpected: 0,
 		},
@@ -406,7 +406,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              testImplicitVisibility,
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -418,7 +418,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              testImplicitVisibility,
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -430,7 +430,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              testImplicitVisibility,
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -442,7 +442,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              testImplicitVisibility,
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -454,7 +454,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              TestModelType{},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -466,7 +466,7 @@ func TestValidateVisibility(t *testing.T) {
 				},
 			},
 			w:              TestModelType{},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 2, // testValues has two read-only fields
 		},
@@ -482,7 +482,7 @@ func TestValidateVisibility(t *testing.T) {
 					"2up": &testValues,
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -498,7 +498,7 @@ func TestValidateVisibility(t *testing.T) {
 					"2up": &testValues,
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 2, // testValues has two read-only fields
 		},
@@ -510,7 +510,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(bool(true)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -522,7 +522,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(bool(false)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -534,7 +534,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -546,7 +546,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -558,7 +558,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int8(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -570,7 +570,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int8(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -582,7 +582,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int16(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -594,7 +594,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int16(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -606,7 +606,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int32(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -618,7 +618,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int32(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -630,7 +630,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int64(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -642,7 +642,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(int64(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -654,7 +654,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -666,7 +666,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -678,7 +678,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uintptr(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -690,7 +690,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uintptr(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -702,7 +702,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint8(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -714,7 +714,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint8(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -726,7 +726,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint16(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -738,7 +738,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint16(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -750,7 +750,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint32(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -762,7 +762,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint32(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -774,7 +774,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint64(1)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -786,7 +786,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(uint64(0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -798,7 +798,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(float32(1.0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -810,7 +810,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(float32(0.0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -822,7 +822,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(float64(1.0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -834,7 +834,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(float64(0.0)),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -846,7 +846,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(complex(float32(1.0), float32(-1.0))),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -858,7 +858,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(complex(float32(0.0), float32(1.0))),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -870,7 +870,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(complex(float64(1.0), float64(-1.0))),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -882,7 +882,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: Ptr(complex(float64(0.0), float64(1.0))),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -894,7 +894,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: []int{1, 2, 3},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -906,7 +906,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: []int(nil),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -918,7 +918,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: []int{1},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -930,7 +930,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: []int{1, 2, 3},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 2, // error for each changed element
 		},
@@ -942,7 +942,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: [3]int{1, 2, 3},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -954,7 +954,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: [3]int{1, 2, 3},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 2, // error for each changed element
 		},
@@ -976,7 +976,7 @@ func TestValidateVisibility(t *testing.T) {
 					"Clyde":  "Pokey",
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 0,
 		},
@@ -993,7 +993,7 @@ func TestValidateVisibility(t *testing.T) {
 			w: TestModelType{
 				F: map[string]string(nil),
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -1012,7 +1012,7 @@ func TestValidateVisibility(t *testing.T) {
 					"Blinky": "Shadow",
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -1034,7 +1034,7 @@ func TestValidateVisibility(t *testing.T) {
 					"Clyde":  "Pokey",
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
 		},
@@ -1056,7 +1056,7 @@ func TestValidateVisibility(t *testing.T) {
 					"Clyde":  "Orange",
 				},
 			},
-			m:              TestModelTypeStructTagMap,
+			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 4, // error for each changed element
 		},
@@ -1064,7 +1064,7 @@ func TestValidateVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cloudErrors := ValidateVisibility(tt.v, tt.w, tt.m, tt.updating)
+			cloudErrors := ValidateVisibility(tt.v, tt.w, tt.m, StructTagMap{}, tt.updating)
 			assert.Len(t, cloudErrors, tt.errorsExpected)
 		})
 	}

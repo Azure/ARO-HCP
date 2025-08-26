@@ -153,12 +153,13 @@ func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) 
 }
 
 func (h *NodePool) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := api.GetVisibilityFlags(nodePoolStructTagMap[path])
+	flags, ok := nodePoolVisibilityMap[path]
 	return flags, ok
 }
 
 func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool], updating bool) []arm.CloudErrorBody {
-	return api.ValidateVisibility(h, current.(*NodePool), nodePoolStructTagMap, updating)
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	return api.ValidateVisibility(h, current.(*NodePool), nodePoolVisibilityMap, structTagMap, updating)
 }
 
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
