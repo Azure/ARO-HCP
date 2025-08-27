@@ -442,9 +442,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		return nil, fmt.Errorf("missing " + arm.HeaderNameHomeTenantID + " header")
 	}
 
-	versionCSformat := ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)
-	hcpCluster.Properties.Version.ID = versionCSformat
-
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 
 	// These attributes cannot be updated after cluster creation.
@@ -500,7 +497,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(hcpCluster.Properties.Version.ID).
+			ID(ocm.NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)).
 			ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.Properties.Network.NetworkType)).
@@ -638,14 +635,12 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
 	npBuilder := arohcpv1alpha1.NewNodePool()
 
-	nodepoolCSversion := ocm.ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)
-
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		npBuilder = npBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
-				ID(nodepoolCSversion).
+				ID(ocm.ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().

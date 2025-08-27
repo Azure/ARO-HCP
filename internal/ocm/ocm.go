@@ -505,14 +505,20 @@ func NewOpenShiftVersionXY(v string) string {
 
 // NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
 func NewOpenShiftVersionXYZ(v string) string {
-	parts := strings.Split(v, ".")
-	if len(parts) == 1 {
-		parts = append(parts, "0")
+	var csVersion string
+
+	if len(v) > 0 {
+		parts := strings.Split(v, ".")
+		if len(parts) == 1 {
+			parts = append(parts, "0")
+		}
+		// FIXME This assumes X.Y is 4.19. Eventually
+		//       we may need a switch statement here.
+		parts = append(parts[:2], OpenShift419Patch)
+		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".")
 	}
-	// FIXME This assumes X.Y is 4.19. Eventually
-	//       we may need a switch statement here.
-	parts = append(parts[:2], OpenShift419Patch)
-	return api.OpenShiftVersionPrefix + strings.Join(parts, ".")
+
+	return csVersion
 }
 
 // ConvertOpenShiftVersionNoPrefix strips off openshift-v prefix
@@ -522,7 +528,7 @@ func ConvertOpenShiftVersionNoPrefix(v string) string {
 
 // ConvertOpenShiftVersionAddPrefix adds openshift-v prefix
 func ConvertOpenShiftVersionAddPrefix(v string) string {
-	if !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
+	if len(v) > 0 && !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
 		return api.OpenShiftVersionPrefix + v
 	}
 	return v
