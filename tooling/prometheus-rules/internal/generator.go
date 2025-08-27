@@ -104,7 +104,7 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 	o.expressionReplacements = config.PrometheusRules.ExpressionReplacements
 	for _, replacement := range o.expressionReplacements {
 		if replacement.From == "" || replacement.To == "" {
-			return fmt.Errorf("expression replacement must have both from and to fields")
+			return fmt.Errorf("expression replacement must have both from and to fields (from=%q, to=%q)",  replacement.From, replacement.To)
 		}
 	}
 
