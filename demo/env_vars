@@ -1,23 +1,33 @@
 #!/bin/bash
 
-# Defined here because it's used here.
-is_int_testing_subscription() {
-    return $(test "$(az account show --query name --output tsv)" = "ARO SRE Team - INT (EA Subscription 3)")
+# Check if subscription has AFEC feature flags for environment detection
+check_afec_environment() {
+    # INT
+    if az feature list --namespace "Microsoft.RedHatOpenShift" --query "[?contains(name, 'INT-APPROVED') && properties.state=='Registered'].name" --output tsv | grep -qi "INT-APPROVED"; then
+        echo "int"
+        return 0
+    fi
+
+    # STG
+    if az feature list --namespace "Microsoft.RedHatOpenShift" --query "[?contains(name, 'STAGING-APPROVED') && properties.state=='Registered'].name" --output tsv | grep -qi "STAGING-APPROVED"; then
+        echo "stg"
+        return 0
+    fi
+
+    # Assume prod otherwise
+    echo "prod"
+    return 0
 }
 
-is_stg_testing_subscription() {
-    return $(test "$(az account show --query name --output tsv)" = "ARO HCP - STAGE testing (EA Subscription)")
-}
-
-if is_int_testing_subscription; then
-    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
-    DEMO_ENV_NAME=int
-elif is_stg_testing_subscription; then
-    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
-    DEMO_ENV_NAME=stg
-else
+# Environment detection logic based on RP_MODE and AFEC flags
+if [ "${RP_MODE:-}" = "development" ]; then
+    # Force localhost frontend
     export FRONTEND_HOST="http://localhost:8443"
     DEMO_ENV_NAME=${DEPLOY_ENV:-pers}
+else
+    # Not in dev mode, use ARM routing
+    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
+    DEMO_ENV_NAME=$(check_afec_environment)
 fi
 
 if [ -z "${CUSTOMER_RG_NAME:-}" ]; then
