@@ -93,6 +93,6 @@ var _ = Describe("Customer", func() {
 			Expect(*created.Properties.ProvisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
 			Expect(created.Properties.Platform).ToNot(BeNil())
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil())
-			Expect(created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB))
+			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB))
 		})
 })
