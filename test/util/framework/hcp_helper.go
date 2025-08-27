@@ -163,11 +163,6 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 		return nil, err
 	}
 
-	// we are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
-	// https://issues.redhat.com/browse/XCMSTRAT-950 for reference when this intentional time bomb explodes.
-	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
-		ret.Insecure = true
-	}
 	return ret, nil
 }
 
