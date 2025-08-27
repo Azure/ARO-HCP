@@ -27,7 +27,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[5m])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[5m])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[5m])))
         ) / (1 - 0.99), 0.01
@@ -38,7 +38,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[30m])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[30m])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[30m])))
         ) / (1 - 0.99), 0.01
@@ -49,7 +49,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[1h])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[1h])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1h])))
         ) / (1 - 0.99), 0.01
@@ -60,7 +60,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[6h])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[6h])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[6h])))
         ) / (1 - 0.99), 0.01
@@ -71,7 +71,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[3d])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[3d])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[3d])))
         ) / (1 - 0.99), 0.01
@@ -82,7 +82,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[2h])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[2h])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[2h])))
         ) / (1 - 0.99), 0.01
@@ -93,7 +93,7 @@ spec:
       expr: |
         round(
         (
-        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[1d])))
+        sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[1d])))
         /
         sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1d])))
         ) / (1 - 0.99), 0.01

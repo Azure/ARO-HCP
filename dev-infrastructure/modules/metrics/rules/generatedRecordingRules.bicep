@@ -19,49 +19,49 @@ resource arohcpCsApiAvailabilityRecordingRules 'Microsoft.AlertsManagement/prome
       }
       {
         record: 'availability:api_inbound_request_count:burnrate5m'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[5m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[5m]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[5m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[5m]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate30m'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[30m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[30m]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[30m]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[30m]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate1h'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[1h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1h]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[1h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1h]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate6h'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[6h]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[6h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[6h]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate3d'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[3d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[3d]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[3d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[3d]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate2h'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[2h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[2h]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[2h]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[2h]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
       }
       {
         record: 'availability:api_inbound_request_count:burnrate1d'
-        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..", service="clusters-service-metrics"}[1d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1d]))) ) / (1 - 0.99), 0.01 )'
+        expression: 'round( ( sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code=~"5..|0", service="clusters-service-metrics"}[1d]))) / sum(max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[1d]))) ) / (1 - 0.99), 0.01 )'
         labels: {
           service: 'clusters-service-metrics'
         }
