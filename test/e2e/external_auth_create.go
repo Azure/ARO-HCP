@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create a cluster with external auth and login via console and external auth",
+	It("should be able to create a cluster with an external auth config and get the external auth config",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
@@ -206,8 +206,6 @@ var _ = Describe("Customer", func() {
 			By("verifying ExternalAuth via GET")
 			_, err = framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a cluster role and cluster role binding for the entra application")
 
 		})
 })
