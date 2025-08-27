@@ -179,25 +179,24 @@ var _ = Describe("Customer", func() {
 							},
 						},
 					},
-					// TODO: ARO-20830 - External Auth Client types are meant to be lowercase it appears
-					// Clients: []*generated.ExternalAuthClientProfile{
-					// 	{
-					// 		ClientID: to.Ptr(app.ID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("console"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
-					// 	},
-					// 	{
-					// 		ClientID: to.Ptr(app.AppID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("cli"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypePublic),
-					// 	},
-					// },
+					Clients: []*generated.ExternalAuthClientProfile{
+						{
+							ClientID: to.Ptr(app.ID),
+							Component: &generated.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("console"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
+						},
+						{
+							ClientID: to.Ptr(app.AppID),
+							Component: &generated.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("cli"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(generated.ExternalAuthClientTypePublic),
+						},
+					},
 				},
 			}
 
