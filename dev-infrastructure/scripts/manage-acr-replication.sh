@@ -52,6 +52,19 @@ execute() {
     fi
 }
 
+# Function to create a new replication
+create_replication() {
+    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
+    execute az acr replication create \
+        --registry "$ACR_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$REPLICATION_REGION" \
+        --name "$REPLICATION_REGION" \
+        --region-endpoint-enabled true
+
+    echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
+}
+
 echo "Managing ACR replication for $ACR_NAME in region $REPLICATION_REGION..."
 
 # Get the resource group and location for the ACR
@@ -67,51 +80,41 @@ if [ "$REPLICATION_REGION" = "$ACR_HOME_REGION" ]; then
     exit 0
 fi
 
-# Step 1: Check for and delete any failed replications
-echo "Searching for failed replications in region $REPLICATION_REGION..."
-FAILED_REPLICATION=$(az acr replication list \
-    --registry "$ACR_NAME" \
-    --query "[?location=='$REPLICATION_REGION' && provisioningState=='Failed'] | [0]" \
-    --output json)
-
-if [ -n "$FAILED_REPLICATION" ]; then
-    # Extract the replication name and delete it
-    FAILED_REPLICATION_NAME=$(echo "$FAILED_REPLICATION" | jq -r '.name')
-    echo "Found failed replication: $FAILED_REPLICATION_NAME"
-
-    echo "Deleting failed replication $FAILED_REPLICATION_NAME for ACR $ACR_NAME in region $REPLICATION_REGION..."
-    execute az acr replication delete \
-        --registry "$ACR_NAME" \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$FAILED_REPLICATION_NAME"
-
-    echo "Successfully deleted failed replication $FAILED_REPLICATION_NAME"
-else
-    echo "No failed replications found in region $REPLICATION_REGION"
-fi
-
-# Step 2: Check if any replication exists in the region
+# Check if any replication exists in the region
 echo "Checking for existing replications in region $REPLICATION_REGION..."
-EXISTING_REPLICATION=$(az acr replication list \
-    --registry "$ACR_NAME" \
-    --query "[?location=='$REPLICATION_REGION'] | [0]" \
-    --output json)
+# we need to query the existance of a replica via az resource list instead az acr replication list
+# because the list operation is bugged and reports the wrong replication state at times
+REPLICATION_INFO=$(az resource list \
+    --resource-group "$RESOURCE_GROUP" \
+    --resource-type "Microsoft.ContainerRegistry/registries/replications" \
+    --query "[?location=='$REPLICATION_REGION' && contains(id, '/registries/$ACR_NAME/')] | [0]" \
+    --output json
+)
 
-if [ -z "$EXISTING_REPLICATION" ]; then
-    echo "No replication exists in region $REPLICATION_REGION. Creating new replication..."
+if [ -n "$REPLICATION_INFO" ]; then
+    REPLICATION_RESOURCE_ID=$(echo "$REPLICATION_INFO" | jq -r '.id')
+    REPLICATION_NAME=$(echo "$REPLICATION_INFO" | jq -r '.name' | cut -f 2 -d "/")
+    # we need to query the replication state from the replica resource id and not from the list operation or the ACR
+    # there are bugs flying around that report the wrong replication state on the list operation
+    REPLICATION_STATE=$(az resource show --ids "$REPLICATION_RESOURCE_ID" --query "properties.provisioningState" -o tsv)
+    echo "Found existing replication $REPLICATION_NAME ($REPLICATION_RESOURCE_ID) in state $REPLICATION_STATE"
 
-    # Create new replication
-    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
-    execute az acr replication create \
-        --registry "$ACR_NAME" \
-        --resource-group "$RESOURCE_GROUP" \
-        --location "$REPLICATION_REGION" \
-        --name "$REPLICATION_REGION" \
-        --region-endpoint-enabled true
+    # Only check for failed replications if one exists
+    if [ "$REPLICATION_STATE" = "Failed" ]; then
+        echo "Replication $REPLICATION_RESOURCE_ID is in failed state. Deleting it..."
+        execute az acr replication delete \
+            --registry "$ACR_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$REPLICATION_NAME"
+        echo "Successfully deleted failed replication $REPLICATION_NAME"
 
-    echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
+        # After deleting failed replication, create a new one
+        create_replication
+    else
+        echo "Replication already exists and is in good state: $REPLICATION_NAME (state: $REPLICATION_STATE)"
+        exit 0
+    fi
 else
-    EXISTING_NAME=$(echo "$EXISTING_REPLICATION" | jq -r '.name')
-    EXISTING_STATE=$(echo "$EXISTING_REPLICATION" | jq -r '.provisioningState')
-    echo "Replication already exists: $EXISTING_NAME (state: $EXISTING_STATE)"
+    echo "No replication exists in region $REPLICATION_REGION. Creating new replication..."
+    create_replication
 fi
