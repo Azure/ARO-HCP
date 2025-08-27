@@ -9,6 +9,8 @@ param replicas int = 2
 
 @description('OpenShift Version ID to use')
 param openshiftVersionId string = '4.19.7'
+@description('Size of the osDisk for the node pool in GiB')
+param osDiskSizeGiB int = 64
 
 @description('VM size for the nodepool VMs')
 param vmSize string = 'Standard_D8s_v3'
@@ -30,7 +32,7 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
       subnetId: hcp.properties.platform.subnetId
       vmSize: vmSize
       osDisk: {
-        sizeGiB: 64
+        sizeGiB: osDiskSizeGiB
         diskStorageAccountType: 'StandardSSD_LRS'
       }
     }
