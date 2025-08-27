@@ -3,7 +3,7 @@ prometheusRules:
   untestedRules:
   - ../observability/alerts/HCPkasMonitor-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep
-  expressionReplacements:
+  outputReplacements:
   - from: 'job="kube-scheduler"'
     to: 'job="controlplane-kube-scheduler"'
   - from: 'job="apiserver"'

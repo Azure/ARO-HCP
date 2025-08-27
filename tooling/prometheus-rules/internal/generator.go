@@ -43,17 +43,17 @@ type alertingRuleFile struct {
 }
 
 type Options struct {
-	forceInfoSeverity      bool
-	outputBicep            string
-	ruleFiles              []alertingRuleFile
-	expressionReplacements []Replacements
+	forceInfoSeverity  bool
+	outputBicep        string
+	ruleFiles          []alertingRuleFile
+	outputReplacements []Replacements
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders           []string       `json:"rulesFolders"`
-	UntestedRules          []string       `json:"untestedRules,omitempty"`
-	OutputBicep            string         `json:"outputBicep"`
-	ExpressionReplacements []Replacements `json:"expressionReplacements,omitempty"`
+	RulesFolders       []string       `json:"rulesFolders"`
+	UntestedRules      []string       `json:"untestedRules,omitempty"`
+	OutputBicep        string         `json:"outputBicep"`
+	OutputReplacements []Replacements `json:"outputReplacements,omitempty"`
 }
 
 type CliConfig struct {
@@ -101,8 +101,8 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 		return fmt.Errorf("error unmarshaling configFile %s file %v", configFilePath, err)
 	}
 
-	o.expressionReplacements = config.PrometheusRules.ExpressionReplacements
-	for _, replacement := range o.expressionReplacements {
+	o.outputReplacements = config.PrometheusRules.OutputReplacements
+	for _, replacement := range o.outputReplacements {
 		if replacement.From == "" || replacement.To == "" {
 			return fmt.Errorf("expression replacement must have both from and to fields (from=%q, to=%q)",  replacement.From, replacement.To)
 		}
@@ -327,7 +327,7 @@ param azureMonitoring string
 				// Use the file type to determine which function to call
 				// Groups are guaranteed to contain only one type of rule
 
-				replacementWriter := NewReplacementWriter(output, o.expressionReplacements)
+				replacementWriter := NewReplacementWriter(output, o.outputReplacements)
 
 				if isRecordingRulesFile {
 					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
