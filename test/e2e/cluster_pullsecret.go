@@ -193,7 +193,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 
 			GinkgoWriter.Printf("Parsed hosts in updated secret: %v\n", maps.Keys(verifyDockerConfig.Auths))
 			GinkgoWriter.Printf("Expected host: %s\n", testPullSecretHost)
-			GinkgoWriter.Printf("Host present: %t\n", maps.Contains(verifyDockerConfig.Auths, testPullSecretHost))
+			GinkgoWriter.Printf("Host present: %t\n", func() bool { _, ok := verifyDockerConfig.Auths[testPullSecretHost]; return ok }())
 
 			By("checking that the test pull secret is present in the global pull secret")
 			Expect(verifyDockerConfig.Auths).To(HaveKey(testPullSecretHost))
