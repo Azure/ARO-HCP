@@ -43,15 +43,17 @@ type alertingRuleFile struct {
 }
 
 type Options struct {
-	forceInfoSeverity bool
-	outputBicep       string
-	ruleFiles         []alertingRuleFile
+	forceInfoSeverity      bool
+	outputBicep            string
+	ruleFiles              []alertingRuleFile
+	expressionReplacements []Replacements
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders  []string `json:"rulesFolders"`
-	UntestedRules []string `json:"untestedRules,omitempty"`
-	OutputBicep   string   `json:"outputBicep"`
+	RulesFolders           []string       `json:"rulesFolders"`
+	UntestedRules          []string       `json:"untestedRules,omitempty"`
+	OutputBicep            string         `json:"outputBicep"`
+	ExpressionReplacements []Replacements `json:"expressionReplacements,omitempty"`
 }
 
 type CliConfig struct {
@@ -97,6 +99,13 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 	err = yaml.Unmarshal(cfgRaw, config)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling configFile %s file %v", configFilePath, err)
+	}
+
+	o.expressionReplacements = config.PrometheusRules.ExpressionReplacements
+	for _, replacement := range o.expressionReplacements {
+		if replacement.From == "" || replacement.To == "" {
+			return fmt.Errorf("expression replacement must have both from and to fields")
+		}
 	}
 
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
@@ -317,12 +326,15 @@ param azureMonitoring string
 			if len(armGroup.Properties.Rules) > 0 {
 				// Use the file type to determine which function to call
 				// Groups are guaranteed to contain only one type of rule
+
+				replacementWriter := NewReplacementWriter(output, o.expressionReplacements)
+
 				if isRecordingRulesFile {
-					if err := writeRecordingGroups(armGroup, output); err != nil {
+					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
 						return err
 					}
 				} else if isAlertingRulesFile {
-					if err := writeAlertGroups(armGroup, output); err != nil {
+					if err := writeAlertGroups(armGroup, replacementWriter); err != nil {
 						return err
 					}
 				}
