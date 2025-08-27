@@ -92,7 +92,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts nodeDrainGracePeriod to nodeDrainTimeoutMinutes",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-					Unit(azureNodePoolNodeDrainGracePeriodUnit).
+					Unit(csNodeDrainGracePeriodUnit).
 					Value(42),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
@@ -273,7 +273,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-				OutboundType(csPlatformOutboundType)).
+				OutboundType(csOutboundType)).
 			ResourceGroupName(api.TestResourceGroupName).
 			ResourceName(api.TestClusterName).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -327,7 +327,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			VMSize("").
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
-					State(azureNodePoolEncryptionAtHostDisabled),
+					State(csEncryptionAtHostStateDisabled),
 			).
 			OSDiskSizeGibibytes(0).
 			OSDiskStorageAccountType(""),
