@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"maps"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -141,23 +143,57 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			if currentDockerConfig.Auths == nil {
 				currentDockerConfig.Auths = make(map[string]dockerConfigAuth)
 			}
+
+			// Log the merge operation details
+			GinkgoWriter.Printf("=== MERGE OPERATION DEBUG ===\n")
+			GinkgoWriter.Printf("Existing hosts before merge: %v\n", maps.Keys(currentDockerConfig.Auths))
+			GinkgoWriter.Printf("Adding new host: %s\n", testPullSecretHost)
+			GinkgoWriter.Printf("New pull secret data: %+v\n", testDockerConfig.Auths[testPullSecretHost])
+
 			currentDockerConfig.Auths[testPullSecretHost] = testDockerConfig.Auths[testPullSecretHost]
+
+			GinkgoWriter.Printf("Hosts after merge: %v\n", maps.Keys(currentDockerConfig.Auths))
+			GinkgoWriter.Printf("Total auth entries: %d\n", len(currentDockerConfig.Auths))
 
 			By("updating the global pull secret")
 			updatedDockerConfigJSON, err := json.Marshal(currentDockerConfig)
 			Expect(err).NotTo(HaveOccurred())
 
+			// Log the update operation
+			GinkgoWriter.Printf("=== UPDATE OPERATION DEBUG ===\n")
+			GinkgoWriter.Printf("JSON size before update: %d bytes\n", len(globalPullSecret.Data[corev1.DockerConfigJsonKey]))
+			GinkgoWriter.Printf("JSON size after merge: %d bytes\n", len(updatedDockerConfigJSON))
+			GinkgoWriter.Printf("Updating secret with %d hosts\n", len(currentDockerConfig.Auths))
+
 			globalPullSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
 			_, err = kubeClient.CoreV1().Secrets("openshift-config").Update(ctx, globalPullSecret, metav1.UpdateOptions{})
+			if err != nil {
+				GinkgoWriter.Printf("UPDATE FAILED: %v\n", err)
+				// Log the current secret state for debugging
+				currentSecret, _ := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
+				GinkgoWriter.Printf("Current secret resource version: %s\n", currentSecret.ResourceVersion)
+				GinkgoWriter.Printf("Current secret data size: %d bytes\n", len(currentSecret.Data[corev1.DockerConfigJsonKey]))
+			}
 			Expect(err).NotTo(HaveOccurred())
+
+			GinkgoWriter.Printf("Update operation completed successfully\n")
 
 			By("verifying the pull secret was added to the global pull secret")
 			updatedGlobalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
+			// Log verification details
+			GinkgoWriter.Printf("=== VERIFICATION DEBUG ===\n")
+			GinkgoWriter.Printf("Retrieved secret resource version: %s\n", updatedGlobalPullSecret.ResourceVersion)
+			GinkgoWriter.Printf("Secret data size: %d bytes\n", len(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey]))
+
 			var verifyDockerConfig dockerConfig
 			err = json.Unmarshal(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey], &verifyDockerConfig)
 			Expect(err).NotTo(HaveOccurred())
+
+			GinkgoWriter.Printf("Parsed hosts in updated secret: %v\n", maps.Keys(verifyDockerConfig.Auths))
+			GinkgoWriter.Printf("Expected host: %s\n", testPullSecretHost)
+			GinkgoWriter.Printf("Host present: %t\n", maps.Contains(verifyDockerConfig.Auths, testPullSecretHost))
 
 			By("checking that the test pull secret is present in the global pull secret")
 			Expect(verifyDockerConfig.Auths).To(HaveKey(testPullSecretHost))
