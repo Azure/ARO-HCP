@@ -4,5 +4,13 @@ prometheusRules:
   - ../observability/alerts/HCPkasMonitor-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep
   expressionReplacements:
-    - from: 'job="kube-scheduler"'
-      to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="kube-scheduler"'
+    to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="apiserver"'
+    to: 'job="controlplane-apiserver"'
+  - from: 'job="etcd"'
+    to: 'job="controlplane-etcd"'
+  - from: 'job="cluster-autoscaler"'
+    to: 'job="controlplane-cluster-autoscaler"'
+  - from: 'job="kube-controller-manager"'
+    to: 'job="controlplane-kube-controller-manager"'

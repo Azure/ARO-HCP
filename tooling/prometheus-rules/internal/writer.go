@@ -36,3 +36,5 @@ func (rw *ReplacementWriter) Write(p []byte) (n int, err error) {
 
 	return bytesWritten, nil
 }
+
+var _ io.Writer = &ReplacementWriter{}
