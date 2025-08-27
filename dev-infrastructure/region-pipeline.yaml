@@ -123,7 +123,7 @@ resourceGroups:
       step: svc-acr-replication
     - resourceGroup: global
       step: ocp-acr-replication
-  - name: region
+  - name: infra
     action: ARM
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
@@ -152,6 +152,24 @@ resourceGroups:
     dependsOn:
     - resourceGroup: regional
       step: rpRegistration
+  - name: housekeeping
+    action: Shell
+    command: scripts/regional-housekeeping.sh
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: REGIONAL_RESOURCE_GROUP
+      configRef: regionRG
+    dependsOn:
+    - resourceGroup: regional
+      step: infra
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: output
     action: ARM
     template: templates/output-region.bicep
@@ -160,4 +178,4 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - resourceGroup: regional
-      step: region
+      step: housekeeping

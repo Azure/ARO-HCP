@@ -18,7 +18,7 @@
       "dataEncryption": {
         "keyManagementMode": "CustomerManaged",
         "customerManaged": {
-          "encryptionType": "kms",
+          "encryptionType": "KMS",
           "kms": {
             "activeKey": {
               "vaultName": "customer-kv",

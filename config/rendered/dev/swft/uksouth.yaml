@@ -113,7 +113,7 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:1af5d39b3bafa292e2335bb87cf418a72f854ccceb1db6886744948647b8234e
+    digest: sha256:2e1eb2baf9995aca7f59a9e85fc5f0d12e464848d823abfa712f9731b6da93b2
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -212,6 +212,7 @@ genevaActions:
   serviceTag: GenevaActionsNonProd
 global:
   billing:
+    digest: placeholder
     rg: placeholder
   globalMSIName: global-rollout-identity
   keyVault:
@@ -460,6 +461,11 @@ monitoring:
     connectionName: ""
     environment: ""
     manageConnection: false
+    msft:
+      actionGroupName: ""
+      actionGroupShortName: ""
+      automitigationEnabled: ""
+      routingId: ""
     sl:
       actionGroupName: ""
       actionGroupShortName: ""
@@ -641,6 +647,8 @@ svc:
           poll: true
         poll: true
       Microsoft.Dashboard:
+        poll: true
+      Microsoft.DbForPostgreSQL:
         poll: true
       Microsoft.Insights:
         poll: true

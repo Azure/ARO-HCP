@@ -6,6 +6,7 @@
 * port-forward RP running on SC: `kubectl port-forward -n aro-hcp svc/aro-hcp-frontend 8443:8443`
 * (optional but useful) port-forward CS running on SC: `kubectl port-forward -n clusters-service svc/clusters-service 8001:8000`
 * (optional but useful) port-forward Maestro running on SC: `kubectl port-forward -n maestro svc/maestro 8002:8000`
+* ensure that the environment variable `$LOCATION` is either unset or set to the integrated dev environment's region
 
 ## Register the subscription with the RP
 
@@ -84,7 +85,7 @@ kubectl logs deployment/aro-hcp-backend -c aro-hcp-backend -n aro-hcp -f
 ### Check CS pod logs
 
 ```bash
-kubectl logs deployment/clusters-service -c service -f
+kubectl logs deployment/clusters-service -c service -n clusters-service -f
 ```
 
 ### Check cluster state in CS

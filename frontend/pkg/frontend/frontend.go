@@ -471,7 +471,12 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		hcpCluster := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+		hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 
 		// Do not set the TrackedResource.Tags field here. We need
 		// the Tags map to remain nil so we can see if the request
@@ -1239,7 +1244,11 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+	if err != nil {
+		return nil, err
+	}
+
 	hcpCluster.SystemData = doc.SystemData
 	hcpCluster.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState

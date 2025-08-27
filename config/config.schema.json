@@ -1368,10 +1368,15 @@
           "properties": {
             "rg": {
               "$ref": "#/definitions/resourceGroupName"
+            },
+            "digest": {
+              "type": "string"
             }
+
           },
           "required": [
-            "rg"
+            "rg",
+            "digest"
           ]
         },
         "subscription": {
@@ -1777,6 +1782,9 @@
               "$ref": "#/definitions/icmConnection"
             },
             "sl": {
+              "$ref": "#/definitions/icmConnection"
+            },
+            "msft": {
               "$ref": "#/definitions/icmConnection"
             }
           },

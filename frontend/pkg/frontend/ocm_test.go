@@ -17,11 +17,13 @@ package frontend
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"dario.cat/mergo"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,53 +75,60 @@ func TestRequestIDPropagator(t *testing.T) {
 }
 
 func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
-	resourceID := testResourceID(t)
+	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
+	require.NoError(t, err)
+
 	testCases := []struct {
-		name    string
-		cluster *arohcpv1alpha1.ClusterBuilder
-		want    *api.HCPOpenShiftCluster
+		name             string
+		ocmClusterTweaks *arohcpv1alpha1.ClusterBuilder
+		hcpClusterTweaks *api.HCPOpenShiftCluster
 	}{
 		{
-			name:    "zero",
-			cluster: arohcpv1alpha1.NewCluster(),
-			want:    clusterResource(),
+			name:             "zero",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster(),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{},
 		},
 		{
 			name: "converts nodeDrainGracePeriod to nodeDrainTimeoutMinutes",
-			cluster: arohcpv1alpha1.NewCluster().
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-					Unit(azureNodePoolNodeDrainGracePeriodUnit).
+					Unit(csNodeDrainGracePeriodUnit).
 					Value(42),
 				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.NodeDrainTimeoutMinutes = 42
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					NodeDrainTimeoutMinutes: 42,
 				},
-			),
+			},
 		},
 		{
 			name: "converts EtcdEncryption for only default PlatformManaged",
-			cluster: arohcpv1alpha1.NewCluster().
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged))),
+							KeyManagementMode(csKeyManagementModePlatformManaged),
+						),
 					),
 				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-					hsc.Properties.Etcd.DataEncryption.CustomerManaged = nil
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+							CustomerManaged:   nil,
+						},
+					},
 				},
-			),
+			},
 		},
 		{
 			name: "converts EtcdEncryption for CustomerManaged",
-			cluster: arohcpv1alpha1.NewCluster().
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-							KeyManagementMode(convertKeyManagementModeTypeRPToCS(api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged)).
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
 							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 								EncryptionType("kms").
 								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
@@ -133,44 +142,55 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 						),
 					),
 				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.Etcd.DataEncryption = api.EtcdDataEncryptionProfile{
-						CustomerManaged: &api.CustomerManagedEncryptionProfile{
-							EncryptionType: "KMS",
-							Kms: &api.KmsEncryptionProfile{
-								ActiveKey: api.KmsKey{
-									Name:      "test",
-									VaultName: "test",
-									Version:   "test-version",
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: "KMS",
+								Kms: &api.KmsEncryptionProfile{
+									ActiveKey: api.KmsKey{
+										Name:      "test",
+										VaultName: "test",
+										Version:   "test-version",
+									},
 								},
 							},
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
 						},
-						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-					}
+					},
 				},
-			),
+			},
 		},
 		{
 			name: "converts CS ClusterImageRegistry to ClusterImageRegistryProfile",
-			cluster: arohcpv1alpha1.NewCluster().
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 					State(string(csImageRegistryStateDisabled)),
 				),
-			want: clusterResource(
-				func(hsc *api.HCPOpenShiftCluster) {
-					hsc.Properties.ClusterImageRegistry = api.ClusterImageRegistryProfile{
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				Properties: api.HCPOpenShiftClusterProperties{
+					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileStateDisabled,
-					}
+					},
 				},
-			),
+			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster, err := tc.cluster.Build()
+			csCluster := ocmCluster(t, ocmClusterDefaults(), tc.ocmClusterTweaks)
+			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
+
+			// FIXME Temporary hack until we pass cluster autoscaling values to CS.
+			expectHcpCluster.Properties.Autoscaling.MaxPodGracePeriodSeconds = 0
+			expectHcpCluster.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
+			expectHcpCluster.Properties.Autoscaling.PodPriorityThreshold = 0
+
+			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 			require.NoError(t, err)
-			assert.Equalf(t, tc.want, ConvertCStoHCPOpenShiftCluster(resourceID, cluster), "ConvertCStoHCPOpenShiftCluster(%v, %v)", resourceID, cluster)
+
+			assert.Equal(t, expectHcpCluster, actualHcpCluster)
 		})
 	}
 }
@@ -182,15 +202,9 @@ func TestWithImmutableAttributes(t *testing.T) {
 		want       *arohcpv1alpha1.Cluster
 	}{
 		{
-			name: "simple default",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
-						ManagedResourceGroup: "test",
-					},
-				},
-			},
-			want: ocmCluster(t, withOCMClusterDefaults()),
+			name:       "simple default",
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			want:       ocmCluster(t, ocmClusterDefaults()),
 		},
 	}
 
@@ -199,12 +213,21 @@ func TestWithImmutableAttributes(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
-			result, err := withImmutableAttributes(arohcpv1alpha1.NewCluster(), tc.hcpCluster, "test", "test", "test", "test", "").Build()
+			builder, err := withImmutableAttributes(
+				ocmClusterDefaults(),
+				api.ClusterTestCase(t, tc.hcpCluster),
+				api.TestSubscriptionID,
+				api.TestResourceGroupName,
+				api.TestLocation,
+				api.TestTenantID,
+				"")
+			require.NoError(t, err)
+			result, err := builder.Build()
 			require.NoError(t, err)
 			buf.Reset()
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(result, &buf))
 			got := buf.String()
-			assert.JSONEqf(t, want, got, "withImmutableAttributes(%v, %v, %v, %v, %v, %v, %v)", "NewCluster()", tc.hcpCluster, "test", "test", "test", "test", "test")
+			assert.JSONEq(t, want, got)
 		})
 	}
 }
@@ -215,78 +238,71 @@ func testResourceID(t *testing.T) *azcorearm.ResourceID {
 	return resourceID
 }
 
-func clusterResource(opts ...func(*api.HCPOpenShiftCluster)) *api.HCPOpenShiftCluster {
-	c := &api.HCPOpenShiftCluster{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   api.TestClusterResourceID,
-				Name: api.TestClusterName,
-				Type: api.ClusterResourceType.String(),
-			},
-		},
-		Properties: api.HCPOpenShiftClusterProperties{},
-		Identity: &arm.ManagedServiceIdentity{
-			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
-		},
-	}
-	for _, opt := range opts {
-		opt(c)
+func ocmCluster(t *testing.T, builders ...*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.Cluster {
+	var mergedCluster map[string]interface{}
+
+	for _, builder := range builders {
+		var rawCluster map[string]interface{}
+		var buffer bytes.Buffer
+
+		cluster, err := builder.Build()
+		require.NoError(t, err)
+		require.NoError(t, arohcpv1alpha1.MarshalCluster(cluster, &buffer))
+		require.NoError(t, json.Unmarshal(buffer.Bytes(), &rawCluster))
+		require.NoError(t, mergo.Merge(&mergedCluster, rawCluster, mergo.WithOverride))
 	}
 
-	return c
+	data, err := arm.MarshalJSON(mergedCluster)
+	require.NoError(t, err)
+	cluster, err := arohcpv1alpha1.UnmarshalCluster(data)
+	require.NoError(t, err)
+
+	return cluster
 }
 
-func ocmCluster(t *testing.T, opts ...func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.Cluster {
-	b := arohcpv1alpha1.NewCluster()
-	for _, opt := range opts {
-		b = opt(b)
-	}
-	c, err := b.Build()
-	assert.NoError(t, err)
-	return c
-}
-
-func withOCMClusterDefaults() func(*arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	return func(b *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-		// This reflects how the immutable attributes get set when passed an empty[*] RP
-		// cluster. (well, not exactly empty, need to set Platform.ManagedResourceGroupName
-		// so that we don't get a corresponding random value in the output.)
-		return b.
-			API(arohcpv1alpha1.NewClusterAPI().Listening("")).
-			Azure(arohcpv1alpha1.NewAzure().
-				ManagedResourceGroupName("test").
-				NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-					OutboundType("")).
-				ResourceGroupName("test").
-				ResourceName("").
-				SubnetResourceID("").
-				SubscriptionID("test").
-				TenantID("test"),
-			).
-			CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
-			CloudProvider(cmv1.NewCloudProvider().
-				ID("azure")).
-			Flavour(cmv1.NewFlavour().
-				ID("osd-4")).
-			Hypershift(arohcpv1alpha1.NewHypershift().
-				Enabled(true)).
-			Name("").
-			Network(arohcpv1alpha1.NewNetwork().
-				HostPrefix(0).
-				MachineCIDR("").
-				PodCIDR("").
-				ServiceCIDR("").
-				Type("")).
-			Product(cmv1.NewProduct().
-				ID("aro")).
-			Region(cmv1.NewCloudRegion().
-				ID("test")).
-			Version(arohcpv1alpha1.NewVersion().
-				ID("").
-				ChannelGroup("")).
-			ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-				State(""))
-	}
+func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
+	// This reflects how the immutable attributes get set when passed a minimally
+	// valid RP cluster, using constants from internal/api/testhelpers.go.
+	return arohcpv1alpha1.NewCluster().
+		API(arohcpv1alpha1.NewClusterAPI().
+			Listening(arohcpv1alpha1.ListeningMethodExternal)).
+		Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModePlatformManaged))).
+			ManagedResourceGroupName(api.TestManagedResourceGroupName).
+			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
+			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
+				OutboundType(csOutboundType)).
+			ResourceGroupName(api.TestResourceGroupName).
+			ResourceName(api.TestClusterName).
+			SubnetResourceID(api.TestSubnetResourceID).
+			SubscriptionID(api.TestSubscriptionID).
+			TenantID(api.TestTenantID),
+		).
+		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
+		CloudProvider(cmv1.NewCloudProvider().
+			ID("azure")).
+		Flavour(cmv1.NewFlavour().
+			ID("osd-4")).
+		Hypershift(arohcpv1alpha1.NewHypershift().
+			Enabled(true)).
+		Name(api.TestClusterName).
+		Network(arohcpv1alpha1.NewNetwork().
+			HostPrefix(23).
+			MachineCIDR("10.0.0.0/16").
+			PodCIDR("10.128.0.0/14").
+			ServiceCIDR("172.30.0.0/16").
+			Type("OVNKubernetes")).
+		Product(cmv1.NewProduct().
+			ID("aro")).
+		Region(cmv1.NewCloudRegion().
+			ID(api.TestLocation)).
+		Version(arohcpv1alpha1.NewVersion().
+			ID("").
+			ChannelGroup("stable")).
+		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
+			State(csImageRegistryStateEnabled))
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
@@ -311,7 +327,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			VMSize("").
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
-					State(azureNodePoolEncryptionAtHostDisabled),
+					State(csEncryptionAtHostStateDisabled),
 			).
 			OSDiskSizeGibibytes(0).
 			OSDiskStorageAccountType(""),
@@ -324,6 +340,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 		Replicas(0).
 		AutoRepair(false)
 }
+
 func TestBuildCSNodePool(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
@@ -371,9 +388,7 @@ func TestBuildCSNodePool(t *testing.T) {
 }
 
 func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
-	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
-		Properties: api.HCPOpenShiftClusterExternalAuthProperties{},
-	}
+	externalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
 
 	for _, opt := range opts {
 		opt(externalAuth)
@@ -387,6 +402,7 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 	return arohcpv1alpha1.NewExternalAuth().
 		ID("").
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
+			Audiences().
 			URL("").
 			CA("")).
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
@@ -397,7 +413,8 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 					PrefixPolicy(""),
 				),
 			),
-		)
+		).
+		Clients()
 }
 
 func TestBuildCSExternalAuth(t *testing.T) {
@@ -509,8 +526,14 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
-						{ClientId: "a"},
-						{ClientId: "b"},
+						{
+							ClientId:                      "a",
+							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+						},
+						{
+							ClientId:                      "b",
+							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+						},
 					}
 				},
 			),
@@ -523,7 +546,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 							Namespace(""),
 						).
 						ExtraScopes().
-						Type(""),
+						Type(arohcpv1alpha1.ExternalAuthClientTypeConfidential),
 					arohcpv1alpha1.NewExternalAuthClientConfig().
 						ID("b").
 						Component(arohcpv1alpha1.NewClientComponent().
@@ -531,7 +554,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 							Namespace(""),
 						).
 						ExtraScopes().
-						Type(""),
+						Type(arohcpv1alpha1.ExternalAuthClientTypeConfidential),
 				}...),
 		},
 	}
@@ -541,7 +564,8 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
-			generatedCSExternalAuth, _ := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			generatedCSExternalAuth, err := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})
 	}

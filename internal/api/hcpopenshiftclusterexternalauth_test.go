@@ -290,7 +290,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: "confidential",
+							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{
@@ -317,7 +317,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: "confidential",
+							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{
@@ -350,7 +350,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: "confidential",
+							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
 						},
 						{
 							ClientId: ClientId2,
@@ -358,7 +358,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: "confidential",
+							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{

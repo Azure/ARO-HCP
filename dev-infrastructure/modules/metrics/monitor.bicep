@@ -4,6 +4,9 @@ param grafanaResourceId string
 @description('Metrics region monitor name')
 param monitorName string
 
+@description('Purpose of the monitor')
+param purpose string
+
 import * as res from '../resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -11,6 +14,9 @@ var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
 resource monitor 'microsoft.monitor/accounts@2021-06-03-preview' = {
   name: monitorName
   location: resourceGroup().location
+  tags: {
+    aroHCPPurpose: purpose
+  }
 }
 
 // Assign the Monitoring Data Reader role to the Azure Managed Grafana system-assigned managed identity at the workspace scope

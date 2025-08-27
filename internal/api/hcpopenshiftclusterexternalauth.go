@@ -34,11 +34,11 @@ type HCPOpenShiftClusterExternalAuth struct {
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ExternalAuthProvisioningState `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
-	Condition         ExternalAuthCondition             `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
-	Issuer            TokenIssuerProfile                `json:"issuer"                  visibility:"read create update"       validate:"required"`
-	Clients           []ExternalAuthClientProfile       `json:"clients"                 visibility:"read create update"       validate:"max=20,omitempty"`
-	Claim             ExternalAuthClaimProfile          `json:"claim"                   visibility:"read create update"       validate:"required"`
+	ProvisioningState arm.ProvisioningState       `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
+	Condition         ExternalAuthCondition       `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
+	Issuer            TokenIssuerProfile          `json:"issuer"                  visibility:"read create update"       validate:"required"`
+	Clients           []ExternalAuthClientProfile `json:"clients"                 visibility:"read create update"       validate:"omitempty,max=20,dive"`
+	Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"       validate:"required"`
 }
 
 // Condition defines an observation of the external auth state.
@@ -57,7 +57,7 @@ type ExternalAuthCondition struct {
 // Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
 	Url       string   `json:"url"       validate:"required,url,startswith=https://"`
-	Audiences []string `json:"audiences" validate:"required,min=0,max=10"`
+	Audiences []string `json:"audiences" validate:"required,max=10"`
 	Ca        string   `json:"ca"        validate:"omitempty,pem_certificates"`
 }
 
@@ -83,7 +83,7 @@ type ExternalAuthClientComponentProfile struct {
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClaimProfile struct {
 	Mappings        TokenClaimMappingsProfile  `json:"mappings"        validate:"required"`
-	ValidationRules []TokenClaimValidationRule `json:"validationRules" validate:"omitempty"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules" validate:"omitempty,dive"`
 }
 
 // External Auth claim mappings profile.

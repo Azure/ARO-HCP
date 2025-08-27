@@ -51,7 +51,7 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-  - name: mgmt-infra
+  - name: infra
     action: ARM
     template: templates/mgmt-infra.bicep
     parameters: configurations/mgmt-infra.tmpl.bicepparam
@@ -92,11 +92,11 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: mgmt-infra
+        step: infra
         name: cxKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
-  - name: mgmt-oncert-private-kv-issuer
+  - name: oncert-private-kv-issuer
     action: SetCertificateIssuer
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
@@ -107,11 +107,11 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: mgmt-infra
+        step: infra
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
-  - name: mgmt-oncert-public-kv-issuer
+  - name: oncert-public-kv-issuer
     action: SetCertificateIssuer
     secretKeyVault:
       configRef: ev2.assistedId.certificate.keyVault
@@ -122,12 +122,12 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: mgmt-infra
+        step: infra
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
   # Build the MC
-  - name: mgmt-cluster
+  - name: cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
@@ -172,10 +172,10 @@ resourceGroups:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
     - resourceGroup: management
-      step: mgmt-oncert-private-kv-issuer
+      step: oncert-private-kv-issuer
     - resourceGroup: management
-      step: mgmt-oncert-public-kv-issuer
-  - name: mgmt-nsp
+      step: oncert-public-kv-issuer
+  - name: nsp
     action: ARM
     template: templates/mgmt-nsp.bicep
     parameters: configurations/mgmt-nsp.tmpl.bicepparam
@@ -188,10 +188,10 @@ resourceGroups:
         name: subscriptionId
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     - resourceGroup: management
-      step: mgmt-infra
-  - name: mgmt-cluster-output
+      step: infra
+  - name: cluster-output
     action: ARM
     template: templates/output-mgmt-cluster.bicep
     parameters: configurations/output-mgmt-cluster.tmpl.bicepparam
@@ -201,7 +201,7 @@ resourceGroups:
     - resourceGroup: regional
       step: output
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -246,21 +246,21 @@ resourceGroups:
     - name: DCR_REMOTE_WRITE_URL
       input:
         resourceGroup: management
-        step: mgmt-cluster-output
+        step: cluster-output
         name: dcrRemoteWriteUrl
     - name: HCP_DCR_REMOTE_WRITE_URL
       input:
         resourceGroup: management
-        step: mgmt-cluster-output
+        step: cluster-output
         name: hcpDcrRemoteWriteUrl
     - name: PROMETHEUS_UAMI_CLIENT_ID
       input:
         resourceGroup: management
-        step: mgmt-cluster-output
+        step: cluster-output
         name: prometheusUAMIClientId
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
@@ -291,7 +291,7 @@ resourceGroups:
         step: output
         name: globalMSIId
         # Install cluster patches
-  - name: mgmt-fixes
+  - name: fixes
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
@@ -304,7 +304,7 @@ resourceGroups:
       configRef: mgmt.applyKubeletFixes
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
@@ -365,7 +365,7 @@ resourceGroups:
       configRef: geneva.logs.environment
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global
@@ -390,7 +390,7 @@ resourceGroups:
       configRef: kubeEvents.enabled
     dependsOn:
     - resourceGroup: management
-      step: mgmt-cluster
+      step: cluster
     shellIdentity:
       input:
         resourceGroup: global

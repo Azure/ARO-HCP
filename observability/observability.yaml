@@ -27,3 +27,5 @@ grafana-dashboards:
     path: ../backend/grafana-dashboards
   - name: Clusters Service
     path: ../cluster-service/grafana-dashboards
+  - name: Maestro
+    path: ../maestro/grafana-dashboards

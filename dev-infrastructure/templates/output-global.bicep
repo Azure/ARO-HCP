@@ -19,6 +19,9 @@ param azureFrontDoorProfileName string
 @description('The global MSI name')
 param globalMSIName string
 
+@description('The name of the global KV')
+param globalKVName string
+
 //
 //   A C R
 //
@@ -80,3 +83,13 @@ resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
 }
 
 output globalMSIId string = globalMSI.id
+
+//
+//   G L O B A L   KV
+//
+
+resource globalKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+  name: globalKVName
+}
+
+output globalKeyVaultUrl string = globalKV.properties.vaultUri

@@ -143,6 +143,7 @@ module svcMonitor '../modules/metrics/monitor.bicep' = {
   params: {
     grafanaResourceId: grafanaResourceId
     monitorName: svcMonitorName
+    purpose: 'services'
   }
 }
 
@@ -151,5 +152,6 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
   params: {
     grafanaResourceId: grafanaResourceId
     monitorName: hcpMonitorName
+    purpose: 'hcps'
   }
 }

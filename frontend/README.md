@@ -1,36 +1,17 @@
 # ARO-HCP-FRONTEND
 
-## Build frontend binary for local testing
-```
-make frontend
-```
+## Deploy the frontend container
 
-## Build the frontend container
 ```bash
 # Note: for testing changes, please use your own registry
 # versus pushing images to the DEV ACR
 export ARO_HCP_IMAGE_REGISTRY="quay.io/QUAY_USERNAME"
-make image
 
-# Push the image to a container registry
+# Build an image and push it to your container registry
 make push
 
-# all in one option
-export ARO_HCP_IMAGE_REGISTRY="quay.io/QUAY_USERNAME"
-make build-push
-```
-
-## Run the frontend container
-
-**Locally**:
-```bash
-docker run -p 8443:8443 aro-hcp-frontend
-```
-
-**In Cluster:**
-```bash
+# Deploy the image to a service cluster
 make deploy
-make undeploy
 ```
 
 > To create a cluster, follow the instructions in [development-setup.md](../dev-infrastructure/docs/development-setup.md)

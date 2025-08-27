@@ -42,6 +42,11 @@ var (
 	TeardownValidation = ginkgo.Label("Teardown-Validation")
 )
 
+var (
+	IntegrationOnly = ginkgo.Label("Integration-Only")
+	StageOnly       = ginkgo.Label("Stage-Only")
+)
+
 // Environments this test can be used in.
 var (
 	RequireNothing        = ginkgo.Label("PreLaunchSetup:None")
