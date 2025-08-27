@@ -210,6 +210,28 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 	}
 }
 
+func convertExternalAuthClientTypeCSToRP(externalAuthClientTypeCS arohcpv1alpha1.ExternalAuthClientType) (api.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeCS {
+	case arohcpv1alpha1.ExternalAuthClientTypeConfidential:
+		return api.ExternalAuthClientTypeConfidential, nil
+	case arohcpv1alpha1.ExternalAuthClientTypePublic:
+		return api.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[api.ExternalAuthClientType](externalAuthClientTypeCS)
+	}
+}
+
+func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAuthClientType) (arohcpv1alpha1.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeRP {
+	case api.ExternalAuthClientTypeConfidential:
+		return arohcpv1alpha1.ExternalAuthClientTypeConfidential, nil
+	case api.ExternalAuthClientTypePublic:
+		return arohcpv1alpha1.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ExternalAuthClientType](externalAuthClientTypeRP)
+	}
+}
+
 func convertCustomerManagedEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryption) (*api.CustomerManagedEncryptionProfile, error) {
 	if customerManaged, ok := in.GetCustomerManaged(); ok {
 		encryptionType, err := convertCustomerManagedEncryptionTypeCSToRP(customerManaged.EncryptionType())
@@ -712,6 +734,11 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 
 	clients := make([]api.ExternalAuthClientProfile, 0, len(csExternalAuth.Clients()))
 	for _, client := range csExternalAuth.Clients() {
+		clientType, err := convertExternalAuthClientTypeCSToRP(client.Type())
+		if err != nil {
+			return nil, err
+		}
+
 		clients = append(clients, api.ExternalAuthClientProfile{
 			Component: api.ExternalAuthClientComponentProfile{
 				Name:                client.Component().Name(),
@@ -719,7 +746,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			},
 			ClientId:                      client.ID(),
 			ExtraScopes:                   client.ExtraScopes(),
-			ExternalAuthClientProfileType: api.ExternalAuthClientType(client.Type()),
+			ExternalAuthClientProfileType: clientType,
 		})
 	}
 	externalAuth.Properties.Clients = clients
@@ -759,6 +786,11 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
 	for _, t := range externalAuth.Properties.Clients {
+		clientType, err := convertExternalAuthClientTypeRPToCS(t.ExternalAuthClientProfileType)
+		if err != nil {
+			return nil, err
+		}
+
 		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
 			ID(t.ClientId).
 			Component(arohcpv1alpha1.NewClientComponent().
@@ -766,7 +798,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 				Namespace(t.Component.AuthClientNamespace),
 			).
 			ExtraScopes(t.ExtraScopes...).
-			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType))
+			Type(clientType)
 		clientConfigs = append(clientConfigs, newClientConfig)
 	}
 	externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
