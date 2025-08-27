@@ -92,7 +92,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts nodeDrainGracePeriod to nodeDrainTimeoutMinutes",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-					Unit(azureNodePoolNodeDrainGracePeriodUnit).
+					Unit(csNodeDrainGracePeriodUnit).
 					Value(42),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
@@ -273,7 +273,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-				OutboundType(csPlatformOutboundType)).
+				OutboundType(csOutboundType)).
 			ResourceGroupName(api.TestResourceGroupName).
 			ResourceName(api.TestClusterName).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -327,7 +327,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			VMSize("").
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
-					State(azureNodePoolEncryptionAtHostDisabled),
+					State(csEncryptionAtHostStateDisabled),
 			).
 			OSDiskSizeGibibytes(0).
 			OSDiskStorageAccountType(""),
@@ -340,6 +340,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 		Replicas(0).
 		AutoRepair(false)
 }
+
 func TestBuildCSNodePool(t *testing.T) {
 	resourceID := testResourceID(t)
 	testCases := []struct {
@@ -525,8 +526,14 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
-						{ClientId: "a"},
-						{ClientId: "b"},
+						{
+							ClientId:                      "a",
+							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+						},
+						{
+							ClientId:                      "b",
+							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+						},
 					}
 				},
 			),
@@ -539,7 +546,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 							Namespace(""),
 						).
 						ExtraScopes().
-						Type(""),
+						Type(arohcpv1alpha1.ExternalAuthClientTypeConfidential),
 					arohcpv1alpha1.NewExternalAuthClientConfig().
 						ID("b").
 						Component(arohcpv1alpha1.NewClientComponent().
@@ -547,7 +554,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 							Namespace(""),
 						).
 						ExtraScopes().
-						Type(""),
+						Type(arohcpv1alpha1.ExternalAuthClientTypeConfidential),
 				}...),
 		},
 	}

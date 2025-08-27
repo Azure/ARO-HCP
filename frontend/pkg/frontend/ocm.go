@@ -41,17 +41,17 @@ const (
 
 	// The OCM SDK does not provide these constants.
 
-	azureNodePoolEncryptionAtHostDisabled string = "disabled"
-	azureNodePoolEncryptionAtHostEnabled  string = "enabled"
-	azureNodePoolNodeDrainGracePeriodUnit string = "minutes"
-	csImageRegistryStateDisabled          string = "disabled"
-	csImageRegistryStateEnabled           string = "enabled"
-	csPlatformOutboundType                string = "load_balancer"
-	csUsernameClaimPrefixPolicyPrefix     string = "Prefix"
-	csUsernameClaimPrefixPolicyNoPrefix   string = "NoPrefix"
-	csKeyManagementModeCustomerManaged    string = "customer_managed"
-	csKeyManagementModePlatformManaged    string = "platform_managed"
-	csCustomerManagedEncryptionTypeKms    string = "kms"
+	csCustomerManagedEncryptionTypeKms  string = "kms"
+	csEncryptionAtHostStateDisabled     string = "disabled"
+	csEncryptionAtHostStateEnabled      string = "enabled"
+	csImageRegistryStateDisabled        string = "disabled"
+	csImageRegistryStateEnabled         string = "enabled"
+	csKeyManagementModeCustomerManaged  string = "customer_managed"
+	csKeyManagementModePlatformManaged  string = "platform_managed"
+	csNodeDrainGracePeriodUnit          string = "minutes"
+	csOutboundType                      string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
 )
 
 // Sentinel error for use with errors.Is
@@ -85,7 +85,7 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 
 func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
 	switch outboundTypeCS {
-	case csPlatformOutboundType:
+	case csOutboundType:
 		return api.OutboundTypeLoadBalancer, nil
 	default:
 		return "", conversionError[api.OutboundType](outboundTypeCS)
@@ -95,7 +95,7 @@ func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) 
 func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) {
 	switch outboundTypeRP {
 	case api.OutboundTypeLoadBalancer:
-		return csPlatformOutboundType, nil
+		return csOutboundType, nil
 	default:
 		return "", conversionError[string](outboundTypeRP)
 	}
@@ -149,9 +149,9 @@ func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *a
 	var state string
 
 	if in.EnableEncryptionAtHost {
-		state = azureNodePoolEncryptionAtHostEnabled
+		state = csEncryptionAtHostStateEnabled
 	} else {
-		state = azureNodePoolEncryptionAtHostDisabled
+		state = csEncryptionAtHostStateDisabled
 	}
 
 	return arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().State(state)
@@ -181,7 +181,7 @@ func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegis
 
 func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 	if nodeDrainGracePeriod, ok := in.GetNodeDrainGracePeriod(); ok {
-		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
 			return int32(nodeDrainGracePeriod.Value())
 		}
 	}
@@ -207,6 +207,28 @@ func convertKeyManagementModeTypeRPToCS(keyManagementModeRP api.EtcdDataEncrypti
 		return csKeyManagementModeCustomerManaged, nil
 	default:
 		return "", conversionError[string](keyManagementModeRP)
+	}
+}
+
+func convertExternalAuthClientTypeCSToRP(externalAuthClientTypeCS arohcpv1alpha1.ExternalAuthClientType) (api.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeCS {
+	case arohcpv1alpha1.ExternalAuthClientTypeConfidential:
+		return api.ExternalAuthClientTypeConfidential, nil
+	case arohcpv1alpha1.ExternalAuthClientTypePublic:
+		return api.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[api.ExternalAuthClientType](externalAuthClientTypeCS)
+	}
+}
+
+func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAuthClientType) (arohcpv1alpha1.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeRP {
+	case api.ExternalAuthClientTypeConfidential:
+		return arohcpv1alpha1.ExternalAuthClientTypeConfidential, nil
+	case api.ExternalAuthClientTypePublic:
+		return arohcpv1alpha1.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ExternalAuthClientType](externalAuthClientTypeRP)
 	}
 }
 
@@ -442,7 +464,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 
 	clusterBuilder = clusterBuilder.
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
@@ -570,7 +592,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID:               np.Subnet(),
 				VMSize:                 np.AzureNodePool().VMSize(),
-				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == azureNodePoolEncryptionAtHostEnabled,
+				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OSDiskSizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OSDiskStorageAccountType()),
@@ -604,7 +626,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	nodePool.Properties.Taints = taints
 
 	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
-		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == azureNodePoolNodeDrainGracePeriodUnit {
+		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
 			nodePool.Properties.NodeDrainTimeoutMinutes = api.Ptr(int32(nodeDrainGracePeriod.Value()))
 		}
 	}
@@ -661,7 +683,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
 		npBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(azureNodePoolNodeDrainGracePeriodUnit).
+			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
 
@@ -712,6 +734,11 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 
 	clients := make([]api.ExternalAuthClientProfile, 0, len(csExternalAuth.Clients()))
 	for _, client := range csExternalAuth.Clients() {
+		clientType, err := convertExternalAuthClientTypeCSToRP(client.Type())
+		if err != nil {
+			return nil, err
+		}
+
 		clients = append(clients, api.ExternalAuthClientProfile{
 			Component: api.ExternalAuthClientComponentProfile{
 				Name:                client.Component().Name(),
@@ -719,7 +746,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			},
 			ClientId:                      client.ID(),
 			ExtraScopes:                   client.ExtraScopes(),
-			ExternalAuthClientProfileType: api.ExternalAuthClientType(client.Type()),
+			ExternalAuthClientProfileType: clientType,
 		})
 	}
 	externalAuth.Properties.Clients = clients
@@ -759,6 +786,11 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
 	for _, t := range externalAuth.Properties.Clients {
+		clientType, err := convertExternalAuthClientTypeRPToCS(t.ExternalAuthClientProfileType)
+		if err != nil {
+			return nil, err
+		}
+
 		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
 			ID(t.ClientId).
 			Component(arohcpv1alpha1.NewClientComponent().
@@ -766,7 +798,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 				Namespace(t.Component.AuthClientNamespace),
 			).
 			ExtraScopes(t.ExtraScopes...).
-			Type(arohcpv1alpha1.ExternalAuthClientType(t.ExternalAuthClientProfileType))
+			Type(clientType)
 		clientConfigs = append(clientConfigs, newClientConfig)
 	}
 	externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
