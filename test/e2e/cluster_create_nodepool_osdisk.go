@@ -79,28 +79,7 @@ var _ = Describe("Customer", func() {
 			err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			/* 			By("waiting for the node pool to be ready")
-			   			provisioningState, err := framework.WaitForNodePoolReady(ctx,
-			   				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-			   				*resourceGroup.Name,
-			   				customerClusterName,
-			   				customerNodePoolName,
-			   				10*time.Minute,
-			   			)
-			   			Expect(err).NotTo(HaveOccurred())
-			   			Expect(provisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
-
-
-			   			By("verifying nodepool configuration")
-			   			err = framework.VerifyNodePool(ctx,
-			   				adminRESTConfig,
-			   				customerClusterName,
-			   				customerNodePoolName,
-			   				framework.VerifyNodePoolReplicas(customerNodeReplicas),
-			   				framework.VerifyNodePoolOsDiskSize(customerNodeOsDiskSizeGiB),
-			   			)
-			   			Expect(err).NotTo(HaveOccurred()) */
-			// Verify provisioning succeeded and VM size matches what we requested
+			By("verifying the node pool is created and has the correct osDisk size")
 			created, err := framework.GetNodePool(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
@@ -113,6 +92,7 @@ var _ = Describe("Customer", func() {
 			Expect(created.Properties.ProvisioningState).ToNot(BeNil())
 			Expect(*created.Properties.ProvisioningState).To(Equal(hcpapi20240610.ProvisioningStateSucceeded))
 			Expect(created.Properties.Platform).ToNot(BeNil())
-			Expect(created.Properties.Platform.VMSize).ToNot(BeNil())
+			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil())
+			Expect(created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB))
 		})
 })
