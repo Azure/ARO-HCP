@@ -39,7 +39,6 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
-		labels.ExternalAuth,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "ea-nsg-name"
