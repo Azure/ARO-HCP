@@ -23,6 +23,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
+
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -89,7 +91,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					10*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(framework.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
 				// Use Bicep template to create a nodepool with the specified parameters
 				npName := "np-1" // node pools have very restrictive naming rules
