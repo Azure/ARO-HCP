@@ -207,5 +207,10 @@ var _ = Describe("Customer", func() {
 			_, err = framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("creating a cluster role binding for the entra application")
+			// TODO: Create with the correct subject
+			err = framework.CreateClusterRoleBinding(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
 		})
 })
