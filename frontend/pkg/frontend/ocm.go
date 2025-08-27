@@ -586,7 +586,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
-				ID:           ocm.ConvertOpenshiftVersionNoPrefix(np.Version().ID()),
+				ID:           ocm.ConvertOpenShiftVersionNoPrefix(np.Version().ID()),
 				ChannelGroup: np.Version().ChannelGroup(),
 			},
 			Platform: api.NodePoolPlatformProfile{
@@ -638,7 +638,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
 	npBuilder := arohcpv1alpha1.NewNodePool()
 
-	nodepoolCSversion := ocm.ConvertOpenshiftVersionAddPrefix(nodePool.Properties.Version.ID)
+	nodepoolCSversion := ocm.ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
