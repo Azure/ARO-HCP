@@ -1,0 +1,358 @@
+{
+  "description": "ARO HCP Maestro Agent Component",
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "maestro agent availability where 1 is good and 0 is bad",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "gradientMode": "hue",
+            "showPoints": "never"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum_over_time(kube_deployment_status_replicas_available{deployment=\"maestro-agent\"}[28d]) / sum_over_time(kube_deployment_spec_replicas{deployment=\"maestro-agent\"}[28d])",
+          "legendFormat": "__auto"
+        }
+      ],
+      "title": "SLO Availability: Maestro Agent",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 9,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Measure the percentage of successful rest client requests (non-5xx)",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 16
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum((rate(rest_client_requests_total{code!~\"5..\"}[5m])))\n/\nsum((rate(rest_client_requests_total{}[5m])))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Availability: Maestro Agent Rest Client Request Success Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro agent's rest client requests taking less than 0.5 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 30
+          },
+          "id": 3,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum by(host,verb) (rate(rest_client_request_duration_seconds_bucket{le=~\"^0(\\\\.5)?$\"}[5m]))\n/\nsum by(host,verb) (rate(rest_client_request_duration_seconds_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Latency: Maestro Agent Rest Client Request Latency",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro Agent REST Client Request",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 14,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro agent workqueue dequeue in less than 1 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(rate(workqueue_queue_duration_seconds_bucket{le=~\"^1(\\\\.0)?$\"}[5m]))\n/\nsum(rate(workqueue_queue_duration_seconds_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Duration: Maestro Agent Work Queue Dequeue Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro agent workqueue item processed in less than 1 second",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(rate(workqueue_work_duration_seconds_bucket{le=~\"^1(\\\\.0)?$\"}[5m]))\n/\nsum(rate(workqueue_work_duration_seconds_bucket{le=\"+Inf\"}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Duration: Maestro Agent Work Queue Item Process Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Ratio of maestro agent retry attempt to add totals",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 10,
+                "gradientMode": "hue",
+                "showPoints": "never"
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(rate(workqueue_retries_total{}[5m]))\n/\nsum(rate(workqueue_adds_total{}[5m]))",
+              "legendFormat": "__auto"
+            }
+          ],
+          "title": "SLO Available: Maestro Agent Work Queue Retry Ratio",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Maestro Agent Work Queue",
+      "type": "row"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Maestro Agent SLO",
+  "uid": "maestro-agent-slo",
+  "version": 1,
+  "weekStart": ""
+}
