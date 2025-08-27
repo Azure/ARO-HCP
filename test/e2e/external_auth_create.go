@@ -208,7 +208,6 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a cluster role binding for the entra application")
-			// TODO: Create with the correct subject
 			err = framework.CreateClusterRoleBinding(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
