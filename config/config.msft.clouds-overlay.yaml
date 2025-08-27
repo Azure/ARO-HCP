@@ -142,7 +142,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:79a123ce924031cef6c3a0a8bec251351800beffc3b98abdb931a6684ae8fb43
+              digest: sha256:2e1eb2baf9995aca7f59a9e85fc5f0d12e464848d823abfa712f9731b6da93b2
           # ACR Pull
           acrPull:
             image:
