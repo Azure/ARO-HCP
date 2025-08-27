@@ -93,7 +93,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 				etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 				Expect(err).NotTo(HaveOccurred())
-				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 				_, err = framework.CreateBicepTemplateAndWait(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
