@@ -71,7 +71,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	k8s.io/apimachinery v0.33.4 // indirect
+	k8s.io/apimachinery v0.34.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 )
 
@@ -100,7 +100,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/prometheus/client_model v0.6.2

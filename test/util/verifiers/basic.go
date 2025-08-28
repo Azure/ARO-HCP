@@ -91,6 +91,7 @@ func verifyBasicAccess() HostedClusterVerifier {
 
 var standardVerifiers = []HostedClusterVerifier{
 	verifyBasicAccess(),
+	verifyAllAPIServicesAvailable(),
 }
 
 func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
