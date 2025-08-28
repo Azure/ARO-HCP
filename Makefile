@@ -5,7 +5,7 @@ PATH := $(GOBIN):$(PATH)
 
 # This build tag is currently leveraged by tooling/image-sync
 # https://github.com/containers/image?tab=readme-ov-file#building
-GOTAGS?='containers_image_openpgp'
+GOTAGS?='containers_image_openpgp,ToolingE2Etests'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
@@ -18,7 +18,7 @@ all: test lint
 # There is currently no convenient way to run tests against a whole Go workspace
 # https://github.com/golang/go/issues/50745
 test:
-	go list -f '{{.Dir}}/...' -m |RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
+	go list -f '{{.Dir}}/...' -m | E2E_MC_CLUSTER=$(shell cat config/rendered/dev/dev/westus3.yaml | yq .mgmt.aks.name) E2E_SC_CLUSTER=$(shell cat config/rendered/dev/dev/westus3.yaml | yq .svc.aks.name) RUN_TEMPLATIZE_E2E=true xargs go test -timeout 1200s -tags=$(GOTAGS) -cover
 .PHONY: test
 
 test-compile:

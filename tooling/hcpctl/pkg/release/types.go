@@ -16,9 +16,13 @@ package release
 
 import (
 	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// TypeMeta describes an individual object with proper YAML and JSON tags
+type TypeMeta struct {
+	Kind       string `json:"kind,omitempty" yaml:"kind,omitempty"`
+	APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+}
 
 // ReleaseInfo represents a discovered Helm release
 type ReleaseInfo struct {
@@ -52,15 +56,15 @@ type ClusterMetadata struct {
 
 // ComponentRelease represents a single component release
 type ComponentRelease struct {
-	metav1.TypeMeta `json:",inline" yaml:",inline"`
-	Metadata        ComponentMetadata `json:"metadata" yaml:"metadata"`
-	Workloads       []WorkloadInfo    `json:"workloads" yaml:"workloads"`
+	TypeMeta  `json:",inline" yaml:",inline"`
+	Metadata  ComponentMetadata `json:"metadata" yaml:"metadata"`
+	Workloads []WorkloadInfo    `json:"workloads" yaml:"workloads"`
 }
 
 // NewComponentRelease creates a new ComponentRelease with proper metadata
 func NewComponentRelease(name string, deploymentTime time.Time, workloads []WorkloadInfo) ComponentRelease {
 	return ComponentRelease{
-		TypeMeta: metav1.TypeMeta{
+		TypeMeta: TypeMeta{
 			APIVersion: "service-status.hcm.openshift.io/v1",
 			Kind:       "ComponentRelease",
 		},
@@ -74,15 +78,15 @@ func NewComponentRelease(name string, deploymentTime time.Time, workloads []Work
 
 // ClusterComponentRelease represents a collection of component releases
 type ClusterComponentRelease struct {
-	metav1.TypeMeta `json:",inline" yaml:",inline"`
-	Metadata        ClusterMetadata    `json:"metadata" yaml:"metadata"`
-	Components      []ComponentRelease `json:"components" yaml:"components"`
+	TypeMeta   `json:",inline" yaml:",inline"`
+	Metadata   ClusterMetadata    `json:"metadata" yaml:"metadata"`
+	Components []ComponentRelease `json:"components" yaml:"components"`
 }
 
 // NewClusterComponentRelease creates a new ClusterComponentRelease with proper metadata
 func NewClusterComponentRelease(name, aroHcpCommit, sdpPipelinesCommit string, components []ComponentRelease) ClusterComponentRelease {
 	return ClusterComponentRelease{
-		TypeMeta: metav1.TypeMeta{
+		TypeMeta: TypeMeta{
 			APIVersion: "service-status.hcm.openshift.io/v1",
 			Kind:       "ClusterComponentRelease",
 		},
