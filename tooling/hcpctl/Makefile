@@ -6,7 +6,7 @@ WINDOWS_BINARY = hcpctl.exe
 WINDOWS_BINARY_AMD64 = hcpctl-amd64.exe
 
 # Version information
-CURRENT_COMMIT ?= $(shell git rev-parse --short=7 HEAD)
+CURRENT_COMMIT ?= $(shell git rev-parse HEAD)
 VERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-${CURRENT_COMMIT}")
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
