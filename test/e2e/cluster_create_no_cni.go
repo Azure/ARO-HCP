@@ -67,7 +67,7 @@ var _ = Describe("Customer", func() {
 			Expect(framework.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
 			By("deploying bicep file to create a node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
+			framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"aro-hcp-no-cni-np",

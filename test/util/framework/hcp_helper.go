@@ -104,7 +104,7 @@ func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Conf
 		}
 	}
 	if len(notReadyNodes) > 0 {
-		return fmt.Errorf("there are nodes in NotReady state: %w", notReadyNodes)
+		return fmt.Errorf("there are nodes in NotReady state: %s", notReadyNodes)
 	}
 
 	return nil
