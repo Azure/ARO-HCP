@@ -74,6 +74,46 @@ func VerifyImageRegistryDisabled() HostedClusterVerifier {
 	return verifyImageRegistryDisabled{}
 }
 
+type verifyNodesReady struct{}
+
+func (v verifyNodesReady) Name() string {
+	return "VerifyNodesReady"
+}
+
+func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("no nodes found in the cluster")
+	}
+
+	var notReadyNodes []string
+	for _, node := range nodes.Items {
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == "Ready" && condition.Status == "False" {
+				notReadyNodes = append(notReadyNodes, node.Name)
+			}
+		}
+	}
+	if len(notReadyNodes) > 0 {
+		return fmt.Errorf("there are nodes in NotReady state: %w", notReadyNodes)
+	}
+
+	return nil
+}
+
+func VerifyNodesReady() HostedClusterVerifier {
+	return verifyNodesReady{}
+}
+
 type verifyBasicAccessImpl struct{}
 
 func (v verifyBasicAccessImpl) Name() string {
