@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	dario.cat/mergo v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.0
 	github.com/go-playground/validator/v10 v10.26.0
@@ -26,12 +26,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/mock v0.5.2
 	gotest.tools v2.2.0+incompatible
-	k8s.io/apimachinery v0.33.3
+	k8s.io/apimachinery v0.33.4
 )
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/retry v0.0.0-20250221010952-92c9290cea0f // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -97,18 +97,18 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.13.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
-	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979 // indirect
+	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d // indirect
 )

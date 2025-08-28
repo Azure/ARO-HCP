@@ -334,7 +334,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 		).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v").
+			ID("").
 			ChannelGroup(""),
 		).
 		Replicas(0).

@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/sync v0.16.0
-	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
+	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
 )
 
 require (
@@ -71,16 +71,16 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	k8s.io/apimachinery v0.33.3 // indirect
+	k8s.io/apimachinery v0.33.4 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 )
 
 require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -107,12 +107,12 @@ require (
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

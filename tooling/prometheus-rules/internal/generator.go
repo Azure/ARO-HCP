@@ -34,24 +34,30 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+var defaultEvaluationInterval = "1m"
+
 type alertingRuleFile struct {
-	FolderName       string
-	FileBaseName     string
-	TestFileBaseName string
-	Rules            monitoringv1.PrometheusRule
-	TestFileContent  []byte
+	DefaultEvaluationInterval string
+	FolderName                string
+	FileBaseName              string
+	TestFileBaseName          string
+	Rules                     monitoringv1.PrometheusRule
+	TestFileContent           []byte
 }
 
 type Options struct {
-	forceInfoSeverity bool
-	outputBicep       string
-	ruleFiles         []alertingRuleFile
+	forceInfoSeverity  bool
+	outputBicep        string
+	ruleFiles          []alertingRuleFile
+	outputReplacements []Replacements
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders  []string `json:"rulesFolders"`
-	UntestedRules []string `json:"untestedRules,omitempty"`
-	OutputBicep   string   `json:"outputBicep"`
+	RulesFolders              []string       `json:"rulesFolders"`
+	UntestedRules             []string       `json:"untestedRules,omitempty"`
+	OutputBicep               string         `json:"outputBicep"`
+	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
+	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
 }
 
 type CliConfig struct {
@@ -97,6 +103,13 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 	err = yaml.Unmarshal(cfgRaw, config)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling configFile %s file %v", configFilePath, err)
+	}
+
+	o.outputReplacements = config.PrometheusRules.OutputReplacements
+	for _, replacement := range o.outputReplacements {
+		if replacement.From == "" || replacement.To == "" {
+			return fmt.Errorf("expression replacement must have both from and to fields (from=%q, to=%q)", replacement.From, replacement.To)
+		}
 	}
 
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
@@ -147,11 +160,12 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 					return fmt.Errorf("error reading testfile %s: %v", testFile, err)
 				}
 				o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
-					FolderName:       folderName,
-					FileBaseName:     fileBaseName,
-					TestFileBaseName: filepath.Base(testFile),
-					TestFileContent:  testFileContent,
-					Rules:            *rules,
+					DefaultEvaluationInterval: config.PrometheusRules.DefaultEvaluationInterval,
+					FolderName:                folderName,
+					FileBaseName:              fileBaseName,
+					TestFileBaseName:          filepath.Base(testFile),
+					TestFileContent:           testFileContent,
+					Rules:                     *rules,
 				})
 			}
 			return nil
@@ -263,10 +277,17 @@ param azureMonitoring string
 			if group.Limit != nil {
 				logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
 			}
+			if group.Interval == nil {
+				if irf.DefaultEvaluationInterval == "" {
+					group.Interval = monitoringv1.DurationPointer(defaultEvaluationInterval)
+				} else {
+					group.Interval = monitoringv1.DurationPointer(irf.DefaultEvaluationInterval)
+				}
+			}
 			armGroup := armalertsmanagement.PrometheusRuleGroupResource{
 				Name: ptr.To(group.Name),
 				Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
-					Interval: formatDuration(group.Interval),
+					Interval: parseToAzureDurationString(group.Interval),
 					Enabled:  ptr.To(true),
 				},
 			}
@@ -292,7 +313,7 @@ param azureMonitoring string
 						Enabled:     ptr.To(true),
 						Labels:      labels,
 						Annotations: annotations,
-						For:         formatDuration(rule.For),
+						For:         parseToAzureDurationString(rule.For),
 						Expression: ptr.To(
 							strings.TrimSpace(
 								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
@@ -317,12 +338,15 @@ param azureMonitoring string
 			if len(armGroup.Properties.Rules) > 0 {
 				// Use the file type to determine which function to call
 				// Groups are guaranteed to contain only one type of rule
+
+				replacementWriter := NewReplacementWriter(output, o.outputReplacements)
+
 				if isRecordingRulesFile {
-					if err := writeRecordingGroups(armGroup, output); err != nil {
+					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {
 						return err
 					}
 				} else if isAlertingRulesFile {
-					if err := writeAlertGroups(armGroup, output); err != nil {
+					if err := writeAlertGroups(armGroup, replacementWriter); err != nil {
 						return err
 					}
 				}
@@ -341,6 +365,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
   name: '{{.groups.Name}}'
   location: resourceGroup().location
   properties: {
+    interval: '{{.groups.Properties.Interval}}'
     rules: [
 {{- range .groups.Properties.Rules}}
       {
@@ -402,9 +427,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
       azureMonitoring
     ]
     enabled: {{.groups.Properties.Enabled}}
-{{- if .groups.Properties.Interval }}
     interval: '{{.groups.Properties.Interval}}'
-{{- end }}
     rules: [
 {{- range .groups.Properties.Rules}}
       {
@@ -454,7 +477,7 @@ func bicepName(name *string) string {
 	return out.String()
 }
 
-func formatDuration(d *monitoringv1.Duration) *string {
+func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	if d == nil {
 		return nil
 	}

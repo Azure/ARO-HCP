@@ -163,11 +163,6 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 		return nil, err
 	}
 
-	// we are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
-	// https://issues.redhat.com/browse/XCMSTRAT-950 for reference when this intentional time bomb explodes.
-	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
-		ret.Insecure = true
-	}
 	return ret, nil
 }
 
@@ -293,4 +288,105 @@ func GetNodePool(
 	defer cancel()
 
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+}
+
+// CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
+func CreateExternalAuthAndWait(
+	ctx context.Context,
+	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	externalAuth hcpapi20240610.ExternalAuth,
+	timeout time.Duration,
+) (*hcpapi20240610.ExternalAuth, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	pollerResp, err := externalAuthClient.BeginCreateOrUpdate(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		externalAuthName,
+		externalAuth,
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpapi20240610.ExternalAuthsClientCreateOrUpdateResponse:
+		// TODO someone may want this return value.  We'll have to work it out then.
+		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
+		return &m.ExternalAuth, nil
+	default:
+		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
+func GetExternalAuth(
+	ctx context.Context,
+	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	timeout time.Duration,
+) (hcpapi20240610.ExternalAuthsClientGetResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return externalAuthClient.Get(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		externalAuthName,
+		&hcpapi20240610.ExternalAuthsClientGetOptions{},
+	)
+}
+
+// DeleteExternalAuthAndWait deletes a an external auth on an HCP cluster and waits
+func DeleteExternalAuthAndWait(
+	ctx context.Context,
+	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	externalAuthName string,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	pollerResp, err := externalAuthClient.BeginDelete(
+		ctx,
+		resourceGroupName,
+		hcpClusterName,
+		externalAuthName,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed deleting external auth %q in resourcegroup=%q for cluster=%q: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish deleting: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpapi20240610.ExternalAuthsClientDeleteResponse:
+		return nil
+	default:
+		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		return fmt.Errorf("unknown type %T", m)
+	}
 }

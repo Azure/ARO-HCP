@@ -495,7 +495,7 @@ func (csc *clusterServiceClient) ListVersions() VersionsListIterator {
 // NewOpenShiftVersionXY parses the given version, stripping off any
 // OpenShift prefix ("openshift-"), and returns a new Version X.Y.
 func NewOpenShiftVersionXY(v string) string {
-	v = ConvertOpenshiftVersionNoPrefix(v)
+	v = ConvertOpenShiftVersionNoPrefix(v)
 	parts := strings.Split(v, ".")
 	if len(parts) >= 2 {
 		v = parts[0] + "." + parts[1]
@@ -505,24 +505,30 @@ func NewOpenShiftVersionXY(v string) string {
 
 // NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
 func NewOpenShiftVersionXYZ(v string) string {
-	parts := strings.Split(v, ".")
-	if len(parts) == 1 {
-		parts = append(parts, "0")
+	var csVersion string
+
+	if len(v) > 0 {
+		parts := strings.Split(v, ".")
+		if len(parts) == 1 {
+			parts = append(parts, "0")
+		}
+		// FIXME This assumes X.Y is 4.19. Eventually
+		//       we may need a switch statement here.
+		parts = append(parts[:2], OpenShift419Patch)
+		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".")
 	}
-	// FIXME This assumes X.Y is 4.19. Eventually
-	//       we may need a switch statement here.
-	parts = append(parts[:2], OpenShift419Patch)
-	return api.OpenShiftVersionPrefix + strings.Join(parts, ".")
+
+	return csVersion
 }
 
-// ConvertOpenshiftVersionNoPrefix strips off openshift-v prefix
-func ConvertOpenshiftVersionNoPrefix(v string) string {
+// ConvertOpenShiftVersionNoPrefix strips off openshift-v prefix
+func ConvertOpenShiftVersionNoPrefix(v string) string {
 	return strings.Replace(v, api.OpenShiftVersionPrefix, "", 1)
 }
 
-// ConvertOpenshiftVersionAddPrefix adds openshift-v prefix
-func ConvertOpenshiftVersionAddPrefix(v string) string {
-	if !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
+// ConvertOpenShiftVersionAddPrefix adds openshift-v prefix
+func ConvertOpenShiftVersionAddPrefix(v string) string {
+	if len(v) > 0 && !strings.HasPrefix(v, api.OpenShiftVersionPrefix) {
 		return api.OpenShiftVersionPrefix + v
 	}
 	return v
