@@ -149,5 +149,9 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying a simple web app can run")
+			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
 		})
 })
