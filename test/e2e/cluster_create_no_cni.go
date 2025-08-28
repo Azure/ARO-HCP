@@ -79,9 +79,9 @@ var _ = Describe("Customer", func() {
 				},
 				15*time.Minute,
 			)
-
 			// ARO-20829 workaround: instead of a finished and succesfull
 			// deployment, we expect that the provisioning is still going on
+			Expect(err).To(HaveOccurred())
 			By("expecting the node pool to be still deploying because of ARO-20829")
 			nodePool, err := framework.GetNodePool(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
