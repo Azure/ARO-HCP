@@ -97,49 +97,6 @@ func GetVisibilityFlags(tag reflect.StructTag) (VisibilityFlags, bool) {
 	return flags, ok
 }
 
-func join(ns, name string) string {
-	res := ns
-	if res != "" {
-		res += "."
-	}
-	res += name
-	return res
-}
-
-type StructTagMap map[string]reflect.StructTag
-
-func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
-	switch t.Kind() {
-	case reflect.Map, reflect.Pointer, reflect.Slice:
-		buildStructTagMap(structTagMap, t.Elem(), path)
-
-	case reflect.Struct:
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			subpath := join(path, field.Name)
-
-			if len(field.Tag) > 0 {
-				structTagMap[subpath] = field.Tag
-			}
-
-			buildStructTagMap(structTagMap, field.Type, subpath)
-		}
-	}
-}
-
-// NewStructTagMap returns a mapping of dot-separated struct field names
-// to struct tags for the given type.  Each versioned API should create
-// its own visibiilty map for tracked resource types.
-//
-// Note: This assumes field names for internal and versioned structs are
-// identical where visibility is explicitly specified. If some divergence
-// emerges, one workaround could be to pass a field name override map.
-func NewStructTagMap[T any]() StructTagMap {
-	structTagMap := StructTagMap{}
-	buildStructTagMap(structTagMap, reflect.TypeFor[T](), "")
-	return structTagMap
-}
-
 type validateVisibility struct {
 	structTagMap StructTagMap
 	updating     bool

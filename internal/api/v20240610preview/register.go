@@ -28,9 +28,9 @@ func (v version) String() string {
 
 var (
 	validate                 = api.NewValidator()
-	clusterStructTagMap      = api.NewStructTagMap[api.HCPOpenShiftCluster]()
-	nodePoolStructTagMap     = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
-	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
+	clusterStructTagMap      = api.GetStructTagMap[api.HCPOpenShiftCluster]()
+	nodePoolStructTagMap     = api.GetStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	externalAuthStructTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
 type UsernameClaimPrefixPolicyType string
