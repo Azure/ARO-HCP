@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 )
 
 type perItOrDescribeTestContext struct {
@@ -39,10 +40,12 @@ type perItOrDescribeTestContext struct {
 
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
+	knownAppRegistrationIDs       []string
 	subscriptionID                string
 	clientFactory20240610         *hcpapi20240610.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
+	graphClient                   *graphutil.Client
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
@@ -91,14 +94,26 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		ginkgo.GinkgoLogr.Error(err, "failed to get ARM client")
 		return
 	}
+	graphClient, err := tc.GetGraphClient(ctx)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to get Graph client")
+		return
+	}
+
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
+	appRegistrations := tc.knownAppRegistrationIDs
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	err = CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+	}
+
+	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -252,6 +267,40 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	return errors.Join(errs...)
 }
 
+func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*graphutil.Application, error) {
+	appName := fmt.Sprintf("aro-hcp-e2e-%d", rand.Int())
+	ginkgo.GinkgoLogr.Info("creating app registration", "appName", appName)
+
+	graphClient, err := tc.GetGraphClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get graph client: %w", err)
+	}
+
+	app, err := graphClient.CreateApplication(ctx, appName, []string{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create app registration: %w", err)
+	}
+
+	func() {
+		tc.contextLock.Lock()
+		defer tc.contextLock.Unlock()
+		// Track the ObjectIDs as that's what operations are performed against, not AppID
+		tc.knownAppRegistrationIDs = append(tc.knownAppRegistrationIDs, app.ID)
+	}()
+
+	return app, nil
+}
+
+func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
+	var errs []error
+	for _, currAppID := range appRegistrationIDs {
+		if err := graphClient.DeleteApplication(ctx, currAppID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
 	return Must(tc.GetARMResourcesClientFactory(ctx))
 }
@@ -377,6 +426,36 @@ func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Cont
 	return tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
 }
 
+func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*graphutil.Client, error) {
+	tc.contextLock.RLock()
+	if tc.graphClient != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.graphClient, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getGraphClientUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context) (*graphutil.Client, error) {
+	if tc.graphClient != nil {
+		return tc.graphClient, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	return graphutil.NewClient(ctx, creds)
+}
+
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
+}
+
+func (tc *perItOrDescribeTestContext) TenantID() string {
+	return tc.perBinaryInvocationTestContext.tenantID
 }
