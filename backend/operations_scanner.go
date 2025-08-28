@@ -976,6 +976,8 @@ func (s *OperationsScanner) convertClusterStatus(ctx context.Context, op operati
 		}
 	case arohcpv1alpha1.ClusterStateInstalling:
 		opStatus = arm.ProvisioningStateProvisioning
+	case arohcpv1alpha1.ClusterStateUpdating:
+		opStatus = arm.ProvisioningStateUpdating
 	case arohcpv1alpha1.ClusterStateReady:
 		// Resource deletion is successful when fetching its state
 		// from Cluster Service returns a "404 Not Found" error. If
