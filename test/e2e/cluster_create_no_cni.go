@@ -16,15 +16,15 @@ package e2e
 
 import (
 	"context"
-	// "fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	// hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -33,16 +33,17 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		func(ctx context.Context) {
-			customerClusterName := "e2e-no-cni-cl"
-			location := "uksouth"
-
+			const (
+				customerClusterName  = "no-cni-cl"
+				customerNodePoolName = "no-cni-np"
+			)
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-no-cni", location)
+			resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-no-cni", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("deploying no-cni bicep file to create no-cni cluster with a node pool")
+			By("deploying no-cni bicep file to create no-cni cluster without a node pool")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
@@ -51,7 +52,7 @@ var _ = Describe("Customer", func() {
 				map[string]interface{}{
 					"clusterName": customerClusterName,
 				},
-				45*time.Minute,
+				30*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -64,10 +65,42 @@ var _ = Describe("Customer", func() {
 				10*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(framework.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
-			// TODO: check status of nodes in a node pool, assuming the nodes
-			// are not available
+			By("deploying bicep file to create a node pool")
+			_, err = framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*resourceGroup.Name,
+				"aro-hcp-no-cni-np",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+				map[string]interface{}{
+					"clusterName":  customerClusterName,
+					"nodePoolName": customerNodePoolName,
+				},
+				15*time.Minute,
+			)
+
+			// ARO-20829 workaround: instead of a finished and succesfull
+			// deployment, we expect that the provisioning is still going on
+			By("expecting the node pool to be still deploying because of ARO-20829")
+			nodePool, err := framework.GetNodePool(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				customerNodePoolName,
+				5*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nodePool.Properties).ToNot(BeNil())
+			Expect(nodePool.Properties.ProvisioningState).ToNot(BeNil())
+			Expect(*nodePool.Properties.ProvisioningState).To(Equal(hcpapi20240610.ProvisioningStateProvisioning))
+
+			By("expecting that on a cluster without CNI plugin, nodes are in NotReady state")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady())
+			Expect(err).To(HaveOccurred())
+
+			// TODO: add cilium setup here, and then rerun VerifyHCPCluster
+			// with VerifyNodesReady() expecting it to pass
 		},
 	)
 })
