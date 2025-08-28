@@ -34,12 +34,15 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+var defaultEvaluationInterval = "1m"
+
 type alertingRuleFile struct {
-	FolderName       string
-	FileBaseName     string
-	TestFileBaseName string
-	Rules            monitoringv1.PrometheusRule
-	TestFileContent  []byte
+	DefaultEvaluationInterval string
+	FolderName                string
+	FileBaseName              string
+	TestFileBaseName          string
+	Rules                     monitoringv1.PrometheusRule
+	TestFileContent           []byte
 }
 
 type Options struct {
@@ -50,10 +53,11 @@ type Options struct {
 }
 
 type PrometheusRulesConfig struct {
-	RulesFolders       []string       `json:"rulesFolders"`
-	UntestedRules      []string       `json:"untestedRules,omitempty"`
-	OutputBicep        string         `json:"outputBicep"`
-	OutputReplacements []Replacements `json:"outputReplacements,omitempty"`
+	RulesFolders              []string       `json:"rulesFolders"`
+	UntestedRules             []string       `json:"untestedRules,omitempty"`
+	OutputBicep               string         `json:"outputBicep"`
+	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
+	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
 }
 
 type CliConfig struct {
@@ -156,11 +160,12 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 					return fmt.Errorf("error reading testfile %s: %v", testFile, err)
 				}
 				o.ruleFiles = append(o.ruleFiles, alertingRuleFile{
-					FolderName:       folderName,
-					FileBaseName:     fileBaseName,
-					TestFileBaseName: filepath.Base(testFile),
-					TestFileContent:  testFileContent,
-					Rules:            *rules,
+					DefaultEvaluationInterval: config.PrometheusRules.DefaultEvaluationInterval,
+					FolderName:                folderName,
+					FileBaseName:              fileBaseName,
+					TestFileBaseName:          filepath.Base(testFile),
+					TestFileContent:           testFileContent,
+					Rules:                     *rules,
 				})
 			}
 			return nil
@@ -272,10 +277,17 @@ param azureMonitoring string
 			if group.Limit != nil {
 				logger.Warn("alert limit is not supported in Microsoft.AlertsManagement/prometheusRuleGroups")
 			}
+			if group.Interval == nil {
+				if irf.DefaultEvaluationInterval == "" {
+					group.Interval = monitoringv1.DurationPointer(defaultEvaluationInterval)
+				} else {
+					group.Interval = monitoringv1.DurationPointer(irf.DefaultEvaluationInterval)
+				}
+			}
 			armGroup := armalertsmanagement.PrometheusRuleGroupResource{
 				Name: ptr.To(group.Name),
 				Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
-					Interval: formatDuration(group.Interval),
+					Interval: parseToAzureDurationString(group.Interval),
 					Enabled:  ptr.To(true),
 				},
 			}
@@ -301,7 +313,7 @@ param azureMonitoring string
 						Enabled:     ptr.To(true),
 						Labels:      labels,
 						Annotations: annotations,
-						For:         formatDuration(rule.For),
+						For:         parseToAzureDurationString(rule.For),
 						Expression: ptr.To(
 							strings.TrimSpace(
 								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
@@ -353,6 +365,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
   name: '{{.groups.Name}}'
   location: resourceGroup().location
   properties: {
+    interval: '{{.groups.Properties.Interval}}'
     rules: [
 {{- range .groups.Properties.Rules}}
       {
@@ -414,9 +427,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
       azureMonitoring
     ]
     enabled: {{.groups.Properties.Enabled}}
-{{- if .groups.Properties.Interval }}
     interval: '{{.groups.Properties.Interval}}'
-{{- end }}
     rules: [
 {{- range .groups.Properties.Rules}}
       {
@@ -466,7 +477,7 @@ func bicepName(name *string) string {
 	return out.String()
 }
 
-func formatDuration(d *monitoringv1.Duration) *string {
+func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	if d == nil {
 		return nil
 	}

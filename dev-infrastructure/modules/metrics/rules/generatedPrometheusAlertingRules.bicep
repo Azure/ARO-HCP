@@ -8,6 +8,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
   name: 'kubernetes-apps'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -275,6 +276,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
   name: 'kubernetes-resources'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -415,6 +417,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   name: 'kubernetes-storage'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -507,6 +510,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
   name: 'kubernetes-system'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -551,6 +555,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   name: 'kube-apiserver-slos'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -635,6 +640,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
   name: 'kubernetes-system-apiserver'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -742,6 +748,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
   name: 'kubernetes-system-kubelet'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -958,6 +965,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
   name: 'kubernetes-system-scheduler'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -986,6 +994,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
   name: 'kubernetes-system-controller-manager'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1014,6 +1023,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
   name: 'prometheus-wip-rules'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1106,6 +1116,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
   name: 'prometheus-rules'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1198,6 +1209,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
   name: 'prometheus-operator-rules'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1242,6 +1254,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'mise'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1270,6 +1283,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
   name: 'frontend'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1330,6 +1344,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
   name: 'arohcp_cs_slo_availability_alerts'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
@@ -1449,6 +1464,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   name: 'backend'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]

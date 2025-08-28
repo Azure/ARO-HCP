@@ -8,6 +8,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
   name: 'kas-monitor-rules'
   location: resourceGroup().location
   properties: {
+    interval: 'PT1M'
     rules: [
       {
         actions: [for g in actionGroups: { actionGroupId: g }]
