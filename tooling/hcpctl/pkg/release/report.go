@@ -18,27 +18,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
 // OutputReports outputs the reports to stdout in the specified format
 func OutputReports(reports []ComponentRelease, format string, aroHcpCommit, sdpPipelinesCommit string) error {
-	output := ClusterComponentRelease{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "service-status.hcm.openshift.io/v1",
-			Kind:       "ClusterComponentRelease",
-		},
-		Metadata: ClusterMetadata{
-			Name:               "cluster-component-releases",
-			CreationTimestamp:  time.Now().UTC(),
-			AroHcpGithubCommit: aroHcpCommit,
-			SdpPipelinesCommit: sdpPipelinesCommit,
-		},
-		Components: reports,
-	}
+	output := NewClusterComponentRelease("cluster-component-releases", aroHcpCommit, sdpPipelinesCommit, reports)
 
 	switch format {
 	case "yaml":

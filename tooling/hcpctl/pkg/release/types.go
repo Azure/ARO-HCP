@@ -57,9 +57,41 @@ type ComponentRelease struct {
 	Workloads       []WorkloadInfo    `json:"workloads" yaml:"workloads"`
 }
 
+// NewComponentRelease creates a new ComponentRelease with proper metadata
+func NewComponentRelease(name string, deploymentTime time.Time, workloads []WorkloadInfo) ComponentRelease {
+	return ComponentRelease{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "service-status.hcm.openshift.io/v1",
+			Kind:       "ComponentRelease",
+		},
+		Metadata: ComponentMetadata{
+			Name:              name,
+			CreationTimestamp: deploymentTime,
+		},
+		Workloads: workloads,
+	}
+}
+
 // ClusterComponentRelease represents a collection of component releases
 type ClusterComponentRelease struct {
 	metav1.TypeMeta `json:",inline" yaml:",inline"`
 	Metadata        ClusterMetadata    `json:"metadata" yaml:"metadata"`
 	Components      []ComponentRelease `json:"components" yaml:"components"`
+}
+
+// NewClusterComponentRelease creates a new ClusterComponentRelease with proper metadata
+func NewClusterComponentRelease(name, aroHcpCommit, sdpPipelinesCommit string, components []ComponentRelease) ClusterComponentRelease {
+	return ClusterComponentRelease{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "service-status.hcm.openshift.io/v1",
+			Kind:       "ClusterComponentRelease",
+		},
+		Metadata: ClusterMetadata{
+			Name:               name,
+			CreationTimestamp:  time.Now().UTC(),
+			AroHcpGithubCommit: aroHcpCommit,
+			SdpPipelinesCommit: sdpPipelinesCommit,
+		},
+		Components: components,
+	}
 }

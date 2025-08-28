@@ -1,0 +1,24 @@
+{
+  "kind": "ComponentRelease",
+  "apiVersion": "service-status.hcm.openshift.io/v1",
+  "metadata": {
+    "name": "backend",
+    "creationTimestamp": "2025-01-15T12:00:00Z"
+  },
+  "workloads": [
+    {
+      "name": "backend-deployment",
+      "namespace": "aro-hcp",
+      "kind": "Deployment",
+      "desiredImage": "myacr.azurecr.io/aro-hcp/backend:v1.2.3",
+      "currentImage": "myacr.azurecr.io/aro-hcp/backend:v1.2.3"
+    },
+    {
+      "name": "backend-worker",
+      "namespace": "aro-hcp",
+      "kind": "DaemonSet",
+      "desiredImage": "myacr.azurecr.io/aro-hcp/worker:v1.0.0",
+      "currentImage": "myacr.azurecr.io/aro-hcp/worker:v0.9.9"
+    }
+  ]
+}

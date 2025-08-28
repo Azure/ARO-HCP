@@ -22,6 +22,7 @@ import (
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
@@ -119,19 +120,9 @@ func generateReportForRelease(ctx context.Context, helmClient *action.Configurat
 		}
 	}
 
-	report := &ComponentRelease{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "service-status.hcm.openshift.io/v1",
-			Kind:       "ComponentRelease",
-		},
-		Metadata: ComponentMetadata{
-			Name:              releaseInfo.Name,
-			CreationTimestamp: deploymentTime,
-		},
-		Workloads: workloads,
-	}
+	report := NewComponentRelease(releaseInfo.Name, deploymentTime, workloads)
 
-	return report, nil
+	return &report, nil
 }
 
 // extractWorkloadsFromManifest extracts workload information from Helm manifest YAML
@@ -155,7 +146,7 @@ func extractWorkloadsFromManifest(manifest string, releaseNamespace string) ([]W
 		}
 
 		// Check if this is a workload (Deployment, DaemonSet, StatefulSet, etc.)
-		workload := extractWorkloadInfo(obj, releaseNamespace)
+		workload := extractWorkloadInfoFromYAML(doc, releaseNamespace)
 		if workload != nil {
 			workloads = append(workloads, *workload)
 		}
@@ -164,77 +155,140 @@ func extractWorkloadsFromManifest(manifest string, releaseNamespace string) ([]W
 	return workloads, nil
 }
 
-// extractWorkloadInfo extracts workload information from a Kubernetes object
-func extractWorkloadInfo(obj map[string]interface{}, releaseNamespace string) *WorkloadInfo {
-	kind, _ := obj["kind"].(string)
-
-	// Only process workload types
-	if !isWorkloadKind(kind) {
+// extractWorkloadInfoFromYAML extracts workload information from YAML document using Kubernetes structs
+func extractWorkloadInfoFromYAML(yamlDoc, releaseNamespace string) *WorkloadInfo {
+	// First, parse to get the kind
+	var typeMeta metav1.TypeMeta
+	if err := yaml.Unmarshal([]byte(yamlDoc), &typeMeta); err != nil {
 		return nil
 	}
 
-	metadata, ok := obj["metadata"].(map[string]interface{})
-	if !ok {
+	switch typeMeta {
+	case metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"}:
+		return extractWorkloadFromDeployment(yamlDoc, releaseNamespace)
+	case metav1.TypeMeta{APIVersion: "apps/v1", Kind: "DaemonSet"}:
+		return extractWorkloadFromDaemonSet(yamlDoc, releaseNamespace)
+	case metav1.TypeMeta{APIVersion: "apps/v1", Kind: "StatefulSet"}:
+		return extractWorkloadFromStatefulSet(yamlDoc, releaseNamespace)
+	default:
+		return nil
+	}
+}
+
+// extractWorkloadFromDeployment extracts workload info from a Deployment
+func extractWorkloadFromDeployment(yamlDoc, releaseNamespace string) *WorkloadInfo {
+	var deployment appsv1.Deployment
+	if err := yaml.Unmarshal([]byte(yamlDoc), &deployment); err != nil {
 		return nil
 	}
 
 	// Check if this workload is managed by AKS and skip it
-	if isAKSManaged(metadata) {
+	if isAKSManagedManifest(deployment.Labels) {
 		return nil
 	}
 
-	name, _ := metadata["name"].(string)
-	namespace, _ := metadata["namespace"].(string)
-
-	// Use release namespace as fallback if workload namespace is empty
+	namespace := deployment.Namespace
 	if namespace == "" {
 		namespace = releaseNamespace
 	}
 
-	if name == "" {
+	if deployment.Name == "" {
 		return nil
 	}
 
-	// Find the first container image
-	image := findFirstContainerImage(obj)
+	// Use the shared function from kubernetes.go
+	image := extractFirstContainerImageFromPodSpec(deployment.Spec.Template.Spec)
 	if image == "" {
 		return nil
 	}
 
 	return &WorkloadInfo{
-		Name:         name,
+		Name:         deployment.Name,
 		Namespace:    namespace,
-		Kind:         kind,
+		Kind:         "Deployment",
 		DesiredImage: image,
 		CurrentImage: "", // Will be populated later
 	}
 }
 
-// isWorkloadKind checks if the kind represents a workload
-func isWorkloadKind(kind string) bool {
-	workloadKinds := []string{
-		"Deployment",
-		"DaemonSet",
-		"StatefulSet",
+// extractWorkloadFromDaemonSet extracts workload info from a DaemonSet
+func extractWorkloadFromDaemonSet(yamlDoc, releaseNamespace string) *WorkloadInfo {
+	var daemonSet appsv1.DaemonSet
+	if err := yaml.Unmarshal([]byte(yamlDoc), &daemonSet); err != nil {
+		return nil
 	}
 
-	for _, wk := range workloadKinds {
-		if kind == wk {
-			return true
-		}
+	// Check if this workload is managed by AKS and skip it
+	if isAKSManagedManifest(daemonSet.Labels) {
+		return nil
 	}
-	return false
+
+	namespace := daemonSet.Namespace
+	if namespace == "" {
+		namespace = releaseNamespace
+	}
+
+	if daemonSet.Name == "" {
+		return nil
+	}
+
+	// Use the shared function from kubernetes.go
+	image := extractFirstContainerImageFromPodSpec(daemonSet.Spec.Template.Spec)
+	if image == "" {
+		return nil
+	}
+
+	return &WorkloadInfo{
+		Name:         daemonSet.Name,
+		Namespace:    namespace,
+		Kind:         "DaemonSet",
+		DesiredImage: image,
+		CurrentImage: "", // Will be populated later
+	}
 }
 
-// isAKSManaged checks if a workload is managed by AKS
-func isAKSManaged(metadata map[string]interface{}) bool {
-	// Check labels for kubernetes.azure.com/managedby: aks
-	labels, ok := metadata["labels"].(map[string]interface{})
-	if !ok {
+// extractWorkloadFromStatefulSet extracts workload info from a StatefulSet
+func extractWorkloadFromStatefulSet(yamlDoc, releaseNamespace string) *WorkloadInfo {
+	var statefulSet appsv1.StatefulSet
+	if err := yaml.Unmarshal([]byte(yamlDoc), &statefulSet); err != nil {
+		return nil
+	}
+
+	// Check if this workload is managed by AKS and skip it
+	if isAKSManagedManifest(statefulSet.Labels) {
+		return nil
+	}
+
+	namespace := statefulSet.Namespace
+	if namespace == "" {
+		namespace = releaseNamespace
+	}
+
+	if statefulSet.Name == "" {
+		return nil
+	}
+
+	// Use the shared function from kubernetes.go
+	image := extractFirstContainerImageFromPodSpec(statefulSet.Spec.Template.Spec)
+	if image == "" {
+		return nil
+	}
+
+	return &WorkloadInfo{
+		Name:         statefulSet.Name,
+		Namespace:    namespace,
+		Kind:         "StatefulSet",
+		DesiredImage: image,
+	}
+}
+
+// isAKSManagedManifest checks if a workload is managed by AKS using structured labels
+func isAKSManagedManifest(labels map[string]string) bool {
+	if labels == nil {
 		return false
 	}
 
-	managedBy, ok := labels["kubernetes.azure.com/managedby"].(string)
+	managedBy, ok := labels["kubernetes.azure.com/managedby"]
 	if !ok {
 		return false
 	}
@@ -242,42 +296,9 @@ func isAKSManaged(metadata map[string]interface{}) bool {
 	return managedBy == "aks"
 }
 
-// findFirstContainerImage finds the first container image in a workload spec
-func findFirstContainerImage(obj map[string]interface{}) string {
-	return findFirstImageRecursive(obj)
-}
-
-// findFirstImageRecursive recursively searches for the first container image
-func findFirstImageRecursive(obj interface{}) string {
-	switch v := obj.(type) {
-	case map[string]interface{}:
-		// Check if this is a container with an image
-		if image, ok := v["image"].(string); ok && image != "" {
-			return image
-		}
-
-		// Search in nested objects
-		for _, value := range v {
-			if image := findFirstImageRecursive(value); image != "" {
-				return image
-			}
-		}
-
-	case []interface{}:
-		// Search in array elements
-		for _, item := range v {
-			if image := findFirstImageRecursive(item); image != "" {
-				return image
-			}
-		}
-	}
-
-	return ""
-}
-
 // getChartName extracts chart name from Helm release
 func getChartName(rel *release.Release) string {
-	if rel.Chart != nil && rel.Chart.Metadata != nil {
+	if rel != nil && rel.Chart != nil && rel.Chart.Metadata != nil {
 		return rel.Chart.Metadata.Name
 	}
 	return "unknown"
@@ -285,11 +306,11 @@ func getChartName(rel *release.Release) string {
 
 // getDeploymentTimestamp extracts the deployment timestamp from Helm release
 func getDeploymentTimestamp(rel *release.Release) time.Time {
-	if rel.Info != nil && !rel.Info.LastDeployed.IsZero() {
+	if rel != nil && rel.Info != nil && !rel.Info.LastDeployed.IsZero() {
 		return rel.Info.LastDeployed.Time
 	}
 	// Fallback to first deployed if last deployed is not available
-	if rel.Info != nil && !rel.Info.FirstDeployed.IsZero() {
+	if rel != nil && rel.Info != nil && !rel.Info.FirstDeployed.IsZero() {
 		return rel.Info.FirstDeployed.Time
 	}
 	// Final fallback to current time (shouldn't happen in normal cases)

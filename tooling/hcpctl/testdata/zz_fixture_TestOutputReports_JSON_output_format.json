@@ -1,0 +1,46 @@
+{
+  "kind": "ClusterComponentRelease",
+  "apiVersion": "service-status.hcm.openshift.io/v1",
+  "metadata": {
+    "name": "cluster-component-releases",
+    "creationTimestamp": "2025-01-15T12:00:00Z",
+    "aroHcpGithubCommit": "abc123def456",
+    "sdpPipelinesCommit": "xyz789uvw012"
+  },
+  "components": [
+    {
+      "kind": "ComponentRelease",
+      "apiVersion": "service-status.hcm.openshift.io/v1",
+      "metadata": {
+        "name": "backend",
+        "creationTimestamp": "2025-01-15T12:00:00Z"
+      },
+      "workloads": [
+        {
+          "name": "backend-deployment",
+          "namespace": "aro-hcp",
+          "kind": "Deployment",
+          "desiredImage": "registry.redhat.io/aro-hcp/backend:v1.2.3",
+          "currentImage": "registry.redhat.io/aro-hcp/backend:v1.2.3"
+        }
+      ]
+    },
+    {
+      "kind": "ComponentRelease",
+      "apiVersion": "service-status.hcm.openshift.io/v1",
+      "metadata": {
+        "name": "frontend",
+        "creationTimestamp": "2025-01-15T12:00:00Z"
+      },
+      "workloads": [
+        {
+          "name": "frontend-deployment",
+          "namespace": "aro-hcp",
+          "kind": "Deployment",
+          "desiredImage": "registry.redhat.io/aro-hcp/frontend:v2.1.0",
+          "currentImage": "registry.redhat.io/aro-hcp/frontend:v2.0.9"
+        }
+      ]
+    }
+  ]
+}
