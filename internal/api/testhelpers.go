@@ -202,7 +202,7 @@ type InternalTestResource struct {
 }
 
 var _ VersionedCreatableResource[InternalTestResource] = &ExternalTestResource{}
-var testResourceStructTagMap = NewStructTagMap[InternalTestResource]()
+var testResourceStructTagMap = GetStructTagMap[InternalTestResource]()
 
 func (m *ExternalTestResource) Normalize(v *InternalTestResource) {
 	// FIXME Implement if there's a need for it in tests.

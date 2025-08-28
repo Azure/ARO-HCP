@@ -120,8 +120,8 @@ type TestModelSubtype struct {
 }
 
 var (
-	TestModelTypeStructTagMap    = NewStructTagMap[TestModelType]()
-	TestModelSubtypeStructTagMap = NewStructTagMap[TestModelSubtype]()
+	TestModelTypeStructTagMap    = GetStructTagMap[TestModelType]()
+	TestModelSubtypeStructTagMap = GetStructTagMap[TestModelSubtype]()
 )
 
 func TestStructTagMap(t *testing.T) {
