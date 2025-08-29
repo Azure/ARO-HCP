@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster using bicep templates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+	It("should be able to create an HCP cluster to test TLS using bicep templates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
 
 		const (
 			customerNetworkSecurityGroupName = "customer-nsg-name"
@@ -132,10 +132,9 @@ var _ = Describe("Customer", func() {
 			45*time.Minute,
 		)
 		Expect(err).NotTo(HaveOccurred())
-	})
 
-	Context("should have a valid TLS certificate for the Kubernetes API server", func() {
-		It("should not have a TLS certificate issued by an OpenShift root CA", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+		It("should have a valid TLS certificate for the Kubernetes API server", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+			By("ensuring the API TLS certificate issued is not an OpenShift root CA")
 			testCtx := framework.NewTestContext()
 
 			By("examining the server certificate returned by the Kube API server")
@@ -151,13 +150,10 @@ var _ = Describe("Customer", func() {
 				HaveField("OrganizationalUnit", ContainElements("openshift")),
 			), "expected certificate not issued by an OpenShift root CA")
 		})
-	})
 
-	Context("for the default Ingress", func() {
-		It("should not have a TLS certificate issued by an OpenShift root CA", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+		It("should have a valid TLS certificate for the default Ingress", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+			By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
 			testCtx := framework.NewTestContext()
-
-			By("creating the node pool")
 
 			hcpOpenShiftClustersClient := testCtx.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
@@ -179,7 +175,6 @@ var _ = Describe("Customer", func() {
 			), "expected certificate not issued by an OpenShift root CA")
 		})
 	})
-
 })
 
 func tlsCertFromURL(ctx context.Context, u string) (*x509.Certificate, error) {
