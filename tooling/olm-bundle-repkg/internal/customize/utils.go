@@ -180,17 +180,34 @@ func parameterizeImageComponents(imageRef string, config *BundleConfig, suffix s
 		if suffix != "" {
 			paramName = paramName + suffix
 		}
+		params[paramName] = components.registry
 		components.registry = fmt.Sprintf("{{ .Values.%s }}", paramName)
-		params[paramName] = ""
 	}
 
-	if config.ImageRepositoryParam != "" {
+	if config.ImageRootRepositoryParam != "" {
+		// Only root repository param is set - replace only the root part
+		paramName := config.ImageRootRepositoryParam
+		if suffix != "" {
+			paramName = paramName + suffix
+		}
+		// Split repository into root and remaining parts
+		repositoryParts := strings.SplitN(components.repository, "/", 2)
+		params[paramName] = repositoryParts[0]
+		if len(repositoryParts) > 1 {
+			// Has a root part and remaining parts: rootRepo/remaining/path
+			components.repository = fmt.Sprintf("{{ .Values.%s }}/%s", paramName, repositoryParts[1])
+		} else {
+			// No slash in repository - replace the entire repository
+			components.repository = fmt.Sprintf("{{ .Values.%s }}", paramName)
+		}
+	} else if config.ImageRepositoryParam != "" {
+		// Only repository param is set - replace entire repository
 		paramName := config.ImageRepositoryParam
 		if suffix != "" {
 			paramName = paramName + suffix
 		}
+		params[paramName] = components.repository
 		components.repository = fmt.Sprintf("{{ .Values.%s }}", paramName)
-		params[paramName] = ""
 	}
 
 	if config.ImageTagParam != "" {
@@ -200,8 +217,8 @@ func parameterizeImageComponents(imageRef string, config *BundleConfig, suffix s
 		}
 		// Force tag format - clear digest and set tag
 		components.digest = ""
+		params[paramName] = components.tag
 		components.tag = fmt.Sprintf("{{ .Values.%s }}", paramName)
-		params[paramName] = ""
 	} else if config.ImageDigestParam != "" {
 		paramName := config.ImageDigestParam
 		if suffix != "" {
@@ -209,8 +226,8 @@ func parameterizeImageComponents(imageRef string, config *BundleConfig, suffix s
 		}
 		// Force digest format - clear tag and set digest
 		components.tag = ""
+		params[paramName] = components.digest
 		components.digest = fmt.Sprintf("{{ .Values.%s }}", paramName)
-		params[paramName] = ""
 	}
 
 	return components.buildImageReference(), params

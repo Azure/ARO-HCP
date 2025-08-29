@@ -9,6 +9,7 @@ operandImageEnvPrefixes:
 - OPERAND_IMAGE_
 # Image registry parameterization
 imageRegistryParam: imageRegistry
+imageRootRepositoryParam: imageRootRepository
 # Validation requirements
 requiredEnvVarPrefixes:
 - OPERAND_IMAGE_

@@ -37,6 +37,7 @@ type BundleConfig struct {
 	OperandImageEnvSuffixes []string `yaml:"operandImageEnvSuffixes"` // suffixes for operand image environment variables
 	ImageRegistryParam      string   `yaml:"imageRegistryParam"`      // parameter name for image registry templating
 	ImageRepositoryParam    string   `yaml:"imageRepositoryParam"`    // parameter name for image repository templating
+	ImageRootRepositoryParam string   `yaml:"imageRootRepositoryParam"` // parameter name for image root repository templating
 	ImageTagParam           string   `yaml:"imageTagParam"`           // parameter name for image tag templating (mutually exclusive with ImageDigestParam)
 	ImageDigestParam        string   `yaml:"imageDigestParam"`        // parameter name for image digest templating (mutually exclusive with ImageTagParam)
 	PerImageCustomization   bool     `yaml:"perImageCustomization"`   // if true, each image reference gets individual parameters with suffixes (default: false)
@@ -90,6 +91,10 @@ func (c *BundleConfig) Validate() error {
 	if c.ImageTagParam != "" && c.ImageDigestParam != "" {
 		return fmt.Errorf("imageTagParam and imageDigestParam are mutually exclusive - only one can be set")
 	}
-	// Image parameterization is optional - any of ImageRegistryParam, ImageRepositoryParam, ImageTagParam, ImageDigestParam can be unset
+	// ImageRootRepositoryParam and ImageRepositoryParam are mutually exclusive
+	if c.ImageRootRepositoryParam != "" && c.ImageRepositoryParam != "" {
+		return fmt.Errorf("imageRootRepositoryParam and imageRepositoryParam are mutually exclusive - only one can be set")
+	}
+	// Image parameterization is optional - any of ImageRegistryParam, ImageRootRepositoryParam, ImageRepositoryParam, ImageTagParam, ImageDigestParam can be unset
 	return nil
 }

@@ -153,6 +153,38 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "both root repository and repository params configured - should fail",
+			config: &BundleConfig{
+				ChartName:                "test",
+				ChartDescription:         "Test",
+				OperatorDeploymentNames:  []string{"test"},
+				ImageRootRepositoryParam: "imageRootRepository",
+				ImageRepositoryParam:     "imageRepository",
+			},
+			wantErr: true,
+			errMsg:  "imageRootRepositoryParam and imageRepositoryParam are mutually exclusive",
+		},
+		{
+			name: "only root repository param configured - should pass",
+			config: &BundleConfig{
+				ChartName:                "test",
+				ChartDescription:         "Test",
+				OperatorDeploymentNames:  []string{"test"},
+				ImageRootRepositoryParam: "imageRootRepository",
+			},
+			wantErr: false,
+		},
+		{
+			name: "only repository param configured - should pass",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ImageRepositoryParam:    "imageRepository",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
