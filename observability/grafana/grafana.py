@@ -163,7 +163,7 @@ def delete_stale_dashboard(
         g.delete_dashboard(d["title"])
 
 
-def validate_dashboard(data):
+def validate_dashboard_errors(data) -> list[str]:
     errors = []
 
     dashboard = data.get("dashboard")
@@ -186,15 +186,28 @@ def validate_dashboard(data):
         errors.append("Dashboard does not have any variables set")
         return errors
 
-    var_datasource = next((v for v in variables if v.get("name") == "datasource"), {})
+    var_datasource = next((v for v in variables if v.get("query") == "prometheus"), {})
     if not var_datasource:
-        errors.append("Dashboard does not have a datasource variable")
+        errors.append("Dashboard does not have a datasource of type prometheus")
+
+    return errors
+
+
+def validate_dashboard_warnings(data) -> list[str]:
+    warnings = []
+
+    dashboard = data.get("dashboard")
+    templating = dashboard.get("templating", {})
+    variables = templating.get("list", [])
+    var_datasource = next((v for v in variables if v.get("name") == "datasource"), {})
 
     var_datasource_regex = var_datasource.get("regex")
     if not var_datasource_regex:
-        errors.append("Dashboard does not have a regex set for the datasource variable")
+        warnings.append(
+            "Dashboard does not have a regex set for the datasource variable"
+        )
 
-    return errors
+    return warnings
 
 
 def print_tabulated(rows: list[tuple[any, any, any]]):
@@ -228,7 +241,9 @@ def main():
 
     dashboards_visited = set()
 
-    dashboard_errors: list[tuple[any, any, any]] = []
+    dashboard_validation_errors: list[tuple[any, any, any]] = []
+    dashboard_validation_warnings: list[tuple[any, any, any]] = []
+
     for local_folder in config["grafana-dashboards"]["dashboardFolders"]:
         folder_uid = get_or_create_folder(local_folder["name"], g, existing_folders)
 
@@ -236,11 +251,18 @@ def main():
             os.path.join(WORK_DIR, local_folder["path"])
         ):
 
-            errors = validate_dashboard(dashboard)
+            errors = validate_dashboard_errors(dashboard)
             if errors:
                 for error in errors:
-                    dashboard_errors.append(
+                    dashboard_validation_errors.append(
                         (local_folder["path"], dashboard["dashboard"]["title"], error)
+                    )
+
+            warnings = validate_dashboard_warnings(dashboard)
+            if warnings:
+                for warning in warnings:
+                    dashboard_validation_warnings.append(
+                        (local_folder["path"], dashboard["dashboard"]["title"], warning)
                     )
 
             temp_file = tempfile.NamedTemporaryFile()
@@ -260,9 +282,13 @@ def main():
             config["grafana-dashboards"]["azureManagedFolders"],
         )
 
-    if dashboard_errors:
+    if dashboard_validation_warnings:
+        print("The following dashboards have warnings:")
+        print_tabulated(dashboard_validation_warnings)
+
+    if dashboard_validation_errors:
         print("The following dashboards have errors and need to be fixed:")
-        print_tabulated(dashboard_errors)
+        print_tabulated(dashboard_validation_errors)
         exit(1)
 
 
