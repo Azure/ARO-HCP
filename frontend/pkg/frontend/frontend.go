@@ -196,18 +196,19 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	var pageSizeHint int32 = 20
-	var continuationToken *string
+	options := database.DBClientListResourceDocsOptions{
+		PageSizeHint: api.Ptr(int32(20)),
+	}
 
 	// The Resource Provider Contract implies $top is only honored when
 	// following a "nextLink" after the initial collection GET request.
 	// So only check for it when the URL includes a $skipToken.
 	urlQuery := request.URL.Query()
 	if urlQuery.Has("$skipToken") {
-		continuationToken = api.Ptr(urlQuery.Get("$skipToken"))
+		options.ContinuationToken = api.Ptr(urlQuery.Get("$skipToken"))
 		top, err := strconv.ParseInt(urlQuery.Get("$top"), 10, 32)
 		if err == nil && top > 0 {
-			pageSizeHint = int32(top)
+			options.PageSizeHint = api.Ptr(int32(top))
 		}
 	}
 
@@ -232,10 +233,13 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 	switch resourceTypeName {
 	case strings.ToLower(api.ClusterResourceTypeName):
+		options.ResourceType = &api.ClusterResourceType
 		resourceTypeUsesDatabase = true
 	case strings.ToLower(api.NodePoolResourceTypeName):
+		options.ResourceType = &api.NodePoolResourceType
 		resourceTypeUsesDatabase = true
 	case strings.ToLower(api.ExternalAuthResourceTypeName):
+		options.ResourceType = &api.ExternalAuthResourceType
 		resourceTypeUsesDatabase = true
 	}
 
@@ -265,14 +269,10 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-		dbIterator := f.dbClient.ListResourceDocs(prefix, pageSizeHint, continuationToken)
+		dbIterator := f.dbClient.ListResourceDocs(prefix, &options)
 
-		for _, doc := range dbIterator.Items(ctx) {
-			// FIXME This filtering could be made part of the query expression. It would
-			//       require some reworking (or elimination) of the DBClient interface.
-			if strings.HasSuffix(strings.ToLower(doc.ResourceID.ResourceType.Type), resourceTypeName) {
-				documentMap[doc.InternalID.ID()] = doc
-			}
+		for _, resourceDoc := range dbIterator.Items(ctx) {
+			documentMap[resourceDoc.InternalID.ID()] = resourceDoc
 		}
 
 		err = dbIterator.GetError()

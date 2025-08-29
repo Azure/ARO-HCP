@@ -106,7 +106,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
 
-	dbIterator := f.dbClient.ListResourceDocs(prefix, -1, nil)
+	dbIterator := f.dbClient.ListResourceDocs(prefix, nil)
 
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
@@ -208,7 +208,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	patchOperations.SetProvisioningState(operationDoc.Status)
 	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
 
-	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, -1, nil)
+	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, nil)
 
 	for childItemID, childResourceDoc := range iterator.Items(ctx) {
 		// This operation is not accessible through any REST endpoint.
