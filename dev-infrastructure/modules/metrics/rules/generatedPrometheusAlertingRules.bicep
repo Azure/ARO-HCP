@@ -1360,7 +1360,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API availability error budget burn rate is too high'
         }
-        expression: '( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{service="clusters-service-metrics"})) > 5.6 )'
+        expression: '( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -1377,7 +1377,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
@@ -1396,7 +1396,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P99 latency error budget burn rate is too high'
         }
-        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{service="clusters-service-metrics"})) > 5.6 )'
+        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -1413,7 +1413,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
@@ -1432,7 +1432,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P90 latency error budget burn rate is too high'
         }
-        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{service="clusters-service-metrics"})) > 5.6 )'
+        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -1449,7 +1449,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
