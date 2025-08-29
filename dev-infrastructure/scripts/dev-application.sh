@@ -289,7 +289,21 @@ loginWithMockServicePrincipal() {
     echo "Logging in as mock FPA service principal (App ID: $appId)"
     az login --service-principal -u "$appId" --certificate app.pem --tenant "$tenantId"
 
-    rm app.pfx app.pem
+    # Note: Not deleting app.pem as Azure CLI needs to reference it for subsequent operations
+    # The certificate file will be cleaned up when the session ends
+    rm app.pfx
+    echo "Certificate file app.pem kept for Azure CLI session"
+}
+
+cleanupCertificateFiles() {
+    # Clean up certificate files when done with service principal session
+    if [ -f "app.pem" ]; then
+        echo "Cleaning up certificate file"
+        rm app.pem
+    fi
+    if [ -f "app.pfx" ]; then
+        rm app.pfx
+    fi
 }
 
 case "$1" in
@@ -311,8 +325,11 @@ case "$1" in
     "delete-policies")
         deleteMockFpaPolicies
     ;;
+    "cleanup")
+        cleanupCertificateFiles
+    ;;
     *)
-        echo "Usage: $0 {create|delete|login|shell|deploy-policies|delete-policies}"
+        echo "Usage: $0 {create|delete|login|shell|deploy-policies|delete-policies|cleanup}"
         exit 1
     ;;
 esac

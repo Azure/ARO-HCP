@@ -234,6 +234,13 @@ save_current_user() {
 # Restore original user context
 restore_original_user() {
     print_info "Restoring original user context..."
+
+    # Clean up certificate files from service principal session
+    if [ -f "app.pem" ]; then
+        print_info "Cleaning up certificate files"
+        rm -f app.pem app.pfx
+    fi
+
     if [[ "$ORIGINAL_USER_TYPE" == "user" ]]; then
         az login >/dev/null 2>&1 || {
             echo -e "${YELLOW}⚠️  Please run 'az login' to restore your session${NC}"
@@ -493,6 +500,11 @@ main() {
 
 # Handle script interruption
 cleanup_on_interrupt() {
+    print_info "Script interrupted, cleaning up..."
+
+    # Clean up certificate files
+    rm -f app.pem app.pfx
+
     # Only restore if we were originally a user (not service principal)
     if [[ -n "$ORIGINAL_USER_TYPE" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
         restore_original_user
