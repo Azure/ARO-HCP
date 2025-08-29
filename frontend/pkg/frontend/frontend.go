@@ -347,6 +347,22 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		}
 		err = csIterator.GetError()
 
+	case strings.ToLower(api.ExternalAuthResourceTypeName):
+		csIterator := f.clusterServiceClient.ListExternalAuths(clusterInternalID, query)
+
+		for csExternalAuth := range csIterator.Items(ctx) {
+			if doc, ok := documentMap[csExternalAuth.ID()]; ok {
+				value, err := marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
+				if err != nil {
+					logger.Error(err.Error())
+					arm.WriteInternalServerError(writer)
+					return
+				}
+				pagedResponse.AddValue(value)
+			}
+		}
+		err = csIterator.GetError()
+
 	case strings.ToLower(api.VersionResourceTypeName):
 		csIterator := f.clusterServiceClient.ListVersions()
 
