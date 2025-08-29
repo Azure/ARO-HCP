@@ -279,6 +279,10 @@ func (csc *clusterServiceClientWithTracing) DeleteExternalAuth(ctx context.Conte
 	return err
 }
 
+func (csc *clusterServiceClientWithTracing) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
+	return csc.csc.ListExternalAuths(clusterInternalID, searchExpression)
+}
+
 func (csc *clusterServiceClientWithTracing) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostBreakGlassCredential")
 	defer span.End()
