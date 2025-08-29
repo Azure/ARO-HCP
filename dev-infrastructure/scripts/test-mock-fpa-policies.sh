@@ -2,6 +2,7 @@
 
 # Test script to verify mock FPA restriction policies are working correctly
 # This script tests that the mock FPA has minimum required permissions and dangerous operations are blocked
+# The script continues running all tests even if some fail, providing a comprehensive report at the end
 
 set -euo pipefail
 
@@ -139,9 +140,10 @@ get_test_resource_group() {
     TEST_RG=$(az group list --query "[0].name" -o tsv 2>/dev/null || echo "$RESOURCE_GROUP")
     if [[ -z "$TEST_RG" ]]; then
         print_failure "No resource groups found for testing"
-        exit 1
+        return 1
     fi
     print_info "Using test resource group: $TEST_RG"
+    return 0
 }
 
 # Test basic read operations (should work with Contributor role)
@@ -149,19 +151,19 @@ test_read_operations() {
     print_header "Testing Read Operations (Should Succeed)"
 
     test_should_succeed "List resource groups" \
-        "az group list --query '[].name' -o tsv"
+        "az group list --query '[].name' -o tsv" || true
 
     test_should_succeed "List storage accounts" \
-        "az storage account list --query '[].name' -o tsv"
+        "az storage account list --query '[].name' -o tsv" || true
 
     test_should_succeed "List virtual networks" \
-        "az network vnet list --query '[].name' -o tsv"
+        "az network vnet list --query '[].name' -o tsv" || true
 
     test_should_succeed "List key vaults" \
-        "az keyvault list --query '[].name' -o tsv"
+        "az keyvault list --query '[].name' -o tsv" || true
 
     test_should_succeed "Show subscription details" \
-        "az account show --query id -o tsv"
+        "az account show --query id -o tsv" || true
 }
 
 # Test check access operations (requires built-in role)
@@ -173,13 +175,13 @@ test_check_access_operations() {
 
     if [[ -n "$current_user_id" ]]; then
         test_should_succeed "Check access for current user" \
-            "az role assignment list --assignee '$current_user_id' --query '[].roleDefinitionName' -o tsv"
+            "az role assignment list --assignee '$current_user_id' --query '[].roleDefinitionName' -o tsv" || true
     else
         print_info "Skipping check access test - cannot get current user ID"
     fi
 
     test_should_succeed "List role definitions" \
-        "az role definition list --query '[0].roleName' -o tsv"
+        "az role definition list --query '[0].roleName' -o tsv" || true
 }
 
 # Test policy-restricted operations (should be blocked)
@@ -188,22 +190,22 @@ test_restricted_operations() {
 
     # Test role assignment creation (should be blocked)
     test_should_fail "Create role assignment" \
-        "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID' --dry-run"
+        "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID' --dry-run" || true
 
     # Test role definition creation (should be blocked)
     test_should_fail "Create custom role definition" \
-        "az role definition create --role-definition '{\"Name\":\"TestRole-$USER\",\"Description\":\"Test\",\"Actions\":[\"Microsoft.Storage/*/read\"],\"AssignableScopes\":[\"/subscriptions/$SUBSCRIPTION_ID\"]}'"
+        "az role definition create --role-definition '{\"Name\":\"TestRole-$USER\",\"Description\":\"Test\",\"Actions\":[\"Microsoft.Storage/*/read\"],\"AssignableScopes\":[\"/subscriptions/$SUBSCRIPTION_ID\"]}'" || true
 
     # Test policy assignment creation (should be blocked)
     test_should_fail "Create policy assignment" \
-        "az policy assignment create --name 'test-policy-$USER' --policy '/providers/Microsoft.Authorization/policyDefinitions/56a914f7-8874-476c-8bbc-d748663e4d06' --scope '/subscriptions/$SUBSCRIPTION_ID'"
+        "az policy assignment create --name 'test-policy-$USER' --policy '/providers/Microsoft.Authorization/policyDefinitions/56a914f7-8874-476c-8bbc-d748663e4d06' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
 
     # Test critical resource deletion (should be blocked)
     test_should_fail "Delete resource group (dry run)" \
-        "az group delete --name '$TEST_RG' --yes --dry-run"
+        "az group delete --name '$TEST_RG' --yes --dry-run" || true
 
     test_should_fail "Delete key vault (dry run)" \
-        "az keyvault delete --name '$KEY_VAULT_NAME' --dry-run"
+        "az keyvault delete --name '$KEY_VAULT_NAME' --dry-run" || true
 }
 
 # Test VM creation (should be blocked by policy)
@@ -212,7 +214,7 @@ test_vm_operations() {
 
     # Test VM creation (should be blocked)
     test_should_fail "Create virtual machine" \
-        "az vm create --resource-group '$TEST_RG' --name 'test-vm-$USER' --image 'UbuntuLTS' --admin-username 'testuser' --generate-ssh-keys --dry-run"
+        "az vm create --resource-group '$TEST_RG' --name 'test-vm-$USER' --image 'UbuntuLTS' --admin-username 'testuser' --generate-ssh-keys --dry-run" || true
 }
 
 # Test network operations (service association links should be allowed)
@@ -228,11 +230,11 @@ test_network_operations() {
 
         # Reading subnet should work
         test_should_succeed "Read subnet configuration" \
-            "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'name' -o tsv"
+            "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'name' -o tsv" || true
 
         # Service association links should be allowed (but we'll just test read access)
         test_should_succeed "List service association links" \
-            "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'serviceAssociationLinks' -o tsv"
+            "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'serviceAssociationLinks' -o tsv" || true
     else
         print_info "No VNet/subnet found for network operations testing"
     fi
@@ -252,7 +254,10 @@ main() {
     save_current_user
 
     # Get test resources
-    get_test_resource_group
+    if ! get_test_resource_group; then
+        print_failure "Could not determine test resource group"
+        exit 1
+    fi
 
     # Check if already logged in as the correct service principal
     local current_user=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
@@ -299,12 +304,12 @@ main() {
         print_info "Successfully logged in as: $current_user ($current_type)"
     fi
 
-    # Run test suites
-    test_read_operations
-    test_check_access_operations
-    test_restricted_operations
-    test_vm_operations
-    test_network_operations
+    # Run test suites - continue even if some fail
+    test_read_operations || true
+    test_check_access_operations || true
+    test_restricted_operations || true
+    test_vm_operations || true
+    test_network_operations || true
 
     # Restore original context only if we changed it
     if [[ "$skip_login" == "false" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
