@@ -15,7 +15,7 @@
 #   VERBOSE_OUTPUT: Set to false to hide detailed error output (default: true)
 #   FAIL_FAST: Set to true to stop at first failure (default: false)
 
-set -euo pipefail
+set -uo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -105,6 +105,15 @@ done
 VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-true}
 FAIL_FAST=${FAIL_FAST:-false}
 
+# Helper function to exit cleanly in fail-fast mode
+fail_fast_exit() {
+    echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
+    # Flush output buffers before exiting to ensure all messages are displayed
+    exec 1>&1 2>&2
+    sleep 1
+    exit 1
+}
+
 # Helper function to run tests with optional continue-on-failure
 run_test() {
     local test_function="$1"
@@ -173,8 +182,7 @@ test_should_succeed() {
 
         # Exit immediately if fail-fast is enabled
         if [[ "$FAIL_FAST" == "true" ]]; then
-            echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
-            exit 1
+            fail_fast_exit
         fi
 
         return 1
@@ -206,8 +214,7 @@ test_should_fail() {
 
         # Exit immediately if fail-fast is enabled
         if [[ "$FAIL_FAST" == "true" ]]; then
-            echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
-            exit 1
+            fail_fast_exit
         fi
 
         return 1
