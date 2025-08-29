@@ -362,12 +362,14 @@ test_check_access_operations() {
 }
 
 # Test policy-restricted operations (should be blocked)
+# Note: These tests rely on Azure policies to block operations before they execute
+# We don't use --dry-run because many Azure CLI commands don't support it
 test_restricted_operations() {
     print_header "Testing Restricted Operations (Should Be Blocked)"
 
     # Test role assignment creation (should be blocked)
     test_should_fail "Create role assignment" \
-        "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID' --dry-run" || true
+        "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
 
     # Test role definition creation (should be blocked)
     test_should_fail "Create custom role definition" \
@@ -377,21 +379,31 @@ test_restricted_operations() {
     test_should_fail "Create policy assignment" \
         "az policy assignment create --name 'test-policy-$USER' --policy '/providers/Microsoft.Authorization/policyDefinitions/56a914f7-8874-476c-8bbc-d748663e4d06' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
 
-    # Test critical resource deletion (should be blocked)
-    test_should_fail "Delete resource group (dry run)" \
-        "az group delete --name '$TEST_RG' --yes --dry-run" || true
+    # Test critical resource operations (should be blocked)
+    # Using checkAccess API to test delete permissions safely
+    local current_user_id=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
 
-    test_should_fail "Delete key vault (dry run)" \
-        "az keyvault delete --name '$KEY_VAULT_NAME' --dry-run" || true
+    if [[ -n "$current_user_id" ]]; then
+        # Test resource group deletion permissions using checkAccess API
+        test_should_fail "Check delete permissions for resource groups" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/resourceGroups/delete\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv" || true
+
+        # Test key vault deletion permissions using checkAccess API
+        test_should_fail "Check delete permissions for key vaults" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.KeyVault/vaults/delete\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv" || true
+    else
+        print_info "Skipping deletion permission tests - cannot get service principal ID"
+    fi
 }
 
 # Test VM creation (should be blocked by policy)
 test_vm_operations() {
     print_header "Testing VM Operations (Should Be Blocked)"
 
-    # Test VM creation (should be blocked)
+    # Test VM creation (should be blocked by policy before execution)
+    # Using --no-wait to prevent long execution if policy fails to block
     test_should_fail "Create virtual machine" \
-        "az vm create --resource-group '$TEST_RG' --name 'test-vm-$USER' --image 'UbuntuLTS' --admin-username 'testuser' --generate-ssh-keys --dry-run" || true
+        "az vm create --resource-group '$TEST_RG' --name 'test-vm-$USER' --image 'UbuntuLTS' --admin-username 'testuser' --generate-ssh-keys --no-wait" || true
 }
 
 # Test network operations (service association links should be allowed)
