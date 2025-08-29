@@ -253,7 +253,7 @@ restore_original_user() {
 # Get a test resource group for non-destructive tests
 get_test_resource_group() {
     # Try to find an existing resource group, or use the dev application RG
-    TEST_RG=$(az group list --query "[0].name" -o tsv 2>/dev/null || echo "$RESOURCE_GROUP")
+    TEST_RG=${RESOURCE_GROUP:-$(az group list --query "[0].name" -o tsv 2>/dev/null)}
     if [[ -z "$TEST_RG" ]]; then
         print_failure "No resource groups found for testing"
         return 1
@@ -308,11 +308,11 @@ test_check_access_operations() {
 
         # Test 4: Use Azure REST API to call check access directly (key FPA functionality)
         test_should_succeed "Call check access API for read permissions" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/subscriptions/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 4b: Check access for resource group operations
         test_should_succeed "Call check access API for resource group operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/resourceGroups/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/subscriptions/resourceGroups/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 5: Check permissions on storage accounts (common FPA use case)
         test_should_succeed "Check storage account permissions" \
@@ -324,11 +324,11 @@ test_check_access_operations() {
 
         # Test 6b: Check access for common Azure services (FPA use cases)
         test_should_succeed "Check access for storage operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Storage/storageAccounts/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Storage/storageAccounts/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 6c: Check access for network operations (relevant for ARO)
         test_should_succeed "Check access for network operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Network/virtualNetworks/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Network/virtualNetworks/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
     else
         print_info "Skipping check access tests - cannot get service principal ID"
@@ -472,9 +472,9 @@ main() {
     # Run test suites - behavior depends on FAIL_FAST setting
     run_test test_read_operations
     run_test test_check_access_operations
-    #run_test test_restricted_operations
-    #run_test test_vm_operations
-    #run_test test_network_operations
+    run_test test_restricted_operations
+    run_test test_vm_operations
+    run_test test_network_operations
 
     # Restore original context only if we changed it
     if [[ "$skip_login" == "false" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
