@@ -1,9 +1,10 @@
 # E2E Testing - ARO HCP E2E Test Suite
+
 The E2E test suite will work in every environment of the ARO-HCP project. Its main purpose is to ensure specific functionality based on the environment and its usage.
 
 For more information about ARO HCP environments, see the [ARO HCP Environments documentation](https://github.com/Azure/ARO-HCP/blob/main/docs/environments.md).
 
-## Writting and running new E2E Test cases
+## Writing and running new E2E Test cases
 
 ### Resource Naming
 
@@ -15,6 +16,7 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 - When using your own customized bicep templates or creating resources via other means such as direct API calls be sure to follow the above rules, appending a 6 character random string to the cluster and managed resource group names is likely sufficient.
 
 ### Test cases with per-test cluster (**main focus**)
+
 When writing E2E test cases that provision their own cluster (i.e., the test case is responsible for creating and deleting the cluster within its `Context` or `It` block), follow these guidelines:
 
 - **Label Requirement:** You **MUST** add the `RequireNothing` label to these test cases. This label ensures the test is always considered for CI execution.
@@ -26,6 +28,58 @@ See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a re
 
 **Minimal example:**
 TODO: Minimal version 
+
+#### Running per-run test cases with per-test cluster in OpenShift CI
+
+There is a [`aro-hcp-tests-run-aro-hcp-tests` step](https://steps.ci.openshift.org/reference/aro-hcp-tests-run-aro-hcp-tests)
+in OpenShift CI step registry which can run a test suite of per-run test cases.
+
+This is used in jobs such as
+`periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`.
+
+#### Running per-run test cases with per-test cluster locally
+
+First of all, you need to build the `aro-hcp-tests` binary. This tool is used
+to run individual test cases as well as test suites.
+
+```
+$ cd ~/projects/ARO-HCP
+$ make -C test
+```
+
+One can use `list` command to inspect available test cases:
+
+```
+$ ./test/aro-hcp-tests list | jq '.[].name'
+"Customer should not be able to create a 4.18 HCP cluster"
+"Customer should be able to create a HCP cluster without CNI"
+"Customer should be able to create an HCP cluster and custom node pool osDisk size using bicep template"
+"Customer should be able to create an HCP cluster using bicep templates"
+"Customer should be able to create a cluster with an external auth config and get the external auth config"
+"HCP Nodepools GPU instances creates and deletes vm type NC6sv3 in a single cluster"
+"Customer should be able to create an HCP cluster with Image Registry not present"
+```
+
+Then login with AZ CLI to your azure account and export environment variables
+`CUSTOMER_SUBSCRIPTION` and `LOCATION` (you don't need a service principal to
+run tests locally, that option should be used for CI runs only):
+
+```bash
+export CUSTOMER_SUBSCRIPTION=<subscriptionName>
+export LOCATION=uksouth
+```
+
+So finally, you can run a particular test case:
+
+```bash
+$ ./test/aro-hcp-tests run-test "Customer should not be able to create a 4.18 HCP cluster"
+```
+
+Or `integration/parallel` test suite:
+
+```bash
+$ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
+```
 
 ### Test cases with per-run cluster
 > **Important**
