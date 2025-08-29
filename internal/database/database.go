@@ -61,6 +61,22 @@ type DBClientIterator[T DocumentProperties] interface {
 	GetError() error
 }
 
+// DBClientListResourceDocsOptions allows for limiting the results of DBClient.ListResourceDocs.
+type DBClientListResourceDocsOptions struct {
+	// ResourceType matches (case-insensitively) the Azure resource type
+	ResourceType *azcorearm.ResourceType
+
+	// PageSizeHint can limit the number of items returned at once. A negative value will cause
+	// the returned iterator to yield all matching documents (same as leaving the option nil).
+	// A positive value will cause the returned iterator to include a continuation token if
+	// additional items are available.
+	PageSizeHint *int32
+
+	// ContinuationToken can be supplied when limiting the number of items returned at once
+	// through PageSizeHint.
+	ContinuationToken *string
+}
+
 // DBClientListActiveOperationDocsOptions allows for limiting the results of DBClient.ListActiveOperationDocs.
 type DBClientListActiveOperationDocsOptions struct {
 	// Request matches the type of asynchronous operation requested
@@ -112,17 +128,13 @@ type DBClient interface {
 
 	// ListResourceDocs returns an iterator that searches for cluster or node pool documents in
 	// the "Resources" container that match the given resource ID prefix. The prefix must include
-	// a subscription ID so the correct partition key can be inferred.
+	// a subscription ID so the correct partition key can be inferred. The options argument can
+	// further limit the search to documents that match the provided values.
 	//
 	// Note that ListResourceDocs does not perform the search, but merely prepares an iterator to
 	// do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
-	//
-	// maxItems can limit the number of items returned at once. A negative value will cause the
-	// returned iterator to yield all matching documents. A positive value will cause the returned
-	// iterator to include a continuation token if additional items are available. The continuation
-	// token can be supplied on a subsequent call to obtain those additional items.
-	ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument]
+	ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument]
 
 	// GetOperationDoc retrieves an asynchronous operation document from the "Resources" container.
 	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
@@ -448,19 +460,13 @@ func (d *cosmosDBClient) DeleteResourceDoc(ctx context.Context, resourceID *azco
 	return nil
 }
 
-func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems int32, continuationToken *string) DBClientIterator[ResourceDocument] {
+func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument] {
 	pk := NewPartitionKey(prefix.SubscriptionID)
 
-	// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"
-	//     but it's not clear if it treats all negative values equivalently. The Go SDK
-	//     passes the PageSizeHint value as provided so normalize negative values to -1
-	//     to be safe.
-	maxItems = max(maxItems, -1)
+	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
 
-	const query = "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
-	opt := azcosmos.QueryOptions{
-		PageSizeHint:      maxItems,
-		ContinuationToken: continuationToken,
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
 		QueryParameters: []azcosmos.QueryParameter{
 			{
 				Name:  "@prefix",
@@ -469,9 +475,29 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, maxItems
 		},
 	}
 
-	pager := d.resources.NewQueryItemsPager(query, pk, &opt)
+	if options != nil {
+		if options.ResourceType != nil {
+			query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
+			queryParameter := azcosmos.QueryParameter{
+				Name:  "@resourceType",
+				Value: string(options.ResourceType.String()),
+			}
+			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
+		}
 
-	if maxItems > 0 {
+		// XXX The Cosmos DB REST API gives special meaning to -1 for "x-ms-max-item-count"
+		//     but it's not clear if it treats all negative values equivalently. The Go SDK
+		//     passes the PageSizeHint value as provided so normalize negative values to -1
+		//     to be safe.
+		if options.PageSizeHint != nil {
+			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
+		}
+		queryOptions.ContinuationToken = options.ContinuationToken
+	}
+
+	pager := d.resources.NewQueryItemsPager(query, pk, &queryOptions)
+
+	if queryOptions.PageSizeHint > 0 {
 		return newQueryItemsSinglePageIterator[ResourceDocument](pager)
 	} else {
 		return newQueryItemsIterator[ResourceDocument](pager)
