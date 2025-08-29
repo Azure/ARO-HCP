@@ -1,0 +1,5 @@
+currentImage: nginx:v1.21
+desiredImage: nginx:latest
+kind: Deployment
+name: test-deployment
+namespace: test-ns

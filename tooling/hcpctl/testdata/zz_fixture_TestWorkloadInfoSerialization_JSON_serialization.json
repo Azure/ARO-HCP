@@ -1,0 +1,7 @@
+{
+  "name": "test-deployment",
+  "namespace": "test-ns",
+  "kind": "Deployment",
+  "desiredImage": "nginx:latest",
+  "currentImage": "nginx:v1.21"
+}

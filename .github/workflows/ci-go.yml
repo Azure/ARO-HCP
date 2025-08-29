@@ -77,7 +77,7 @@ jobs:
           exit 1
         fi
     - name: 'Test'
-      run: E2E_MC_CLUSTER=dev-westus3-mgmt-1 JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
+      run: JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
   lint:
     needs: changes
     if: needs.changes.outputs.go == 'true'

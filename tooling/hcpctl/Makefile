@@ -6,7 +6,7 @@ WINDOWS_BINARY = hcpctl.exe
 WINDOWS_BINARY_AMD64 = hcpctl-amd64.exe
 
 # Version information
-CURRENT_COMMIT ?= $(shell git rev-parse --short=7 HEAD)
+CURRENT_COMMIT ?= $(shell git rev-parse HEAD)
 VERSION ?= $(shell git describe --tags 2>/dev/null || echo "v0.0.0-${CURRENT_COMMIT}")
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
@@ -37,7 +37,7 @@ test:
 # Run Go-based end-to-end tests
 test-e2e: build
 	@echo "Running Go-based e2e tests in parallel..."
-	E2E_MC_CLUSTER=$(shell cat ../../config/rendered/dev/dev/westus3.yaml | yq .mgmt.aks.name) go test -v -tags=E2Etests -timeout=10m -parallel 16 ./internal/e2e/
+	E2E_MC_CLUSTER=$(shell cat ../../config/rendered/dev/dev/westus3.yaml | yq .mgmt.aks.name) E2E_SC_CLUSTER=$(shell cat ../../config/rendered/dev/dev/westus3.yaml | yq .svc.aks.name) go test -v -tags=ToolingE2Etests -timeout=10m -parallel 16 ./internal/e2e/
 .PHONY: test-e2e
 
 # Build for Windows x86_64

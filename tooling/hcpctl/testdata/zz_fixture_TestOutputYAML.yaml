@@ -1,0 +1,19 @@
+apiVersion: service-status.hcm.openshift.io/v1
+components:
+- apiVersion: service-status.hcm.openshift.io/v1
+  kind: ComponentRelease
+  metadata:
+    creationTimestamp: "2025-01-15T12:00:00Z"
+    name: test-component
+  workloads:
+  - currentImage: nginx:latest
+    desiredImage: nginx:latest
+    kind: Deployment
+    name: test-deployment
+    namespace: test-ns
+kind: ClusterComponentRelease
+metadata:
+  aroHcpGithubCommit: abc123def456
+  creationTimestamp: "2025-01-15T12:00:00Z"
+  name: cluster-component-releases
+  sdpPipelinesCommit: xyz789uvw012

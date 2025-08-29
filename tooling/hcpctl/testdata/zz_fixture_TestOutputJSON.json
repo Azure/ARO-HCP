@@ -1,0 +1,29 @@
+{
+  "kind": "ClusterComponentRelease",
+  "apiVersion": "service-status.hcm.openshift.io/v1",
+  "metadata": {
+    "name": "cluster-component-releases",
+    "creationTimestamp": "2025-01-15T12:00:00Z",
+    "aroHcpGithubCommit": "abc123def456",
+    "sdpPipelinesCommit": "xyz789uvw012"
+  },
+  "components": [
+    {
+      "kind": "ComponentRelease",
+      "apiVersion": "service-status.hcm.openshift.io/v1",
+      "metadata": {
+        "name": "test-component",
+        "creationTimestamp": "2025-01-15T12:00:00Z"
+      },
+      "workloads": [
+        {
+          "name": "test-deployment",
+          "namespace": "test-ns",
+          "kind": "Deployment",
+          "desiredImage": "nginx:latest",
+          "currentImage": "nginx:latest"
+        }
+      ]
+    }
+  ]
+}

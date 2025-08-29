@@ -1,0 +1,30 @@
+apiVersion: service-status.hcm.openshift.io/v1
+components:
+- apiVersion: service-status.hcm.openshift.io/v1
+  kind: ComponentRelease
+  metadata:
+    creationTimestamp: "2025-01-15T12:00:00Z"
+    name: backend
+  workloads:
+  - currentImage: registry.redhat.io/aro-hcp/backend:v1.2.3
+    desiredImage: registry.redhat.io/aro-hcp/backend:v1.2.3
+    kind: Deployment
+    name: backend-deployment
+    namespace: aro-hcp
+- apiVersion: service-status.hcm.openshift.io/v1
+  kind: ComponentRelease
+  metadata:
+    creationTimestamp: "2025-01-15T12:00:00Z"
+    name: frontend
+  workloads:
+  - currentImage: registry.redhat.io/aro-hcp/frontend:v2.0.9
+    desiredImage: registry.redhat.io/aro-hcp/frontend:v2.1.0
+    kind: Deployment
+    name: frontend-deployment
+    namespace: aro-hcp
+kind: ClusterComponentRelease
+metadata:
+  aroHcpGithubCommit: abc123def456
+  creationTimestamp: "2025-01-15T12:00:00Z"
+  name: cluster-component-releases
+  sdpPipelinesCommit: xyz789uvw012
