@@ -30,6 +30,7 @@ AH_CERTIFICATE_NAME=${ARO_HCP_DEV_AH_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-ah-cert"}
 
 # See https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
 AZURE_BUILTIN_ROLE_OWNER="8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+AZURE_BUILTIN_ROLE_CONTRIBUTOR="b24988ac-6180-42a0-ab88-20f7382dd24c"
 
 printEnv() {
     echo "LOCATION: $LOCATION"
@@ -80,6 +81,41 @@ createServicePrincipal() {
     --scopes "/subscriptions/$SUBSCRIPTION_ID"
 }
 
+deployMockFpaPolicies() {
+    echo "Deploying mock FPA restriction policies"
+
+    # Get the application ID of the mock FPA
+    mockFpaAppId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
+
+    if [ -z "$mockFpaAppId" ]; then
+        echo "Error: Could not find application ID for $FP_APPLICATION_NAME"
+        exit 1
+    fi
+
+    echo "Deploying policies for mock FPA with app ID: $mockFpaAppId"
+
+    # Deploy the Bicep template at subscription scope
+    az deployment sub create \
+        --location "$LOCATION" \
+        --template-file "$(dirname "$0")/../modules/policy/mock-fpa-restrictions.bicep" \
+        --parameters \
+            mockFpaAppId="$mockFpaAppId" \
+            environment="$USER" \
+            enforcementEnabled=true
+}
+
+deleteMockFpaPolicies() {
+    echo "Deleting mock FPA restriction policies"
+
+    # Delete policy assignments first
+    az policy assignment delete --name "deny-mock-fpa-dangerous-ops-$USER" 2>/dev/null || echo "Policy assignment deny-mock-fpa-dangerous-ops-$USER not found or already deleted"
+    az policy assignment delete --name "allow-mock-fpa-network-ops-$USER" 2>/dev/null || echo "Policy assignment allow-mock-fpa-network-ops-$USER not found or already deleted"
+
+    # Delete policy definitions
+    az policy definition delete --name "deny-mock-fpa-dangerous-ops-$USER" 2>/dev/null || echo "Policy definition deny-mock-fpa-dangerous-ops-$USER not found or already deleted"
+    az policy definition delete --name "allow-mock-fpa-required-network-ops-$USER" 2>/dev/null || echo "Policy definition allow-mock-fpa-required-network-ops-$USER not found or already deleted"
+}
+
 createApps() {
     echo "Creating standalone dev applications with the following ENV:"
     printEnv
@@ -100,31 +136,37 @@ createApps() {
     --resource-group "$RESOURCE_GROUP" \
     --enable-rbac-authorization false
 
-    # Create a custom role defintion if it doesn't exist already
-    echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
-    roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+    # NOTE: Using built-in Contributor role instead of custom role to support check access APIs
+    # Custom role creation is commented out as we now use AZURE_BUILTIN_ROLE_CONTRIBUTOR
+    #
+    # # Create a custom role defintion if it doesn't exist already
+    # echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
+    # roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+    #
+    # if [ -n "$roleExists" ]; then
+    #     echo "Role definition $FP_ROLE_DEFINITION_NAME already exists"
+    # else
+    #     # add assignable scope to the custom role with the current subscription
+    #     roleDef=$(jq ".AssignableScopes = [\"/subscriptions/$SUBSCRIPTION_ID\"]" mock-dev-role-definition.json)
+    #     echo $roleDef >> temp.json
+    #     roleDef=$(jq ".Name = \"$FP_ROLE_DEFINITION_NAME\"" temp.json)
+    #     rm temp.json
+    #
+    #     echo "Creating role definition $FP_ROLE_DEFINITION_NAME"
+    #     echo "$roleDef"
+    #     az role definition create --role-definition "$roleDef"
+    #     while [ -z "$roleExists" ]; do
+    #         roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+    #         echo "Waiting for role definition to be created..."
+    #         sleep 5
+    #     done
+    # fi
 
-    if [ -n "$roleExists" ]; then
-        echo "Role definition $FP_ROLE_DEFINITION_NAME already exists"
-    else
-        # add assignable scope to the custom role with the current subscription
-        roleDef=$(jq ".AssignableScopes = [\"/subscriptions/$SUBSCRIPTION_ID\"]" mock-dev-role-definition.json)
-        echo $roleDef >> temp.json
-        roleDef=$(jq ".Name = \"$FP_ROLE_DEFINITION_NAME\"" temp.json)
-        rm temp.json
-
-        echo "Creating role definition $FP_ROLE_DEFINITION_NAME"
-        echo "$roleDef"
-        az role definition create --role-definition "$roleDef"
-        while [ -z "$roleExists" ]; do
-            roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
-            echo "Waiting for role definition to be created..."
-            sleep 5
-        done
-    fi
-
-    createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $FP_ROLE_DEFINITION_NAME
+    createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $AZURE_BUILTIN_ROLE_CONTRIBUTOR
     createServicePrincipal $AH_APPLICATION_NAME $AH_CERTIFICATE_NAME $AZURE_BUILTIN_ROLE_OWNER
+
+    # Deploy restriction policies for the mock FPA
+    deployMockFpaPolicies
 }
 
 deleteServicePrincipalAndApp() {
@@ -147,14 +189,17 @@ deleteApps() {
     echo "Deleting standalone dev applications with the following ENV:"
     printEnv
 
+    # Delete mock FPA restriction policies first
+    deleteMockFpaPolicies
+
     echo "Deleting all role assignments with role $FP_ROLE_DEFINITION_NAME"
-    az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {}
+    az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {} 2>/dev/null || echo "No role assignments found for $FP_ROLE_DEFINITION_NAME"
 
     deleteServicePrincipalAndApp $FP_APPLICATION_NAME
     deleteServicePrincipalAndApp $AH_APPLICATION_NAME
 
     echo "Deleting role definition $FP_ROLE_DEFINITION_NAME"
-    az role definition delete --name "$FP_ROLE_DEFINITION_NAME"
+    az role definition delete --name "$FP_ROLE_DEFINITION_NAME" 2>/dev/null || echo "Role definition $FP_ROLE_DEFINITION_NAME not found or already deleted"
 
     echo "Deleting keyvault $KEY_VAULT_NAME in resource group $RESOURCE_GROUP"
     az keyvault delete --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP"
@@ -200,8 +245,14 @@ case "$1" in
     "shell")
         shellEnv
     ;;
+    "deploy-policies")
+        deployMockFpaPolicies
+    ;;
+    "delete-policies")
+        deleteMockFpaPolicies
+    ;;
     *)
-        echo "Usage: $0 {create|delete|login|shell}"
+        echo "Usage: $0 {create|delete|login|shell|deploy-policies|delete-policies}"
         exit 1
     ;;
 esac
