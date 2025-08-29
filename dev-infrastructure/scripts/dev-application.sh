@@ -286,7 +286,8 @@ loginWithMockServicePrincipal() {
     appId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
     tenantId=$(az account show --query tenantId -o tsv)
 
-    az login --service-principal -u "$appId" -p app.pem --tenant "$tenantId"
+    echo "Logging in as mock FPA service principal (App ID: $appId)"
+    az login --service-principal -u "$appId" --certificate app.pem --tenant "$tenantId"
 
     rm app.pfx app.pem
 }
