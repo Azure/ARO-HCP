@@ -12,7 +12,7 @@
 # Options:
 #   --quiet: Disable verbose output (same as VERBOSE_OUTPUT=false)
 #   --fail-fast: Stop execution at the first test failure (default: continue all tests)
-#   VERBOSE_OUTPUT: Set to false to hide detailed error output (default: true)
+#   VERBOSE_OUTPUT: Set to false to hide detailed command output for all tests (default: true)
 #   FAIL_FAST: Set to true to stop at first failure (default: false)
 
 set -uo pipefail
@@ -84,12 +84,12 @@ while [[ $# -gt 0 ]]; do
             echo "Test mock FPA restriction policies"
             echo ""
             echo "Options:"
-            echo "  --quiet, -q      Disable verbose error output"
+            echo "  --quiet, -q      Disable verbose test output"
             echo "  --fail-fast, -f  Stop execution at the first test failure"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "Environment variables:"
-            echo "  VERBOSE_OUTPUT   Set to false to disable verbose output (default: true)"
+            echo "  VERBOSE_OUTPUT   Set to false to hide detailed command output for all tests (default: true)"
             echo "  FAIL_FAST        Set to true to stop at first failure (default: false)"
             exit 0
             ;;
@@ -169,6 +169,13 @@ test_should_succeed() {
 
     if [[ $exit_code -eq 0 ]]; then
         print_success "$test_name"
+        if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
+            echo -e "${GREEN}Command: $command${NC}"
+            echo -e "${GREEN}Exit code: $exit_code${NC}"
+            echo -e "${GREEN}Output:${NC}"
+            echo "$output" | sed 's/^/  /'  # Indent output for readability
+            echo ""
+        fi
         return 0
     else
         print_failure "$test_name - Operation was blocked but should have succeeded"
@@ -220,6 +227,13 @@ test_should_fail() {
         return 1
     else
         print_success "$test_name - Correctly blocked"
+        if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
+            echo -e "${GREEN}Command: $command${NC}"
+            echo -e "${GREEN}Exit code: $exit_code${NC}"
+            echo -e "${GREEN}Output:${NC}"
+            echo "$output" | sed 's/^/  /'  # Indent output for readability
+            echo ""
+        fi
         return 0
     fi
 }
