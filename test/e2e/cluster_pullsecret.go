@@ -37,10 +37,8 @@ type dockerConfig struct {
 }
 
 type dockerConfigAuth struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Email    string `json:"email"`
-	Auth     string `json:"auth"`
+	Email string `json:"email"`
+	Auth  string `json:"auth"`
 }
 
 var _ = Describe("Cluster Pull Secret Management", func() {
@@ -104,10 +102,8 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			testDockerConfig := dockerConfig{
 				Auths: map[string]dockerConfigAuth{
 					testPullSecretHost: {
-						Username: username,
-						Password: testPullSecretPassword,
-						Email:    testPullSecretEmail,
-						Auth:     auth,
+						Email: testPullSecretEmail,
+						Auth:  auth,
 					},
 				},
 			}
@@ -134,36 +130,43 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			globalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("parsing the current global pull secret")
-			var currentDockerConfig dockerConfig
-			err = json.Unmarshal(globalPullSecret.Data[corev1.DockerConfigJsonKey], &currentDockerConfig)
+			By("safely merging test pull secret with existing global pull secret using raw JSON")
+			// Parse existing secret as raw JSON to preserve all fields
+			var existingConfig map[string]interface{}
+			err = json.Unmarshal(globalPullSecret.Data[corev1.DockerConfigJsonKey], &existingConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("adding test pull secret to global pull secret")
-			if currentDockerConfig.Auths == nil {
-				currentDockerConfig.Auths = make(map[string]dockerConfigAuth)
+			// Ensure auths section exists
+			if existingConfig["auths"] == nil {
+				existingConfig["auths"] = make(map[string]interface{})
 			}
+
+			existingAuths, ok := existingConfig["auths"].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "auths field should be a map")
 
 			// Log the merge operation details
 			GinkgoWriter.Printf("=== MERGE OPERATION DEBUG ===\n")
-			GinkgoWriter.Printf("Existing hosts before merge: %v\n", maps.Keys(currentDockerConfig.Auths))
+			GinkgoWriter.Printf("Existing hosts before merge: %v\n", maps.Keys(existingAuths))
 			GinkgoWriter.Printf("Adding new host: %s\n", testPullSecretHost)
-			GinkgoWriter.Printf("New pull secret data: %+v\n", testDockerConfig.Auths[testPullSecretHost])
 
-			currentDockerConfig.Auths[testPullSecretHost] = testDockerConfig.Auths[testPullSecretHost]
+			// Add only our test entry without touching existing ones
+			existingAuths[testPullSecretHost] = map[string]interface{}{
+				"email": testPullSecretEmail,
+				"auth":  auth,
+			}
 
-			GinkgoWriter.Printf("Hosts after merge: %v\n", maps.Keys(currentDockerConfig.Auths))
-			GinkgoWriter.Printf("Total auth entries: %d\n", len(currentDockerConfig.Auths))
+			GinkgoWriter.Printf("Hosts after merge: %v\n", maps.Keys(existingAuths))
+			GinkgoWriter.Printf("Total auth entries: %d\n", len(existingAuths))
 
 			By("updating the global pull secret")
-			updatedDockerConfigJSON, err := json.Marshal(currentDockerConfig)
+			updatedDockerConfigJSON, err := json.Marshal(existingConfig)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Log the update operation
 			GinkgoWriter.Printf("=== UPDATE OPERATION DEBUG ===\n")
 			GinkgoWriter.Printf("JSON size before update: %d bytes\n", len(globalPullSecret.Data[corev1.DockerConfigJsonKey]))
 			GinkgoWriter.Printf("JSON size after merge: %d bytes\n", len(updatedDockerConfigJSON))
-			GinkgoWriter.Printf("Updating secret with %d hosts\n", len(currentDockerConfig.Auths))
+			GinkgoWriter.Printf("Updating secret with %d hosts\n", len(existingAuths))
 
 			globalPullSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
 			_, err = kubeClient.CoreV1().Secrets("openshift-config").Update(ctx, globalPullSecret, metav1.UpdateOptions{})
@@ -187,19 +190,24 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			GinkgoWriter.Printf("Retrieved secret resource version: %s\n", updatedGlobalPullSecret.ResourceVersion)
 			GinkgoWriter.Printf("Secret data size: %d bytes\n", len(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey]))
 
-			var verifyDockerConfig dockerConfig
-			err = json.Unmarshal(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey], &verifyDockerConfig)
+			// Verify using raw JSON to avoid struct limitations
+			var verifyConfig map[string]interface{}
+			err = json.Unmarshal(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey], &verifyConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			GinkgoWriter.Printf("Parsed hosts in updated secret: %v\n", maps.Keys(verifyDockerConfig.Auths))
+			verifyAuths, ok := verifyConfig["auths"].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "auths field should be a map")
+
+			GinkgoWriter.Printf("Parsed hosts in updated secret: %v\n", maps.Keys(verifyAuths))
 			GinkgoWriter.Printf("Expected host: %s\n", testPullSecretHost)
-			GinkgoWriter.Printf("Host present: %t\n", func() bool { _, ok := verifyDockerConfig.Auths[testPullSecretHost]; return ok }())
+			GinkgoWriter.Printf("Host present: %t\n", func() bool { _, ok := verifyAuths[testPullSecretHost]; return ok }())
 
 			By("checking that the test pull secret is present in the global pull secret")
-			Expect(verifyDockerConfig.Auths).To(HaveKey(testPullSecretHost))
-			Expect(verifyDockerConfig.Auths[testPullSecretHost].Username).To(Equal(username))
-			Expect(verifyDockerConfig.Auths[testPullSecretHost].Password).To(Equal(testPullSecretPassword))
-			Expect(verifyDockerConfig.Auths[testPullSecretHost].Email).To(Equal(testPullSecretEmail))
-			Expect(verifyDockerConfig.Auths[testPullSecretHost].Auth).To(Equal(auth))
+			Expect(verifyAuths).To(HaveKey(testPullSecretHost))
+
+			testEntry, ok := verifyAuths[testPullSecretHost].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "test entry should be a map")
+			Expect(testEntry["email"]).To(Equal(testPullSecretEmail))
+			Expect(testEntry["auth"]).To(Equal(auth))
 		})
 })
