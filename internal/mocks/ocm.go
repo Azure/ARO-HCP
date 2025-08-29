@@ -622,6 +622,44 @@ func (c *MockClusterServiceClientSpecListClustersCall) DoAndReturn(f func(string
 	return c
 }
 
+// ListExternalAuths mocks base method.
+func (m *MockClusterServiceClientSpec) ListExternalAuths(clusterInternalID ocm.InternalID, searchExpression string) ocm.ExternalAuthListIterator {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListExternalAuths", clusterInternalID, searchExpression)
+	ret0, _ := ret[0].(ocm.ExternalAuthListIterator)
+	return ret0
+}
+
+// ListExternalAuths indicates an expected call of ListExternalAuths.
+func (mr *MockClusterServiceClientSpecMockRecorder) ListExternalAuths(clusterInternalID, searchExpression any) *MockClusterServiceClientSpecListExternalAuthsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListExternalAuths", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).ListExternalAuths), clusterInternalID, searchExpression)
+	return &MockClusterServiceClientSpecListExternalAuthsCall{Call: call}
+}
+
+// MockClusterServiceClientSpecListExternalAuthsCall wrap *gomock.Call
+type MockClusterServiceClientSpecListExternalAuthsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) Return(arg0 ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) Do(f func(ocm.InternalID, string) ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) DoAndReturn(f func(ocm.InternalID, string) ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListNodePools mocks base method.
 func (m *MockClusterServiceClientSpec) ListNodePools(clusterInternalID ocm.InternalID, searchExpression string) ocm.NodePoolListIterator {
 	m.ctrl.T.Helper()
