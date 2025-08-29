@@ -308,11 +308,11 @@ test_check_access_operations() {
 
         # Test 4: Use Azure REST API to call check access directly (key FPA functionality)
         test_should_succeed "Call check access API for read permissions" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/read\"]}' --query 'accessDecision' -o tsv"
 
         # Test 4b: Check access for resource group operations
         test_should_succeed "Call check access API for resource group operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/resourceGroups/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/resourceGroups/read\"]}' --query 'accessDecision' -o tsv"
 
         # Test 5: Check permissions on storage accounts (common FPA use case)
         test_should_succeed "Check storage account permissions" \
@@ -324,11 +324,11 @@ test_check_access_operations() {
 
         # Test 6b: Check access for common Azure services (FPA use cases)
         test_should_succeed "Check access for storage operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Storage/storageAccounts/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Storage/storageAccounts/read\"]}' --query 'accessDecision' -o tsv"
 
         # Test 6c: Check access for network operations (relevant for ARO)
         test_should_succeed "Check access for network operations" \
-            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Network/virtualNetworks/read\"]}' --query 'accessDecision' -o tsv"
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Network/virtualNetworks/read\"]}' --query 'accessDecision' -o tsv"
 
     else
         print_info "Skipping check access tests - cannot get service principal ID"
