@@ -552,19 +552,16 @@ defaults:
       version: "2.14.0"
       mirrorAdditionalVersions: "2.12.0,2.13.0,2.13.1"
       bundle:
-        registry: registry.redhat.io
-        repository: rhacm2/acm-operator-bundle
+        registry: quay.io
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
         digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157 # v2.14.0-1
     mce:
       version: "2.9.0"
       mirrorAdditionalVersions: "2.8.1,2.8.2"
-      # pause to mitigate the CAPI CRD issue
-      # - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1748436890103839
-      # - https://redhat-internal.slack.com/archives/C057Y3D4E1J/p1749128475749979
       pauseReconciliation: false
       bundle:
-        registry: registry.redhat.io
-        repository: multicluster-engine/mce-operator-bundle
+        registry: quay.io
+        repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
         digest: sha256:4d9d003842e3ffc386f4e07ce7a81cfa85e676031fb6fdc96aefa9654244974a # v2.9.0-1
   # Cluster Service
   clustersService:
