@@ -60,10 +60,44 @@ createServicePrincipal() {
     CERTIFICATE_NAME=$2
     ROLE_DEFINITION_NAME=$3
 
+    # Check if application already exists
+    appExists=$(az ad app list --display-name "$APPLICATION_NAME" --query "[0].appId" -o tsv)
+    if [ -n "$appExists" ]; then
+        echo "Application $APPLICATION_NAME already exists (App ID: $appExists)"
+
+        # Check if service principal exists
+        spExists=$(az ad sp list --display-name "$APPLICATION_NAME" --query "[0].id" -o tsv)
+        if [ -n "$spExists" ]; then
+            echo "Service principal for $APPLICATION_NAME already exists"
+        else
+            echo "Creating service principal for existing application $APPLICATION_NAME"
+            az ad sp create --id "$appExists"
+        fi
+
+        # Check role assignment
+        roleAssignmentExists=$(az role assignment list \
+            --assignee "$appExists" \
+            --role "$ROLE_DEFINITION_NAME" \
+            --scope "/subscriptions/$SUBSCRIPTION_ID" \
+            --query "[0].id" -o tsv)
+
+        if [ -n "$roleAssignmentExists" ]; then
+            echo "Role assignment for $APPLICATION_NAME already exists"
+        else
+            echo "Creating role assignment for $APPLICATION_NAME"
+            az role assignment create \
+                --assignee "$appExists" \
+                --role "$ROLE_DEFINITION_NAME" \
+                --scope "/subscriptions/$SUBSCRIPTION_ID"
+        fi
+
+        return
+    fi
+
+    # Check if certificate exists
     certExists=$(az keyvault certificate list --vault-name $KEY_VAULT_NAME --query "[?name=='$CERTIFICATE_NAME'].name" -o tsv)
     if [ -n "$certExists" ]; then
         echo "Certificate $CERTIFICATE_NAME already exists"
-        exit 1
     else
         echo "Creating certificate $CERTIFICATE_NAME"
         az keyvault certificate create \
@@ -92,7 +126,22 @@ deployMockFpaPolicies() {
         exit 1
     fi
 
-    echo "Deploying policies for mock FPA with app ID: $mockFpaAppId"
+    echo "Checking policies for mock FPA with app ID: $mockFpaAppId"
+
+    # Check if policy definitions already exist
+    denyPolicyExists=$(az policy definition show --name "deny-mock-fpa-dangerous-ops-$USER" --query "name" -o tsv 2>/dev/null)
+    allowPolicyExists=$(az policy definition show --name "allow-mock-fpa-required-network-ops-$USER" --query "name" -o tsv 2>/dev/null)
+
+    # Check if policy assignments already exist
+    denyAssignmentExists=$(az policy assignment show --name "deny-mock-fpa-dangerous-ops-$USER" --query "name" -o tsv 2>/dev/null)
+    allowAssignmentExists=$(az policy assignment show --name "allow-mock-fpa-network-ops-$USER" --query "name" -o tsv 2>/dev/null)
+
+    if [ -n "$denyPolicyExists" ] && [ -n "$allowPolicyExists" ] && [ -n "$denyAssignmentExists" ] && [ -n "$allowAssignmentExists" ]; then
+        echo "Mock FPA restriction policies already exist and are assigned"
+        return
+    fi
+
+    echo "Deploying/updating policies for mock FPA"
 
     # Deploy the Bicep template at subscription scope
     az deployment sub create \
@@ -117,24 +166,34 @@ deleteMockFpaPolicies() {
 }
 
 createApps() {
-    echo "Creating standalone dev applications with the following ENV:"
+    echo "Creating standalone dev applications with the following ENV (idempotent):"
     printEnv
     if ! [ -x "$(command -v jq)" ]; then
         echo "jq is required to run this script"
         exit 1
     fi
 
-    echo "Creating resource group $RESOURCE_GROUP"
-    az group create \
-    --name "$RESOURCE_GROUP" \
-    --location "$LOCATION"
+    # Check if resource group exists
+    if az group show --name "$RESOURCE_GROUP" &>/dev/null; then
+        echo "Resource group $RESOURCE_GROUP already exists"
+    else
+        echo "Creating resource group $RESOURCE_GROUP"
+        az group create \
+        --name "$RESOURCE_GROUP" \
+        --location "$LOCATION"
+    fi
 
-    echo "Creating keyvault $KEY_VAULT_NAME"
-    az keyvault create \
-    --location "$LOCATION" \
-    --name "$KEY_VAULT_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --enable-rbac-authorization false
+    # Check if key vault exists
+    if az keyvault show --name "$KEY_VAULT_NAME" &>/dev/null; then
+        echo "Key vault $KEY_VAULT_NAME already exists"
+    else
+        echo "Creating keyvault $KEY_VAULT_NAME"
+        az keyvault create \
+        --location "$LOCATION" \
+        --name "$KEY_VAULT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --enable-rbac-authorization false
+    fi
 
     # NOTE: Using built-in Contributor role instead of custom role to support check access APIs
     # Custom role creation is commented out as we now use AZURE_BUILTIN_ROLE_CONTRIBUTOR
