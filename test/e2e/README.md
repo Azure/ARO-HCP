@@ -4,6 +4,16 @@ The E2E test suite will work in every environment of the ARO-HCP project. Its ma
 For more information about ARO HCP environments, see the [ARO HCP Environments documentation](https://github.com/Azure/ARO-HCP/blob/main/docs/environments.md).
 
 ## Writting and running new E2E Test cases
+
+### Resource Naming
+
+> **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed! 
+- The customer resource group name must be unique across the subscription. Using NewResourceGroup() from the framework will provide a unique resource group name as well as handle the cleanup.  
+- The managed resource group name must be unique across the subscription. If you use the provided bicep templates they will handle this by appending `-managed` suffix to the customer resource group name to create a unique managed resource group name.
+- If the test creates more than one cluster at a time, the names of the clusters must be unique.
+- Bicep deployment names must be unique within the same resource group.
+- When using your own customized bicep templates or creating resources via other means such as direct API calls be sure to follow the above rules, appending a 6 character random string to the cluster and managed resource group names is likely sufficient.
+
 ### Test cases with per-test cluster (**main focus**)
 When writing E2E test cases that provision their own cluster (i.e., the test case is responsible for creating and deleting the cluster within its `Context` or `It` block), follow these guidelines:
 
