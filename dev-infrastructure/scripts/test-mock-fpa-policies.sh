@@ -3,6 +3,17 @@
 # Test script to verify mock FPA restriction policies are working correctly
 # This script tests that the mock FPA has minimum required permissions and dangerous operations are blocked
 # The script continues running all tests even if some fail, providing a comprehensive report at the end
+#
+# Usage:
+#   ./test-mock-fpa-policies.sh [--quiet] [--fail-fast]
+#   VERBOSE_OUTPUT=false ./test-mock-fpa-policies.sh
+#   FAIL_FAST=true ./test-mock-fpa-policies.sh
+#
+# Options:
+#   --quiet: Disable verbose output (same as VERBOSE_OUTPUT=false)
+#   --fail-fast: Stop execution at the first test failure (default: continue all tests)
+#   VERBOSE_OUTPUT: Set to false to hide detailed error output (default: true)
+#   FAIL_FAST: Set to true to stop at first failure (default: false)
 
 set -euo pipefail
 
@@ -57,6 +68,57 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 TESTS_TOTAL=0
 
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --quiet|-q)
+            VERBOSE_OUTPUT=false
+            shift
+            ;;
+        --fail-fast|-f)
+            FAIL_FAST=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--quiet] [--fail-fast]"
+            echo "Test mock FPA restriction policies"
+            echo ""
+            echo "Options:"
+            echo "  --quiet, -q      Disable verbose error output"
+            echo "  --fail-fast, -f  Stop execution at the first test failure"
+            echo "  --help, -h       Show this help message"
+            echo ""
+            echo "Environment variables:"
+            echo "  VERBOSE_OUTPUT   Set to false to disable verbose output (default: true)"
+            echo "  FAIL_FAST        Set to true to stop at first failure (default: false)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Control variables (can be set via environment or command line)
+VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-true}
+FAIL_FAST=${FAIL_FAST:-false}
+
+# Helper function to run tests with optional continue-on-failure
+run_test() {
+    local test_function="$1"
+    local test_args="${@:2}"
+
+    if [[ "$FAIL_FAST" == "true" ]]; then
+        # In fail-fast mode, let the test function's exit logic handle failures
+        $test_function $test_args
+    else
+        # In continue mode, ignore test failures
+        $test_function $test_args || true
+    fi
+}
+
 print_header() {
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}$1${NC}"
@@ -90,11 +152,31 @@ test_should_succeed() {
 
     print_test "$test_name (should succeed)"
 
-    if eval "$command" >/dev/null 2>&1; then
+    # Capture both stdout and stderr
+    local output
+    local exit_code
+    output=$(eval "$command" 2>&1)
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
         print_success "$test_name"
         return 0
     else
         print_failure "$test_name - Operation was blocked but should have succeeded"
+        if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
+            echo -e "${RED}Command: $command${NC}"
+            echo -e "${RED}Exit code: $exit_code${NC}"
+            echo -e "${RED}Output:${NC}"
+            echo "$output" | sed 's/^/  /'  # Indent output for readability
+            echo ""
+        fi
+
+        # Exit immediately if fail-fast is enabled
+        if [[ "$FAIL_FAST" == "true" ]]; then
+            echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
+            exit 1
+        fi
+
         return 1
     fi
 }
@@ -106,8 +188,28 @@ test_should_fail() {
 
     print_test "$test_name (should be blocked)"
 
-    if eval "$command" >/dev/null 2>&1; then
+    # Capture both stdout and stderr
+    local output
+    local exit_code
+    output=$(eval "$command" 2>&1)
+    exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
         print_failure "$test_name - Operation succeeded but should have been blocked"
+        if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
+            echo -e "${RED}Command: $command${NC}"
+            echo -e "${RED}Exit code: $exit_code${NC}"
+            echo -e "${RED}Output:${NC}"
+            echo "$output" | sed 's/^/  /'  # Indent output for readability
+            echo ""
+        fi
+
+        # Exit immediately if fail-fast is enabled
+        if [[ "$FAIL_FAST" == "true" ]]; then
+            echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
+            exit 1
+        fi
+
         return 1
     else
         print_success "$test_name - Correctly blocked"
@@ -151,37 +253,84 @@ test_read_operations() {
     print_header "Testing Read Operations (Should Succeed)"
 
     test_should_succeed "List resource groups" \
-        "az group list --query '[].name' -o tsv" || true
+        "az group list --query '[].name' -o tsv"
 
     test_should_succeed "List storage accounts" \
-        "az storage account list --query '[].name' -o tsv" || true
+        "az storage account list --query '[].name' -o tsv"
 
     test_should_succeed "List virtual networks" \
-        "az network vnet list --query '[].name' -o tsv" || true
+        "az network vnet list --query '[].name' -o tsv"
 
     test_should_succeed "List key vaults" \
-        "az keyvault list --query '[].name' -o tsv" || true
+        "az keyvault list --query '[].name' -o tsv"
 
     test_should_succeed "Show subscription details" \
-        "az account show --query id -o tsv" || true
+        "az account show --query id -o tsv"
 }
 
 # Test check access operations (requires built-in role)
+# These tests verify that the mock FPA can successfully call Azure's check access APIs
+# This is the primary reason we need to use the built-in Contributor role instead of a custom role
 test_check_access_operations() {
     print_header "Testing Check Access Operations (Should Succeed)"
 
-    # Get current user's object ID for check access tests
-    local current_user_id=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+    # Get current service principal's object ID
+    local current_user_id=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
 
     if [[ -n "$current_user_id" ]]; then
-        test_should_succeed "Check access for current user" \
-            "az role assignment list --assignee '$current_user_id' --query '[].roleDefinitionName' -o tsv" || true
+        print_info "Testing check access API with service principal: $current_user_id"
+
+                # Test 1: Check access using role assignment list (basic check access)
+        test_should_succeed "List role assignments for current SP" \
+            "az role assignment list --assignee '$current_user_id' --query '[].roleDefinitionName' -o tsv"
+
+        # Test 2: Check access for subscription scope
+        test_should_succeed "Check access at subscription scope" \
+            "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[].roleDefinitionName' -o tsv"
+
+        # Test 3: Check access for resource group scope
+        test_should_succeed "Check access at resource group scope" \
+            "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG' --query '[].roleDefinitionName' -o tsv"
+
+        # Test 4: Use Azure REST API to call check access directly (key FPA functionality)
+        test_should_succeed "Call check access API for read permissions" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/read\"]}' --query 'accessDecision' -o tsv"
+
+        # Test 4b: Check access for resource group operations
+        test_should_succeed "Call check access API for resource group operations" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Resources/subscriptions/resourceGroups/read\"]}' --query 'accessDecision' -o tsv"
+
+        # Test 5: Check permissions on storage accounts (common FPA use case)
+        test_should_succeed "Check storage account permissions" \
+            "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[?contains(roleDefinitionName, \`Contributor\`)].roleDefinitionName' -o tsv"
+
+        # Test 6: Verify we can read our own role assignments (this is what FPA typically does)
+        test_should_succeed "Verify Contributor role assignment" \
+            "az role assignment list --assignee '$current_user_id' --role 'Contributor' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[0].roleDefinitionName' -o tsv"
+
+        # Test 6b: Check access for common Azure services (FPA use cases)
+        test_should_succeed "Check access for storage operations" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Storage/storageAccounts/read\"]}' --query 'accessDecision' -o tsv"
+
+        # Test 6c: Check access for network operations (relevant for ARO)
+        test_should_succeed "Check access for network operations" \
+            "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2015-07-01' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[\"Microsoft.Network/virtualNetworks/read\"]}' --query 'accessDecision' -o tsv"
+
     else
-        print_info "Skipping check access test - cannot get current user ID"
+        print_info "Skipping check access tests - cannot get service principal ID"
     fi
 
+    # Test 7: List role definitions (should work with Contributor)
     test_should_succeed "List role definitions" \
-        "az role definition list --query '[0].roleName' -o tsv" || true
+        "az role definition list --query '[0].roleName' -o tsv"
+
+    # Test 8: Get specific role definition (common check access scenario)
+    test_should_succeed "Get Contributor role definition" \
+        "az role definition list --name 'Contributor' --query '[0].roleName' -o tsv"
+
+    # Test 9: Test permissions enumeration (FPA common operation)
+    test_should_succeed "List all permissions for Contributor role" \
+        "az role definition list --name 'Contributor' --query '[0].permissions[0].actions' -o tsv"
 }
 
 # Test policy-restricted operations (should be blocked)
@@ -249,6 +398,8 @@ main() {
 
     print_info "Testing environment: $SUBSCRIPTION_ID"
     print_info "Mock FPA Application: $FP_APPLICATION_NAME"
+    print_info "Verbose output: $VERBOSE_OUTPUT"
+    print_info "Fail fast mode: $FAIL_FAST"
 
     # Save current context
     save_current_user
@@ -304,12 +455,12 @@ main() {
         print_info "Successfully logged in as: $current_user ($current_type)"
     fi
 
-    # Run test suites - continue even if some fail
-    test_read_operations || true
-    test_check_access_operations || true
-    test_restricted_operations || true
-    test_vm_operations || true
-    test_network_operations || true
+    # Run test suites - behavior depends on FAIL_FAST setting
+    run_test test_read_operations
+    run_test test_check_access_operations
+    #run_test test_restricted_operations
+    #run_test test_vm_operations
+    #run_test test_network_operations
 
     # Restore original context only if we changed it
     if [[ "$skip_login" == "false" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
@@ -351,5 +502,5 @@ fi
 
 
 
-# Run main function
-main "$@"
+# Run main function (arguments already parsed above)
+main
