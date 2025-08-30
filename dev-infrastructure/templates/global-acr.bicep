@@ -87,6 +87,28 @@ module svcAcr '../modules/acr/acr.bicep' = {
   }
 }
 
+module svcCaching '../modules/acr/cache.bicep' = {
+  name: '${svcAcrName}-caching'
+  params: {
+    acrName: svcAcrName
+    location: location
+    quayRepositoriesToCache: [
+      {
+        ruleName: 'acm-d-multicluster-engine'
+        sourceRepo: 'quay.io/acm-d/*'
+        targetRepo: 'acm-d-cache/*'
+        userIdentifier: 'acm-d-username'
+        passwordIdentifier: 'acm-d-password'
+        loginServer: 'quay.io'
+      }
+    ]
+    keyVaultName: globalKeyVaultName
+  }
+  dependsOn: [
+    svcAcr
+  ]
+}
+
 module globalMSISvcAcrAccess '../modules/acr/acr-permissions.bicep' = {
   name: '${globalMSIName}-svc-acr-access'
   params: {
