@@ -2,7 +2,6 @@ SHELL = /bin/bash
 DEPLOY_ENV ?= pers
 CLOUD ?= dev
 PRINCIPAL_ID ?= $(shell az ad signed-in-user show -o json | jq -r '.id')
-$(shell ./create-config.sh $(DEPLOY_ENV))
 include config.mk
 
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
@@ -34,6 +33,49 @@ AUTOMATION_ACCOUNT_ENVS = dev stage int
 list:
 	@grep '^[^#[:space:]].*:' Makefile
 .PHONY: list
+
+# Create configuration files
+config.mk: create-config.sh ../config/config.yaml
+	@echo "Creating configuration for environment: $(DEPLOY_ENV)"
+	@CONFIG_OUTPUT=$$(./create-config.sh $(DEPLOY_ENV) 2>&1); CONFIG_EXIT=$$?; \
+	if [ $$CONFIG_EXIT -ne 0 ]; then \
+		echo "Configuration creation failed for environment '$(DEPLOY_ENV)'"; \
+		echo "Error details:"; \
+		echo "$$CONFIG_OUTPUT" | sed 's/^/   /'; \
+		echo ""; \
+		echo "Check your configuration files in ./configurations/ directory"; \
+		echo "Common issues:"; \
+		echo "   - Missing required parameters in .bicepparam files"; \
+		echo "   - Invalid template references"; \
+		echo "   - Missing environment-specific configurations"; \
+		exit 1; \
+	fi
+	@echo "Configuration created successfully"
+
+config: config.mk
+.PHONY: config
+
+# Test configuration without deploying
+test-config:
+	@echo "Testing configuration for environment: $(DEPLOY_ENV)"
+	@CONFIG_OUTPUT=$$(./create-config.sh $(DEPLOY_ENV) 2>&1); CONFIG_EXIT=$$?; \
+	if [ $$CONFIG_EXIT -ne 0 ]; then \
+		echo "Configuration test failed for environment '$(DEPLOY_ENV)'"; \
+		echo "Error details:"; \
+		echo "$$CONFIG_OUTPUT" | sed 's/^/   /'; \
+		echo ""; \
+		echo "Check your configuration files in ./configurations/ directory"; \
+		echo "Common issues:"; \
+		echo "   - Missing required parameters in .bicepparam files"; \
+		echo "   - Invalid template references"; \
+		echo "   - Missing environment-specific configurations"; \
+		exit 1; \
+	else \
+		echo "Configuration test passed for environment '$(DEPLOY_ENV)'"; \
+		echo "Generated configuration files:"; \
+		ls -la config.mk 2>/dev/null || echo "   No config.mk generated"; \
+	fi
+.PHONY: test-config
 
 templates := $(wildcard ./templates/*.bicep)
 modules := $(shell find ./modules -name "*.bicep")
@@ -155,11 +197,11 @@ create-mock-identities:
 # Global
 #
 
-global:
+global: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run
 .PHONY: global
 
-global.what-if:
+global.what-if: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run -d
 .PHONY: global.what-if
 
@@ -167,7 +209,7 @@ global.what-if:
 # Region
 #
 
-region:
+region: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run
 .PHONY: region
 
@@ -178,7 +220,7 @@ region.clean:
 	fi
 .PHONY: region.clean
 
-region.what-if:
+region.what-if: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run -d
 .PHONY: region.what-if
 
@@ -186,7 +228,7 @@ region.what-if:
 # Service Cluster
 #
 
-svc:
+svc: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run
 .PHONY: svc
 
@@ -235,7 +277,7 @@ svc.dev.permissions: svc.oidc.storage.permissions svc.kv.permission
 svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.dev.permissions
 .PHONY: svc.init
 
-svc.what-if:
+svc.what-if: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run -d
 .PHONY: svc.what-if
 
@@ -262,7 +304,7 @@ svc.clean: svc.clean-nsp-associations
 # Management Cluster
 #
 
-mgmt:
+mgmt: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run
 .PHONY: mgmt
 
@@ -282,7 +324,7 @@ mgmt.aks.kubeconfigfile:
 mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
 .PHONY: mgmt.init
 
-mgmt.what-if:
+mgmt.what-if: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run -d
 .PHONY: mgmt.what-if
 
@@ -315,11 +357,11 @@ mgmt.solo:
 # Monitoring
 #
 
-monitoring:
+monitoring: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring
 
-monitoring.what-if:
+monitoring.what-if: config
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run -d
 .PHONY: monitoring.what-if
 
@@ -331,7 +373,7 @@ acr: acr-svc-cfg
 acr.what-if: acr-svc-cfg.what-if
 .PHONY: acr.what-if
 
-acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
+acr-svc-cfg: config # DEV only setup of caching rules in OCP ACR
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -341,7 +383,7 @@ acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg
 
-acr-svc-cfg.what-if:
+acr-svc-cfg.what-if: config
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -402,7 +444,7 @@ operator-roles:
 		--parameters configurations/dev-operator-roles.bicepparam
 .PHONY: operator-roles
 
-operator-roles.what-if:
+operator-roles.what-if: config
 	az deployment sub what-if \
 	    --location westus3 \
 		--name operator-roles \
@@ -439,7 +481,7 @@ automation-account:
 	done
 .PHONY: automation-account
 
-automation-account.what-if:
+automation-account.what-if: config
 	@for env in $(AUTOMATION_ACCOUNT_ENVS); do \
 		$(MAKE) automation-account-$$env.what-if; \
 	done
