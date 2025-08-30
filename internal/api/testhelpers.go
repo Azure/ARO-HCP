@@ -17,6 +17,7 @@ package api
 import (
 	"io"
 	"log/slog"
+	"maps"
 	"path"
 	"reflect"
 	"strings"
@@ -223,4 +224,31 @@ func AssertJSONPath[T any](t *testing.T, path string) bool {
 	}
 
 	return true
+}
+
+// SkipVisibilityTest is for fields that are not validated but
+// may set a default visibility value for its descendant fields.
+const SkipVisibilityTest = VisibilityFlags(0)
+
+// TestVersionedVisibilityMap is a reusable test that versioned APIs can use
+// to verify their expected field visibilities against their VisibilityMaps,
+// which may include version-specific overrides.
+func TestVersionedVisibilityMap(t *testing.T, actualVisibility VisibilityMap, expectedVisibility VisibilityMap) {
+	t.Helper()
+
+	checklist := maps.Clone(actualVisibility)
+
+	for path, expectedFlags := range expectedVisibility {
+		actualFlags := actualVisibility[path]
+		if expectedFlags == SkipVisibilityTest {
+			// Skipped cases should not be nullable.
+			assert.False(t, actualFlags.IsNullable(), "%s is nullable and should not be skipped", path)
+		} else {
+			assert.Equalf(t, expectedFlags, actualFlags, "%s: expected %q, actual %q", path, expectedFlags, actualFlags)
+		}
+		delete(checklist, path)
+	}
+
+	// Make sure expectedVisibility didn't miss any fields.
+	assert.Empty(t, checklist)
 }
