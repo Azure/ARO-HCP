@@ -300,7 +300,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			ID(api.TestLocation)).
 		Version(arohcpv1alpha1.NewVersion().
 			ID("").
-			ChannelGroup("stable")).
+			ChannelGroup("fast")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled))
 }

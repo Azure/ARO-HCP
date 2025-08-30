@@ -50,7 +50,7 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup fast,omitempty,openshift_version"`
 	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 }
 
@@ -169,7 +169,7 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: "fast",
 			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
@@ -217,13 +217,14 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 		}
 	}
 
-	// XXX For now, "stable" is the only accepted value. In the future, we may
+	// XXX For now, "fast" is the only accepted value. In the future, we may
 	//     allow unlocking other channel groups through Azure Feature Exposure
 	//     Control (AFEC) flags or some other mechanism.
-	if cluster.Properties.Version.ChannelGroup != "stable" {
+	// TODO: support other channel groups through AFEC for devs
+	if cluster.Properties.Version.ChannelGroup != "fast" {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: "Channel group must be 'stable'",
+			Message: "Channel group must be 'fast'",
 			Target:  "properties.version.channelGroup",
 		})
 	}
