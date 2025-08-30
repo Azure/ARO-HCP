@@ -27,12 +27,12 @@ const (
 	ProviderNamespace               = "Microsoft.RedHatOpenShift"
 	ProviderNamespaceDisplay        = "Azure Red Hat OpenShift"
 	ClusterResourceTypeName         = "hcpOpenShiftClusters"
+	VersionResourceTypeName         = "hcpOpenShiftVersions"
 	NodePoolResourceTypeName        = "nodePools"
 	ExternalAuthResourceTypeName    = "externalAuths"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
-	ClusterVersionTypeName          = "hcpOpenShiftVersions"
 )
 
 var (
@@ -40,7 +40,7 @@ var (
 	NodePoolResourceType     = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
 	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+ClusterVersionTypeName)
+	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
 type VersionedHCPOpenShiftCluster interface {
