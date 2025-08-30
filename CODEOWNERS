@@ -1,4 +1,4 @@
-* @bennerv @jharrington22 @SudoBrendan @ulrichschlueter
+* @bennerv @jharrington22 @SudoBrendan
 Makefile @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
 .*.yml @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
 .*.yaml @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
@@ -13,9 +13,9 @@ Makefile @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
 /.github/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
 /.devcontainer/ @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
-/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521 @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov
+/dev-infrastructure/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @weinong @whober0521 @tony-schndr @jfchevrette @mmazur @roivaz @stevekuznetsov
 /dev-infrastructure/modules/rp-cosmos.bicep @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @tsatam @katherinelc321
-/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @ulrichschlueter @weinong @whober0521
+/image-sync/ @bennerv @geoberle @janboll @jmelis @jonathan34c @SudoBrendan @weinong @whober0521
 /api/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @tsatam @katherinelc321
 /demo/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @tony-schndr @sclarkso @tsatam @katherinelc321
 /frontend/ @bennerv @mbarnes @SudoBrendan @mociarain @venkateshsredhat @nanyte25 @kostola @DennisJWheeler @hbhushan3 @oriAdler @sclarkso @tsatam @katherinelc321
