@@ -22,6 +22,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
+
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -130,7 +132,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			err = framework.VerifyHCPCluster(ctx, adminRESTConfig, framework.VerifyImageRegistryDisabled())
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyImageRegistryDisabled())
 			Expect(err).NotTo(HaveOccurred())
 		})
 })

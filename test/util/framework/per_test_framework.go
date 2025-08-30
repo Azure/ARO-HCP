@@ -84,6 +84,11 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 
 // deleteCreatedResources deletes what was created that we know of.
 func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
+	if tc.perBinaryInvocationTestContext.skipCleanup {
+		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
+		return
+	}
+
 	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to get HCP client")
