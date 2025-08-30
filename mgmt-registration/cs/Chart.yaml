@@ -1,0 +1,6 @@
+apiVersion: v2
+name: clusters-service-mgmt-cluster-registration
+description: A Helm chart for MGMT cluster registration with CS
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
