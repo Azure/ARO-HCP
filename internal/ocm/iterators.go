@@ -35,7 +35,7 @@ type VersionsListIterator struct {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster] {
+func (iter *ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster] {
 	return func(yield func(*arohcpv1alpha1.Cluster) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -89,7 +89,7 @@ type NodePoolListIterator struct {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
+func (iter *NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
 	return func(yield func(*arohcpv1alpha1.NodePool) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -143,7 +143,7 @@ type ExternalAuthListIterator struct {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter ExternalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth] {
+func (iter *ExternalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth] {
 	return func(yield func(*arohcpv1alpha1.ExternalAuth) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -197,7 +197,7 @@ type BreakGlassCredentialListIterator struct {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter BreakGlassCredentialListIterator) Items(ctx context.Context) iter.Seq[*cmv1.BreakGlassCredential] {
+func (iter *BreakGlassCredentialListIterator) Items(ctx context.Context) iter.Seq[*cmv1.BreakGlassCredential] {
 	return func(yield func(*cmv1.BreakGlassCredential) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -246,7 +246,7 @@ func (iter BreakGlassCredentialListIterator) GetError() error {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Version] {
+func (iter *VersionsListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Version] {
 	return func(yield func(*arohcpv1alpha1.Version) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
