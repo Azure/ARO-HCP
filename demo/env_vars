@@ -9,7 +9,11 @@ is_stg_testing_subscription() {
     return $(test "$(az account show --query name --output tsv)" = "ARO HCP - STAGE testing (EA Subscription)")
 }
 
-if is_int_testing_subscription; then
+# Special case for consultants - they can set CONSULTANT=true to use Azure cloud endpoint
+if [ "${CONSULTANT:-}" = "true" ]; then
+    export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
+    DEMO_ENV_NAME=consultant
+elif is_int_testing_subscription; then
     export FRONTEND_HOST=$(az cloud show --query endpoints.resourceManager --output tsv)
     DEMO_ENV_NAME=int
 elif is_stg_testing_subscription; then
