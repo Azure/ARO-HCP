@@ -3,7 +3,7 @@
 # This script can be used to spin up a standalone dev application which will be used as a 'mock first party application'.
 # This is required due to the lack of the ability to have a first party app be used in the dev tenant
 #
-# This script uses a dedicated Azure CLI config directory (azure-config) to avoid interfering
+# This script uses a dedicated Azure CLI config directory (mock-fpa-azure-config) to avoid interfering
 # with the user's existing Azure CLI configuration.
 
 LOCATION=${LOCATION:-"westus3"}

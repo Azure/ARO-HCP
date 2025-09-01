@@ -4,7 +4,7 @@
 # This script tests that the mock FPA has minimum required permissions and dangerous operations are blocked
 # The script continues running all tests even if some fail, providing a comprehensive report at the end
 #
-# This script uses a dedicated Azure CLI config directory (../azure-config) to avoid interfering
+# This script uses a dedicated Azure CLI config directory (../mock-fpa-azure-config) to avoid interfering
 # with the user's existing Azure CLI configuration.
 #
 # Usage:
@@ -245,29 +245,9 @@ testShouldFail() {
     fi
 }
 
-# Save current user context
-saveCurrentUser() {
-    ORIGINAL_USER=$(az account show --query user.name -o tsv 2>/dev/null || echo "unknown")
-    ORIGINAL_USER_TYPE=$(az account show --query user.type -o tsv 2>/dev/null || echo "unknown")
-    printInfo "Original user: $ORIGINAL_USER ($ORIGINAL_USER_TYPE)"
-}
 
-# Restore original user context
-restoreOriginalUser() {
-    printInfo "Restoring original user context..."
 
-    # Clean up certificate files from service principal session
-    printInfo "Cleaning up certificate files"
-    cleanupMockFpaCertificateFiles
 
-    if [[ "$ORIGINAL_USER_TYPE" == "user" ]]; then
-        az login >/dev/null 2>&1 || {
-            echo -e "${YELLOW}⚠️  Please run 'az login' to restore your session${NC}"
-        }
-    else
-        echo -e "${YELLOW}⚠️  Please restore your original authentication context${NC}"
-    fi
-}
 
 # Get a test resource group for non-destructive tests
 getTestResourceGroup() {
@@ -446,9 +426,6 @@ main() {
     printInfo "Verbose output: $VERBOSE_OUTPUT"
     printInfo "Fail fast mode: $FAIL_FAST"
 
-    # Save current context
-    saveCurrentUser
-
     # Get test resources
     if ! getTestResourceGroup; then
         printFailure "Could not determine test resource group"
@@ -475,7 +452,6 @@ main() {
 
         if [[ "$current_type" != "servicePrincipal" ]]; then
             printFailure "Not logged in as service principal (type: $current_type)"
-            restoreOriginalUser
             exit 1
         fi
 
@@ -489,12 +465,8 @@ main() {
     runTest testVmOperations
     runTest testNetworkOperations
 
-    # Restore original context only if we changed it
-    if [[ "$skip_login" == "false" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
-        restoreOriginalUser
-    else
-        printInfo "Keeping current service principal session"
-    fi
+    # The isolated Azure config directory ensures no interference with user's setup
+    printInfo "Mock FPA testing completed with isolated Azure configuration"
 
     # Print summary
     printHeader "Test Results Summary"
@@ -517,11 +489,6 @@ cleanupOnInterrupt() {
 
     # Clean up certificate files
     cleanupMockFpaCertificateFiles
-
-    # Only restore if we were originally a user (not service principal)
-    if [[ -n "$ORIGINAL_USER_TYPE" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
-        restoreOriginalUser
-    fi
     exit 1
 }
 trap 'cleanupOnInterrupt' INT TERM

@@ -7,13 +7,13 @@
 setupAzureConfig() {
     local script_dir="$1"
 
-    AZURE_CONFIG_DIR="$script_dir/../azure-config"
+    AZURE_CONFIG_DIR="$script_dir/../mock-fpa-azure-config"
     export AZURE_CONFIG_DIR
 
     # Create Azure config directory if it doesn't exist
     mkdir -p "$AZURE_CONFIG_DIR"
 
-    # Define certificate file paths with mock-fpa- prefix in azure-config directory
+    # Define certificate file paths with mock-fpa- prefix in mock-fpa-azure-config directory
     MOCK_FPA_PFX_FILE="$AZURE_CONFIG_DIR/mock-fpa-app.pfx"
     MOCK_FPA_PEM_FILE="$AZURE_CONFIG_DIR/mock-fpa-app.pem"
 
@@ -21,7 +21,7 @@ setupAzureConfig() {
     export MOCK_FPA_PEM_FILE
 }
 
-# Login with mock service principal using certificates from azure-config directory
+# Login with mock service principal using certificates from mock-fpa-azure-config directory
 loginWithMockServicePrincipal() {
     local fp_certificate_name="$1"
     local key_vault_name="$2"
