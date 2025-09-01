@@ -43,7 +43,7 @@ const (
 	errLocationFailedBuildingClusterServiceExternalAuth       = "failed building cluster service external auth"
 	errLocationFailedBuildingClusterServiceNodePool           = "failed building cluster service node pool"
 	errLocationFailedCallingClusterService                    = "failed during delegation"
-	errLocationFailedCancelingActiveOperations                = "failed during active operation cancellation"
+	errLocationFailedCancellingActiveOperations               = "failed during active operation cancellation"
 	errLocationFailedConvertingFromClusterServiceCluster      = "failed converting from CS cluster"
 	errLocationFailedConvertingFromClusterServiceExternalAuth = "failed converting from CS external auth"
 	errLocationFailedConvertingFromClusterServiceNodePool     = "failed converting from CS node pool"

@@ -892,7 +892,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedCancelingActiveOperations)
+		arm.WriteInternalServerError(writer, errLocationFailedCancellingActiveOperations)
 		return
 	}
 

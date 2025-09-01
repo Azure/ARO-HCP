@@ -197,7 +197,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError(errLocationFailedCancelingActiveOperations)
+		return "", arm.NewInternalServerError(errLocationFailedCancellingActiveOperations)
 	}
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
