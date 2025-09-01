@@ -12,6 +12,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/microsoft/go-otel-audit v0.2.2
+	github.com/microsoft/kiota-abstractions-go v1.9.3
+	github.com/microsoft/kiota-http-go v1.5.4
+	github.com/microsoft/kiota-serialization-form-go v1.1.2
+	github.com/microsoft/kiota-serialization-json-go v1.1.2
+	github.com/microsoft/kiota-serialization-multipart-go v1.1.2
+	github.com/microsoft/kiota-serialization-text-go v1.1.2
 	github.com/openshift-online/ocm-sdk-go v0.1.473
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/contrib/exporters/autoexport v0.62.0
