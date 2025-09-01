@@ -912,6 +912,48 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "ocpVersions": {
+          "type": "object",
+          "properties": {
+            "defaultVersion": {
+              "type": "object",
+              "properties": {
+                "channelGroupName": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": ["channelGroupName", "version"],
+              "additionalProperties": false
+            },
+            "channelGroups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "channelGroupName": {
+                    "type": "string"
+                  },
+                  "minVersion": {
+                    "type": "string"
+                  },
+                  "maxVersion": {
+                    "type": "string"
+                  }
+                },
+                "required": ["url", "channelGroupName", "minVersion"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["defaultVersion", "channelGroups"],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -924,7 +966,8 @@
         "azureOperatorsManagedIdentities",
         "postgres",
         "tracing",
-        "azureRuntimeConfig"
+        "azureRuntimeConfig",
+        "ocpVersions"
       ]
     },
     "cxKeyVault": {
