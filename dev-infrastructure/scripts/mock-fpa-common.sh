@@ -4,7 +4,7 @@
 # This file contains shared logic for dev-application.sh and test-mock-fpa-policies.sh
 
 # Set up dedicated Azure CLI config directory and file paths
-setup_azure_config() {
+setupAzureConfig() {
     local script_dir="$1"
 
     AZURE_CONFIG_DIR="$script_dir/../azure-config"
@@ -35,7 +35,7 @@ loginWithMockServicePrincipal() {
 
     # Ensure azure config directory and file paths are set up
     if [[ -z "$MOCK_FPA_PFX_FILE" || -z "$MOCK_FPA_PEM_FILE" ]]; then
-        echo "Error: Mock FPA file paths not initialized. Call setup_azure_config first."
+        echo "Error: Mock FPA file paths not initialized. Call setupAzureConfig first."
         return 1
     fi
 
@@ -103,11 +103,11 @@ cleanupMockFpaCertificateFiles() {
 }
 
 # Check if we're already logged in as the expected mock FPA service principal
-is_logged_in_as_mock_fpa() {
+isLoggedInAsMockFpa() {
     local fp_application_name="$1"
 
     if [[ -z "$fp_application_name" ]]; then
-        echo "Error: Missing application name for is_logged_in_as_mock_fpa"
+        echo "Error: Missing application name for isLoggedInAsMockFpa"
         return 1
     fi
 

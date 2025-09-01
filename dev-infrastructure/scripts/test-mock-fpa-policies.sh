@@ -32,7 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/mock-fpa-common.sh"
 
 # Set up Azure config directory and file paths
-setup_azure_config "$SCRIPT_DIR"
+setupAzureConfig "$SCRIPT_DIR"
 
 # Source environment variables from dev-application.sh
 if ! eval "$($SCRIPT_DIR/dev-application.sh shell)"; then
@@ -51,7 +51,7 @@ FP_CERTIFICATE_NAME="${ARO_HCP_DEV_FP_CERTIFICATE_NAME:-}"
 AH_APPLICATION_NAME="${ARO_HCP_DEV_AH_APPLICATION_NAME:-}"
 
 # Validate required variables are set
-validate_environment() {
+validateEnvironment() {
     local missing_vars=()
 
     [[ -z "$SUBSCRIPTION_ID" ]] && missing_vars+=("SUBSCRIPTION_ID")
@@ -67,7 +67,7 @@ validate_environment() {
         exit 1
     fi
 
-    print_info "Environment validated successfully"
+    printInfo "Environment validated successfully"
 }
 
 # Test results tracking
@@ -113,7 +113,7 @@ VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-true}
 FAIL_FAST=${FAIL_FAST:-false}
 
 # Helper function to exit cleanly in fail-fast mode
-fail_fast_exit() {
+failFastExit() {
     echo -e "${RED}💥 FAIL-FAST: Stopping execution due to test failure${NC}"
     # Flush output buffers before exiting to ensure all messages are displayed
     exec 1>&1 2>&2
@@ -122,7 +122,7 @@ fail_fast_exit() {
 }
 
 # Helper function to run tests with optional continue-on-failure
-run_test() {
+runTest() {
     local test_function="$1"
     local test_args="${@:2}"
 
@@ -135,38 +135,38 @@ run_test() {
     fi
 }
 
-print_header() {
+printHeader() {
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}$1${NC}"
     echo -e "${BLUE}========================================${NC}"
 }
 
-print_test() {
+printTest() {
     echo -e "${YELLOW}Testing: $1${NC}"
 }
 
-print_success() {
+printSuccess() {
     echo -e "${GREEN}✅ PASS: $1${NC}"
     ((TESTS_PASSED++))
     ((TESTS_TOTAL++))
 }
 
-print_failure() {
+printFailure() {
     echo -e "${RED}❌ FAIL: $1${NC}"
     ((TESTS_FAILED++))
     ((TESTS_TOTAL++))
 }
 
-print_info() {
+printInfo() {
     echo -e "${BLUE}ℹ️ INFO: $1${NC}"
 }
 
 # Test if an operation should succeed
-test_should_succeed() {
+testShouldSucceed() {
     local test_name="$1"
     local command="$2"
 
-    print_test "$test_name (should succeed)"
+    printTest "$test_name (should succeed)"
 
     # Capture both stdout and stderr
     local output
@@ -175,7 +175,7 @@ test_should_succeed() {
     exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
-        print_success "$test_name"
+        printSuccess "$test_name"
         if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
             echo -e "${GREEN}Command: $command${NC}"
             echo -e "${GREEN}Exit code: $exit_code${NC}"
@@ -185,7 +185,7 @@ test_should_succeed() {
         fi
         return 0
     else
-        print_failure "$test_name - Operation was blocked but should have succeeded"
+        printFailure "$test_name - Operation was blocked but should have succeeded"
         if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
             echo -e "${RED}Command: $command${NC}"
             echo -e "${RED}Exit code: $exit_code${NC}"
@@ -196,7 +196,7 @@ test_should_succeed() {
 
         # Exit immediately if fail-fast is enabled
         if [[ "$FAIL_FAST" == "true" ]]; then
-            fail_fast_exit
+            failFastExit
         fi
 
         return 1
@@ -204,11 +204,11 @@ test_should_succeed() {
 }
 
 # Test if an operation should be blocked
-test_should_fail() {
+testShouldFail() {
     local test_name="$1"
     local command="$2"
 
-    print_test "$test_name (should be blocked)"
+    printTest "$test_name (should be blocked)"
 
     # Capture both stdout and stderr
     local output
@@ -217,7 +217,7 @@ test_should_fail() {
     exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
-        print_failure "$test_name - Operation succeeded but should have been blocked"
+        printFailure "$test_name - Operation succeeded but should have been blocked"
         if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
             echo -e "${RED}Command: $command${NC}"
             echo -e "${RED}Exit code: $exit_code${NC}"
@@ -228,12 +228,12 @@ test_should_fail() {
 
         # Exit immediately if fail-fast is enabled
         if [[ "$FAIL_FAST" == "true" ]]; then
-            fail_fast_exit
+            failFastExit
         fi
 
         return 1
     else
-        print_success "$test_name - Correctly blocked"
+        printSuccess "$test_name - Correctly blocked"
         if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
             echo -e "${GREEN}Command: $command${NC}"
             echo -e "${GREEN}Exit code: $exit_code${NC}"
@@ -246,18 +246,18 @@ test_should_fail() {
 }
 
 # Save current user context
-save_current_user() {
+saveCurrentUser() {
     ORIGINAL_USER=$(az account show --query user.name -o tsv 2>/dev/null || echo "unknown")
     ORIGINAL_USER_TYPE=$(az account show --query user.type -o tsv 2>/dev/null || echo "unknown")
-    print_info "Original user: $ORIGINAL_USER ($ORIGINAL_USER_TYPE)"
+    printInfo "Original user: $ORIGINAL_USER ($ORIGINAL_USER_TYPE)"
 }
 
 # Restore original user context
-restore_original_user() {
-    print_info "Restoring original user context..."
+restoreOriginalUser() {
+    printInfo "Restoring original user context..."
 
     # Clean up certificate files from service principal session
-    print_info "Cleaning up certificate files"
+    printInfo "Cleaning up certificate files"
     cleanupMockFpaCertificateFiles
 
     if [[ "$ORIGINAL_USER_TYPE" == "user" ]]; then
@@ -270,118 +270,118 @@ restore_original_user() {
 }
 
 # Get a test resource group for non-destructive tests
-get_test_resource_group() {
+getTestResourceGroup() {
     # Try to find an existing resource group, or use the dev application RG
     TEST_RG=${RESOURCE_GROUP:-$(az group list --query "[0].name" -o tsv 2>/dev/null)}
     if [[ -z "$TEST_RG" ]]; then
-        print_failure "No resource groups found for testing"
+        printFailure "No resource groups found for testing"
         return 1
     fi
-    print_info "Using test resource group: $TEST_RG"
+    printInfo "Using test resource group: $TEST_RG"
     return 0
 }
 
 # Test basic read operations (should work with Contributor role)
-test_read_operations() {
-    print_header "Testing Read Operations (Should Succeed)"
+testReadOperations() {
+    printHeader "Testing Read Operations (Should Succeed)"
 
-    test_should_succeed "List resource groups" \
+    testShouldSucceed "List resource groups" \
         "az group list --query '[].name' -o tsv"
 
-    test_should_succeed "List storage accounts" \
+    testShouldSucceed "List storage accounts" \
         "az storage account list --query '[].name' -o tsv"
 
-    test_should_succeed "List virtual networks" \
+    testShouldSucceed "List virtual networks" \
         "az network vnet list --query '[].name' -o tsv"
 
-    test_should_succeed "List key vaults" \
+    testShouldSucceed "List key vaults" \
         "az keyvault list --query '[].name' -o tsv"
 
-    test_should_succeed "Show subscription details" \
+    testShouldSucceed "Show subscription details" \
         "az account show --query id -o tsv"
 }
 
 # Test check access operations (requires built-in role)
 # These tests verify that the mock FPA can successfully call Azure's check access APIs
 # This is the primary reason we need to use the built-in Contributor role instead of a custom role
-test_check_access_operations() {
-    print_header "Testing Check Access Operations (Should Succeed)"
+testCheckAccessOperations() {
+    printHeader "Testing Check Access Operations (Should Succeed)"
 
     # Get current service principal's object ID
     local current_user_id=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
 
     if [[ -n "$current_user_id" ]]; then
-        print_info "Testing check access API with service principal: $current_user_id"
+        printInfo "Testing check access API with service principal: $current_user_id"
 
                 # Test 1: Check access using role assignment list (basic check access)
-        test_should_succeed "List role assignments for current SP" \
+        testShouldSucceed "List role assignments for current SP" \
             "az role assignment list --assignee '$current_user_id' --query '[].roleDefinitionName' -o tsv"
 
         # Test 2: Check access for subscription scope
-        test_should_succeed "Check access at subscription scope" \
+        testShouldSucceed "Check access at subscription scope" \
             "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[].roleDefinitionName' -o tsv"
 
         # Test 3: Check access for resource group scope
-        test_should_succeed "Check access at resource group scope" \
+        testShouldSucceed "Check access at resource group scope" \
             "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG' --query '[].roleDefinitionName' -o tsv"
 
         # Test 4: Use Azure REST API to call check access directly (key FPA functionality)
-        test_should_succeed "Call check access API for read permissions" \
+        testShouldSucceed "Call check access API for read permissions" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/subscriptions/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 4b: Check access for resource group operations
-        test_should_succeed "Call check access API for resource group operations" \
+        testShouldSucceed "Call check access API for resource group operations" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/subscriptions/resourceGroups/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 5: Check permissions on storage accounts (common FPA use case)
-        test_should_succeed "Check storage account permissions" \
+        testShouldSucceed "Check storage account permissions" \
             "az role assignment list --assignee '$current_user_id' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[?contains(roleDefinitionName, \`Contributor\`)].roleDefinitionName' -o tsv"
 
         # Test 6: Verify we can read our own role assignments (this is what FPA typically does)
-        test_should_succeed "Verify Contributor role assignment" \
+        testShouldSucceed "Verify Contributor role assignment" \
             "az role assignment list --assignee '$current_user_id' --role 'Contributor' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[0].roleDefinitionName' -o tsv"
 
         # Test 6b: Check access for common Azure services (FPA use cases)
-        test_should_succeed "Check access for storage operations" \
+        testShouldSucceed "Check access for storage operations" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Storage/storageAccounts/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
         # Test 6c: Check access for network operations (relevant for ARO)
-        test_should_succeed "Check access for network operations" \
+        testShouldSucceed "Check access for network operations" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Network/virtualNetworks/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
 
     else
-        print_info "Skipping check access tests - cannot get service principal ID"
+        printInfo "Skipping check access tests - cannot get service principal ID"
     fi
 
     # Test 7: List role definitions (should work with Contributor)
-    test_should_succeed "List role definitions" \
+    testShouldSucceed "List role definitions" \
         "az role definition list --query '[0].roleName' -o tsv"
 
     # Test 8: Get specific role definition (common check access scenario)
-    test_should_succeed "Get Contributor role definition" \
+    testShouldSucceed "Get Contributor role definition" \
         "az role definition list --name 'Contributor' --query '[0].roleName' -o tsv"
 
     # Test 9: Test permissions enumeration (FPA common operation)
-    test_should_succeed "List all permissions for Contributor role" \
+    testShouldSucceed "List all permissions for Contributor role" \
         "az role definition list --name 'Contributor' --query '[0].permissions[0].actions' -o tsv"
 }
 
 # Test policy-restricted operations (should be blocked)
 # Note: These tests rely on Azure policies to block operations before they execute
 # We don't use --dry-run because many Azure CLI commands don't support it
-test_restricted_operations() {
-    print_header "Testing Restricted Operations (Should Be Blocked)"
+testRestrictedOperations() {
+    printHeader "Testing Restricted Operations (Should Be Blocked)"
 
     # Test role assignment creation (should be blocked)
-    test_should_fail "Create role assignment" \
+    testShouldFail "Create role assignment" \
         "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
 
     # Test role definition creation (should be blocked)
-    test_should_fail "Create custom role definition" \
+    testShouldFail "Create custom role definition" \
         "az role definition create --role-definition '{\"Name\":\"TestRole-$USER\",\"Description\":\"Test\",\"Actions\":[\"Microsoft.Storage/*/read\"],\"AssignableScopes\":[\"/subscriptions/$SUBSCRIPTION_ID\"]}'" || true
 
     # Test policy assignment creation (should be blocked)
-    test_should_fail "Create policy assignment" \
+    testShouldFail "Create policy assignment" \
         "az policy assignment create --name 'test-policy-$USER' --policy '/providers/Microsoft.Authorization/policyDefinitions/56a914f7-8874-476c-8bbc-d748663e4d06' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
 
     # Test critical resource operations (should be blocked)
@@ -390,82 +390,82 @@ test_restricted_operations() {
 
     if [[ -n "$current_user_id" ]]; then
         # Test resource group deletion permissions using checkAccess API
-        test_should_fail "Check delete permissions for resource groups" \
+        testShouldFail "Check delete permissions for resource groups" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$TEST_RG/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/resourceGroups/delete\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv" || true
 
         # Test key vault deletion permissions using checkAccess API
-        test_should_fail "Check delete permissions for key vaults" \
+        testShouldFail "Check delete permissions for key vaults" \
             "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.KeyVault/vaults/delete\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv" || true
     else
-        print_info "Skipping deletion permission tests - cannot get service principal ID"
+        printInfo "Skipping deletion permission tests - cannot get service principal ID"
     fi
 }
 
 # Test VM creation (should be blocked by policy)
-test_vm_operations() {
-    print_header "Testing VM Operations (Should Be Blocked)"
+testVmOperations() {
+    printHeader "Testing VM Operations (Should Be Blocked)"
 
     # Test VM creation (should be blocked by policy before execution)
     # Using --no-wait to prevent long execution if policy fails to block
-    test_should_fail "Create virtual machine" \
+    testShouldFail "Create virtual machine" \
         "az vm create --resource-group '$TEST_RG' --name 'test-vm-$USER' --image 'UbuntuLTS' --admin-username 'testuser' --generate-ssh-keys --no-wait" || true
 }
 
 # Test network operations (service association links should be allowed)
-test_network_operations() {
-    print_header "Testing Network Operations"
+testNetworkOperations() {
+    printHeader "Testing Network Operations"
 
     # Find a VNet/subnet for testing
     local test_vnet=$(az network vnet list --resource-group "$TEST_RG" --query "[0].name" -o tsv 2>/dev/null || echo "")
     local test_subnet=$(az network vnet subnet list --resource-group "$TEST_RG" --vnet-name "$test_vnet" --query "[0].name" -o tsv 2>/dev/null || echo "")
 
     if [[ -n "$test_vnet" && -n "$test_subnet" ]]; then
-        print_info "Testing with VNet: $test_vnet, Subnet: $test_subnet"
+        printInfo "Testing with VNet: $test_vnet, Subnet: $test_subnet"
 
         # Reading subnet should work
-        test_should_succeed "Read subnet configuration" \
+        testShouldSucceed "Read subnet configuration" \
             "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'name' -o tsv" || true
 
         # Service association links should be allowed (but we'll just test read access)
-        test_should_succeed "List service association links" \
+        testShouldSucceed "List service association links" \
             "az network vnet subnet show --resource-group '$TEST_RG' --vnet-name '$test_vnet' --name '$test_subnet' --query 'serviceAssociationLinks' -o tsv" || true
     else
-        print_info "No VNet/subnet found for network operations testing"
+        printInfo "No VNet/subnet found for network operations testing"
     fi
 }
 
 # Main test execution
 main() {
-    print_header "Mock FPA Policy Restriction Tests"
+    printHeader "Mock FPA Policy Restriction Tests"
 
     # Validate environment variables
-    validate_environment
+    validateEnvironment
 
-    print_info "Testing environment: $SUBSCRIPTION_ID"
-    print_info "Mock FPA Application: $FP_APPLICATION_NAME"
-    print_info "Verbose output: $VERBOSE_OUTPUT"
-    print_info "Fail fast mode: $FAIL_FAST"
+    printInfo "Testing environment: $SUBSCRIPTION_ID"
+    printInfo "Mock FPA Application: $FP_APPLICATION_NAME"
+    printInfo "Verbose output: $VERBOSE_OUTPUT"
+    printInfo "Fail fast mode: $FAIL_FAST"
 
     # Save current context
-    save_current_user
+    saveCurrentUser
 
     # Get test resources
-    if ! get_test_resource_group; then
-        print_failure "Could not determine test resource group"
+    if ! getTestResourceGroup; then
+        printFailure "Could not determine test resource group"
         exit 1
     fi
 
     # Check if already logged in as the correct service principal
     local skip_login=false
-    if is_logged_in_as_mock_fpa "$FP_APPLICATION_NAME"; then
+    if isLoggedInAsMockFpa "$FP_APPLICATION_NAME"; then
         skip_login=true
     fi
 
     if [[ "$skip_login" == "false" ]]; then
         # Login as mock FPA
-        print_info "Switching to mock FPA identity..."
+        printInfo "Switching to mock FPA identity..."
         if ! $SCRIPT_DIR/dev-application.sh login >/dev/null 2>&1; then
-            print_failure "Failed to login as mock FPA"
+            printFailure "Failed to login as mock FPA"
             exit 1
         fi
 
@@ -474,30 +474,30 @@ main() {
         current_type=$(az account show --query user.type -o tsv)
 
         if [[ "$current_type" != "servicePrincipal" ]]; then
-            print_failure "Not logged in as service principal (type: $current_type)"
-            restore_original_user
+            printFailure "Not logged in as service principal (type: $current_type)"
+            restoreOriginalUser
             exit 1
         fi
 
-        print_info "Successfully logged in as: $current_user ($current_type)"
+        printInfo "Successfully logged in as: $current_user ($current_type)"
     fi
 
     # Run test suites - behavior depends on FAIL_FAST setting
-    run_test test_read_operations
-    run_test test_check_access_operations
-    run_test test_restricted_operations
-    run_test test_vm_operations
-    run_test test_network_operations
+    runTest testReadOperations
+    runTest testCheckAccessOperations
+    runTest testRestrictedOperations
+    runTest testVmOperations
+    runTest testNetworkOperations
 
     # Restore original context only if we changed it
     if [[ "$skip_login" == "false" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
-        restore_original_user
+        restoreOriginalUser
     else
-        print_info "Keeping current service principal session"
+        printInfo "Keeping current service principal session"
     fi
 
     # Print summary
-    print_header "Test Results Summary"
+    printHeader "Test Results Summary"
     echo -e "${GREEN}Tests Passed: $TESTS_PASSED${NC}"
     echo -e "${RED}Tests Failed: $TESTS_FAILED${NC}"
     echo -e "${BLUE}Total Tests: $TESTS_TOTAL${NC}"
@@ -512,19 +512,19 @@ main() {
 }
 
 # Handle script interruption
-cleanup_on_interrupt() {
-    print_info "Script interrupted, cleaning up..."
+cleanupOnInterrupt() {
+    printInfo "Script interrupted, cleaning up..."
 
     # Clean up certificate files
     cleanupMockFpaCertificateFiles
 
     # Only restore if we were originally a user (not service principal)
     if [[ -n "$ORIGINAL_USER_TYPE" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then
-        restore_original_user
+        restoreOriginalUser
     fi
     exit 1
 }
-trap 'cleanup_on_interrupt' INT TERM
+trap 'cleanupOnInterrupt' INT TERM
 
 # Check if required tools are available
 if ! command -v az >/dev/null 2>&1; then

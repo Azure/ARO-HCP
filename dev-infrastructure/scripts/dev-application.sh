@@ -40,7 +40,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/mock-fpa-common.sh"
 
 # Set up Azure config directory and file paths
-setup_azure_config "$SCRIPT_DIR"
+setupAzureConfig "$SCRIPT_DIR"
 
 printEnv() {
     printMockFpaEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
