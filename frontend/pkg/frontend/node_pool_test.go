@@ -89,6 +89,7 @@ func TestCreateNodePool(t *testing.T) {
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
+				Persistence("persistent").
 				StorageAccountType("Premium_LRS")),
 		).
 		Labels(make(map[string]string)).
