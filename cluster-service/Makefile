@@ -30,6 +30,8 @@ PROVISION_SHARD_ID=$$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${PRO
 
 deploy:
 	@source ./generate_helm_set_flags.sh && \
+	../templatize.sh $(DEPLOY_ENV) deploy/ocp-versions.tmpl deploy/ocp-versions.yaml && \
+	OCP_VERSIONS_JSON=$$(cat deploy/ocp-versions.yaml | yq -o json -I 0) && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
 	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
@@ -88,6 +90,7 @@ deploy:
 	  --set csDeploymentStrategy.rollingUpdate.maxSurge=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE} \
 	  --set csDeploymentStrategy.rollingUpdate.maxUnavailable=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE} \
 	  --set provisionShardClusterLimit=${PROVISION_SHARD_CLUSTER_LIMIT} \
+	  --set-json ocpVersions="$${OCP_VERSIONS_JSON}" \
 	  "$${OP_HELM_SET_FLAGS[@]}"
 
 deploy-pr-env-deps:
@@ -152,7 +155,11 @@ local-azure-operators-managed-identities-config:
 .PHONY: local-azure-operators-managed-identities-config
 
 local-aro-hcp-ocp-versions-config:
-	helm template deploy -s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
+	@DEPLOY_ENV=$${DEPLOY_ENV:-pers} && \
+	../templatize.sh $${DEPLOY_ENV} deploy/ocp-versions.tmpl deploy/ocp-versions.yaml && \
+	OCP_VERSIONS_JSON=$$(cat deploy/ocp-versions.yaml | yq -o json -I 0) && \
+	helm template deploy -s templates/aro-hcp-ocp-versions-config.configmap.yaml \
+	  --set-json ocpVersions="$${OCP_VERSIONS_JSON}" | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config
 
 #

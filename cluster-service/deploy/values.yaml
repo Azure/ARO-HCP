@@ -247,3 +247,12 @@ csDeploymentStrategy:
   rollingUpdate:
     maxSurge: 1
     maxUnavailable: 0
+ocpVersions:
+  defaultVersion:
+    channelGroupName: ""
+    version: ""
+  channelGroups:
+  - url: ""
+    channelGroupName: ""
+    minVersion: ""
+    maxVersion: ""

@@ -617,6 +617,16 @@ defaults:
           maxSurge: 25%
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
+    # OCP Versions configuration
+    ocpVersions:
+      defaultVersion:
+        channelGroupName: stable
+        version: 4.19.7
+      channelGroups:
+      - url: https://api.openshift.com/api/upgrades_info/graph
+        channelGroupName: stable
+        minVersion: 4.19.0
+        maxVersion: 4.19.8
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync

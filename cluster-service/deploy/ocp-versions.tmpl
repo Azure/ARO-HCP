@@ -1,0 +1,10 @@
+defaultVersion:
+  channelGroupName: {{ .clustersService.ocpVersions.defaultVersion.channelGroupName }}
+  version: {{ .clustersService.ocpVersions.defaultVersion.version }}
+channelGroups:
+{{- range .clustersService.ocpVersions.channelGroups }}
+  - url: {{ .url }}
+    channelGroupName: {{ .channelGroupName }}
+    minVersion: {{ .minVersion }}
+    maxVersion: {{ .maxVersion }}
+{{- end }}
