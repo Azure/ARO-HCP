@@ -168,7 +168,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedConvertingNodePool)
+		arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceNodePool)
 		return
 	}
 

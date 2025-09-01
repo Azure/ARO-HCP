@@ -101,7 +101,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedConvertingExternalAuth)
+			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceExternalAuth)
 			return
 		}
 

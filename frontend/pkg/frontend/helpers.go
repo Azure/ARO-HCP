@@ -149,7 +149,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError(errLocationFailedGettingCorrelationData)
 	}
 
 	switch resourceDoc.InternalID.Kind() {
@@ -248,7 +248,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingVersion)
 		}
 
 		return responseBody, nil
@@ -299,7 +299,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingExternalAuth)
 		}
 
 	default:

@@ -330,13 +330,13 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			resourceID, err := azcorearm.ParseResourceID(stringResource)
 			if err != nil {
 				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
+				arm.WriteInternalServerError(writer, errLocationFailedParsingID)
 				return
 			}
 			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
+				arm.WriteInternalServerError(writer, errLocationFailedMarshallingVersion)
 				return
 			}
 			pagedResponse.AddValue(value)
@@ -444,7 +444,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingCorrelationData)
 		return
 	}
 
@@ -475,7 +475,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceCluster)
 			return
 		}
 
@@ -734,7 +734,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingCorrelationData)
 		return
 	}
 
@@ -830,7 +830,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingCorrelationData)
 		return
 	}
 
