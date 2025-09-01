@@ -2,6 +2,9 @@
 
 # This script can be used to spin up a standalone dev application which will be used as a 'mock first party application'.
 # This is required due to the lack of the ability to have a first party app be used in the dev tenant
+#
+# This script uses a dedicated Azure CLI config directory (azure-config) to avoid interfering
+# with the user's existing Azure CLI configuration.
 
 LOCATION=${LOCATION:-"westus3"}
 UNIQUE_PREFIX=${UNIQUE_PREFIX:-"HCP-$USER-$LOCATION"}
@@ -32,6 +35,14 @@ AH_CERTIFICATE_NAME=${ARO_HCP_DEV_AH_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-ah-cert"}
 AZURE_BUILTIN_ROLE_OWNER="8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 AZURE_BUILTIN_ROLE_CONTRIBUTOR="b24988ac-6180-42a0-ab88-20f7382dd24c"
 
+# Set up dedicated Azure CLI config directory to avoid interfering with user's existing setup
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AZURE_CONFIG_DIR="$SCRIPT_DIR/../azure-config"
+export AZURE_CONFIG_DIR
+
+# Create Azure config directory if it doesn't exist
+mkdir -p "$AZURE_CONFIG_DIR"
+
 printEnv() {
     echo "LOCATION: $LOCATION"
     echo "RESOURCE_GROUP: $RESOURCE_GROUP"
@@ -53,6 +64,7 @@ shellEnv() {
     echo "ARO_HCP_DEV_FP_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_FP_CERTIFICATE_NAME"
     echo "ARO_HCP_DEV_AH_APPLICATION_NAME=\"$AH_APPLICATION_NAME\"; export ARO_HCP_DEV_AH_APPLICATION_NAME"
     echo "ARO_HCP_DEV_AH_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_AH_CERTIFICATE_NAME"
+    echo "AZURE_CONFIG_DIR=\"$AZURE_CONFIG_DIR\"; export AZURE_CONFIG_DIR"
 }
 
 createServicePrincipal() {

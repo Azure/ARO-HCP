@@ -4,6 +4,9 @@
 # This script tests that the mock FPA has minimum required permissions and dangerous operations are blocked
 # The script continues running all tests even if some fail, providing a comprehensive report at the end
 #
+# This script uses a dedicated Azure CLI config directory (../azure-config) to avoid interfering
+# with the user's existing Azure CLI configuration.
+#
 # Usage:
 #   ./test-mock-fpa-policies.sh [--quiet] [--fail-fast]
 #   VERBOSE_OUTPUT=false ./test-mock-fpa-policies.sh
@@ -34,6 +37,16 @@ if ! eval "$($SCRIPT_DIR/dev-application.sh shell)"; then
     echo "  $SCRIPT_DIR/dev-application.sh create"
     exit 1
 fi
+
+# Ensure Azure config directory is set up (should be sourced from dev-application.sh)
+if [[ -z "$AZURE_CONFIG_DIR" ]]; then
+    # Fallback if not set by dev-application.sh
+    AZURE_CONFIG_DIR="$SCRIPT_DIR/../azure-config"
+    export AZURE_CONFIG_DIR
+fi
+
+# Create Azure config directory if it doesn't exist
+mkdir -p "$AZURE_CONFIG_DIR"
 
 # Map exported variables to expected names
 SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-}"
