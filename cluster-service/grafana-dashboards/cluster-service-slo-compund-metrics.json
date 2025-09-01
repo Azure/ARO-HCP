@@ -2258,7 +2258,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "ARO HCP Cluster Service SLOs (Compound Metrics)",
-  "uid": "aro-hcp-cluster-service-slos-compund-metrics",
+  "uid": "aro-hcp-cluster-service-slos-rec-rules",
   "version": 1,
   "weekStart": "",
   "refresh": "5m"
