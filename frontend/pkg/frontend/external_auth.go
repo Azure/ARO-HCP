@@ -101,7 +101,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceExternalAuth)
+			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromCSExternalAuth)
 			return
 		}
 
@@ -170,7 +170,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceExternalAuth)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingCSExternalAuth)
 		return
 	}
 
@@ -201,7 +201,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingCSID)
 			return
 		}
 	}

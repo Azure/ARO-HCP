@@ -475,7 +475,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceCluster)
+			arm.WriteInternalServerError(writer, errLocationFailedConvertingFromCSCluster)
 			return
 		}
 
@@ -548,7 +548,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceCluster)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingCSCluster)
 		return
 	}
 
@@ -572,7 +572,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		resourceDoc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingCSID)
 			return
 		}
 	}
@@ -789,7 +789,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	internalID, err := ocm.NewInternalID(csCredential.HREF())
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
+		arm.WriteInternalServerError(writer, errLocationFailedCreatingCSID)
 		return
 	}
 

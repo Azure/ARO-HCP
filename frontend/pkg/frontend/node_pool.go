@@ -168,7 +168,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedConvertingFromClusterServiceNodePool)
+		arm.WriteInternalServerError(writer, errLocationFailedConvertingFromCSNodePool)
 		return
 	}
 
@@ -198,7 +198,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceNodePool)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingCSNodePool)
 		return
 	}
 
@@ -229,7 +229,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingCSID)
 			return
 		}
 	}

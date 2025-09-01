@@ -918,7 +918,7 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 		}
 	}
 
-	return arm.NewInternalServerError(errLocationUnknownClusterServiceError)
+	return arm.NewInternalServerError(errLocationUnknownCSError)
 }
 
 // transportFunc implements the http.RoundTripper interface.
