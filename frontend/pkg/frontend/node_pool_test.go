@@ -84,9 +84,7 @@ func TestCreateNodePool(t *testing.T) {
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
 					State(csEncryptionAtHostStateDisabled),
-			).
-			OSDiskSizeGibibytes(64).
-			OSDiskStorageAccountType("Premium_LRS"),
+			).OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().SizeGibibytes(64).Persistence("persistent").StorageAccountType("Premium_LRS")),
 		).
 		Labels(make(map[string]string)).
 		Subnet("").
