@@ -63,7 +63,8 @@ type DBClientIterator[T DocumentProperties] interface {
 
 // DBClientListResourceDocsOptions allows for limiting the results of DBClient.ListResourceDocs.
 type DBClientListResourceDocsOptions struct {
-	// ResourceType matches (case-insensitively) the Azure resource type
+	// ResourceType matches (case-insensitively) the Azure resource type. If unspecified,
+	// DBClient.ListResourceDocs will match resource documents for any resource type.
 	ResourceType *azcorearm.ResourceType
 
 	// PageSizeHint can limit the number of items returned at once. A negative value will cause
