@@ -79,7 +79,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
 			logger.Error(err.Error())
-			return arm.NewInternalServerError()
+			return arm.NewInternalServerError(errLocationFailedReadingAncestor)
 		}
 
 		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
@@ -101,7 +101,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError(errLocationFailedParsingID)
 	}
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
@@ -128,13 +128,13 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	err = dbIterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError(errLocationFailedIteratingResource)
 	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
 		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return arm.NewInternalServerError(errLocationFailedDuringTransaction)
 	}
 
 	return nil
@@ -149,7 +149,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError(errLocationFailedGettingCorrelationData)
 	}
 
 	switch resourceDoc.InternalID.Kind() {
@@ -164,7 +164,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError(errLocationUnknownType)
 	}
 
 	if err != nil {
@@ -197,7 +197,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError(errLocationFailedCancellingActiveOperations)
 	}
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
@@ -227,7 +227,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", arm.NewInternalServerError(errLocationFailedIteratingResource)
 	}
 
 	return operationID, nil
@@ -248,7 +248,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingVersion)
 		}
 
 		return responseBody, nil
@@ -260,7 +260,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		if database.IsResponseError(err, http.StatusNotFound) {
 			return nil, arm.NewResourceNotFoundError(resourceID)
 		} else {
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedReadingResourceToMarshal)
 		}
 	}
 
@@ -275,7 +275,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingCluster)
 		}
 
 	case arohcpv1alpha1.NodePoolKind:
@@ -287,7 +287,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingNodePool)
 		}
 
 	case arohcpv1alpha1.ExternalAuthKind:
@@ -299,12 +299,12 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
+			return nil, arm.NewInternalServerError(errLocationFailedMarshallingExternalAuth)
 		}
 
 	default:
 		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
-		return nil, arm.NewInternalServerError()
+		return nil, arm.NewInternalServerError(errLocationUnknownType)
 	}
 
 	return responseBody, nil
