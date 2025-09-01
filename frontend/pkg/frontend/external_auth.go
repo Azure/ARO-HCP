@@ -49,28 +49,28 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingVersionedInterface)
 		return
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingResourceID)
 		return
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingSystemData)
 		return
 	}
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingCorrelationData)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingExternalAuth)
 		return
 	}
 
@@ -101,7 +101,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedConvertingExternalAuth)
 			return
 		}
 
@@ -147,7 +147,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingBody)
 		return
 	}
 	if err = json.Unmarshal(body, versionedRequestExternalAuth); err != nil {
@@ -170,7 +170,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedBuildingClusterServiceExternalAuth)
 		return
 	}
 
@@ -187,7 +187,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedReadingClusterAgain)
 			return
 		}
 
@@ -201,7 +201,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
+			arm.WriteInternalServerError(writer, errLocationFailedCreatingClusterServiceID)
 			return
 		}
 	}
@@ -234,7 +234,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	})
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedDuringTransaction)
 		return
 	}
 
@@ -242,14 +242,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedReadingTransactionResult)
 		return
 	}
 
 	responseBody, err := marshalCSExternalAuth(csExternalAuth, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedMarshallingExternalAuth)
 		return
 	}
 

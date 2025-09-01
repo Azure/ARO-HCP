@@ -71,7 +71,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedGettingCorrelationData)
 		return
 	}
 
@@ -168,7 +168,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		arm.WriteInternalServerError(writer, errLocationFailedConvertingNodePool)
 		return
 	}
 
@@ -286,7 +286,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer, errLocationFailedMarshallingResponse)
+		arm.WriteInternalServerError(writer, errLocationFailedMarshallingNodePool)
 		return
 	}
 
