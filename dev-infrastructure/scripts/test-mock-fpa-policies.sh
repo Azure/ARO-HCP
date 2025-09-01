@@ -31,8 +31,8 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/mock-fpa-common.sh"
 
-# Set up Azure config directory and file paths
-setupAzureConfig "$SCRIPT_DIR"
+# Set up Azure config directory and file paths for mock FPA
+initialAzureConfigSetup "$SCRIPT_DIR"
 
 # Source environment variables from dev-application.sh
 if ! eval "$($SCRIPT_DIR/dev-application.sh shell)"; then
@@ -161,6 +161,18 @@ printInfo() {
     echo -e "${BLUE}ℹ️ INFO: $1${NC}"
 }
 
+# Get current user info with specified config
+getCurrentUserInfo() {
+    local user_name=$(az account show --query user.name -o tsv 2>/dev/null || echo "unknown")
+    local user_type=$(az account show --query user.type -o tsv 2>/dev/null || echo "unknown")
+    local subscription_id=$(az account show --query id -o tsv 2>/dev/null || echo "unknown")
+
+    echo "User: $user_name"
+    echo "Type: $user_type"
+    echo "Subscription: $subscription_id"
+    echo "Config Dir: ${AZURE_CONFIG_DIR:-"default (~/.azure)"}"
+}
+
 # Test if an operation should succeed
 testShouldSucceed() {
     local test_name="$1"
@@ -251,6 +263,9 @@ testShouldFail() {
 
 # Get a test resource group for non-destructive tests
 getTestResourceGroup() {
+    # Ensure we're using developer config to find resource groups
+    useDeveloperConfig
+
     # Try to find an existing resource group, or use the dev application RG
     TEST_RG=${RESOURCE_GROUP:-$(az group list --query "[0].name" -o tsv 2>/dev/null)}
     if [[ -z "$TEST_RG" ]]; then
@@ -264,6 +279,8 @@ getTestResourceGroup() {
 # Test basic read operations (should work with Contributor role)
 testReadOperations() {
     printHeader "Testing Read Operations (Should Succeed)"
+
+    useMockFpaConfig
 
     testShouldSucceed "List resource groups" \
         "az group list --query '[].name' -o tsv"
@@ -286,6 +303,8 @@ testReadOperations() {
 # This is the primary reason we need to use the built-in Contributor role instead of a custom role
 testCheckAccessOperations() {
     printHeader "Testing Check Access Operations (Should Succeed)"
+
+    useMockFpaConfig
 
     # Get current service principal's object ID
     local current_user_id=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
@@ -352,6 +371,8 @@ testCheckAccessOperations() {
 testRestrictedOperations() {
     printHeader "Testing Restricted Operations (Should Be Blocked)"
 
+    useMockFpaConfig
+
     # Test role assignment creation (should be blocked)
     testShouldFail "Create role assignment" \
         "az role assignment create --assignee '$FP_APPLICATION_NAME' --role 'Reader' --scope '/subscriptions/$SUBSCRIPTION_ID'" || true
@@ -385,6 +406,8 @@ testRestrictedOperations() {
 testVmOperations() {
     printHeader "Testing VM Operations (Should Be Blocked)"
 
+    useMockFpaConfig
+
     # Test VM creation (should be blocked by policy before execution)
     # Using --no-wait to prevent long execution if policy fails to block
     testShouldFail "Create virtual machine" \
@@ -394,6 +417,8 @@ testVmOperations() {
 # Test network operations (service association links should be allowed)
 testNetworkOperations() {
     printHeader "Testing Network Operations"
+
+    useMockFpaConfig
 
     # Find a VNet/subnet for testing
     local test_vnet=$(az network vnet list --resource-group "$TEST_RG" --query "[0].name" -o tsv 2>/dev/null || echo "")
@@ -414,9 +439,97 @@ testNetworkOperations() {
     fi
 }
 
+# Print developer user information
+printDeveloperInfo() {
+    printHeader "Developer User Information"
+
+    useDeveloperConfig
+
+    printInfo "Script called with the following developer configuration:"
+    getCurrentUserInfo | sed 's/^/  /'
+    echo ""
+}
+
+# Check prerequisites as developer user
+checkPrerequisites() {
+    printHeader "Checking Prerequisites as Developer"
+
+    useDeveloperConfig
+
+    printInfo "Verifying mock FPA service principal has Contributor role..."
+
+    # Get mock FPA application ID
+    local mock_fpa_app_id=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv 2>/dev/null)
+    if [[ -z "$mock_fpa_app_id" ]]; then
+        printFailure "Mock FPA application '$FP_APPLICATION_NAME' not found"
+        echo "Please run: $SCRIPT_DIR/dev-application.sh create"
+        return 1
+    fi
+
+    printInfo "Found mock FPA application: $mock_fpa_app_id"
+
+    # Check if mock FPA has Contributor role
+    local contributor_assignment=$(az role assignment list \
+        --assignee "$mock_fpa_app_id" \
+        --role "Contributor" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        --query "[0].id" -o tsv 2>/dev/null)
+
+    if [[ -z "$contributor_assignment" ]]; then
+        printFailure "Mock FPA does not have Contributor role on subscription"
+        echo "Please run: $SCRIPT_DIR/dev-application.sh create"
+        return 1
+    fi
+
+    printSuccess "Mock FPA has Contributor role assigned"
+
+    # Check if policies are deployed
+    local deny_policy_exists=$(az policy assignment show --name "deny-mock-fpa-dangerous-ops-$USER" --query "name" -o tsv 2>/dev/null)
+    local allow_policy_exists=$(az policy assignment show --name "allow-mock-fpa-network-ops-$USER" --query "name" -o tsv 2>/dev/null)
+
+    if [[ -z "$deny_policy_exists" || -z "$allow_policy_exists" ]]; then
+        printFailure "Mock FPA restriction policies are not deployed"
+        echo "Please run: $SCRIPT_DIR/dev-application.sh deploy-policies"
+        return 1
+    fi
+
+    printSuccess "Mock FPA restriction policies are deployed"
+    printInfo "All prerequisites verified successfully"
+    return 0
+}
+
+# Test check access API specifically (runs first to verify basic functionality)
+testCheckAccessApi() {
+    printHeader "Testing Check Access API (Basic Functionality)"
+
+    useMockFpaConfig
+
+    # Get current service principal's object ID
+    local current_user_id=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
+
+    if [[ -z "$current_user_id" ]]; then
+        printFailure "Cannot get service principal ID for check access tests"
+        return 1
+    fi
+
+    printInfo "Testing check access API with service principal: $current_user_id"
+
+    # Test basic check access functionality
+    testShouldSucceed "Check access API for subscription read permissions" \
+        "az rest --method POST --url 'https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/checkAccess?api-version=2018-09-01-preview' --body '{\"subject\":{\"principalId\":\"$current_user_id\"},\"actions\":[{\"id\":\"Microsoft.Resources/subscriptions/read\",\"isDataAction\":false}]}' --query 'accessDecision' -o tsv"
+
+    testShouldSucceed "Verify Contributor role assignment exists" \
+        "az role assignment list --assignee '$current_user_id' --role 'Contributor' --scope '/subscriptions/$SUBSCRIPTION_ID' --query '[0].roleDefinitionName' -o tsv"
+
+    printInfo "Basic check access API functionality verified"
+}
+
 # Main test execution
 main() {
     printHeader "Mock FPA Policy Restriction Tests"
+
+    # Step 1: Print developer user information
+    printDeveloperInfo
 
     # Validate environment variables
     validateEnvironment
@@ -426,29 +539,43 @@ main() {
     printInfo "Verbose output: $VERBOSE_OUTPUT"
     printInfo "Fail fast mode: $FAIL_FAST"
 
-    # Get test resources
+    # Step 2: Check prerequisites as developer user
+    if ! checkPrerequisites; then
+        printFailure "Prerequisites not met. Exiting."
+        exit 1
+    fi
+
+    # Get test resources (using developer config)
     if ! getTestResourceGroup; then
         printFailure "Could not determine test resource group"
         exit 1
     fi
 
+    # Step 3: Switch to mock FPA configuration and login if needed
+    printHeader "Switching to Mock FPA Configuration"
+    useMockFpaConfig
+
+    printInfo "Switched to mock FPA Azure configuration"
+    printInfo "Current config: $(getCurrentUserInfo | grep "Config Dir" | cut -d: -f2 | xargs)"
+
     # Check if already logged in as the correct service principal
     local skip_login=false
     if isLoggedInAsMockFpa "$FP_APPLICATION_NAME"; then
         skip_login=true
+        printInfo "Already logged in as mock FPA service principal"
     fi
 
     if [[ "$skip_login" == "false" ]]; then
         # Login as mock FPA
-        printInfo "Switching to mock FPA identity..."
-        if ! $SCRIPT_DIR/dev-application.sh login >/dev/null 2>&1; then
+        printInfo "Logging in as mock FPA service principal..."
+        if ! loginWithMockServicePrincipal "$FP_CERTIFICATE_NAME" "$KEY_VAULT_NAME" "$FP_APPLICATION_NAME"; then
             printFailure "Failed to login as mock FPA"
             exit 1
         fi
 
         # Verify we're logged in as the service principal
-        current_user=$(az account show --query user.name -o tsv)
-        current_type=$(az account show --query user.type -o tsv)
+        local current_user=$(az account show --query user.name -o tsv)
+        local current_type=$(az account show --query user.type -o tsv)
 
         if [[ "$current_type" != "servicePrincipal" ]]; then
             printFailure "Not logged in as service principal (type: $current_type)"
@@ -458,7 +585,10 @@ main() {
         printInfo "Successfully logged in as: $current_user ($current_type)"
     fi
 
-    # Run test suites - behavior depends on FAIL_FAST setting
+    # Step 4: Test check access API first to verify basic functionality
+    runTest testCheckAccessApi
+
+    # Step 5: Run remaining test suites - behavior depends on FAIL_FAST setting
     runTest testReadOperations
     runTest testCheckAccessOperations
     runTest testRestrictedOperations
@@ -486,6 +616,9 @@ main() {
 # Handle script interruption
 cleanupOnInterrupt() {
     printInfo "Script interrupted, cleaning up..."
+
+    # Ensure we're using mock FPA config for cleanup
+    useMockFpaConfig
 
     # Clean up certificate files
     cleanupMockFpaCertificateFiles

@@ -39,8 +39,8 @@ AZURE_BUILTIN_ROLE_CONTRIBUTOR="b24988ac-6180-42a0-ab88-20f7382dd24c"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/mock-fpa-common.sh"
 
-# Set up Azure config directory and file paths
-setupAzureConfig "$SCRIPT_DIR"
+# Set up Azure config directory and file paths for mock FPA operations
+initialAzureConfigSetup "$SCRIPT_DIR"
 
 printEnv() {
     printMockFpaEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
@@ -51,6 +51,9 @@ shellEnv() {
     # Calling shell can "eval" this output.
     exportMockFpaShellEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
         "$FP_APPLICATION_NAME" "$FP_CERTIFICATE_NAME" "$AH_APPLICATION_NAME" "$AH_CERTIFICATE_NAME"
+
+    # Export the original Azure config directory for test scripts
+    echo "ORIGINAL_AZURE_CONFIG_DIR=\"$ORIGINAL_AZURE_CONFIG_DIR\"; export ORIGINAL_AZURE_CONFIG_DIR"
 }
 
 createServicePrincipal() {
@@ -272,24 +275,35 @@ deleteApps() {
 
 case "$1" in
     "create")
+        # Ensure we're using developer config for administrative operations
+        useDeveloperConfig
         createApps
     ;;
     "delete")
+        # Ensure we're using developer config for administrative operations
+        useDeveloperConfig
         deleteApps
     ;;
     "login")
+        # Login function handles its own context switching
         loginWithMockServicePrincipal "$FP_CERTIFICATE_NAME" "$KEY_VAULT_NAME" "$FP_APPLICATION_NAME"
     ;;
     "shell")
         shellEnv
     ;;
     "deploy-policies")
+        # Ensure we're using developer config for policy operations
+        useDeveloperConfig
         deployMockFpaPolicies
     ;;
     "delete-policies")
+        # Ensure we're using developer config for policy operations
+        useDeveloperConfig
         deleteMockFpaPolicies
     ;;
     "cleanup")
+        # Cleanup operates on mock FPA certificate files
+        useMockFpaConfig
         cleanupMockFpaCertificateFiles
     ;;
     *)

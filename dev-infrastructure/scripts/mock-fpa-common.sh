@@ -3,8 +3,12 @@
 # Common functions for mock FPA scripts
 # This file contains shared logic for dev-application.sh and test-mock-fpa-policies.sh
 
-# Set up dedicated Azure CLI config directory and file paths
-setupAzureConfig() {
+# Initial set up, including dedicated Azure CLI config directory and file paths
+initialAzureConfigSetup() {
+    # Preserve original AZURE_CONFIG_DIR from calling environment for developer operations
+    ORIGINAL_AZURE_CONFIG_DIR="${AZURE_CONFIG_DIR:-}"
+    export ORIGINAL_AZURE_CONFIG_DIR
+
     local script_dir="$1"
 
     AZURE_CONFIG_DIR="$script_dir/../mock-fpa-azure-config"
@@ -19,6 +23,31 @@ setupAzureConfig() {
 
     export MOCK_FPA_PFX_FILE
     export MOCK_FPA_PEM_FILE
+
+    # Use developer configuration by default
+    useDeveloperConfig
+}
+
+# Switch to developer Azure CLI configuration
+useDeveloperConfig() {
+    # If ORIGINAL_AZURE_CONFIG_DIR is set from the calling environment, use it
+    # Otherwise, unset it to use the default Azure CLI config
+    if [[ -n "${ORIGINAL_AZURE_CONFIG_DIR:-}" ]]; then
+        export AZURE_CONFIG_DIR="$ORIGINAL_AZURE_CONFIG_DIR"
+    else
+        unset AZURE_CONFIG_DIR
+    fi
+}
+
+# Switch to mock FPA Azure CLI configuration
+useMockFpaConfig() {
+    # Use the mock FPA config directory from the path already set up
+    if [[ -n "${MOCK_FPA_PFX_FILE:-}" ]]; then
+        export AZURE_CONFIG_DIR="$(dirname "$MOCK_FPA_PFX_FILE")"
+    else
+        echo "Error: Mock FPA config not initialized. Call initialAzureConfigSetup first."
+        return 1
+    fi
 }
 
 # Login with mock service principal using certificates from mock-fpa-azure-config directory
@@ -35,9 +64,16 @@ loginWithMockServicePrincipal() {
 
     # Ensure azure config directory and file paths are set up
     if [[ -z "$MOCK_FPA_PFX_FILE" || -z "$MOCK_FPA_PEM_FILE" ]]; then
-        echo "Error: Mock FPA file paths not initialized. Call setupAzureConfig first."
+        echo "Error: Mock FPA file paths not initialized. Call initialAzureConfigSetup first."
         return 1
     fi
+
+    # Save current Azure config context
+    local current_config_dir="${AZURE_CONFIG_DIR:-}"
+
+    # Switch to developer config for key vault and AD operations
+    echo "Switching to developer config for certificate download and app lookup..."
+    useDeveloperConfig
 
     echo "Downloading certificate from Key Vault to: $MOCK_FPA_PFX_FILE"
     az keyvault secret download \
@@ -55,6 +91,10 @@ loginWithMockServicePrincipal() {
 
     local appId=$(az ad app list --display-name "$fp_application_name" --query "[0].appId" -o tsv)
     local tenantId=$(az account show --query tenantId -o tsv)
+
+    # Switch to mock FPA config for the actual login
+    echo "Switching to mock FPA config for service principal login..."
+    useMockFpaConfig
 
     echo "Logging in as mock FPA service principal (App ID: $appId)"
     az login --service-principal -u "$appId" --certificate "$MOCK_FPA_PEM_FILE" --tenant "$tenantId"
