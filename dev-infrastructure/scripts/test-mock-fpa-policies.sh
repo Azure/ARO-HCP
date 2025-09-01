@@ -27,8 +27,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Get script directory for relative paths
+# Get script directory and source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/mock-fpa-common.sh"
+
+# Set up Azure config directory and file paths
+setup_azure_config "$SCRIPT_DIR"
 
 # Source environment variables from dev-application.sh
 if ! eval "$($SCRIPT_DIR/dev-application.sh shell)"; then
@@ -37,16 +41,6 @@ if ! eval "$($SCRIPT_DIR/dev-application.sh shell)"; then
     echo "  $SCRIPT_DIR/dev-application.sh create"
     exit 1
 fi
-
-# Ensure Azure config directory is set up (should be sourced from dev-application.sh)
-if [[ -z "$AZURE_CONFIG_DIR" ]]; then
-    # Fallback if not set by dev-application.sh
-    AZURE_CONFIG_DIR="$SCRIPT_DIR/../azure-config"
-    export AZURE_CONFIG_DIR
-fi
-
-# Create Azure config directory if it doesn't exist
-mkdir -p "$AZURE_CONFIG_DIR"
 
 # Map exported variables to expected names
 SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-}"
@@ -263,10 +257,8 @@ restore_original_user() {
     print_info "Restoring original user context..."
 
     # Clean up certificate files from service principal session
-    if [ -f "app.pem" ]; then
-        print_info "Cleaning up certificate files"
-        rm -f app.pem app.pfx
-    fi
+    print_info "Cleaning up certificate files"
+    cleanupMockFpaCertificateFiles
 
     if [[ "$ORIGINAL_USER_TYPE" == "user" ]]; then
         az login >/dev/null 2>&1 || {
@@ -464,27 +456,9 @@ main() {
     fi
 
     # Check if already logged in as the correct service principal
-    local current_user=$(az account show --query user.name -o tsv 2>/dev/null || echo "")
-    local current_type=$(az account show --query user.type -o tsv 2>/dev/null || echo "")
-
-    # Check if we're logged in as a service principal and if it looks like our FPA
     local skip_login=false
-    if [[ "$current_type" == "servicePrincipal" && -n "$current_user" ]]; then
-        # If we can't get the expected app ID due to authentication issues,
-        # we'll assume we're already logged in correctly if the user is a service principal
-        # and the application name contains our expected pattern
-        local expected_app_id=""
-        if expected_app_id=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv 2>/dev/null) && [[ -n "$expected_app_id" ]]; then
-            if [[ "$current_user" == "$expected_app_id" ]]; then
-                skip_login=true
-                print_info "Already logged in as mock FPA service principal: $current_user"
-            fi
-        else
-            # Can't verify the exact app ID, but if we're a service principal and the name looks right,
-            # we'll assume it's correct to avoid authentication loops
-            print_info "Already logged in as service principal: $current_user (assuming this is the mock FPA)"
-            skip_login=true
-        fi
+    if is_logged_in_as_mock_fpa "$FP_APPLICATION_NAME"; then
+        skip_login=true
     fi
 
     if [[ "$skip_login" == "false" ]]; then
@@ -542,7 +516,7 @@ cleanup_on_interrupt() {
     print_info "Script interrupted, cleaning up..."
 
     # Clean up certificate files
-    rm -f app.pem app.pfx
+    cleanupMockFpaCertificateFiles
 
     # Only restore if we were originally a user (not service principal)
     if [[ -n "$ORIGINAL_USER_TYPE" && "$ORIGINAL_USER_TYPE" != "servicePrincipal" ]]; then

@@ -35,36 +35,22 @@ AH_CERTIFICATE_NAME=${ARO_HCP_DEV_AH_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-ah-cert"}
 AZURE_BUILTIN_ROLE_OWNER="8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 AZURE_BUILTIN_ROLE_CONTRIBUTOR="b24988ac-6180-42a0-ab88-20f7382dd24c"
 
-# Set up dedicated Azure CLI config directory to avoid interfering with user's existing setup
+# Get script directory and source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AZURE_CONFIG_DIR="$SCRIPT_DIR/../azure-config"
-export AZURE_CONFIG_DIR
+source "$SCRIPT_DIR/mock-fpa-common.sh"
 
-# Create Azure config directory if it doesn't exist
-mkdir -p "$AZURE_CONFIG_DIR"
+# Set up Azure config directory and file paths
+setup_azure_config "$SCRIPT_DIR"
 
 printEnv() {
-    echo "LOCATION: $LOCATION"
-    echo "RESOURCE_GROUP: $RESOURCE_GROUP"
-    echo "SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
-    echo "KEY_VAULT_NAME: $KEY_VAULT_NAME"
-    echo "FP_APPLICATION_NAME: $FP_APPLICATION_NAME"
-    echo "FP_CERTIFICATE_NAME: $FP_CERTIFICATE_NAME"
-    echo "AH_APPLICATION_NAME: $AH_APPLICATION_NAME"
-    echo "AH_CERTIFICATE_NAME: $AH_CERTIFICATE_NAME"
+    printMockFpaEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
+        "$FP_APPLICATION_NAME" "$FP_CERTIFICATE_NAME" "$AH_APPLICATION_NAME" "$AH_CERTIFICATE_NAME"
 }
 
 shellEnv() {
     # Calling shell can "eval" this output.
-    echo "LOCATION=\"$LOCATION\"; export LOCATION"
-    echo "RESOURCE_GROUP=\"$RESOURCE_GROUP\"; export RESOURCE_GROUP"
-    echo "SUBSCRIPTION_ID=\"$SUBSCRIPTION_ID\"; export SUBSCRIPTION_ID"
-    echo "ARO_HCP_DEV_KEY_VAULT_NAME=\"$KEY_VAULT_NAME\"; export ARO_HCP_DEV_KEY_VAULT_NAME"
-    echo "ARO_HCP_DEV_FP_APPLICATION_NAME=\"$FP_APPLICATION_NAME\"; export ARO_HCP_DEV_FP_APPLICATION_NAME"
-    echo "ARO_HCP_DEV_FP_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_FP_CERTIFICATE_NAME"
-    echo "ARO_HCP_DEV_AH_APPLICATION_NAME=\"$AH_APPLICATION_NAME\"; export ARO_HCP_DEV_AH_APPLICATION_NAME"
-    echo "ARO_HCP_DEV_AH_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_AH_CERTIFICATE_NAME"
-    echo "AZURE_CONFIG_DIR=\"$AZURE_CONFIG_DIR\"; export AZURE_CONFIG_DIR"
+    exportMockFpaShellEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
+        "$FP_APPLICATION_NAME" "$FP_CERTIFICATE_NAME" "$AH_APPLICATION_NAME" "$AH_CERTIFICATE_NAME"
 }
 
 createServicePrincipal() {
@@ -282,41 +268,7 @@ deleteApps() {
     az group delete --name "$RESOURCE_GROUP" --yes
 }
 
-loginWithMockServicePrincipal() {
-    az keyvault secret download \
-    --name "$FP_CERTIFICATE_NAME" \
-    --vault-name "$KEY_VAULT_NAME" \
-    --encoding base64 \
-    --file app.pfx
-
-    openssl pkcs12 \
-    -in app.pfx \
-    -passin pass: \
-    -out app.pem \
-    -nodes
-
-    appId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
-    tenantId=$(az account show --query tenantId -o tsv)
-
-    echo "Logging in as mock FPA service principal (App ID: $appId)"
-    az login --service-principal -u "$appId" --certificate app.pem --tenant "$tenantId"
-
-    # Note: Not deleting app.pem as Azure CLI needs to reference it for subsequent operations
-    # The certificate file will be cleaned up when the session ends
-    rm app.pfx
-    echo "Certificate file app.pem kept for Azure CLI session"
-}
-
-cleanupCertificateFiles() {
-    # Clean up certificate files when done with service principal session
-    if [ -f "app.pem" ]; then
-        echo "Cleaning up certificate file"
-        rm app.pem
-    fi
-    if [ -f "app.pfx" ]; then
-        rm app.pfx
-    fi
-}
+# Use shared functions for service principal operations
 
 case "$1" in
     "create")
@@ -326,7 +278,7 @@ case "$1" in
         deleteApps
     ;;
     "login")
-        loginWithMockServicePrincipal
+        loginWithMockServicePrincipal "$FP_CERTIFICATE_NAME" "$KEY_VAULT_NAME" "$FP_APPLICATION_NAME"
     ;;
     "shell")
         shellEnv
@@ -338,7 +290,7 @@ case "$1" in
         deleteMockFpaPolicies
     ;;
     "cleanup")
-        cleanupCertificateFiles
+        cleanupMockFpaCertificateFiles
     ;;
     *)
         echo "Usage: $0 {create|delete|login|shell|deploy-policies|delete-policies|cleanup}"
