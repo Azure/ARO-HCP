@@ -99,6 +99,10 @@ func NonNilValues[K any, V any](seq iter.Seq2[K, *V]) iter.Seq2[K, *V] {
 
 // StringSliceToStringPtrSlice converts a slice of strings to a slice of string pointers.
 func StringSliceToStringPtrSlice(s []string) []*string {
+	// Preserve nil in case it matters.
+	if s == nil {
+		return nil
+	}
 	out := make([]*string, len(s))
 	for index, item := range s {
 		out[index] = Ptr(item)
@@ -108,6 +112,10 @@ func StringSliceToStringPtrSlice(s []string) []*string {
 
 // StringPtrSliceToStringSlice converts a slice of string pointers to a slice of strings.
 func StringPtrSliceToStringSlice(s []*string) []string {
+	// Preserve nil in case it matters.
+	if s == nil {
+		return nil
+	}
 	s = DeleteNilsFromPtrSlice(s)
 	out := make([]string, 0, len(s))
 	for _, item := range s {

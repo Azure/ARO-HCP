@@ -95,6 +95,7 @@ func TestClusterStructTagMap(t *testing.T) {
 		"Properties.API":                                                     skip,
 		"Properties.API.URL":                                                 skip,
 		"Properties.API.Visibility":                                          api.VisibilityRead | api.VisibilityCreate,
+		"Properties.API.AuthorizedCIDRs":                                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Platform":                                                skip,
 		"Properties.Platform.ManagedResourceGroup":                           api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.SubnetID":                                       api.VisibilityRead | api.VisibilityCreate,
