@@ -30,6 +30,7 @@ import (
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
 	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required"`
+	Identity   *arm.ManagedServiceIdentity           `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a

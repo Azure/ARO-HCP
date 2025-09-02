@@ -179,6 +179,13 @@ func TestNodePoolStructTagMap(t *testing.T) {
 		"Properties.Taints.Key":                                  api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Taints.Value":                                api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.NodeDrainTimeoutMinutes":                     api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Identity":                                               skip,
+		"Identity.PrincipalID":                                   api.VisibilityRead,
+		"Identity.TenantID":                                      api.VisibilityRead,
+		"Identity.Type":                                          skip,
+		"Identity.UserAssignedIdentities":                        skip,
+		"Identity.UserAssignedIdentities.ClientID":               api.VisibilityRead,
+		"Identity.UserAssignedIdentities.PrincipalID":            api.VisibilityRead,
 	}
 
 	testStructTagMap(t, nodePoolStructTagMap, expectedVisibility)
