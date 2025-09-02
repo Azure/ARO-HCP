@@ -45,3 +45,9 @@ func TestTestResourceVisibilityMap(t *testing.T) {
 
 	TestVersionedVisibilityMap[ExternalTestResource](t, testResourceVisibilityMap, expectedVisibility)
 }
+
+func TestTestResourceNullPatch(t *testing.T) {
+	TestVersionedNullPatch(t, func() VersionedCreatableResource[InternalTestResource] {
+		return &ExternalTestResource{}
+	})
+}
