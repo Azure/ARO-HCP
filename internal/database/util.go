@@ -30,19 +30,19 @@ type queryItemsIterator[T DocumentProperties] struct {
 
 // newqueryItemsIterator is a failable push iterator for a paged query response.
 func newQueryItemsIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return queryItemsIterator[T]{pager: pager}
+	return &queryItemsIterator[T]{pager: pager}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
 func newQueryItemsSinglePageIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return queryItemsIterator[T]{pager: pager, singlePage: true}
+	return &queryItemsIterator[T]{pager: pager, singlePage: true}
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorItem[T] {
+func (iter *queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorItem[T] {
 	return func(yield func(string, *T) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)
