@@ -18,6 +18,7 @@ import (
 	"iter"
 	"reflect"
 	"slices"
+	"strings"
 )
 
 const (
@@ -51,6 +52,24 @@ func PtrOrNil[T any](p T) *T {
 		return nil
 	}
 	return &p
+}
+
+// TrimStringSlice returns a new string slice with all leading and
+// trailing white space removed from each element and omitting any
+// white-space-only elements.
+func TrimStringSlice(s []string) []string {
+	// Preserve nil in case it matters.
+	if s == nil {
+		return nil
+	}
+	out := make([]string, 0, len(s))
+	for _, item := range s {
+		item = strings.TrimSpace(item)
+		if len(item) > 0 {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // DeleteNilsFromPtrSlice returns a slice with nil pointers removed.
