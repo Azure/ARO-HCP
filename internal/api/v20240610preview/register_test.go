@@ -203,3 +203,21 @@ func TestExternalAuthVisibilityMap(t *testing.T) {
 
 	api.TestVersionedVisibilityMap[ExternalAuth](t, externalAuthVisibilityMap, expectedVisibility)
 }
+
+func TestClusterNullPatch(t *testing.T) {
+	api.TestVersionedNullPatch(t, func() api.VersionedCreatableResource[api.HCPOpenShiftCluster] {
+		return versionedInterface.NewHCPOpenShiftCluster(api.MinimumValidClusterTestCase())
+	})
+}
+
+func TestNodePoolNullPatch(t *testing.T) {
+	api.TestVersionedNullPatch(t, func() api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool] {
+		return versionedInterface.NewHCPOpenShiftClusterNodePool(api.MinimumValidNodePoolTestCase())
+	})
+}
+
+func TestExternalAuthNullPatch(t *testing.T) {
+	api.TestVersionedNullPatch(t, func() api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] {
+		return versionedInterface.NewHCPOpenShiftClusterExternalAuth(api.MinimumValidExternalAuthTestCase())
+	})
+}
