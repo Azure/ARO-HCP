@@ -44,9 +44,9 @@ func newDNSProfile(from *api.DNSProfile) *generated.DNSProfile {
 func newNetworkProfile(from *api.NetworkProfile) *generated.NetworkProfile {
 	return &generated.NetworkProfile{
 		NetworkType: api.PtrOrNil(generated.NetworkType(from.NetworkType)),
-		PodCidr:     api.PtrOrNil(from.PodCIDR),
-		ServiceCidr: api.PtrOrNil(from.ServiceCIDR),
-		MachineCidr: api.PtrOrNil(from.MachineCIDR),
+		PodCIDR:     api.PtrOrNil(from.PodCIDR),
+		ServiceCIDR: api.PtrOrNil(from.ServiceCIDR),
+		MachineCIDR: api.PtrOrNil(from.MachineCIDR),
 		HostPrefix:  api.PtrOrNil(from.HostPrefix),
 	}
 }
@@ -333,14 +333,14 @@ func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
 	if p.NetworkType != nil {
 		out.NetworkType = api.NetworkType(*p.NetworkType)
 	}
-	if p.PodCidr != nil {
-		out.PodCIDR = *p.PodCidr
+	if p.PodCIDR != nil {
+		out.PodCIDR = *p.PodCIDR
 	}
-	if p.ServiceCidr != nil {
-		out.ServiceCIDR = *p.ServiceCidr
+	if p.ServiceCIDR != nil {
+		out.ServiceCIDR = *p.ServiceCIDR
 	}
-	if p.MachineCidr != nil {
-		out.MachineCIDR = *p.MachineCidr
+	if p.MachineCIDR != nil {
+		out.MachineCIDR = *p.MachineCIDR
 	}
 	if p.HostPrefix != nil {
 		out.HostPrefix = *p.HostPrefix

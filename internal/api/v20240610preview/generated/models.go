@@ -15,7 +15,7 @@ type APIProfile struct {
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
-	AuthorizedCidrs []*string
+	AuthorizedCIDRs []*string
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -585,16 +585,16 @@ type NetworkProfile struct {
 	HostPrefix *int32
 
 	// The CIDR block from which to assign machine IP addresses
-	MachineCidr *string
+	MachineCIDR *string
 
 	// The main controller responsible for rendering the core networking components
 	NetworkType *NetworkType
 
 	// The CIDR of the pod IP addresses
-	PodCidr *string
+	PodCIDR *string
 
 	// The CIDR block for assigned service IPs
-	ServiceCidr *string
+	ServiceCIDR *string
 }
 
 // NodePool - Concrete tracked resource types can be created by aliasing this type using a specific property type.
