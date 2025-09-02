@@ -28,6 +28,8 @@ grafana-dashboards:
   dashboardFolders:
   - name: istio
     path: ../istio/grafana-dashboards
+  - name: Image Sync
+    path: ../image-sync/grafana-dashboards
   - name: Infrastructure
     path: infra-dashboards
   - name: Frontend
