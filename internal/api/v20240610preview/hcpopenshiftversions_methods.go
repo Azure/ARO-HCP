@@ -25,7 +25,6 @@ type HcpOpenShiftVersion struct {
 }
 
 func NewHcpOpenShiftVersion(from *api.HCPOpenShiftVersion) *HcpOpenShiftVersion {
-
 	return &HcpOpenShiftVersion{
 		generated.HcpOpenShiftVersion{
 			ID:   api.PtrOrNil(from.ID),
