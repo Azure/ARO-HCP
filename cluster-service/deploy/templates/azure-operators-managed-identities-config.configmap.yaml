@@ -87,8 +87,6 @@ data:
             name: '{{ .name }}'
         {{- end }}
         k8sServiceAccounts:
-          - name: 'azure-disk-csi-driver-operator'
-            namespace: 'openshift-cluster-csi-drivers'
           - name: 'azure-disk-csi-driver-controller-sa'
             namespace: 'openshift-cluster-csi-drivers'
         optional: false
@@ -113,8 +111,6 @@ data:
             name: '{{ .name }}'
         {{- end }}
         k8sServiceAccounts:
-          - name: 'azure-file-csi-driver-operator'
-            namespace: 'openshift-cluster-csi-drivers'
           - name: 'azure-file-csi-driver-controller-sa'
             namespace: 'openshift-cluster-csi-drivers'
           - name: 'azure-file-csi-driver-node-sa'
