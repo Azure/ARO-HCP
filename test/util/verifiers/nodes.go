@@ -46,7 +46,7 @@ func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Conf
 
 	var notReadyNodes []string
 	for _, node := range nodes.Items {
-		var nodeIsReady bool = false
+		var nodeIsReady = false
 		for _, condition := range node.Status.Conditions {
 			if condition.Type == "Ready" && condition.Status == "True" {
 				nodeIsReady = true
