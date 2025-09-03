@@ -2611,7 +2611,7 @@ func (t *TokenClaimValidationRule) UnmarshalJSON(data []byte) error {
 func (t TokenIssuerProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "audiences", t.Audiences)
-	populate(objectMap, "ca", t.Ca)
+	populate(objectMap, "ca", t.CA)
 	populate(objectMap, "url", t.URL)
 	return json.Marshal(objectMap)
 }
@@ -2629,7 +2629,7 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 			err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+			err = unpopulate(val, "CA", &t.CA)
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &t.URL)
@@ -2648,7 +2648,7 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 func (t TokenIssuerProfileUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "audiences", t.Audiences)
-	populate(objectMap, "ca", t.Ca)
+	populate(objectMap, "ca", t.CA)
 	populate(objectMap, "url", t.URL)
 	return json.Marshal(objectMap)
 }
@@ -2666,7 +2666,7 @@ func (t *TokenIssuerProfileUpdate) UnmarshalJSON(data []byte) error {
 			err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+			err = unpopulate(val, "CA", &t.CA)
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &t.URL)

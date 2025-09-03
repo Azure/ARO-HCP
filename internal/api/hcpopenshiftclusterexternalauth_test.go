@@ -144,7 +144,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: "",
+						CA: "",
 					},
 				},
 			},
@@ -154,7 +154,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: "NOT A PEM DOC",
+						CA: "NOT A PEM DOC",
 					},
 				},
 			},

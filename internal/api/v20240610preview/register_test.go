@@ -208,7 +208,7 @@ func TestExternalAuthStructTagMap(t *testing.T) {
 		"Properties.Issuer":                                             skip,
 		"Properties.Issuer.Url":                                         api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Issuer.Audiences":                                   api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
-		"Properties.Issuer.Ca":                                          api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
+		"Properties.Issuer.CA":                                          api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.Clients":                                            skip,
 		"Properties.Clients.Component":                                  skip,
 		"Properties.Clients.Component.Name":                             api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,

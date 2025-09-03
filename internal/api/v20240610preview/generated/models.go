@@ -998,7 +998,7 @@ type TokenIssuerProfile struct {
 	// The issuer of the token
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
-	Ca *string
+	CA *string
 }
 
 // TokenIssuerProfileUpdate - Token issuer profile This configures how the platform interacts with the identity provider and
@@ -1012,7 +1012,7 @@ type TokenIssuerProfileUpdate struct {
 	// The issuer of the token
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
-	Ca *string
+	CA *string
 
 	// This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication
 	// tokens should be handled by matching the 'iss' claim in the JWT to the

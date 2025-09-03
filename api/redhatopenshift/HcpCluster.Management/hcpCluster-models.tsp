@@ -820,6 +820,7 @@ model TokenIssuerProfile {
    * Certificate bundle to use to validate server certificates for the configured URL.
    * It must be PEM encoded and when not specified, the system trust is used.
    */
+  @clientName("CA")
   ca?: string;
 }
 

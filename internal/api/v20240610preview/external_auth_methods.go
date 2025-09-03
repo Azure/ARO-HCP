@@ -128,8 +128,8 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 			out.Audiences[i] = *p.Audiences[i]
 		}
 	}
-	if p.Ca != nil {
-		out.Ca = *p.Ca
+	if p.CA != nil {
+		out.CA = *p.CA
 	}
 }
 
@@ -199,7 +199,7 @@ func newTokenIssuerProfile(from *api.TokenIssuerProfile) *generated.TokenIssuerP
 	return &generated.TokenIssuerProfile{
 		URL:       api.PtrOrNil(from.Url),
 		Audiences: api.StringSliceToStringPtrSlice(from.Audiences),
-		Ca:        api.PtrOrNil(from.Ca),
+		CA:        api.PtrOrNil(from.CA),
 	}
 }
 

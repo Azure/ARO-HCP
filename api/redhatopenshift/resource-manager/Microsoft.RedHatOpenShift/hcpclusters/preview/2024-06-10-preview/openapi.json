@@ -3423,7 +3423,8 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "x-ms-client-name": "CA"
         }
       },
       "required": [
@@ -3451,7 +3452,8 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "x-ms-client-name": "CA"
         }
       }
     },

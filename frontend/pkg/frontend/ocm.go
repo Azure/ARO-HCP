@@ -705,7 +705,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
 				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        csExternalAuth.Issuer().CA(),
+				CA:        csExternalAuth.Issuer().CA(),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -775,7 +775,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 
 	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
 		URL(externalAuth.Properties.Issuer.Url).
-		CA(externalAuth.Properties.Issuer.Ca).
+		CA(externalAuth.Properties.Issuer.CA).
 		Audiences(externalAuth.Properties.Issuer.Audiences...),
 	)
 

@@ -450,7 +450,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Issuer = api.TokenIssuerProfile{
-						Ca:        dummyCA,
+						CA:        dummyCA,
 						Url:       dummyURL,
 						Audiences: dummyAudiences,
 					}
