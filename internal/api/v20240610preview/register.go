@@ -27,6 +27,7 @@ func (v version) String() string {
 }
 
 var (
+	versionedInterface       = version{}
 	validate                 = api.NewValidator()
 	clusterStructTagMap      = api.NewStructTagMap[api.HCPOpenShiftCluster]()
 	nodePoolStructTagMap     = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
@@ -45,7 +46,7 @@ func init() {
 	//       clusterStructTagMap["Properties.FieldName"] = reflect.StructTag("visibility:\"read create\"")
 	//
 
-	api.Register(version{})
+	api.Register(versionedInterface)
 
 	// Register enum type validations
 	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
