@@ -115,10 +115,20 @@ func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
 
 	case reflect.Struct:
 		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			subpath := join(path, field.Name)
+			var subpath string
 
-			if len(field.Tag) > 0 {
+			field := t.Field(i)
+
+			if !field.IsExported() {
+				continue
+			}
+
+			// Omit embedded field names from the key.
+			// Generated API structs do not have them.
+			if field.Anonymous {
+				subpath = path
+			} else {
+				subpath = join(path, field.Name)
 				structTagMap[subpath] = field.Tag
 			}
 

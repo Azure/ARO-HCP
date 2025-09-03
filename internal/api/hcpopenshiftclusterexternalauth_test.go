@@ -81,8 +81,8 @@ func TestExternalAuthRequired(t *testing.T) {
 
 func TestExternalAuthValidate(t *testing.T) {
 	TooLongClaim := strings.Repeat("a", 257)
-	ClientId1 := "clientId1"
-	ClientId2 := "clientId2"
+	ClientID1 := "clientID1"
+	ClientID2 := "clientID2"
 	ClientComponentName := "A"
 	ClientComponentNamespace := "B"
 
@@ -144,7 +144,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: "",
+						CA: "",
 					},
 				},
 			},
@@ -154,7 +154,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Ca: "NOT A PEM DOC",
+						CA: "NOT A PEM DOC",
 					},
 				},
 			},
@@ -170,7 +170,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url: "aaa",
+						URL: "aaa",
 					},
 				},
 			},
@@ -186,7 +186,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url: "http://microsoft.com",
+						URL: "http://microsoft.com",
 					},
 				},
 			},
@@ -276,21 +276,21 @@ func TestExternalAuthValidate(t *testing.T) {
 		//--------------------------------
 
 		{
-			name: "Valid ClientId in audiences",
+			name: "Valid ClientID in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       "https://example.com",
-						Audiences: []string{ClientId1},
+						URL:       "https://example.com",
+						Audiences: []string{ClientID1},
 					},
 					Clients: []ExternalAuthClientProfile{
 						{
-							ClientId: ClientId1,
+							ClientID: ClientID1,
 							Component: ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
+							Type: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{
@@ -303,21 +303,21 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
-			name: "Invalid ClientId not in audiences",
+			name: "Invalid ClientID not in audiences",
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       "https://example.com",
+						URL:       "https://example.com",
 						Audiences: []string{},
 					},
 					Clients: []ExternalAuthClientProfile{
 						{
-							ClientId: ClientId1,
+							ClientID: ClientID1,
 							Component: ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
+							Type: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{
@@ -330,7 +330,7 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Code:    "InvalidRequestContent",
-					Message: fmt.Sprintf("ClientId '%s' in clients[0] must match an audience in TokenIssuerProfile", ClientId1),
+					Message: fmt.Sprintf("ClientID '%s' in clients[0] must match an audience in TokenIssuerProfile", ClientID1),
 					Target:  "properties.clients",
 				},
 			},
@@ -340,25 +340,25 @@ func TestExternalAuthValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterExternalAuth{
 				Properties: HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: TokenIssuerProfile{
-						Url:       "https://example.com",
-						Audiences: []string{ClientId1, ClientId2},
+						URL:       "https://example.com",
+						Audiences: []string{ClientID1, ClientID2},
 					},
 					Clients: []ExternalAuthClientProfile{
 						{
-							ClientId: ClientId1,
+							ClientID: ClientID1,
 							Component: ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
+							Type: ExternalAuthClientTypeConfidential,
 						},
 						{
-							ClientId: ClientId2,
+							ClientID: ClientID2,
 							Component: ExternalAuthClientComponentProfile{
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							ExternalAuthClientProfileType: ExternalAuthClientTypeConfidential,
+							Type: ExternalAuthClientTypeConfidential,
 						},
 					},
 					Claim: ExternalAuthClaimProfile{
@@ -373,7 +373,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					Message: fmt.Sprintf(
 						"External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace. "+
 							"The following clientIds share the same unique combination '%s%s' and are invalid: \n '[%s %s]' ",
-						ClientComponentName, ClientComponentNamespace, ClientId1, ClientId2,
+						ClientComponentName, ClientComponentNamespace, ClientID1, ClientID2,
 					),
 					Target: "properties.clients",
 				},

@@ -15,7 +15,7 @@ import (
 // MarshalJSON implements the json.Marshaller interface for type APIProfile.
 func (a APIProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "authorizedCidrs", a.AuthorizedCidrs)
+	populate(objectMap, "authorizedCidrs", a.AuthorizedCIDRs)
 	populate(objectMap, "url", a.URL)
 	populate(objectMap, "visibility", a.Visibility)
 	return json.Marshal(objectMap)
@@ -31,7 +31,7 @@ func (a *APIProfile) UnmarshalJSON(data []byte) error {
 		var err error
 		switch key {
 		case "authorizedCidrs":
-			err = unpopulate(val, "AuthorizedCidrs", &a.AuthorizedCidrs)
+			err = unpopulate(val, "AuthorizedCIDRs", &a.AuthorizedCIDRs)
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &a.URL)
@@ -1573,10 +1573,10 @@ func (m *ManagedServiceIdentity) UnmarshalJSON(data []byte) error {
 func (n NetworkProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "hostPrefix", n.HostPrefix)
-	populate(objectMap, "machineCidr", n.MachineCidr)
+	populate(objectMap, "machineCidr", n.MachineCIDR)
 	populate(objectMap, "networkType", n.NetworkType)
-	populate(objectMap, "podCidr", n.PodCidr)
-	populate(objectMap, "serviceCidr", n.ServiceCidr)
+	populate(objectMap, "podCidr", n.PodCIDR)
+	populate(objectMap, "serviceCidr", n.ServiceCIDR)
 	return json.Marshal(objectMap)
 }
 
@@ -1593,16 +1593,16 @@ func (n *NetworkProfile) UnmarshalJSON(data []byte) error {
 			err = unpopulate(val, "HostPrefix", &n.HostPrefix)
 			delete(rawMsg, key)
 		case "machineCidr":
-			err = unpopulate(val, "MachineCidr", &n.MachineCidr)
+			err = unpopulate(val, "MachineCIDR", &n.MachineCIDR)
 			delete(rawMsg, key)
 		case "networkType":
 			err = unpopulate(val, "NetworkType", &n.NetworkType)
 			delete(rawMsg, key)
 		case "podCidr":
-			err = unpopulate(val, "PodCidr", &n.PodCidr)
+			err = unpopulate(val, "PodCIDR", &n.PodCIDR)
 			delete(rawMsg, key)
 		case "serviceCidr":
-			err = unpopulate(val, "ServiceCidr", &n.ServiceCidr)
+			err = unpopulate(val, "ServiceCIDR", &n.ServiceCIDR)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", n, key)
@@ -2611,7 +2611,7 @@ func (t *TokenClaimValidationRule) UnmarshalJSON(data []byte) error {
 func (t TokenIssuerProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "audiences", t.Audiences)
-	populate(objectMap, "ca", t.Ca)
+	populate(objectMap, "ca", t.CA)
 	populate(objectMap, "url", t.URL)
 	return json.Marshal(objectMap)
 }
@@ -2629,7 +2629,7 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 			err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+			err = unpopulate(val, "CA", &t.CA)
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &t.URL)
@@ -2648,7 +2648,7 @@ func (t *TokenIssuerProfile) UnmarshalJSON(data []byte) error {
 func (t TokenIssuerProfileUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "audiences", t.Audiences)
-	populate(objectMap, "ca", t.Ca)
+	populate(objectMap, "ca", t.CA)
 	populate(objectMap, "url", t.URL)
 	return json.Marshal(objectMap)
 }
@@ -2666,7 +2666,7 @@ func (t *TokenIssuerProfileUpdate) UnmarshalJSON(data []byte) error {
 			err = unpopulate(val, "Audiences", &t.Audiences)
 			delete(rawMsg, key)
 		case "ca":
-			err = unpopulate(val, "Ca", &t.Ca)
+			err = unpopulate(val, "CA", &t.CA)
 			delete(rawMsg, key)
 		case "url":
 			err = unpopulate(val, "URL", &t.URL)

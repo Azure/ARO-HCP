@@ -1455,6 +1455,7 @@
           "items": {
             "type": "string"
           },
+          "x-ms-client-name": "authorizedCIDRs",
           "x-ms-mutability": [
             "read",
             "update",
@@ -2582,6 +2583,7 @@
           "type": "string",
           "description": "The CIDR of the pod IP addresses",
           "default": "10.128.0.0/14",
+          "x-ms-client-name": "podCIDR",
           "x-ms-mutability": [
             "read",
             "create"
@@ -2591,6 +2593,7 @@
           "type": "string",
           "description": "The CIDR block for assigned service IPs",
           "default": "172.30.0.0/16",
+          "x-ms-client-name": "serviceCIDR",
           "x-ms-mutability": [
             "read",
             "create"
@@ -2600,6 +2603,7 @@
           "type": "string",
           "description": "The CIDR block from which to assign machine IP addresses",
           "default": "10.0.0.0/16",
+          "x-ms-client-name": "machineCIDR",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3419,7 +3423,8 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "x-ms-client-name": "CA"
         }
       },
       "required": [
@@ -3447,7 +3452,8 @@
         },
         "ca": {
           "type": "string",
-          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used."
+          "description": "The issuer of the token\n\nCertificate bundle to use to validate server certificates for the configured URL.\nIt must be PEM encoded and when not specified, the system trust is used.",
+          "x-ms-client-name": "CA"
         }
       }
     },

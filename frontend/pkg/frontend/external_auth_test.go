@@ -79,7 +79,7 @@ func TestCreateExternalAuth(t *testing.T) {
 		Properties: &generated.ExternalAuthProperties{
 			Issuer: &generated.TokenIssuerProfile{
 				URL:       &dummyURL,
-				Ca:        &dummyCA,
+				CA:        &dummyCA,
 				Audiences: api.StringSliceToStringPtrSlice(dummyAudiences),
 			},
 			Claim: &generated.ExternalAuthClaimProfile{

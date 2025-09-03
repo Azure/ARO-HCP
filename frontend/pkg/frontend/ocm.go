@@ -704,8 +704,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 			// TODO fill these out later when CS supports Conditions fully
 			// Condition: api.ExternalAuthCondition{},
 			Issuer: api.TokenIssuerProfile{
-				Url:       csExternalAuth.Issuer().URL(),
-				Ca:        csExternalAuth.Issuer().CA(),
+				URL:       csExternalAuth.Issuer().URL(),
+				CA:        csExternalAuth.Issuer().CA(),
 				Audiences: csExternalAuth.Issuer().Audiences(),
 			},
 			Claim: api.ExternalAuthClaimProfile{
@@ -739,9 +739,9 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 				Name:                client.Component().Name(),
 				AuthClientNamespace: client.Component().Namespace(),
 			},
-			ClientId:                      client.ID(),
-			ExtraScopes:                   client.ExtraScopes(),
-			ExternalAuthClientProfileType: clientType,
+			ClientID:    client.ID(),
+			ExtraScopes: client.ExtraScopes(),
+			Type:        clientType,
 		})
 	}
 	externalAuth.Properties.Clients = clients
@@ -751,7 +751,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 		for _, validationRule := range csExternalAuth.Claim().ValidationRules() {
 			validationRules = append(validationRules, api.TokenClaimValidationRule{
 				// We hard code the type here because CS only supports this type currently and doesn't reference the type.
-				TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+				Type: api.TokenValidationRuleTypeRequiredClaim,
 				RequiredClaim: api.TokenRequiredClaim{
 					Claim:         validationRule.Claim(),
 					RequiredValue: validationRule.RequiredValue(),
@@ -774,20 +774,20 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 	}
 
 	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
-		URL(externalAuth.Properties.Issuer.Url).
-		CA(externalAuth.Properties.Issuer.Ca).
+		URL(externalAuth.Properties.Issuer.URL).
+		CA(externalAuth.Properties.Issuer.CA).
 		Audiences(externalAuth.Properties.Issuer.Audiences...),
 	)
 
 	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
 	for _, t := range externalAuth.Properties.Clients {
-		clientType, err := convertExternalAuthClientTypeRPToCS(t.ExternalAuthClientProfileType)
+		clientType, err := convertExternalAuthClientTypeRPToCS(t.Type)
 		if err != nil {
 			return nil, err
 		}
 
 		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientId).
+			ID(t.ClientID).
 			Component(arohcpv1alpha1.NewClientComponent().
 				Name(t.Component.Name).
 				Namespace(t.Component.AuthClientNamespace),
