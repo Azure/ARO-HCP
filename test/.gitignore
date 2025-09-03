@@ -2,3 +2,4 @@ e2e.test
 *e2e-setup.json
 /aro-hcp-tests
 /e2e/test-artifacts/generated-test-artifacts/
+demo/08-oras-setup.sh
