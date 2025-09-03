@@ -448,6 +448,9 @@ mise:
     digest: ""
     repository: ""
   tenantId: ""
+  tracing:
+    address: ""
+    exporter: ""
 monitoring:
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev

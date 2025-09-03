@@ -7,3 +7,6 @@ armInstance: ""
 firstPartyAppId: ""
 armAppId: ""
 namespace: ""
+tracing:
+  address: ""
+  exporter: ""

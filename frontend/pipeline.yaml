@@ -89,6 +89,10 @@ resourceGroups:
       configRef: mise.firstPartyAppId
     - name: MISE_ARM_INSTANCE
       configRef: mise.armInstance
+    - name: MISE_TRACING_ADDRESS
+      configRef: mise.tracing.address
+    - name: MISE_TRACING_EXPORTER
+      configRef: mise.tracing.exporter
     - name: TRACING_ADDRESS
       configRef: frontend.tracing.address
     - name: TRACING_EXPORTER

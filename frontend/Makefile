@@ -132,6 +132,8 @@ deploy:
 		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
 		--set mise.armInstance=${MISE_ARM_INSTANCE} \
 		--set mise.armAppId=${MISE_ARM_APP_ID} \
+		--set mise.tracing.address=${MISE_TRACING_ADDRESS} \
+		--set mise.tracing.exporter=${MISE_TRACING_EXPORTER} \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
 		--set audit.tcpAddress=${AUDIT_TCP_ADDRESS} \

@@ -1281,6 +1281,9 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
+        "tracing": {
+          "$ref": "#/definitions/tracing"
+        },
         "tenantId": {
           "type": "string"
         }
