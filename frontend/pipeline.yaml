@@ -99,6 +99,8 @@ resourceGroups:
       configRef: frontend.tracing.exporter
     - name: AUDIT_TCP_ADDRESS
       configRef: frontend.audit.tcpAddress
+    - name: AUDIT_CONNECT_SOCKET
+      configRef: frontend.audit.connectSocket
     shellIdentity:
       input:
         resourceGroup: global

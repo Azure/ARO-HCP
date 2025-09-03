@@ -52,6 +52,8 @@ clouds:
           frontend:
             image:
               digest: "sha256:86e355daec68ef2fe01cce2daa63409dc47250c3f844da0e85284f169b2d9ce2"
+            audit:
+              connectSocket: true
           # RP Backend
           backend:
             image:
