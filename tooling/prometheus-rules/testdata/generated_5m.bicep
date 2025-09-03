@@ -11,13 +11,20 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
     interval: 'PT5M'
     rules: [
       {
-        actions: [for g in actionGroups: { actionGroupId: g }]
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': concat('#$.labels.cluster#',': ','#$.annotations.description#')
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
         alert: 'InstancesDownV1'
         enabled: true
         labels: {
           severity: 'critical'
         }
         annotations: {
+          correlationId: 'InstancesDownV1/{{ $labels.cluster }}'
           description: 'All instances of the App are down'
           summary: 'All instances of the App are down'
         }
@@ -25,13 +32,20 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         severity: 1
       }
       {
-        actions: [for g in actionGroups: { actionGroupId: g }]
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': concat('#$.labels.cluster#',': ','#$.annotations.description#')
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
           severity: 'warning'
         }
         annotations: {
+          correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
           summary: 'Pod has been in a non-ready state for more than 15 minutes.'

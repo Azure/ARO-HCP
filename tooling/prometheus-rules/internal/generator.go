@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 
 	"github.com/prometheus/common/model"
@@ -309,6 +310,20 @@ param azureMonitoring string
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
 
+				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
+				// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
+				// For alerts we write ourselves, we can add the set of labels manually. For alerts we're importing, though,
+				// we will make the assumption that the `description` annotation refers to all the critical dimensions and use
+				// those in the correlation ID.
+				dimensions := sets.New[string]("{{ $labels.cluster }}") // we always want to be cluster-specific
+				if description, exists := annotations["description"]; exists && description != nil {
+					labelMatcher := regexp.MustCompile(`\$labels\.[^\s]+`)
+					for _, match := range labelMatcher.FindAllString(*description, -1) {
+						dimensions.Insert(fmt.Sprintf("{{ %s }}", match))
+					}
+				}
+				annotations["correlationId"] = ptr.To(strings.Join(append([]string{rule.Alert}, sets.List(dimensions)...), "/"))
+
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
@@ -372,7 +387,13 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
     rules: [
 {{- range .groups.Properties.Rules}}
       {
-        actions: [for g in actionGroups: { actionGroupId: g }]
+        actions: [for g in actionGroups: {
+          actionGroupId: g
+          actionProperties: {
+            'IcM.Title': concat('#$.labels.cluster#',': ','#$.annotations.description#')
+            'IcM.CorrelationId': '#$.annotations.correlationId#'
+          }
+        }]
         alert: '{{.Alert}}'
         enabled: {{.Enabled}}
 {{- if .Labels}}

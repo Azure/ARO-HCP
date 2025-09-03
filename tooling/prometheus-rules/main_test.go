@@ -66,7 +66,8 @@ func TestPrometheusRules(t *testing.T) {
 
 			for _, testfile := range []string{
 				"./testdata/alerts/testing-prometheusRule_test.yaml",
-				"./testdata/alerts/testing-prometheusRule.yaml"} {
+				"./testdata/alerts/testing-prometheusRule.yaml",
+			} {
 				require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 			}
 			err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
@@ -93,7 +94,8 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 	require.NoError(t, setupTestFiles(tmpDir, ""))
 
 	for _, testfile := range []string{
-		"./testdata/alerts/testing-prometheusRule.yaml"} {
+		"./testdata/alerts/testing-prometheusRule.yaml",
+	} {
 		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
 	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
