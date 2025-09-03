@@ -206,8 +206,8 @@ func GetNodePool(
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
-// CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
-func CreateExternalAuthAndWait(
+// CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
+func CreateOrUpdateExternalAuthAndWait(
 	ctx context.Context,
 	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
 	resourceGroupName string,
@@ -307,7 +307,7 @@ func DeleteExternalAuthAndWait(
 	}
 }
 
-func CreateClusterRoleBinding(ctx context.Context, adminRESTConfig *rest.Config) error {
+func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
