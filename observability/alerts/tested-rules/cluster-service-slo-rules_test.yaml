@@ -41,12 +41,15 @@ tests:
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 80 # 80% error rate / 1% budget = 80x burn rate
+      value: 0.8 # 80% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -68,12 +71,15 @@ tests:
     eval_time: 420m # 7 hours
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate30m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 10 # 10% error rate / 1% budget = 10x burn rate
+      value: 0.1 # 10% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 420m # 7 hours - after 6h window + buffer
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -95,12 +101,15 @@ tests:
     eval_time: 4400m # After 3 days
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate6h{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 1.5 # 1.5% error rate / 1% budget = 1.5x burn rate
+      value: 0.015 # 1.5% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 4400m # After 3 days + buffer
     alertname: ClustersServiceAPIAvailability6hto3dErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-availability"
       exp_annotations:
@@ -121,7 +130,7 @@ tests:
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 0.99 # 0.99% error rate / 1% budget = 0.99x burn rate
+      value: 0.0099 # 0.99% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
@@ -146,12 +155,15 @@ tests:
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 30 # 30% error rate / 1% budget = 30x burn rate
+      value: 0.3 # 30% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -173,6 +185,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -200,12 +215,15 @@ tests:
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 20 # 20% error rate / 1% budget = 20x burn rate
+      value: 0.2 # 20% error rate (raw burn rate without division)
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -277,6 +295,9 @@ tests:
     alertname: ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -305,6 +326,9 @@ tests:
     alertname: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -333,6 +357,9 @@ tests:
     alertname: ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-latency-p99"
       exp_annotations:
@@ -359,6 +386,9 @@ tests:
     alertname: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-latency-p90"
       exp_annotations:
