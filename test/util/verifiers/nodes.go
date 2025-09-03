@@ -46,14 +46,18 @@ func (v verifyNodesReady) Verify(ctx context.Context, adminRESTConfig *rest.Conf
 
 	var notReadyNodes []string
 	for _, node := range nodes.Items {
+		var nodeIsReady bool = false
 		for _, condition := range node.Status.Conditions {
-			if condition.Type == "Ready" && condition.Status == "False" {
-				notReadyNodes = append(notReadyNodes, node.Name)
+			if condition.Type == "Ready" && condition.Status == "True" {
+				nodeIsReady = true
 			}
+		}
+		if !nodeIsReady {
+			notReadyNodes = append(notReadyNodes, node.Name)
 		}
 	}
 	if len(notReadyNodes) > 0 {
-		return fmt.Errorf("there are nodes in NotReady state: %s", notReadyNodes)
+		return fmt.Errorf("there are not ready nodes: %s", notReadyNodes)
 	}
 
 	return nil
