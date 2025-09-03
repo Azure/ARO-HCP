@@ -326,7 +326,7 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 			{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "User",
-				Name:     "e2e-test@redhat.com",
+				Name:     subject,
 			},
 		},
 	}, metav1.CreateOptions{})

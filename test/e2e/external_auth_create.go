@@ -22,14 +22,18 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -153,13 +157,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating an app registration with a client secret")
-			app, err := tc.NewAppRegistration(ctx)
+			app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 			graphClient, err := tc.GetGraphClient(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
+			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating an external auth config")
@@ -172,44 +176,65 @@ var _ = Describe("Customer", func() {
 					Claim: &generated.ExternalAuthClaimProfile{
 						Mappings: &generated.TokenClaimMappingsProfile{
 							Username: &generated.UsernameClaimProfile{
-								Claim: to.Ptr("email"),
+								Claim:        to.Ptr("sub"), // objectID
+								PrefixPolicy: to.Ptr("NoPrefix"),
 							},
 							Groups: &generated.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*generated.ExternalAuthClientProfile{
-						{
-							ClientID: to.Ptr(app.ID),
-							Component: &generated.ExternalAuthClientComponentProfile{
-								Name:                to.Ptr("console"),
-								AuthClientNamespace: to.Ptr("openshift-console"),
-							},
-							Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
-						},
-						{
-							ClientID: to.Ptr(app.AppID),
-							Component: &generated.ExternalAuthClientComponentProfile{
-								Name:                to.Ptr("cli"),
-								AuthClientNamespace: to.Ptr("openshift-console"),
-							},
-							Type: to.Ptr(generated.ExternalAuthClientTypePublic),
-						},
-					},
+					// Clients: []*generated.ExternalAuthClientProfile{
+					// 	{
+					// 		ClientID: to.Ptr(app.ID),
+					// 		Component: &generated.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("console"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
+					// 	},
+					// 	{
+					// 		ClientID: to.Ptr(app.AppID),
+					// 		Component: &generated.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("cli"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(generated.ExternalAuthClientTypePublic),
+					// 	},
+					// },
 				},
 			}
-
-			_, err = framework.CreateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
+			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("verifying ExternalAuth via GET")
-			_, err = framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
+			By("verifying ExternalAuth is in a Succeeded state")
+			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(generated.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
-			err = framework.CreateClusterRoleBinding(ctx, adminRESTConfig)
+			err = framework.CreateClusterRoleBinding(ctx, sp.ID, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("creating a rest config using OIDC authentication")
+			Expect(tc.TenantID()).NotTo(BeEmpty())
+			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			accessToken, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			config := &rest.Config{
+				Host:        adminRESTConfig.Host,
+				BearerToken: accessToken.Token,
+			}
+			client, err := kubernetes.NewForConfig(config)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("confirming we can list namespaces using entra OIDC token")
+			_, err = client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
 		})
 })
