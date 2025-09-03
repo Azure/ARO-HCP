@@ -85,9 +85,7 @@ func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
 }
 
 func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
-	// Pass the embedded ExternalAuth struct so the struct
-	// field names match the externalAuthStructTagMap keys.
-	return api.ValidateVisibility(c.ExternalAuth, current.(*ExternalAuth).ExternalAuth, externalAuthStructTagMap, updating)
+	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthStructTagMap, updating)
 }
 
 func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
