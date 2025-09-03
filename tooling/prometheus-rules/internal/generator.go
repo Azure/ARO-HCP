@@ -334,7 +334,7 @@ param azureMonitoring string
 						For:         parseToAzureDurationString(rule.For),
 						Expression: ptr.To(
 							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), ""),
+								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
 							),
 						),
 						Severity: severityFor(labels, o.forceInfoSeverity),
@@ -346,7 +346,7 @@ param azureMonitoring string
 						Labels:  labels,
 						Expression: ptr.To(
 							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), ""),
+								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
 							),
 						),
 					})
