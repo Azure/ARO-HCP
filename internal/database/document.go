@@ -53,6 +53,17 @@ type DocumentProperties interface {
 	GetValidTypes() []string
 }
 
+// ResourceDocumentContent will eventually replace DocumentProperties.  It provides the metadata required for an entire
+// ResourceDocument, contained in a single object instead of two objects.
+type ResourceDocumentContent interface {
+	GetValidTypes() []string
+	GetSubscriptionID() string
+	GetResourceType() azcorearm.ResourceType
+	GetResourceID() *azcorearm.ResourceID
+	GetProvisioningState() arm.ProvisioningState
+	GetInternalID() ocm.InternalID
+}
+
 // BillingDocument records timestamps of Hosted Control Plane OpenShift cluster
 // creation and deletion for the purpose of customer billing.
 type BillingDocument struct {
@@ -119,6 +130,26 @@ func (doc ResourceDocument) GetValidTypes() []string {
 		api.NodePoolResourceType.String(),
 		api.ExternalAuthResourceType.String(),
 	}
+}
+
+func (doc ResourceDocument) GetSubscriptionID() string {
+	return doc.ResourceID.SubscriptionID
+}
+
+func (doc ResourceDocument) GetResourceType() azcorearm.ResourceType {
+	return doc.ResourceID.ResourceType
+}
+
+func (doc ResourceDocument) GetResourceID() *azcorearm.ResourceID {
+	return doc.ResourceID
+}
+
+func (doc ResourceDocument) GetProvisioningState() arm.ProvisioningState {
+	return doc.ProvisioningState
+}
+
+func (doc ResourceDocument) GetInternalID() ocm.InternalID {
+	return doc.InternalID
 }
 
 const (

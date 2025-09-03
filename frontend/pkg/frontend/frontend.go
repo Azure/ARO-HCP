@@ -23,6 +23,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -232,9 +233,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	pagedResponse := arm.NewPagedResponse()
 
 	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		options.ResourceType = &api.ClusterResourceType
-		resourceTypeUsesDatabase = true
 	case strings.ToLower(api.NodePoolResourceTypeName):
 		options.ResourceType = &api.NodePoolResourceType
 		resourceTypeUsesDatabase = true
@@ -315,22 +313,6 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 
 	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		csIterator := f.clusterServiceClient.ListClusters(query)
-
-		for csCluster := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csCluster.ID()]; ok {
-				value, err := marshalCSCluster(csCluster, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
 	case strings.ToLower(api.NodePoolResourceTypeName):
 		csIterator := f.clusterServiceClient.ListNodePools(clusterInternalID, query)
 
@@ -403,6 +385,114 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 }
 
+func cosmosListOptions(resourceType *azcorearm.ResourceType, queryParams url.Values) database.DBClientListResourceDocsOptions {
+	options := database.DBClientListResourceDocsOptions{
+		ResourceType: resourceType,
+		PageSizeHint: api.Ptr(int32(20)),
+	}
+	// The Resource Provider Contract implies $top is only honored when
+	// following a "nextLink" after the initial collection GET request.
+	// So only check for it when the URL includes a $skipToken.
+	if queryParams.Has("$skipToken") {
+		options.ContinuationToken = api.Ptr(queryParams.Get("$skipToken"))
+		top, err := strconv.ParseInt(queryParams.Get("$top"), 10, 32)
+		if err == nil && top > 0 {
+			options.PageSizeHint = api.Ptr(int32(top))
+		}
+	}
+	return options
+}
+
+func (f *Frontend) ArmResourceListHCPClusters(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+
+	// Map of resource documents by Cluster Service item ID.
+	documentMap := make(map[string]*database.HCPClusterDocument)
+
+	// Even though the bulk of the list content comes from Cluster Service,
+	// we start by querying Cosmos DB because its continuation token meets
+	// the requirements of a skipToken for ARM pagination. We then query
+	// Cluster Service for the exact set of IDs returned by Cosmos.
+
+	prefixParts := []string{"/subscriptions", subscriptionID}
+	if resourceGroupName != "" {
+		prefixParts = append(prefixParts, "resourceGroups", resourceGroupName)
+	}
+	prefix, err := azcorearm.ParseResourceID(path.Join(prefixParts...))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	options := cosmosListOptions(&api.ClusterResourceType, request.URL.Query())
+	dbIterator := f.dbClient.ListHCPClusters(prefix, &options)
+	for _, resourceDoc := range dbIterator.Items(ctx) {
+		documentMap[resourceDoc.InternalID.ID()] = resourceDoc
+	}
+
+	err = dbIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	pagedResponse := arm.NewPagedResponse()
+	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(documentMap))
+	for key := range documentMap {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	csIterator := f.clusterServiceClient.ListClusters(query)
+	for csCluster := range csIterator.Items(ctx) {
+		if doc, ok := documentMap[csCluster.ID()]; ok {
+			value, err := marshalCSCluster(csCluster, doc, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+
+	// Check for iteration error.
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
 // ArmResourceRead implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
@@ -436,7 +526,59 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
+// ArmResourceReadHCPCluster implements the GET single HCP Cluster API contract for ARM
+// * 200 If the resource exists
+// * 404 If the resource does not exist
+func (f *Frontend) ArmResourceReadHCPCluster(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, hcpCluster, err := f.dbClient.GetHCPCluster(ctx, resourceID)
+	if err != nil {
+		logger.Error(err.Error())
+		if database.IsResponseError(err, http.StatusNotFound) {
+			arm.WriteCloudError(writer, arm.NewResourceNotFoundError(resourceID))
+		} else {
+			arm.WriteCloudError(writer, arm.NewInternalServerError())
+		}
+		return
+	}
+
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpCluster.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+		return
+	}
+
+	responseBody, err := marshalCSCluster(csCluster, hcpCluster, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -484,7 +626,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	resourceItemID, resourceDoc, err := f.dbClient.GetHCPCluster(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -545,12 +687,12 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			return
 		}
 
-		resourceDoc = database.NewResourceDocument(resourceID)
+		resourceDoc = database.NewHCPClusterDocument(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, &resourceDoc.ResourceDocument)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -609,6 +751,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 			arm.WriteInternalServerError(writer)
 			return
 		}
+
 	}
 
 	transaction := f.dbClient.NewTransaction(pk)
@@ -619,7 +762,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDocumentContent(resourceDoc, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -662,7 +805,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resourceDoc, err = transactionResult.GetHCPCluster(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1278,20 +1421,20 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, armHCPCluster *database.HCPClusterDocument, versionedInterface api.Version) ([]byte, error) {
+	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(armHCPCluster.ResourceID, csCluster)
 	if err != nil {
 		return nil, err
 	}
 
-	hcpCluster.SystemData = doc.SystemData
-	hcpCluster.Tags = maps.Clone(doc.Tags)
-	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
+	hcpCluster.SystemData = armHCPCluster.SystemData
+	hcpCluster.Tags = maps.Clone(armHCPCluster.Tags)
+	hcpCluster.Properties.ProvisioningState = armHCPCluster.ProvisioningState
 
-	if doc.Identity != nil {
-		hcpCluster.Identity.PrincipalID = doc.Identity.PrincipalID
-		hcpCluster.Identity.TenantID = doc.Identity.TenantID
-		hcpCluster.Identity.Type = doc.Identity.Type
+	if armHCPCluster.Identity != nil {
+		hcpCluster.Identity.PrincipalID = armHCPCluster.Identity.PrincipalID
+		hcpCluster.Identity.TenantID = armHCPCluster.Identity.TenantID
+		hcpCluster.Identity.Type = armHCPCluster.Identity.Type
 	}
 
 	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)

@@ -62,7 +62,7 @@ func TestTypedDocumentMarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			innerDoc := &testProperties{testPropertiesValue}
-			data, err := typedDocumentMarshal[testProperties](tt.typedDoc, innerDoc)
+			data, err := typedDocumentMarshal(tt.typedDoc, innerDoc, testProperties{}.GetValidTypes()...)
 
 			if tt.err != "" {
 				assert.EqualError(t, err, tt.err)
@@ -98,7 +98,7 @@ func TestTypedDocumentUnmarshal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typedDoc, innerDoc, err := typedDocumentUnmarshal[testProperties]([]byte(tt.data))
+			typedDoc, innerDoc, err := typedDocumentUnmarshal[testProperties]([]byte(tt.data), testProperties{}.GetValidTypes()...)
 
 			if tt.err != "" {
 				assert.EqualError(t, err, tt.err)

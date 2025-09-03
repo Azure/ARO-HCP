@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
@@ -30,6 +31,10 @@ type DBTransaction interface {
 	// CreateResourceDoc adds a create request to the transaction
 	// and returns the tentative item ID.
 	CreateResourceDoc(doc *ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string
+
+	// CreateResourceDocumentContent adds a create request to the transaction
+	// and returns the tentative item ID.
+	CreateResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
@@ -54,6 +59,12 @@ type DBTransactionResult interface {
 	// executed with the EnableContentResponseOnWrite option set, or
 	// the document was requested with DBTransaction.ReadDoc.
 	GetResourceDoc(itemID string) (*ResourceDocument, error)
+
+	// GetHCPCluster returns the HCPClusterDocument for itemID.
+	// The HCPClusterDocument is only available if the transaction was
+	// executed with the EnableContentResponseOnWrite option set, or
+	// the document was requested with DBTransaction.ReadDoc.
+	GetHCPCluster(itemID string) (*HCPClusterDocument, error)
 
 	// GetOperationDoc returns the OperationDocument for itemID.
 	// The OperationDocument is only available if the transaction was
@@ -112,13 +123,39 @@ func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, o *azcosm
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc)
+			data, err = typedDocumentMarshal(typedDoc, doc, api.NodePoolResourceType.String(), api.ExternalAuthResourceType.String())
 		} else {
 			err = ErrWrongPartition
 		}
 
 		if err != nil {
 			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.ResourceID, err)
+		}
+
+		b.CreateItem(data, o)
+		return typedDoc.ID, nil
+	})
+
+	return typedDoc.ID
+}
+
+// CreateResourceDocumentContent will eventually replace CreateResourceDoc once we have converted every type to fully self contain
+// the data that is being serialized.
+func (t *cosmosDBTransaction) CreateResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
+	typedDoc := newTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
+
+	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
+		var data []byte
+		var err error
+
+		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
+			data, err = typedDocumentMarshal(typedDoc, doc, doc.GetResourceType().String())
+		} else {
+			err = ErrWrongPartition
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.GetResourceID(), err)
 		}
 
 		b.CreateItem(data, o)
@@ -144,7 +181,7 @@ func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azco
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc)
+			data, err = typedDocumentMarshal(typedDoc, doc, OperationResourceType.String())
 		} else {
 			err = ErrWrongPartition
 		}
@@ -253,6 +290,10 @@ func getCosmosDBTransactionResultDoc[T DocumentProperties](r *cosmosDBTransactio
 
 func (r *cosmosDBTransactionResult) GetResourceDoc(itemID string) (*ResourceDocument, error) {
 	return getCosmosDBTransactionResultDoc[ResourceDocument](r, itemID)
+}
+
+func (r *cosmosDBTransactionResult) GetHCPCluster(itemID string) (*HCPClusterDocument, error) {
+	return getCosmosDBTransactionResultDoc[HCPClusterDocument](r, itemID)
 }
 
 func (r *cosmosDBTransactionResult) GetOperationDoc(itemID string) (*OperationDocument, error) {

@@ -119,6 +119,44 @@ func (c *MockDBTransactionCreateResourceDocCall) DoAndReturn(f func(*database.Re
 	return c
 }
 
+// CreateResourceDocumentContent mocks base method.
+func (m *MockDBTransaction) CreateResourceDocumentContent(doc database.ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateResourceDocumentContent", doc, o)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// CreateResourceDocumentContent indicates an expected call of CreateResourceDocumentContent.
+func (mr *MockDBTransactionMockRecorder) CreateResourceDocumentContent(doc, o any) *MockDBTransactionCreateResourceDocumentContentCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResourceDocumentContent", reflect.TypeOf((*MockDBTransaction)(nil).CreateResourceDocumentContent), doc, o)
+	return &MockDBTransactionCreateResourceDocumentContentCall{Call: call}
+}
+
+// MockDBTransactionCreateResourceDocumentContentCall wrap *gomock.Call
+type MockDBTransactionCreateResourceDocumentContentCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBTransactionCreateResourceDocumentContentCall) Return(arg0 string) *MockDBTransactionCreateResourceDocumentContentCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBTransactionCreateResourceDocumentContentCall) Do(f func(database.ResourceDocumentContent, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocumentContentCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBTransactionCreateResourceDocumentContentCall) DoAndReturn(f func(database.ResourceDocumentContent, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocumentContentCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // DeleteDoc mocks base method.
 func (m *MockDBTransaction) DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions) {
 	m.ctrl.T.Helper()
@@ -398,6 +436,45 @@ func NewMockDBTransactionResult(ctrl *gomock.Controller) *MockDBTransactionResul
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDBTransactionResult) EXPECT() *MockDBTransactionResultMockRecorder {
 	return m.recorder
+}
+
+// GetHCPCluster mocks base method.
+func (m *MockDBTransactionResult) GetHCPCluster(itemID string) (*database.HCPClusterDocument, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHCPCluster", itemID)
+	ret0, _ := ret[0].(*database.HCPClusterDocument)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHCPCluster indicates an expected call of GetHCPCluster.
+func (mr *MockDBTransactionResultMockRecorder) GetHCPCluster(itemID any) *MockDBTransactionResultGetHCPClusterCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHCPCluster", reflect.TypeOf((*MockDBTransactionResult)(nil).GetHCPCluster), itemID)
+	return &MockDBTransactionResultGetHCPClusterCall{Call: call}
+}
+
+// MockDBTransactionResultGetHCPClusterCall wrap *gomock.Call
+type MockDBTransactionResultGetHCPClusterCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBTransactionResultGetHCPClusterCall) Return(arg0 *database.HCPClusterDocument, arg1 error) *MockDBTransactionResultGetHCPClusterCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBTransactionResultGetHCPClusterCall) Do(f func(string) (*database.HCPClusterDocument, error)) *MockDBTransactionResultGetHCPClusterCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBTransactionResultGetHCPClusterCall) DoAndReturn(f func(string) (*database.HCPClusterDocument, error)) *MockDBTransactionResultGetHCPClusterCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
 }
 
 // GetOperationDoc mocks base method.

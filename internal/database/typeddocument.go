@@ -17,7 +17,6 @@ package database
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -68,21 +67,16 @@ func (td *typedDocument) getPartitionKey() azcosmos.PartitionKey {
 
 // validateType validates the type field against the given properties type.
 // If type validation fails, validateType returns a typedDocumentError.
-func (td *typedDocument) validateType(properties DocumentProperties) error {
-	for _, t := range properties.GetValidTypes() {
+func (td *typedDocument) validateType(validResourceTypes []string) error {
+	for _, t := range validResourceTypes {
 		if strings.EqualFold(td.ResourceType, t) {
 			return nil
 		}
 	}
 
-	propertiesType := reflect.TypeOf(properties)
-	if propertiesType.Kind() == reflect.Pointer {
-		propertiesType = propertiesType.Elem()
-	}
-
 	return &typedDocumentError{
 		invalidType:    td.ResourceType,
-		propertiesType: propertiesType.Name(),
+		propertiesType: strings.Join(validResourceTypes, ","),
 	}
 }
 
@@ -90,8 +84,8 @@ func (td *typedDocument) validateType(properties DocumentProperties) error {
 // as the properties value. First, however, typedDocumentMarshal validates
 // the type field in typeDoc against innerDoc to ensure compatibility. If
 // validation fails, typedDocumentMarshal returns a typedDocumentError.
-func typedDocumentMarshal[T DocumentProperties](typedDoc *typedDocument, innerDoc *T) ([]byte, error) {
-	err := typedDoc.validateType(*innerDoc)
+func typedDocumentMarshal(typedDoc *typedDocument, innerDoc any, validResourceTypes ...string) ([]byte, error) {
+	err := typedDoc.validateType(validResourceTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +104,7 @@ func typedDocumentMarshal[T DocumentProperties](typedDoc *typedDocument, innerDo
 // validates the type field against the type parameter T, and then parses
 // the JSON-encoded properties data into an instance of type parameter T.
 // If validation fails, typedDocumentUnmarshal returns a typedDocumentError.
-func typedDocumentUnmarshal[T DocumentProperties](data []byte) (*typedDocument, *T, error) {
+func typedDocumentUnmarshal[T any](data []byte, validResourceTypes ...string) (*typedDocument, *T, error) {
 	var typedDoc typedDocument
 	var innerDoc T
 
@@ -119,7 +113,7 @@ func typedDocumentUnmarshal[T DocumentProperties](data []byte) (*typedDocument, 
 		return nil, nil, err
 	}
 
-	err = typedDoc.validateType(innerDoc)
+	err = typedDoc.validateType(validResourceTypes)
 	if err != nil {
 		return nil, nil, err
 	}

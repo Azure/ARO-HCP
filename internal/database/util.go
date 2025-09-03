@@ -21,23 +21,31 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type queryItemsIterator[T DocumentProperties] struct {
-	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
-	singlePage        bool
-	continuationToken string
-	err               error
+type queryItemsIterator[T any] struct {
+	pager              *runtime.Pager[azcosmos.QueryItemsResponse]
+	singlePage         bool
+	continuationToken  string
+	err                error
+	validResourceTypes []string
 }
 
 // newqueryItemsIterator is a failable push iterator for a paged query response.
-func newQueryItemsIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return &queryItemsIterator[T]{pager: pager}
+func newQueryItemsIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse], validResourceTypes ...string) DBClientIterator[T] {
+	return &queryItemsIterator[T]{
+		pager:              pager,
+		validResourceTypes: validResourceTypes,
+	}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
-func newQueryItemsSinglePageIterator[T DocumentProperties](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return &queryItemsIterator[T]{pager: pager, singlePage: true}
+func newQueryItemsSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse], validResourceTypes ...string) DBClientIterator[T] {
+	return &queryItemsIterator[T]{
+		pager:              pager,
+		singlePage:         true,
+		validResourceTypes: validResourceTypes,
+	}
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
@@ -54,7 +62,7 @@ func (iter *queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorIt
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, item := range response.Items {
-				typedDoc, innerDoc, err := typedDocumentUnmarshal[T](item)
+				typedDoc, innerDoc, err := typedDocumentUnmarshal[T](item, iter.validResourceTypes...)
 				if err != nil {
 					iter.err = err
 					return
