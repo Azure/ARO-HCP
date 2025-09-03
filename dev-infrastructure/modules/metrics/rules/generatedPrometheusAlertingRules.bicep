@@ -56,7 +56,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
           summary: 'Pod has been in a non-ready state for more than 15 minutes.'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by(namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"}) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) (1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
+        expression: 'sum by (namespace, pod, cluster) ( max by(namespace, pod, cluster) ( kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"} ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) ( 1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}) ) ) > 0'
         for: 'PT15M'
         severity: 3
       }
@@ -81,7 +81,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentgenerationmismatch'
           summary: 'Deployment generation mismatch due to possible roll-back'
         }
-        expression: 'kube_deployment_status_observed_generation{job="kube-state-metrics"}!=kube_deployment_metadata_generation{job="kube-state-metrics"}'
+        expression: 'kube_deployment_status_observed_generation{job="kube-state-metrics"} != kube_deployment_metadata_generation{job="kube-state-metrics"}'
         for: 'PT15M'
         severity: 3
       }
@@ -106,7 +106,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
           summary: 'Deployment has not matched the expected number of replicas.'
         }
-        expression: '(kube_deployment_spec_replicas{job="kube-state-metrics"}>kube_deployment_status_replicas_available{job="kube-state-metrics"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m])==0)'
+        expression: '( kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"} ) and ( changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0 )'
         for: 'PT15M'
         severity: 3
       }
@@ -131,7 +131,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck'
           summary: 'Deployment rollout is not progressing.'
         }
-        expression: 'kube_deployment_status_condition{condition="Progressing", status="false",job="kube-state-metrics"}!= 0'
+        expression: 'kube_deployment_status_condition{condition="Progressing", status="false",job="kube-state-metrics"} != 0'
         for: 'PT15M'
         severity: 3
       }
@@ -156,7 +156,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetreplicasmismatch'
           summary: 'StatefulSet has not matched the expected number of replicas.'
         }
-        expression: '(kube_statefulset_status_replicas_ready{job="kube-state-metrics"}!=kube_statefulset_status_replicas{job="kube-state-metrics"}) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m])==0)'
+        expression: '( kube_statefulset_status_replicas_ready{job="kube-state-metrics"} != kube_statefulset_status_replicas{job="kube-state-metrics"} ) and ( changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0 )'
         for: 'PT15M'
         severity: 3
       }
@@ -181,7 +181,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetgenerationmismatch'
           summary: 'StatefulSet generation mismatch due to possible roll-back'
         }
-        expression: 'kube_statefulset_status_observed_generation{job="kube-state-metrics"}!=kube_statefulset_metadata_generation{job="kube-state-metrics"}'
+        expression: 'kube_statefulset_status_observed_generation{job="kube-state-metrics"} != kube_statefulset_metadata_generation{job="kube-state-metrics"}'
         for: 'PT15M'
         severity: 3
       }
@@ -206,7 +206,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubestatefulsetupdatenotrolledout'
           summary: 'StatefulSet update has not been rolled out.'
         }
-        expression: '(max by(namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics"}unlesskube_statefulset_status_update_revision{job="kube-state-metrics"})*(kube_statefulset_replicas{job="kube-state-metrics"}!=kube_statefulset_status_replicas_updated{job="kube-state-metrics"}))  and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m])==0)'
+        expression: '( max by(namespace, statefulset, job, cluster) ( kube_statefulset_status_current_revision{job="kube-state-metrics"} unless kube_statefulset_status_update_revision{job="kube-state-metrics"} ) * ( kube_statefulset_replicas{job="kube-state-metrics"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics"} ) )  and ( changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m]) == 0 )'
         for: 'PT15M'
         severity: 3
       }
@@ -231,7 +231,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetrolloutstuck'
           summary: 'DaemonSet rollout is stuck.'
         }
-        expression: '((kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"}!=kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_misscheduled{job="kube-state-metrics"}!=0) or (kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"}!=kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_available{job="kube-state-metrics"}!=kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"})) and (changes(kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"}[5m])==0)'
+        expression: '( ( kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} ) or ( kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} != 0 ) or ( kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} ) or ( kube_daemonset_status_number_available{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} ) ) and ( changes(kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"}[5m]) == 0 )'
         for: 'PT15M'
         severity: 3
       }
@@ -281,7 +281,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedaemonsetnotscheduled'
           summary: 'DaemonSet pods are not scheduled.'
         }
-        expression: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}-kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} > 0'
+        expression: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} - kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} > 0'
         for: 'PT10M'
         severity: 3
       }
@@ -331,7 +331,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobnotcompleted'
           summary: 'Job did not complete in time'
         }
-        expression: 'time() - max by(namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"}andkube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
+        expression: 'time() - max by(namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"} and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
         severity: 3
       }
       {
@@ -380,7 +380,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpareplicasmismatch'
           summary: 'HPA has not matched desired number of replicas.'
         }
-        expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics"}!=kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"})and(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}>kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics"})and(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}<kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"})andchanges(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}[15m]) == 0'
+        expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics"} != kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} < kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}) and changes(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}[15m]) == 0'
         for: 'PT15M'
         severity: 3
       }
@@ -405,7 +405,7 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpamaxedout'
           summary: 'HPA is running at max replicas'
         }
-        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}==kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}'
+        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}'
         for: 'PT15M'
         severity: 3
       }
@@ -443,7 +443,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuovercommit'
           summary: 'Cluster has overcommitted CPU resource requests.'
         }
-        expression: 'sum(namespace_cpu:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster) - max(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster)) > 0and(sum(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster) - max(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster)) > 0'
+        expression: 'sum(namespace_cpu:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster) - max(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster)) > 0 and (sum(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster) - max(kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) by (cluster)) > 0'
         for: 'PT10M'
         severity: 3
       }
@@ -468,7 +468,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryovercommit'
           summary: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum(namespace_memory:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0and(sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0'
+        expression: 'sum(namespace_memory:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0 and (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0'
         for: 'PT10M'
         severity: 3
       }
@@ -493,7 +493,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecpuquotaovercommit'
           summary: 'Cluster has overcommitted CPU resource requests.'
         }
-        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(cpu|requests.cpu)"})) by (cluster)/sum(kube_node_status_allocatable{resource="cpu", job="kube-state-metrics"}) by (cluster)> 1.5'
+        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(cpu|requests.cpu)"})) by (cluster) / sum(kube_node_status_allocatable{resource="cpu", job="kube-state-metrics"}) by (cluster) > 1.5'
         for: 'PT5M'
         severity: 3
       }
@@ -518,7 +518,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubememoryquotaovercommit'
           summary: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(memory|requests.memory)"})) by (cluster)/sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)> 1.5'
+        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(memory|requests.memory)"})) by (cluster) / sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) > 1.5'
         for: 'PT5M'
         severity: 3
       }
@@ -543,7 +543,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaalmostfull'
           summary: 'Namespace quota is going to be full.'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}/ ignoring(instance, job, type)(kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)> 0.9 < 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
         severity: 3
       }
@@ -568,7 +568,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotafullyused'
           summary: 'Namespace quota is fully used.'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}/ ignoring(instance, job, type)(kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)== 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) == 1'
         for: 'PT15M'
         severity: 3
       }
@@ -593,7 +593,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubequotaexceeded'
           summary: 'Namespace quota has exceeded the limits.'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"}/ ignoring(instance, job, type)(kube_resourcequota{job="kube-state-metrics", type="hard"} > 0)> 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 1'
         for: 'PT15M'
         severity: 3
       }
@@ -618,7 +618,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh'
           summary: 'Processes experience elevated CPU throttling.'
         }
-        expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace)/sum(increase(container_cpu_cfs_periods_total{}[5m])) by (cluster, container, pod, namespace)> ( 25 / 100 )'
+        expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace) / sum(increase(container_cpu_cfs_periods_total{}[5m])) by (cluster, container, pod, namespace) > ( 25 / 100 )'
         for: 'PT15M'
         severity: 3
       }
@@ -656,7 +656,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
           summary: 'PersistentVolume is filling up.'
         }
-        expression: '(kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}/kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"}) < 0.03andkubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '( kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
         severity: 3
       }
@@ -681,7 +681,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
           summary: 'PersistentVolume is filling up.'
         }
-        expression: '(kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}/kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"}) < 0.15andkubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0andpredict_linear(kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '( kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.15 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1H'
         severity: 3
       }
@@ -706,7 +706,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
           summary: 'PersistentVolumeInodes are filling up.'
         }
-        expression: '(kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}/kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"}) < 0.03andkubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '( kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
         severity: 3
       }
@@ -731,7 +731,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
           summary: 'PersistentVolumeInodes are filling up.'
         }
-        expression: '(kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}/kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"}) < 0.15andkubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0andpredict_linear(kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1unless on(cluster, namespace, persistentvolumeclaim)kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '( kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.15 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1H'
         severity: 3
       }
@@ -819,7 +819,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeclienterrors'
           summary: 'Kubernetes API server client is experiencing errors.'
         }
-        expression: '(sum(rate(rest_client_requests_total{job="controlplane-apiserver",code=~"5.."}[5m])) by (cluster, instance, job, namespace)/sum(rate(rest_client_requests_total{job="controlplane-apiserver"}[5m])) by (cluster, instance, job, namespace))> 0.01'
+        expression: '(sum(rate(rest_client_requests_total{job="controlplane-apiserver",code=~"5.."}[5m])) by (cluster, instance, job, namespace) / sum(rate(rest_client_requests_total{job="controlplane-apiserver"}[5m])) by (cluster, instance, job, namespace)) > 0.01'
         for: 'PT15M'
         severity: 3
       }
@@ -859,7 +859,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn'
           summary: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000)andsum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
         severity: 3
       }
@@ -886,7 +886,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn'
           summary: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000)andsum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
         severity: 3
       }
@@ -913,7 +913,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn'
           summary: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1d) > (3.00 * 0.01000)andsum(apiserver_request:burnrate2h) > (3.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate1d) > (3.00 * 0.01000) and sum(apiserver_request:burnrate2h) > (3.00 * 0.01000)'
         for: 'PT1H'
         severity: 3
       }
@@ -940,7 +940,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapierrorbudgetburn'
           summary: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate3d) > (1.00 * 0.01000)andsum(apiserver_request:burnrate6h) > (1.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate3d) > (1.00 * 0.01000) and sum(apiserver_request:burnrate6h) > (1.00 * 0.01000)'
         for: 'PT3H'
         severity: 3
       }
@@ -1190,7 +1190,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubelettoomanypods'
           summary: 'Kubelet is running at capacity.'
         }
-        expression: 'count by(cluster, node) ((kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}))/max by(cluster, node) (kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1) > 0.95'
+        expression: 'count by(cluster, node) ( (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) ( kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
         for: 'PT15M'
         severity: 3
       }
@@ -1611,7 +1611,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           runbook_url: 'TBD'
           summary: 'Prometheus pending sample rate is above 40%.'
         }
-        expression: '(prometheus_remote_storage_samples_pending/prometheus_remote_storage_samples_in_flight) > 0.4'
+        expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
         severity: 3
       }
@@ -1641,7 +1641,7 @@ Please check the health and performance of the remote storage endpoint, network 
           runbook_url: 'TBD'
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
-        expression: '(rate(prometheus_remote_storage_samples_failed_total[5m])/rate(prometheus_remote_storage_samples_total[5m])) > 0.1'
+        expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
         severity: 3
       }
@@ -1943,7 +1943,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           runbook_url: 'TBD'
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
         }
-        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))/(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h]))))> 0.05'
+        expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
         severity: 3
       }
@@ -2008,7 +2008,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API availability error budget burn rate is too high'
         }
-        expression: '(sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44andsum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44)or(sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6andsum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6)'
+        expression: '( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -2034,7 +2034,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934andsum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
@@ -2062,7 +2062,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P99 latency error budget burn rate is too high'
         }
-        expression: '(sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44)or(sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6)'
+        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -2088,7 +2088,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
@@ -2116,7 +2116,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P90 latency error budget burn rate is too high'
         }
-        expression: '(sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44)or(sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6)'
+        expression: '( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > 13.44 ) or ( sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 5.6 )'
         for: 'PT5M'
         severity: 3
       }
@@ -2142,7 +2142,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
         }
-        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934andsum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
+        expression: 'sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934 and sum(max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > 0.934'
         for: 'PT30M'
         severity: 3
       }
@@ -2205,7 +2205,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           runbook_url: 'TBD'
           summary: 'High Error Rate on Backend Operations'
         }
-        expression: '(sum(rate(backend_failed_operations_total[1h])))/(sum(rate(backend_operations_total[1h])))> 0.05'
+        expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
         for: 'PT5M'
         severity: 3
       }
