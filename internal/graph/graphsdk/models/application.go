@@ -27,6 +27,19 @@ func CreateApplicationFromDiscriminatorValue(parseNode i878a80d2330e89d26896388a
 	return NewApplication(), nil
 }
 
+// GetApi gets the api property value. Specifies settings for an application that implements a web API.
+// returns a ApiApplicationable when successful
+func (m *Application) GetApi() ApiApplicationable {
+	val, err := m.GetBackingStore().Get("api")
+	if err != nil {
+		panic(err)
+	}
+	if val != nil {
+		return val.(ApiApplicationable)
+	}
+	return nil
+}
+
 // GetAppId gets the appId property value. The unique identifier for the application that is assigned to an application by Azure AD. Not nullable. Read-only. Supports $filter (eq).
 // returns a *string when successful
 func (m *Application) GetAppId() *string {
@@ -70,6 +83,16 @@ func (m *Application) GetDisplayName() *string {
 // returns a map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode)(error) when successful
 func (m *Application) GetFieldDeserializers() map[string]func(i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
 	res := m.DirectoryObject.GetFieldDeserializers()
+	res["api"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
+		val, err := n.GetObjectValue(CreateApiApplicationFromDiscriminatorValue)
+		if err != nil {
+			return err
+		}
+		if val != nil {
+			m.SetApi(val.(ApiApplicationable))
+		}
+		return nil
+	}
 	res["appId"] = func(n i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.ParseNode) error {
 		val, err := n.GetStringValue()
 		if err != nil {
@@ -162,6 +185,12 @@ func (m *Application) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6
 		return err
 	}
 	{
+		err = writer.WriteObjectValue("api", m.GetApi())
+		if err != nil {
+			return err
+		}
+	}
+	{
 		err = writer.WriteStringValue("appId", m.GetAppId())
 		if err != nil {
 			return err
@@ -198,6 +227,14 @@ func (m *Application) Serialize(writer i878a80d2330e89d26896388a3f487eef27b0a0e6
 		}
 	}
 	return nil
+}
+
+// SetApi sets the api property value. Specifies settings for an application that implements a web API.
+func (m *Application) SetApi(value ApiApplicationable) {
+	err := m.GetBackingStore().Set("api", value)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // SetAppId sets the appId property value. The unique identifier for the application that is assigned to an application by Azure AD. Not nullable. Read-only. Supports $filter (eq).
@@ -243,11 +280,13 @@ func (m *Application) SetWeb(value WebApplicationable) {
 type Applicationable interface {
 	DirectoryObjectable
 	i878a80d2330e89d26896388a3f487eef27b0a0e6c010c493bf80be1452208f91.Parsable
+	GetApi() ApiApplicationable
 	GetAppId() *string
 	GetCreatedDateTime() *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time
 	GetDisplayName() *string
 	GetPasswordCredentials() []PasswordCredentialable
 	GetWeb() WebApplicationable
+	SetApi(value ApiApplicationable)
 	SetAppId(value *string)
 	SetCreatedDateTime(value *i336074805fc853987abe6f7fe3ad97a6a6f3077a16391fec744f671a015fbd7e.Time)
 	SetDisplayName(value *string)
