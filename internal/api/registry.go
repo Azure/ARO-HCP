@@ -43,18 +43,24 @@ var (
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
+type VersionedCreatableResource[T any] interface {
+	Normalize(*T)
+	GetVisibility(path string) (VisibilityFlags, bool)
+	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody
+}
+
 type VersionedHCPOpenShiftCluster interface {
-	Normalize(*HCPOpenShiftCluster)
+	VersionedCreatableResource[HCPOpenShiftCluster]
 	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type VersionedHCPOpenShiftClusterNodePool interface {
-	Normalize(*HCPOpenShiftClusterNodePool)
+	VersionedCreatableResource[HCPOpenShiftClusterNodePool]
 	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
 }
 
 type VersionedHCPOpenShiftClusterExternalAuth interface {
-	Normalize(*HCPOpenShiftClusterExternalAuth)
+	VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
 	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
 }
 
