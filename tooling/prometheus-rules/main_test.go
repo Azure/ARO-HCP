@@ -78,7 +78,11 @@ func TestPrometheusRules(t *testing.T) {
 			expectedContent, err := os.ReadFile(filepath.Join("testdata", testCase.generatedFile))
 			require.NoError(t, err)
 
+			if os.Getenv("UPDATE") != "" {
+				require.NoError(t, os.WriteFile(filepath.Join("testdata", testCase.generatedFile), generatedFile, 0644))
+			} else {
 				require.Equal(t, string(expectedContent), string(generatedFile))
+			}
 		})
 	}
 
