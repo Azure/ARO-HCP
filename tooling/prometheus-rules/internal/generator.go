@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -228,6 +229,8 @@ func (o *Options) RunTests() error {
 	return nil
 }
 
+var whitespaceMatcher = regexp.MustCompile(`\s*\n\s*`)
+
 func (o *Options) Generate() error {
 	output, err := os.Create(o.outputBicep)
 	if err != nil {
@@ -316,7 +319,7 @@ param azureMonitoring string
 						For:         parseToAzureDurationString(rule.For),
 						Expression: ptr.To(
 							strings.TrimSpace(
-								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
+								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), ""),
 							),
 						),
 						Severity: severityFor(labels, o.forceInfoSeverity),
@@ -328,7 +331,7 @@ param azureMonitoring string
 						Labels:  labels,
 						Expression: ptr.To(
 							strings.TrimSpace(
-								strings.ReplaceAll(rule.Expr.String(), "\n", " "),
+								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), ""),
 							),
 						),
 					})
