@@ -258,13 +258,18 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 	case reflect.Struct:
 		for i := 0; i < newVal.NumField(); i++ {
 			structField := newVal.Type().Field(i)
-			mapKeyNext := join(mapKey, structField.Name)
-			namespaceNext := join(namespace, fieldname)
-			fieldnameNext := GetJSONTagName(vv.structTagMap[mapKeyNext])
-			if fieldnameNext == "" {
-				fieldnameNext = structField.Name
+
+			if structField.Anonymous {
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKey, namespace, fieldname, flags)
+			} else {
+				mapKeyNext := join(mapKey, structField.Name)
+				namespaceNext := join(namespace, fieldname)
+				fieldnameNext := GetJSONTagName(vv.structTagMap[mapKeyNext])
+				if fieldnameNext == "" {
+					fieldnameNext = structField.Name
+				}
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext, flags)
 			}
-			vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext, flags)
 		}
 	}
 }

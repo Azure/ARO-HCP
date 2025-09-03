@@ -158,9 +158,7 @@ func (h *NodePool) GetVisibility(path string) (api.VisibilityFlags, bool) {
 }
 
 func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool], updating bool) []arm.CloudErrorBody {
-	// Pass the embedded NodePool struct so the struct
-	// field names match the nodePoolStructTagMap keys.
-	return api.ValidateVisibility(h.NodePool, current.(*NodePool).NodePool, nodePoolStructTagMap, updating)
+	return api.ValidateVisibility(h, current.(*NodePool), nodePoolStructTagMap, updating)
 }
 
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {

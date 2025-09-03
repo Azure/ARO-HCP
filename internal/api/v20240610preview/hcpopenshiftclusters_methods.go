@@ -298,9 +298,7 @@ func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, b
 }
 
 func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
-	// Pass the embedded HcpOpenShiftCluster struct so the
-	// struct field names match the clusterStructTagMap keys.
-	return api.ValidateVisibility(c.HcpOpenShiftCluster, current.(*HcpOpenShiftCluster).HcpOpenShiftCluster, clusterStructTagMap, updating)
+	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterStructTagMap, updating)
 }
 
 func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
