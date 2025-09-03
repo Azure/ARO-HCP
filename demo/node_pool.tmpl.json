@@ -11,7 +11,7 @@
       "osDisk": {
         "sizeGiB": 64,
         "diskStorageAccountType": "StandardSSD_LRS",
-        "persistence": "persistent"
+        "persistence": "Persistent"
       }
     },
     "replicas": 2
