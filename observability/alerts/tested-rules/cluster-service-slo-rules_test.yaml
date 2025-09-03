@@ -47,6 +47,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -74,6 +77,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -101,6 +107,9 @@ tests:
     alertname: ClustersServiceAPIAvailability6hto3dErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-availability"
       exp_annotations:
@@ -152,6 +161,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -173,6 +185,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -206,6 +221,9 @@ tests:
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -277,6 +295,9 @@ tests:
     alertname: ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -305,6 +326,9 @@ tests:
     alertname: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         long: "6h"
         severity: "warning"
         short: "30m"
@@ -333,6 +357,9 @@ tests:
     alertname: ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-latency-p99"
       exp_annotations:
@@ -359,6 +386,9 @@ tests:
     alertname: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
+        cluster: "test-cluster"
+        namespace: "clusters-service"
+        service: "clusters-service-metrics"
         severity: "warning"
         slo: "api-latency-p90"
       exp_annotations:
