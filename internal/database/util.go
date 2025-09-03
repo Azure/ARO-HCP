@@ -68,6 +68,9 @@ func (iter *queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorIt
 					return
 				}
 
+				// TODO BEFORE MERGE!
+				// expose the TypedDocument type, then write the content minus properties to the inner doc inside of typedDocumentUnmarshal
+
 				if !yield(typedDoc.ID, innerDoc) {
 					return
 				}

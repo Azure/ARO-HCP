@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -720,6 +721,10 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 	hcpCluster := api.NewDefaultHCPOpenShiftCluster()
 	versionedRequestCluster.Normalize(hcpCluster)
 
+	// at this point the hcpCluster contains all the fields specified by the user on the versioned request.
+	// regardless of create or update, the user's input gets to overwrite any field he expressed a preference for.
+	resourceDoc.CustomerDesiredState.HCPOpenShiftCluster = database.KeepCustomerOwnedFieldsFromHCPOpenShiftCluster(*hcpCluster)
+
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
 	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
@@ -761,9 +766,11 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
-	if !updating {
-		resourceItemID = transaction.CreateResourceDocumentContent(resourceDoc, nil)
+	upsertOptions := &azcosmos.TransactionalBatchItemOptions{}
+	if len(resourceDoc.CosmosETag) > 0 {
+		upsertOptions.IfMatchETag = ptr.To(resourceDoc.CosmosETag)
 	}
+	resourceItemID = transaction.UpsertResourceDocumentContent(resourceDoc, upsertOptions)
 
 	var patchOperations database.ResourceDocumentPatchOperations
 

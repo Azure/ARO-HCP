@@ -36,6 +36,8 @@ type DBTransaction interface {
 	// and returns the tentative item ID.
 	CreateResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string
 
+	UpsertResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string
+
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
 
@@ -159,6 +161,30 @@ func (t *cosmosDBTransaction) CreateResourceDocumentContent(doc ResourceDocument
 		}
 
 		b.CreateItem(data, o)
+		return typedDoc.ID, nil
+	})
+
+	return typedDoc.ID
+}
+
+func (t *cosmosDBTransaction) UpsertResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
+	typedDoc := newTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
+
+	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
+		var data []byte
+		var err error
+
+		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
+			data, err = typedDocumentMarshal(typedDoc, doc, doc.GetResourceType().String())
+		} else {
+			err = ErrWrongPartition
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.GetResourceID(), err)
+		}
+
+		b.UpsertItem(data, o)
 		return typedDoc.ID, nil
 	})
 

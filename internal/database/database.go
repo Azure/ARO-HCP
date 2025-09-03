@@ -439,13 +439,28 @@ func (d *cosmosDBClient) GetHCPCluster(ctx context.Context, resourceID *azcorear
 		return "", nil, err
 	}
 
-	innerDoc := &HCPClusterDocument{}
-	err = json.Unmarshal(typedDoc.Properties, innerDoc)
+	ret := &HCPClusterDocument{}
+	err = json.Unmarshal(typedDoc.Properties, ret)
 	if err != nil {
 		return "", nil, err
 	}
 
-	if innerDoc.ResourceID.ResourceType.String() != api.ClusterResourceType.String() {
+	// TODO make all the typed doc stuff public
+	ret.TypedDocument = TypedDocument{
+		BaseDocument: BaseDocument{
+			ID:                typedDoc.ID,
+			TimeToLive:        typedDoc.TimeToLive,
+			CosmosResourceID:  typedDoc.CosmosResourceID,
+			CosmosSelf:        typedDoc.CosmosSelf,
+			CosmosETag:        typedDoc.CosmosETag,
+			CosmosAttachments: typedDoc.CosmosAttachments,
+			CosmosTimestamp:   typedDoc.CosmosTimestamp,
+		},
+		PartitionKey: typedDoc.PartitionKey,
+		ResourceType: typedDoc.ResourceType,
+	}
+
+	if ret.ResourceID.ResourceType.String() != api.ClusterResourceType.String() {
 		return "", nil, &typedDocumentError{
 			invalidType:    typedDoc.ResourceType,
 			propertiesType: "HCPClusterDocument",
@@ -467,9 +482,9 @@ func (d *cosmosDBClient) GetHCPCluster(ctx context.Context, resourceID *azcorear
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	innerDoc.ResourceID = resourceID
+	ret.ResourceID = resourceID
 
-	return typedDoc.ID, innerDoc, nil
+	return typedDoc.ID, ret, nil
 }
 
 func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {

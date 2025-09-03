@@ -414,6 +414,44 @@ func (c *MockDBTransactionReadDocCall) DoAndReturn(f func(string, *azcosmos.Tran
 	return c
 }
 
+// UpsertResourceDocumentContent mocks base method.
+func (m *MockDBTransaction) UpsertResourceDocumentContent(doc database.ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertResourceDocumentContent", doc, o)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// UpsertResourceDocumentContent indicates an expected call of UpsertResourceDocumentContent.
+func (mr *MockDBTransactionMockRecorder) UpsertResourceDocumentContent(doc, o any) *MockDBTransactionUpsertResourceDocumentContentCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertResourceDocumentContent", reflect.TypeOf((*MockDBTransaction)(nil).UpsertResourceDocumentContent), doc, o)
+	return &MockDBTransactionUpsertResourceDocumentContentCall{Call: call}
+}
+
+// MockDBTransactionUpsertResourceDocumentContentCall wrap *gomock.Call
+type MockDBTransactionUpsertResourceDocumentContentCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBTransactionUpsertResourceDocumentContentCall) Return(arg0 string) *MockDBTransactionUpsertResourceDocumentContentCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBTransactionUpsertResourceDocumentContentCall) Do(f func(database.ResourceDocumentContent, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionUpsertResourceDocumentContentCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBTransactionUpsertResourceDocumentContentCall) DoAndReturn(f func(database.ResourceDocumentContent, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionUpsertResourceDocumentContentCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // MockDBTransactionResult is a mock of DBTransactionResult interface.
 type MockDBTransactionResult struct {
 	ctrl     *gomock.Controller
