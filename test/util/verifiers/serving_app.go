@@ -100,10 +100,12 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		currRoute, err := dynamicClient.Resource(gvr("route.openshift.io", "v1", "routes")).
 			Namespace(namespace.GetName()).Get(ctx, route.GetName(), metav1.GetOptions{})
 		if err != nil {
-			klog.ErrorS(err, "failed to get route",
-				"namespace", namespace.GetName(),
-				"route", route.GetName(),
-			)
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				klog.Info(err, "failed to get route",
+					"namespace", namespace.GetName(),
+					"route", route.GetName(),
+				)
+			}
 			lastErr = err
 			return false, nil
 		}
@@ -118,6 +120,10 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	case err == nil:
 		// continue
 	case lastErr != nil:
+		klog.ErrorS(lastErr, "failed to get route",
+			"namespace", namespace.GetName(),
+			"route", route.GetName(),
+		)
 		return fmt.Errorf("route host was never found: %w", lastErr)
 	case err != nil:
 		return fmt.Errorf("route host was never found: %w", err)
@@ -125,22 +131,26 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 
 	// wait for a response
 	lastErr = nil
+	url := "https://" + host
 	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-		url := "https://" + host
 		resp, err := http.Get(url)
 		if err != nil {
-			klog.ErrorS(err, "failed to get response from route",
-				"url", url,
-			)
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				klog.Info(err, "failed to get response from route",
+					"url", url,
+				)
+			}
 			lastErr = err
 			return false, nil
 		}
 
 		responseByte, err := httputil.DumpResponse(resp, true)
 		if err != nil {
-			klog.ErrorS(err, "failed to read response from route",
-				"url", url,
-			)
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				klog.Info(err, "failed to read response from route",
+					"url", url,
+				)
+			}
 			lastErr = err
 			return false, nil
 		}
@@ -151,6 +161,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	case err == nil:
 		// continue
 	case lastErr != nil:
+		klog.ErrorS(lastErr, "failed to get or read response from route",
+			"url", url,
+		)
 		return fmt.Errorf("route host was never found: %w", lastErr)
 	case err != nil:
 		return fmt.Errorf("route host was never found: %w", err)
