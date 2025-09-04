@@ -113,9 +113,9 @@ type GroupClaimProfile struct {
 // from the claims in a JWT token issued by the identity provider.
 // Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
-	Claim        string                        `json:"claim"        validate:"required,max=256"`
-	Prefix       string                        `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
-	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicytype"`
+	Claim        string                    `json:"claim"        validate:"required,max=256"`
+	Prefix       string                    `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
+	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicy"`
 }
 
 // External Auth claim validation rule
@@ -138,7 +138,7 @@ func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAut
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
 					Username: UsernameClaimProfile{
-						PrefixPolicy: UsernameClaimPrefixPolicyTypeNone,
+						PrefixPolicy: UsernameClaimPrefixPolicyNone,
 					},
 				},
 			},

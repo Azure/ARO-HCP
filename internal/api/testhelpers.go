@@ -119,10 +119,10 @@ func NewTestValidator() *validator.Validate {
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
 		TokenValidationRuleTypeRequiredClaim,
 	))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
-		UsernameClaimPrefixPolicyTypePrefix,
-		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeNone,
+	validate.RegisterAlias("enum_usernameclaimprefixpolicy", EnumValidateTag(
+		UsernameClaimPrefixPolicyPrefix,
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
 	))
 	validate.RegisterAlias("enum_visibility", EnumValidateTag(
 		VisibilityPublic,

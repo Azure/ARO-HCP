@@ -154,7 +154,7 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 			out.Username.Prefix = *p.Username.Prefix
 		}
 		if p.Username.PrefixPolicy != nil {
-			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyType(*p.Username.PrefixPolicy)
+			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicy(*p.Username.PrefixPolicy)
 		}
 	}
 	if p.Groups != nil {
@@ -218,7 +218,7 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 			Username: &generated.UsernameClaimProfile{
 				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
 				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(string(from.Mappings.Username.PrefixPolicy)),
+				PrefixPolicy: api.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.Mappings.Username.PrefixPolicy)),
 			},
 			Groups: groups,
 		},

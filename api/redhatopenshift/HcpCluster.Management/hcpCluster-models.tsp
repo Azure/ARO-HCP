@@ -942,7 +942,8 @@ model UsernameClaimProfile {
   claim: string;
 
   /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default
+   * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
+   * otherwise.
    */
   prefix?: string;
 
@@ -969,7 +970,21 @@ model UsernameClaimProfile {
    *    - "username": the mapped value will be "https://myoidc.tld#userA"
    *    - "email": the mapped value will be "userA@myoidc.tld"
    */
-  prefixPolicy?: string;
+  prefixPolicy?: UsernameClaimPrefixPolicy;
+}
+
+/** UsernameClaimPrefixPolicy configures whether to add a prefix to a JWT claim. */
+union UsernameClaimPrefixPolicy {
+  string,
+
+  /** No opinion; the platform is left to choose a prefix for the JWT claim */
+  None: "None",
+
+  /** Add a user-provided prefix to the JWT claim */
+  Prefix: "Prefix",
+
+  /** Do not add a prefix to the JWT claim */
+  NoPrefix: "NoPrefix",
 }
 
 /** External Auth claim validation rule */
