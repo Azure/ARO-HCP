@@ -317,7 +317,7 @@ param azureMonitoring string
 				// those in the correlation ID.
 				dimensions := sets.New[string]("{{ $labels.cluster }}") // we always want to be cluster-specific
 				if description, exists := annotations["description"]; exists && description != nil {
-					labelMatcher := regexp.MustCompile(`\$labels\.[^\s]+`)
+					labelMatcher := regexp.MustCompile(`\$labels\.[^\s}]+`)
 					for _, match := range labelMatcher.FindAllString(*description, -1) {
 						dimensions.Insert(fmt.Sprintf("{{ %s }}", match))
 					}
