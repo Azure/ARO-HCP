@@ -390,7 +390,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
         actions: [for g in actionGroups: {
           actionGroupId: g
           actionProperties: {
-            'IcM.Title': concat('#$.labels.cluster#',': ','#$.annotations.description#')
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
         }]
