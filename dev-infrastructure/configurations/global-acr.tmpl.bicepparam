@@ -18,3 +18,5 @@ param svcAcrZoneRedundantMode = '{{ .acr.svc.zoneRedundantMode }}'
 param ocpAcrZoneRedundantMode = '{{ .acr.ocp.zoneRedundantMode }}'
 
 param globalKeyVaultName = '{{ .global.keyVault.name}}'
+
+param deployMiseArtifactSync = {{ .mise.deploy }}
