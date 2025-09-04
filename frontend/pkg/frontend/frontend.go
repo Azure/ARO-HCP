@@ -627,7 +627,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetHCPCluster(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.GetHCPCluster(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -770,7 +770,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 	if len(resourceDoc.CosmosETag) > 0 {
 		upsertOptions.IfMatchETag = ptr.To(resourceDoc.CosmosETag)
 	}
-	resourceItemID = transaction.UpsertResourceDocumentContent(resourceDoc, upsertOptions)
+	resourceItemID := transaction.UpsertResourceDocumentContent(resourceDoc, upsertOptions)
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
