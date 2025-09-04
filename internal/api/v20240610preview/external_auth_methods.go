@@ -218,7 +218,7 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 			Username: &generated.UsernameClaimProfile{
 				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
 				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(string(from.Mappings.Username.PrefixPolicy)),
+				PrefixPolicy: api.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.Mappings.Username.PrefixPolicy)),
 			},
 			Groups: groups,
 		},

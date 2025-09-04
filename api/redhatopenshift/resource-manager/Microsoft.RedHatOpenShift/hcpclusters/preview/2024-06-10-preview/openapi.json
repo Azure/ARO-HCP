@@ -3572,6 +3572,36 @@
         ]
       }
     },
+    "UsernameClaimPrefixPolicy": {
+      "type": "string",
+      "description": "UsernameClaimPrefixPolicy configures whether to add a prefix to a JWT claim.",
+      "enum": [
+        "None",
+        "Prefix",
+        "NoPrefix"
+      ],
+      "x-ms-enum": {
+        "name": "UsernameClaimPrefixPolicy",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "None",
+            "value": "None",
+            "description": "No opinion; the platform is left to choose a prefix for the JWT claim"
+          },
+          {
+            "name": "Prefix",
+            "value": "Prefix",
+            "description": "Add a user-provided prefix to the JWT claim"
+          },
+          {
+            "name": "NoPrefix",
+            "value": "NoPrefix",
+            "description": "Do not add a prefix to the JWT claim"
+          }
+        ]
+      }
+    },
     "UsernameClaimProfile": {
       "type": "object",
       "description": "External Auth claim profile\nThis configures how the username of a cluster identity should be constructed\nfrom the claims in a JWT token issued by the identity provider.",
@@ -3584,10 +3614,10 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+          "description": "Prefix for the claim external profile\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
         },
         "prefixPolicy": {
-          "type": "string",
+          "$ref": "#/definitions/UsernameClaimPrefixPolicy",
           "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
         }
       },
@@ -3607,10 +3637,10 @@
         },
         "prefix": {
           "type": "string",
-          "description": "Prefix for the claim external profile\nIf this is specified prefixPolicy will be set to \"Prefix\" by default"
+          "description": "Prefix for the claim external profile\nMust be set when the prefixPolicy field is set to 'Prefix' and must be unset\notherwise."
         },
         "prefixPolicy": {
-          "type": "string",
+          "$ref": "#/definitions/UsernameClaimPrefixPolicy",
           "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
         }
       }

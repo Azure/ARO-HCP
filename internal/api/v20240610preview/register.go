@@ -33,24 +33,6 @@ var (
 	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
-type UsernameClaimPrefixPolicy string
-
-const (
-	UsernameClaimPrefixPolicyPrefix   UsernameClaimPrefixPolicy = "Prefix"
-	UsernameClaimPrefixPolicyNoPrefix UsernameClaimPrefixPolicy = "NoPrefix"
-	UsernameClaimPrefixPolicyNone     UsernameClaimPrefixPolicy = "None"
-)
-
-// FIXME This is a hack because we typed this field as string and not an enum in the API spec.
-// PossibleUsernameClaimPrefixPolicyValues returns the possible values for the UsernameClaimPrefixPolicy const type.
-func PossibleUsernameClaimPrefixPolicyValues() []UsernameClaimPrefixPolicy {
-	return []UsernameClaimPrefixPolicy{
-		UsernameClaimPrefixPolicyPrefix,
-		UsernameClaimPrefixPolicyNoPrefix,
-		UsernameClaimPrefixPolicyNone,
-	}
-}
-
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
 	//       a field with @visibility("read","create") becoming updatable,
@@ -82,6 +64,6 @@ func init() {
 	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
 	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyValues()...))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(generated.PossibleUsernameClaimPrefixPolicyValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
 }

@@ -374,6 +374,27 @@ func PossibleTokenValidationRuleTypeValues() []TokenValidationRuleType {
 	}
 }
 
+// UsernameClaimPrefixPolicy - UsernameClaimPrefixPolicy configures whether to add a prefix to a JWT claim.
+type UsernameClaimPrefixPolicy string
+
+const (
+	// UsernameClaimPrefixPolicyNoPrefix - Do not add a prefix to the JWT claim
+	UsernameClaimPrefixPolicyNoPrefix UsernameClaimPrefixPolicy = "NoPrefix"
+	// UsernameClaimPrefixPolicyNone - No opinion; the platform is left to choose a prefix for the JWT claim
+	UsernameClaimPrefixPolicyNone UsernameClaimPrefixPolicy = "None"
+	// UsernameClaimPrefixPolicyPrefix - Add a user-provided prefix to the JWT claim
+	UsernameClaimPrefixPolicyPrefix UsernameClaimPrefixPolicy = "Prefix"
+)
+
+// PossibleUsernameClaimPrefixPolicyValues returns the possible values for the UsernameClaimPrefixPolicy const type.
+func PossibleUsernameClaimPrefixPolicyValues() []UsernameClaimPrefixPolicy {
+	return []UsernameClaimPrefixPolicy{
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
+		UsernameClaimPrefixPolicyPrefix,
+	}
+}
+
 // Visibility - The internet visibility of the OpenShift API server
 type Visibility string
 
