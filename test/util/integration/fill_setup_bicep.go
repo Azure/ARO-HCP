@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/log"
@@ -31,7 +33,7 @@ import (
 
 // FallbackCreateClusterWithBicep creates a complete cluster using the demo.bicep file if setup file loading fails.
 // Returns a filled SetupModel and error.
-func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName string) (SetupModel, error) {
+func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName string, resourceGroupName string, deploymentsClient *armresources.DeploymentsClient, clientFactory *api.ClientFactory) (SetupModel, error) {
 	var setup SetupModel
 	// 1. Generate names
 	clusterName := "e2e-cluster-" + rand.String(8)
@@ -43,19 +45,6 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		"clusterName": clusterName,
 	}
 
-	// 3. Create a resource group
-	location := os.Getenv("LOCATION")
-	if location == "" {
-		location = "uksouth" // default fallback
-	}
-	// Use framework's invocation context for resource group creation
-	tc := framework.NewTestContext()
-	resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-bicep", location)
-	if err != nil {
-		return setup, fmt.Errorf("failed to create resource group: %w", err)
-	}
-	resourceGroupName := *resourceGroup.Name
-
 	log.Logger.Infof("Using resource group: %s, cluster name: %s", resourceGroupName, clusterName)
 
 	// 4. Read the pre-built ARM template JSON from test-artifacts (relative to e2e directory)
@@ -65,7 +54,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	} else {
 		jsonFile = "demo.json"
 	}
-	jsonPath := filepath.Join("bicep-templates", jsonFile)
+	jsonPath := filepath.Join("e2e", "test-artifacts", "generated-test-artifacts", jsonFile)
 	templateBytes, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return setup, fmt.Errorf("failed to read pre-built ARM template: %w", err)
@@ -73,7 +62,6 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 
 	// 5. Deploy the ARM template using the Azure SDK
 	deploymentName := "aro-hcp-e2e-setup"
-	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 	deploymentResult, err := framework.CreateBicepTemplateAndWait(
 		ctx,
 		deploymentsClient,
@@ -132,7 +120,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	}
 
 	// Fetch ARM resources for ARMData
-	clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+	clusterClient := clientFactory.NewHcpOpenShiftClustersClient()
 	clusterResp, err := clusterClient.Get(ctx, resourceGroupName, clusterName, nil)
 	var clusterData api.HcpOpenShiftCluster
 	if err != nil {
@@ -141,7 +129,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		clusterData = clusterResp.HcpOpenShiftCluster
 	}
 
-	nodepoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+	nodepoolClient := clientFactory.NewNodePoolsClient()
 	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
 	var nodepoolData api.NodePool
 	if err != nil {
@@ -174,12 +162,15 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		},
 	}
 
-	// Marshal setup to JSON and write to test-artifacts/e2e-setup.json
+	// Marshal setup to JSON and write to artifacts directory
 	setupJSON, err := json.MarshalIndent(setup, "", "  ")
 	if err != nil {
 		log.Logger.Warnf("Failed to marshal SetupModel to JSON: %v", err)
 	} else {
-		outputPath := filepath.Join("test-artifacts", "e2e-setup.json")
+		outputPath := os.Getenv("SETUP_FILEPATH")
+		if outputPath == "" {
+			outputPath = filepath.Join("e2e", "test-artifacts", "e2e-setup.json")
+		}
 		if err := os.WriteFile(outputPath, setupJSON, 0644); err != nil {
 			log.Logger.Warnf("Failed to write SetupModel JSON to file: %v", err)
 		}
