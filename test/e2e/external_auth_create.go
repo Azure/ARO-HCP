@@ -177,8 +177,8 @@ var _ = Describe("Customer", func() {
 					Claim: &generated.ExternalAuthClaimProfile{
 						Mappings: &generated.TokenClaimMappingsProfile{
 							Username: &generated.UsernameClaimProfile{
-								Claim:        to.Ptr("sub"),    // objectID of SP
-								PrefixPolicy: to.Ptr("Prefix"), // TODO: ARO-21008 preventing us setting NoPrefix
+								Claim:        to.Ptr("sub"),                                     // objectID of SP
+								PrefixPolicy: to.Ptr(generated.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
 							Groups: &generated.GroupClaimProfile{
