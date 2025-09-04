@@ -812,35 +812,33 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		return err
 	}
 
-	claimBuilder := arohcpv1alpha1.NewExternalAuthClaim()
-
-	mappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings()
-	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
-		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-		PrefixPolicy(usernameClaimPrefixPolicy),
-	)
-
+	groupsClaim := arohcpv1alpha1.NewGroupsClaim()
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		mappingsBuilder.Groups(arohcpv1alpha1.NewGroupsClaim().
+		groupsClaim.
 			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
+			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix)
+	}
+
+	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
+	for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
+		newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
+			Claim(t.RequiredClaim.Claim).
+			RequiredValue(t.RequiredClaim.RequiredValue)
+		validationRules = append(validationRules, newClientConfig)
+	}
+
+	externalAuthBuilder.
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
+					Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
+					PrefixPolicy(usernameClaimPrefixPolicy),
+				).
+				Groups(groupsClaim),
+			).
+			ValidationRules(validationRules...),
 		)
-	}
-	claimBuilder.Mappings(mappingsBuilder)
-
-	if len(hcpExternalAuth.Properties.Claim.ValidationRules) > 0 {
-		validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
-		for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
-			newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
-				Claim(t.RequiredClaim.Claim).
-				RequiredValue(t.RequiredClaim.RequiredValue)
-			validationRules = append(validationRules, newClientConfig)
-		}
-		claimBuilder.ValidationRules(validationRules...)
-	}
-
-	externalAuthBuilder.Claim(claimBuilder)
 
 	return nil
 }
