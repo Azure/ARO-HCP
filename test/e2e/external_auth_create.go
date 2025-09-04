@@ -236,8 +236,12 @@ var _ = Describe("Customer", func() {
 			client, err := kubernetes.NewForConfig(config)
 			Expect(err).NotTo(HaveOccurred())
 
+			// The kube-apiserver restarts on external auth config creation, so we need to wait
+			// for it to completely restart. There doesn't appear to be a way to track this in the data plane
 			By("confirming we can list namespaces using entra OIDC token")
-			_, err = client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() error {
+				_, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+				return err
+			}, 5*time.Minute, 10*time.Second).Should(Succeed())
 		})
 })
