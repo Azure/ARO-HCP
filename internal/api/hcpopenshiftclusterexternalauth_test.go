@@ -215,7 +215,7 @@ func TestExternalAuthValidate(t *testing.T) {
 					Claim: ExternalAuthClaimProfile{
 						Mappings: TokenClaimMappingsProfile{
 							Username: UsernameClaimProfile{
-								PrefixPolicy: UsernameClaimPrefixPolicyTypePrefix,
+								PrefixPolicy: UsernameClaimPrefixPolicyPrefix,
 							},
 						},
 					},
@@ -236,7 +236,7 @@ func TestExternalAuthValidate(t *testing.T) {
 						Mappings: TokenClaimMappingsProfile{
 							Username: UsernameClaimProfile{
 								Prefix:       "prefix",
-								PrefixPolicy: UsernameClaimPrefixPolicyTypeNoPrefix,
+								PrefixPolicy: UsernameClaimPrefixPolicyNoPrefix,
 							},
 						},
 					},
@@ -257,7 +257,7 @@ func TestExternalAuthValidate(t *testing.T) {
 						Mappings: TokenClaimMappingsProfile{
 							Username: UsernameClaimProfile{
 								Prefix:       "prefix",
-								PrefixPolicy: UsernameClaimPrefixPolicyTypeNone,
+								PrefixPolicy: UsernameClaimPrefixPolicyNone,
 							},
 						},
 					},

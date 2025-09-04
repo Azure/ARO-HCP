@@ -33,21 +33,21 @@ var (
 	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
-type UsernameClaimPrefixPolicyType string
+type UsernameClaimPrefixPolicy string
 
 const (
-	UsernameClaimPrefixPolicyTypePrefix   UsernameClaimPrefixPolicyType = "Prefix"
-	UsernameClaimPrefixPolicyTypeNoPrefix UsernameClaimPrefixPolicyType = "NoPrefix"
-	UsernameClaimPrefixPolicyTypeNone     UsernameClaimPrefixPolicyType = "None"
+	UsernameClaimPrefixPolicyPrefix   UsernameClaimPrefixPolicy = "Prefix"
+	UsernameClaimPrefixPolicyNoPrefix UsernameClaimPrefixPolicy = "NoPrefix"
+	UsernameClaimPrefixPolicyNone     UsernameClaimPrefixPolicy = "None"
 )
 
 // FIXME This is a hack because we typed this field as string and not an enum in the API spec.
-// PossibleUsernameClaimPrefixPolicyTypeValues returns the possible values for the UsernameClaimPrefixPolicyType const type.
-func PossibleUsernameClaimPrefixPolicyTypeValues() []UsernameClaimPrefixPolicyType {
-	return []UsernameClaimPrefixPolicyType{
-		UsernameClaimPrefixPolicyTypePrefix,
-		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeNone,
+// PossibleUsernameClaimPrefixPolicyValues returns the possible values for the UsernameClaimPrefixPolicy const type.
+func PossibleUsernameClaimPrefixPolicyValues() []UsernameClaimPrefixPolicy {
+	return []UsernameClaimPrefixPolicy{
+		UsernameClaimPrefixPolicyPrefix,
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
 	}
 }
 
@@ -82,6 +82,6 @@ func init() {
 	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
 	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyTypeValues()...))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(PossibleUsernameClaimPrefixPolicyValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
 }

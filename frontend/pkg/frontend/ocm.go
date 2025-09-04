@@ -119,26 +119,26 @@ func convertCustomerManagedEncryptionTypeRPToCS(encryptionTypeRP api.CustomerMan
 	}
 }
 
-func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicyType, error) {
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicy, error) {
 	switch prefixPolicyCS {
 	case csUsernameClaimPrefixPolicyPrefix:
-		return api.UsernameClaimPrefixPolicyTypePrefix, nil
+		return api.UsernameClaimPrefixPolicyPrefix, nil
 	case csUsernameClaimPrefixPolicyNoPrefix:
-		return api.UsernameClaimPrefixPolicyTypeNoPrefix, nil
+		return api.UsernameClaimPrefixPolicyNoPrefix, nil
 	case "":
-		return api.UsernameClaimPrefixPolicyTypeNone, nil
+		return api.UsernameClaimPrefixPolicyNone, nil
 	default:
-		return "", conversionError[api.UsernameClaimPrefixPolicyType](prefixPolicyCS)
+		return "", conversionError[api.UsernameClaimPrefixPolicy](prefixPolicyCS)
 	}
 }
 
-func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicyType) (string, error) {
+func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPrefixPolicy) (string, error) {
 	switch prefixPolicyRP {
-	case api.UsernameClaimPrefixPolicyTypePrefix:
+	case api.UsernameClaimPrefixPolicyPrefix:
 		return csUsernameClaimPrefixPolicyPrefix, nil
-	case api.UsernameClaimPrefixPolicyTypeNoPrefix:
+	case api.UsernameClaimPrefixPolicyNoPrefix:
 		return csUsernameClaimPrefixPolicyNoPrefix, nil
-	case api.UsernameClaimPrefixPolicyTypeNone:
+	case api.UsernameClaimPrefixPolicyNone:
 		return "", nil
 	default:
 		return "", conversionError[string](prefixPolicyRP)

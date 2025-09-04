@@ -430,10 +430,10 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder(),
 		},
 		{
-			name: "correctly parse PrefixPolicyType",
+			name: "correctly parse PrefixPolicy",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
-					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyPrefix
 				},
 			),
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
@@ -441,7 +441,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 					UserName(arohcpv1alpha1.NewUsernameClaim().
 						Claim("").
 						Prefix("").
-						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
+						PrefixPolicy(string(api.UsernameClaimPrefixPolicyPrefix)),
 					),
 				)),
 		},
