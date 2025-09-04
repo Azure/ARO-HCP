@@ -3,19 +3,19 @@ clouds:
     environments:
       cspr:
         regions:
-          westus3: 0e10940c6ea1a412966b926f058c6e57e6b812b03193d2158a3e32b25792d83a
+          westus3: ec83390fe3a2a573090c0e85bd90dedcbb395b7fc043103a4f9861786c171807
       dev:
         regions:
-          westus3: c2e264b8c99e31ffe7cab9bf21f9c1fcd89f4311105598afc997ad09cb14d028
+          westus3: 52f960d3fbd0b865bbabf1f535e0e0fa7ac01b073707abb2d9b5469a0b8524a0
       ntly:
         regions:
-          uksouth: d2bb54147ade57793c4ed00eed19c337c002f2ebafb5df9f6559a4d8e65589be
+          uksouth: a5777b059dd18b30140aa5733f4796daaf157ed534b77aa781c31b59d6064149
       perf:
         regions:
-          westus3: b1c9b1d80160a8185d1ff09e863305dc57b2dadb457356eac4dcc18e377df980
+          westus3: 96b42b97510eaf157ee509a0d25bf570de80f6a5c23fa2e3bd03f88e3e880641
       pers:
         regions:
-          westus3: 50a65c49e2230917d81a1d086b41b68f4fc81eed8c90e5113be9442f4da5ed65
+          westus3: c18c696a0ce41a7482794e9d3ce31e8cddfd54cfef02a641311ba6153b5e1e89
       swft:
         regions:
-          uksouth: a084f529d0951e41cbc24a398ed83d3cae2cb31a37e13baeae5526f9513e0324
+          uksouth: c93eae35c81572d8d241a6c327aa35f6606e89597358dc683bf9c4b5e5e944e2
