@@ -55,6 +55,7 @@ var _ = Describe("Customer", func() {
 				openshiftControlPlaneVersionId   = "4.19"
 				openshiftNodeVersionId           = "4.19.7"
 				customerExternalAuthName         = "external-auth"
+				externalAuthSubjectPrefix        = "prefix-" // TODO: ARO-21008 preventing us setting NoPrefix
 			)
 			tc := framework.NewTestContext()
 
@@ -166,7 +167,7 @@ var _ = Describe("Customer", func() {
 			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating an external auth config")
+			By("creating an external auth config with a prefix")
 			extAuth := generated.ExternalAuth{
 				Properties: &generated.ExternalAuthProperties{
 					Issuer: &generated.TokenIssuerProfile{
@@ -176,14 +177,16 @@ var _ = Describe("Customer", func() {
 					Claim: &generated.ExternalAuthClaimProfile{
 						Mappings: &generated.TokenClaimMappingsProfile{
 							Username: &generated.UsernameClaimProfile{
-								Claim:        to.Ptr("sub"), // objectID
-								PrefixPolicy: to.Ptr("NoPrefix"),
+								Claim:        to.Ptr("sub"),    // objectID of SP
+								PrefixPolicy: to.Ptr("Prefix"), // TODO: ARO-21008 preventing us setting NoPrefix
+								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
 							Groups: &generated.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
+					// TODO: ARO-20830 needs to be rolled out before this bit will pass
 					// Clients: []*generated.ExternalAuthClientProfile{
 					// 	{
 					// 		ClientID: to.Ptr(app.ID),
@@ -213,7 +216,7 @@ var _ = Describe("Customer", func() {
 			Expect(*eaResult.Properties.ProvisioningState).To(Equal(generated.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
-			err = framework.CreateClusterRoleBinding(ctx, sp.ID, adminRESTConfig)
+			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a rest config using OIDC authentication")
