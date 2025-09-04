@@ -45,10 +45,8 @@ func createArbitraryResource(ctx context.Context, dynamicClient dynamic.Interfac
 	return dynamicClient.Resource(restMapping.Resource).Namespace(namespace).Create(ctx, desiredObj, metav1.CreateOptions{})
 }
 
-// defaultRESTMappings contains enough RESTMappings to have enough of the kube-controller-manager succeed when running
-// against a kube-apiserver that cannot reach aggregated APIs to do a full mapping.  This happens when the OwnerReferencesPermissionEnforcement
-// admission plugin runs to confirm permissions.  Don't add things just because you don't want to fail.  These are here so that
-// we can start enough back up to get the rest of the system working correctly.
+// defaultRESTMappings contains RESTMappings we use in our e2e tests to avoid wiring a complete RESTMapper to eliminate one possible
+// source of error. If this becomes painful, then replace it with a real RESTMapper based on discovery.
 var defaultRESTMappings = []meta.RESTMapping{
 	{
 		GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
@@ -140,8 +138,9 @@ func newHardcodedRESTMapper() hardCodedFirstRESTMapper {
 	return ret
 }
 
-// hardCodedFirstRESTMapper is a RESTMapper that will look for hardcoded mappings first, then delegate.
-// This is done in service to `OwnerReferencesPermissionEnforcement` and for cluster-bootstrap.
+// hardCodedFirstRESTMapper is a RESTMapper that will look for hardcoded mappings.  This was simple when small. If it
+// becomes painful, replace with a real RESTMapper based on discovery.  The disadvantage to discovery are the problems
+// we have if CRD registration or APIService registration fails.
 type hardCodedFirstRESTMapper struct {
 	Mapping map[schema.GroupVersionKind]meta.RESTMapping
 }
@@ -150,30 +149,14 @@ func (m hardCodedFirstRESTMapper) String() string {
 	return fmt.Sprintf("HardCodedRESTMapper{\n\t%v\n}", m.Mapping)
 }
 
-// RESTMapping is the only function called today.  The first hit openshiftrestmapper ought to make this work right.  OwnerReferencesPermissionEnforcement
-// only ever calls with one version.
 func (m hardCodedFirstRESTMapper) RESTMapping(gk schema.GroupKind, version string) (*meta.RESTMapping, error) {
 	gvk := gk.WithVersion(version)
 
 	single, ok := m.Mapping[gvk]
-	// not handled, delegate
+	// not handled, fail so we notice
 	if !ok {
 		return nil, fmt.Errorf("no mapping for %v", gvk)
 	}
 
 	return &single, nil
-}
-
-// RESTMapping is the only function called today.  The firsthit openshiftrestmapper ought to make this work right.  OwnerReferencesPermissionEnforcement
-// only ever calls with one version.
-func (m hardCodedFirstRESTMapper) RESTMappings(gk schema.GroupKind, version string) ([]*meta.RESTMapping, error) {
-	gvk := gk.WithVersion(version)
-
-	single, ok := m.Mapping[gvk]
-	// not handled, delegate
-	if !ok {
-		return nil, fmt.Errorf("no mapping for %v", gvk)
-	}
-
-	return []*meta.RESTMapping{&single}, nil
 }

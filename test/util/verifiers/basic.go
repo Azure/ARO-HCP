@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,13 +98,24 @@ var standardVerifiers = []HostedClusterVerifier{
 func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
 	allVerifiers := append(standardVerifiers, additionalVerifiers...)
 
-	// if these start taking a long time, run in parallel
-	errs := []error{}
+	errCh := make(chan error, len(allVerifiers))
+	wg := sync.WaitGroup{}
 	for _, verifier := range allVerifiers {
-		err := verifier.Verify(ctx, adminRESTConfig)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%v failed: %w", verifier.Name(), err))
-		}
+		wg.Add(1)
+		go func(ctx context.Context, verifier HostedClusterVerifier) {
+			defer wg.Done()
+			err := verifier.Verify(ctx, adminRESTConfig)
+			if err != nil {
+				errCh <- fmt.Errorf("%v failed: %w", verifier.Name(), err)
+			}
+		}(ctx, verifier)
+	}
+	wg.Wait()
+	close(errCh)
+
+	errs := []error{}
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 
 	return errors.Join(errs...)
