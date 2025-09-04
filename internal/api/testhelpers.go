@@ -119,10 +119,10 @@ func NewTestValidator() *validator.Validate {
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", EnumValidateTag(
 		TokenValidationRuleTypeRequiredClaim,
 	))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicytype", EnumValidateTag(
-		UsernameClaimPrefixPolicyTypePrefix,
-		UsernameClaimPrefixPolicyTypeNoPrefix,
-		UsernameClaimPrefixPolicyTypeNone,
+	validate.RegisterAlias("enum_usernameclaimprefixpolicy", EnumValidateTag(
+		UsernameClaimPrefixPolicyPrefix,
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
 	))
 	validate.RegisterAlias("enum_visibility", EnumValidateTag(
 		VisibilityPublic,
@@ -175,7 +175,7 @@ func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
 	resource.ID = TestExternalAuthResourceID
 	resource.Name = TestExternalAuthName
 	resource.Type = ExternalAuthResourceType.String()
-	resource.Properties.Issuer.Url = "https://www.redhat.com"
+	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
 	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"
 	return resource

@@ -44,7 +44,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 // Condition defines an observation of the external auth state.
 // Visibility for the entire struct is "read".
 type ExternalAuthCondition struct {
-	ConditionType      ExternalAuthConditionType `json:"type"               validate:"enum_externalauthconditiontype"`
+	Type               ExternalAuthConditionType `json:"type"               validate:"enum_externalauthconditiontype"`
 	Status             ConditionStatusType       `json:"status"             validate:"enum_externalauthconditionstatustype"`
 	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
 	Reason             string                    `json:"reason"`
@@ -56,19 +56,19 @@ type ExternalAuthCondition struct {
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 // Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
-	Url       string   `json:"url"       validate:"required,url,startswith=https://"`
+	URL       string   `json:"url"       validate:"required,url,startswith=https://"`
 	Audiences []string `json:"audiences" validate:"required,max=10"`
-	Ca        string   `json:"ca"        validate:"omitempty,pem_certificates"`
+	CA        string   `json:"ca"        validate:"omitempty,pem_certificates"`
 }
 
 // External Auth client profile
 // This configures how on-cluster, platform clients should request tokens from the identity provider.
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClientProfile struct {
-	Component                     ExternalAuthClientComponentProfile `json:"component"   validate:"required"`
-	ClientId                      string                             `json:"clientId"    validate:"required"`
-	ExtraScopes                   []string                           `json:"extraScopes" validate:"omitempty"`
-	ExternalAuthClientProfileType ExternalAuthClientType             `json:"type"        validate:"required,enum_externalauthclienttype"`
+	Component   ExternalAuthClientComponentProfile `json:"component"   validate:"required"`
+	ClientID    string                             `json:"clientId"    validate:"required"`
+	ExtraScopes []string                           `json:"extraScopes" validate:"omitempty"`
+	Type        ExternalAuthClientType             `json:"type"        validate:"required,enum_externalauthclienttype"`
 }
 
 // External Auth component profile
@@ -113,16 +113,16 @@ type GroupClaimProfile struct {
 // from the claims in a JWT token issued by the identity provider.
 // Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
-	Claim        string                        `json:"claim"        validate:"required,max=256"`
-	Prefix       string                        `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
-	PrefixPolicy UsernameClaimPrefixPolicyType `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicytype"`
+	Claim        string                    `json:"claim"        validate:"required,max=256"`
+	Prefix       string                    `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
+	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicy"`
 }
 
 // External Auth claim validation rule
 // Visibility for the entire struct is "read create update".
 type TokenClaimValidationRule struct {
-	TokenClaimValidationRuleType TokenValidationRuleType `json:"type"          validate:"required,enum_tokenvalidationruletyperequiredclaim"`
-	RequiredClaim                TokenRequiredClaim      `json:"requiredClaim" validate:"omitempty"`
+	Type          TokenValidationRuleType `json:"type"          validate:"required,enum_tokenvalidationruletyperequiredclaim"`
+	RequiredClaim TokenRequiredClaim      `json:"requiredClaim" validate:"omitempty"`
 }
 
 // Token required claim validation rule.
@@ -138,7 +138,7 @@ func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAut
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
 					Username: UsernameClaimProfile{
-						PrefixPolicy: UsernameClaimPrefixPolicyTypeNone,
+						PrefixPolicy: UsernameClaimPrefixPolicyNone,
 					},
 				},
 			},
@@ -156,9 +156,9 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentif
 		for _, elem := range externalAuth.Properties.Clients {
 			var uniqueKey = elem.generateUniqueIdentifier()
 			if clientIds, ok := clientIdsMap[uniqueKey]; ok {
-				clientIdsMap[uniqueKey] = append(clientIds, elem.ClientId)
+				clientIdsMap[uniqueKey] = append(clientIds, elem.ClientID)
 			} else {
-				clientIdsMap[uniqueKey] = []string{elem.ClientId}
+				clientIdsMap[uniqueKey] = []string{elem.ClientID}
 			}
 		}
 		for uniqueKey, clientIds := range clientIdsMap {
@@ -196,10 +196,10 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 		}
 
 		for i, client := range externalAuth.Properties.Clients {
-			if _, found := audiencesSet[client.ClientId]; !found {
+			if _, found := audiencesSet[client.ClientID]; !found {
 				errorDetails = append(errorDetails, arm.CloudErrorBody{
 					Code:    arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf("ClientId '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientId, i),
+					Message: fmt.Sprintf("ClientID '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientID, i),
 					Target:  "properties.clients",
 				})
 			}

@@ -19,7 +19,43 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestTrimStringSlice(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     []string
+		expect []string
+	}{
+		{
+			name:   "nil input",
+			in:     nil,
+			expect: nil,
+		},
+		{
+			name: "Slice with white space",
+			in: []string{
+				"   leading-white-space",
+				"trailing-white-space   ",
+				// Based on asciiSpace in strings.go
+				"\t\n\v\f\r ",
+				"no-white-space",
+			},
+			expect: []string{
+				"leading-white-space",
+				"trailing-white-space",
+				"no-white-space",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expect, TrimStringSlice(tt.in))
+		})
+	}
+}
 
 func TestMergeStringPtrMap(t *testing.T) {
 	tests := []struct {

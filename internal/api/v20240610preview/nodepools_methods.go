@@ -148,7 +148,7 @@ func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) 
 		out.DiskStorageAccountType = api.DiskStorageAccountType(*p.DiskStorageAccountType)
 	}
 	if p.EncryptionSetID != nil {
-		out.EncryptionSetId = *p.EncryptionSetID
+		out.EncryptionSetID = *p.EncryptionSetID
 	}
 }
 
@@ -205,6 +205,7 @@ func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
 	return &generated.OsDiskProfile{
 		SizeGiB:                api.PtrOrNil(from.SizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
+		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetID),
 	}
 }
 

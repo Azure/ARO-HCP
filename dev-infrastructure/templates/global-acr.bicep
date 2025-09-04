@@ -25,6 +25,9 @@ param ocpAcrZoneRedundantMode string
 @description('The zone redundancy mode for the SVC ACR')
 param svcAcrZoneRedundantMode string
 
+@description('Deploy mise artifact sync, only valid in Microsoft Production and AME Tenants')
+param deployMiseArtifactSync bool = false
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -85,6 +88,42 @@ module svcAcr '../modules/acr/acr.bicep' = {
     location: location
     zoneRedundant: determineZoneRedundancyForRegion(location, svcAcrZoneRedundantMode)
   }
+}
+
+module svcCaching '../modules/acr/cache.bicep' = {
+  name: '${svcAcrName}-caching'
+  params: {
+    acrName: svcAcrName
+    location: location
+    quayRepositoriesToCache: [
+      {
+        ruleName: 'acm-d-multicluster-engine'
+        sourceRepo: 'quay.io/acm-d/*'
+        targetRepo: 'acm-d-cache/*'
+        userIdentifier: 'acm-d-username'
+        passwordIdentifier: 'acm-d-password'
+        loginServer: 'quay.io'
+      }
+    ]
+    keyVaultName: globalKeyVaultName
+  }
+  dependsOn: [
+    svcAcr
+  ]
+}
+
+module miseArtifactSync '../modules/acr/mcr-artifact-sync.bicep' = if (deployMiseArtifactSync) {
+  name: 'mise-artifact-sync'
+  params: {
+    acrName: svcAcrName
+    artifactSyncRuleName: 'miseArtifactSync'
+    sourceRepositoryPath: 'mcr.microsoft.com/msftonly/mise/mise-1p-container-image'
+    targetRepositoryName: 'mise'
+    artifactSyncStatus: 'Active'
+  }
+  dependsOn: [
+    svcAcr
+  ]
 }
 
 module globalMSISvcAcrAccess '../modules/acr/acr-permissions.bicep' = {

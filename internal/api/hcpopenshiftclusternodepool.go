@@ -30,6 +30,7 @@ import (
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
 	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required"`
+	Identity   *arm.ManagedServiceIdentity           `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -68,7 +69,7 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
-	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
+	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.

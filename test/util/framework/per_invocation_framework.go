@@ -20,6 +20,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +41,7 @@ type perBinaryInvocationTestContext struct {
 	testUserClientID         string
 	location                 string
 	isDevelopmentEnvironment bool
+	skipCleanup              bool
 
 	contextLock      sync.RWMutex
 	subscriptionID   string
@@ -73,6 +75,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
 			isDevelopmentEnvironment: isDevelopmentEnvironment(),
+			skipCleanup:              skipCleanup(),
 		}
 	})
 	return invocationContextInstance
@@ -161,6 +164,11 @@ func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context,
 
 func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
+}
+
+func skipCleanup() bool {
+	ret, _ := strconv.ParseBool(os.Getenv("ARO_E2E_SKIP_CLEANUP"))
+	return ret
 }
 
 // artifactDir returns the value of ARTIFACT_DIR environment variable, which is spot to save info in CI

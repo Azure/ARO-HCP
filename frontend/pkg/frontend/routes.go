@@ -41,7 +41,7 @@ const (
 	PatternProviders         = "providers/" + api.ProviderNamespace
 	PatternClusters          = api.ClusterResourceTypeName + "/" + WildcardResourceName
 	PatternNodePools         = api.NodePoolResourceTypeName + "/" + WildcardNodePoolName
-	PatternVersions          = api.ClusterVersionTypeName + "/" + WildcardResourceName
+	PatternVersions          = api.VersionResourceTypeName + "/" + WildcardResourceName
 	PatternExternalAuth      = api.ExternalAuthResourceTypeName + "/" + WildcardExternalAuthName
 	PatternDeployments       = "deployments/" + WildcardDeploymentName
 	PatternResourceGroups    = "resourcegroups/" + WildcardResourceGroupName
@@ -104,7 +104,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 	mux.Handle(
-		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.ClusterVersionTypeName),
+		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
 	// Resource read endpoints

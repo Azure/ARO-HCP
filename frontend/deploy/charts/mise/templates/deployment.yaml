@@ -57,3 +57,7 @@ spec:
           value: "Information"
         - name: AzureAd__Logging__LogLevel
           value: "Information"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "{{ .Values.tracing.address }}"
+        - name: OTEL_TRACES_EXPORTER
+          value: "{{ .Values.tracing.exporter }}"

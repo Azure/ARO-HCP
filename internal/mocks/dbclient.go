@@ -645,17 +645,17 @@ func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.
 }
 
 // ListResourceDocs mocks base method.
-func (m *MockDBClient) ListResourceDocs(prefix *arm0.ResourceID, maxItems int32, continuationToken *string) database.DBClientIterator[database.ResourceDocument] {
+func (m *MockDBClient) ListResourceDocs(prefix *arm0.ResourceID, options *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.ResourceDocument] {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListResourceDocs", prefix, maxItems, continuationToken)
+	ret := m.ctrl.Call(m, "ListResourceDocs", prefix, options)
 	ret0, _ := ret[0].(database.DBClientIterator[database.ResourceDocument])
 	return ret0
 }
 
 // ListResourceDocs indicates an expected call of ListResourceDocs.
-func (mr *MockDBClientMockRecorder) ListResourceDocs(prefix, maxItems, continuationToken any) *MockDBClientListResourceDocsCall {
+func (mr *MockDBClientMockRecorder) ListResourceDocs(prefix, options any) *MockDBClientListResourceDocsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListResourceDocs", reflect.TypeOf((*MockDBClient)(nil).ListResourceDocs), prefix, maxItems, continuationToken)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListResourceDocs", reflect.TypeOf((*MockDBClient)(nil).ListResourceDocs), prefix, options)
 	return &MockDBClientListResourceDocsCall{Call: call}
 }
 
@@ -671,13 +671,13 @@ func (c *MockDBClientListResourceDocsCall) Return(arg0 database.DBClientIterator
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientListResourceDocsCall) Do(f func(*arm0.ResourceID, int32, *string) database.DBClientIterator[database.ResourceDocument]) *MockDBClientListResourceDocsCall {
+func (c *MockDBClientListResourceDocsCall) Do(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.ResourceDocument]) *MockDBClientListResourceDocsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientListResourceDocsCall) DoAndReturn(f func(*arm0.ResourceID, int32, *string) database.DBClientIterator[database.ResourceDocument]) *MockDBClientListResourceDocsCall {
+func (c *MockDBClientListResourceDocsCall) DoAndReturn(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.ResourceDocument]) *MockDBClientListResourceDocsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

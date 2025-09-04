@@ -471,6 +471,9 @@ defaults:
     image:
       repository: ""
       digest: ""
+    tracing:
+      address: ""
+      exporter: ""
   # MSI RP
   msiRp:
     dataPlaneAudienceResource: https://dummy.org
@@ -727,7 +730,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:2e1eb2baf9995aca7f59a9e85fc5f0d12e464848d823abfa712f9731b6da93b2
+          digest: sha256:a839e8fa1dfa14e9ba04a2ac192f32f5b8864af147ec5d9a6fa80a9c2c933cab
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -756,7 +759,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
+          digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
       # Backplane API
       backplaneAPI:
         image:
@@ -954,7 +957,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
+              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1067,7 +1070,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:c621c5312c7843e7f164f34b0ae6e267c257de82d75d74a215dcd72629907666
+              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

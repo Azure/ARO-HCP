@@ -15,7 +15,7 @@ type APIProfile struct {
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
-	AuthorizedCidrs []*string
+	AuthorizedCIDRs []*string
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -585,16 +585,16 @@ type NetworkProfile struct {
 	HostPrefix *int32
 
 	// The CIDR block from which to assign machine IP addresses
-	MachineCidr *string
+	MachineCIDR *string
 
 	// The main controller responsible for rendering the core networking components
 	NetworkType *NetworkType
 
 	// The CIDR of the pod IP addresses
-	PodCidr *string
+	PodCIDR *string
 
 	// The CIDR block for assigned service IPs
-	ServiceCidr *string
+	ServiceCIDR *string
 }
 
 // NodePool - Concrete tracked resource types can be created by aliasing this type using a specific property type.
@@ -998,7 +998,7 @@ type TokenIssuerProfile struct {
 	// The issuer of the token
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
-	Ca *string
+	CA *string
 }
 
 // TokenIssuerProfileUpdate - Token issuer profile This configures how the platform interacts with the identity provider and
@@ -1012,7 +1012,7 @@ type TokenIssuerProfileUpdate struct {
 	// The issuer of the token
 	// Certificate bundle to use to validate server certificates for the configured URL. It must be PEM encoded and when not specified,
 	// the system trust is used.
-	Ca *string
+	CA *string
 
 	// This configures the URL used to issue tokens by the identity provider. The Kubernetes API server determines how authentication
 	// tokens should be handled by matching the 'iss' claim in the JWT to the
@@ -1101,7 +1101,7 @@ type UsernameClaimProfile struct {
 	// REQUIRED; Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	// Prefix for the claim external profile Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
@@ -1115,7 +1115,7 @@ type UsernameClaimProfile struct {
 	// value of the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
 	// is set to https://myoidc.tld, the JWT claims include "username":"userA"
 	// and "email":"userA
-	PrefixPolicy *string
+	PrefixPolicy *UsernameClaimPrefixPolicy
 }
 
 // UsernameClaimProfileUpdate - External Auth claim profile This configures how the username of a cluster identity should
@@ -1124,7 +1124,7 @@ type UsernameClaimProfileUpdate struct {
 	// Claim name of the external profile
 	Claim *string
 
-	// Prefix for the claim external profile If this is specified prefixPolicy will be set to "Prefix" by default
+	// Prefix for the claim external profile Must be set when the prefixPolicy field is set to 'Prefix' and must be unset otherwise.
 	Prefix *string
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
@@ -1138,7 +1138,7 @@ type UsernameClaimProfileUpdate struct {
 	// value of the JWT claim when the claim is not 'email'. As an example, consider the following scenario:prefix is unset, issuerURL
 	// is set to https://myoidc.tld, the JWT claims include "username":"userA"
 	// and "email":"userA
-	PrefixPolicy *string
+	PrefixPolicy *UsernameClaimPrefixPolicy
 }
 
 // VersionProfile - Versions represents an OpenShift version.

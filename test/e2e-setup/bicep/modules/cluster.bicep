@@ -16,6 +16,15 @@ param subnetName string
 @description('OpenShift Version ID to use')
 param openshiftVersionId string = '4.19'
 
+@description('Network configuration of the hosted cluster')
+param networkConfig object = {
+  networkType: 'OVNKubernetes'
+  podCidr: '10.128.0.0/14'
+  serviceCidr: '172.30.0.0/16'
+  machineCidr: '10.0.0.0/16'
+  hostPrefix: 23
+}
+
 @description('Cluster Managed Identities: ')
 param userAssignedIdentitiesValue object
 
@@ -67,13 +76,7 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       channelGroup: 'stable'
     }
     dns: {}
-    network: {
-      networkType: 'OVNKubernetes'
-      podCidr: '10.128.0.0/14'
-      serviceCidr: '172.30.0.0/16'
-      machineCidr: '10.0.0.0/16'
-      hostPrefix: 23
-    }
+    network: networkConfig
     console: {}
     etcd: {
       dataEncryption: {

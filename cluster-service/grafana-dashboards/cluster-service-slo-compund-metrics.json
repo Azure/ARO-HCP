@@ -1104,7 +1104,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate5m{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
+          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
           "hide": false,
           "instant": false,
           "legendFormat": "P90 Burn Rate - 5m",
@@ -2257,8 +2257,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "ARO HCP Cluster Service SLOs",
-  "uid": "aro-hcp-cluster-service-slos",
+  "title": "ARO HCP Cluster Service SLOs (Compound Metrics)",
+  "uid": "aro-hcp-cluster-service-slos-rec-rules",
   "version": 1,
   "weekStart": "",
   "refresh": "5m"

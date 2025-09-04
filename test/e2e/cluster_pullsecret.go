@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 type dockerConfig struct {
@@ -88,7 +89,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("ensuring the cluster is viable")
-			err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating kubernetes client")

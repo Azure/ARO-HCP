@@ -430,10 +430,10 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder(),
 		},
 		{
-			name: "correctly parse PrefixPolicyType",
+			name: "correctly parse PrefixPolicy",
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
-					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyTypePrefix
+					hsc.Properties.Claim.Mappings.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyPrefix
 				},
 			),
 			expectedCSExternalAuth: getBaseCSExternalAuthBuilder().Claim(arohcpv1alpha1.NewExternalAuthClaim().
@@ -441,7 +441,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 					UserName(arohcpv1alpha1.NewUsernameClaim().
 						Claim("").
 						Prefix("").
-						PrefixPolicy(string(api.UsernameClaimPrefixPolicyTypePrefix)),
+						PrefixPolicy(string(api.UsernameClaimPrefixPolicyPrefix)),
 					),
 				)),
 		},
@@ -450,8 +450,8 @@ func TestBuildCSExternalAuth(t *testing.T) {
 			hcpExternalAuth: externalAuthResource(
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Issuer = api.TokenIssuerProfile{
-						Ca:        dummyCA,
-						Url:       dummyURL,
+						CA:        dummyCA,
+						URL:       dummyURL,
 						Audiences: dummyAudiences,
 					}
 				},
@@ -481,14 +481,14 @@ func TestBuildCSExternalAuth(t *testing.T) {
 						},
 						ValidationRules: []api.TokenClaimValidationRule{
 							{
-								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								Type: api.TokenValidationRuleTypeRequiredClaim,
 								RequiredClaim: api.TokenRequiredClaim{
 									Claim:         "A",
 									RequiredValue: "B",
 								},
 							},
 							{
-								TokenClaimValidationRuleType: api.TokenValidationRuleTypeRequiredClaim,
+								Type: api.TokenValidationRuleTypeRequiredClaim,
 								RequiredClaim: api.TokenRequiredClaim{
 									Claim:         "C",
 									RequiredValue: "D",
@@ -527,12 +527,12 @@ func TestBuildCSExternalAuth(t *testing.T) {
 				func(hsc *api.HCPOpenShiftClusterExternalAuth) {
 					hsc.Properties.Clients = []api.ExternalAuthClientProfile{
 						{
-							ClientId:                      "a",
-							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+							ClientID: "a",
+							Type:     api.ExternalAuthClientTypeConfidential,
 						},
 						{
-							ClientId:                      "b",
-							ExternalAuthClientProfileType: api.ExternalAuthClientTypeConfidential,
+							ClientID: "b",
+							Type:     api.ExternalAuthClientTypeConfidential,
 						},
 					}
 				},

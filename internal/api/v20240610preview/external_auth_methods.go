@@ -105,7 +105,7 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 		out.Component.AuthClientNamespace = *p.Component.AuthClientNamespace
 	}
 	if p.ClientID != nil {
-		out.ClientId = *p.ClientID
+		out.ClientID = *p.ClientID
 	}
 	out.ExtraScopes = make([]string, len(p.ExtraScopes))
 	for i := range p.ExtraScopes {
@@ -114,13 +114,13 @@ func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, 
 		}
 	}
 	if p.Type != nil {
-		out.ExternalAuthClientProfileType = api.ExternalAuthClientType(*p.Type)
+		out.Type = api.ExternalAuthClientType(*p.Type)
 	}
 }
 
 func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.TokenIssuerProfile) {
 	if p.URL != nil {
-		out.Url = *p.URL
+		out.URL = *p.URL
 	}
 	out.Audiences = make([]string, len(p.Audiences))
 	for i := range p.Audiences {
@@ -128,8 +128,8 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 			out.Audiences[i] = *p.Audiences[i]
 		}
 	}
-	if p.Ca != nil {
-		out.Ca = *p.Ca
+	if p.CA != nil {
+		out.CA = *p.CA
 	}
 }
 
@@ -154,7 +154,7 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 			out.Username.Prefix = *p.Username.Prefix
 		}
 		if p.Username.PrefixPolicy != nil {
-			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicyType(*p.Username.PrefixPolicy)
+			out.Username.PrefixPolicy = api.UsernameClaimPrefixPolicy(*p.Username.PrefixPolicy)
 		}
 	}
 	if p.Groups != nil {
@@ -170,7 +170,7 @@ func normalizeTokenClaimMappingsProfile(p *generated.TokenClaimMappingsProfile, 
 
 func normalizeTokenClaimValidationRule(p *generated.TokenClaimValidationRule, out *api.TokenClaimValidationRule) {
 	if p.Type != nil {
-		out.TokenClaimValidationRuleType = api.TokenValidationRuleType(*p.Type)
+		out.Type = api.TokenValidationRuleType(*p.Type)
 	}
 	if p.RequiredClaim != nil {
 		if p.RequiredClaim.Claim != nil {
@@ -188,7 +188,7 @@ type HcpOpenShiftClusterExternalAuth struct {
 
 func newExternalAuthCondition(from *api.ExternalAuthCondition) *generated.ExternalAuthCondition {
 	return &generated.ExternalAuthCondition{
-		Type:    api.PtrOrNil(generated.ExternalAuthConditionType(from.ConditionType)),
+		Type:    api.PtrOrNil(generated.ExternalAuthConditionType(from.Type)),
 		Status:  api.PtrOrNil(generated.StatusType(from.Status)),
 		Reason:  api.PtrOrNil(from.Reason),
 		Message: api.PtrOrNil(from.Message),
@@ -197,9 +197,9 @@ func newExternalAuthCondition(from *api.ExternalAuthCondition) *generated.Extern
 
 func newTokenIssuerProfile(from *api.TokenIssuerProfile) *generated.TokenIssuerProfile {
 	return &generated.TokenIssuerProfile{
-		URL:       api.PtrOrNil(from.Url),
+		URL:       api.PtrOrNil(from.URL),
 		Audiences: api.StringSliceToStringPtrSlice(from.Audiences),
-		Ca:        api.PtrOrNil(from.Ca),
+		CA:        api.PtrOrNil(from.CA),
 	}
 }
 
@@ -218,7 +218,7 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.
 			Username: &generated.UsernameClaimProfile{
 				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
 				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(string(from.Mappings.Username.PrefixPolicy)),
+				PrefixPolicy: api.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.Mappings.Username.PrefixPolicy)),
 			},
 			Groups: groups,
 		},
@@ -261,9 +261,9 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 				Name:                api.PtrOrNil(client.Component.Name),
 				AuthClientNamespace: api.PtrOrNil(client.Component.AuthClientNamespace),
 			},
-			ClientID:    api.PtrOrNil(client.ClientId),
+			ClientID:    api.PtrOrNil(client.ClientID),
 			ExtraScopes: api.StringSliceToStringPtrSlice(client.ExtraScopes),
-			Type:        api.PtrOrNil(generated.ExternalAuthClientType(client.ExternalAuthClientProfileType)),
+			Type:        api.PtrOrNil(generated.ExternalAuthClientType(client.Type)),
 		})
 	}
 	return out

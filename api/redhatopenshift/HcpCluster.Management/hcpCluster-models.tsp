@@ -2,11 +2,13 @@ import "@typespec/rest";
 import "@typespec/http";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
+import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
 using TypeSpec.Http;
 using Azure.Core;
 using Azure.ResourceManager;
+using Azure.ClientGenerator.Core;
 
 namespace Microsoft.RedHatOpenShift;
 
@@ -176,14 +178,17 @@ model NetworkProfile {
   networkType?: NetworkType = NetworkType.OVNKubernetes;
 
   /** The CIDR of the pod IP addresses */
+  @clientName("podCIDR")
   @visibility(Lifecycle.Read, Lifecycle.Create)
   podCidr?: string = "10.128.0.0/14";
 
   /** The CIDR block for assigned service IPs */
+  @clientName("serviceCIDR")
   @visibility(Lifecycle.Read, Lifecycle.Create)
   serviceCidr?: string = "172.30.0.0/16";
 
   /** The CIDR block from which to assign machine IP addresses */
+  @clientName("machineCIDR")
   @visibility(Lifecycle.Read, Lifecycle.Create)
   machineCidr?: string = "10.0.0.0/16";
 
@@ -221,6 +226,7 @@ model ApiProfile {
   visibility?: Visibility = Visibility.Public;
 
   /** The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries. */
+  @clientName("authorizedCIDRs")
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @maxItems(500)
   authorizedCidrs?: string[];
@@ -814,6 +820,7 @@ model TokenIssuerProfile {
    * Certificate bundle to use to validate server certificates for the configured URL.
    * It must be PEM encoded and when not specified, the system trust is used.
    */
+  @clientName("CA")
   ca?: string;
 }
 
@@ -935,7 +942,8 @@ model UsernameClaimProfile {
   claim: string;
 
   /** Prefix for the claim external profile
-   * If this is specified prefixPolicy will be set to "Prefix" by default
+   * Must be set when the prefixPolicy field is set to 'Prefix' and must be unset
+   * otherwise.
    */
   prefix?: string;
 
@@ -962,7 +970,21 @@ model UsernameClaimProfile {
    *    - "username": the mapped value will be "https://myoidc.tld#userA"
    *    - "email": the mapped value will be "userA@myoidc.tld"
    */
-  prefixPolicy?: string;
+  prefixPolicy?: UsernameClaimPrefixPolicy;
+}
+
+/** UsernameClaimPrefixPolicy configures whether to add a prefix to a JWT claim. */
+union UsernameClaimPrefixPolicy {
+  string,
+
+  /** No opinion; the platform is left to choose a prefix for the JWT claim */
+  None: "None",
+
+  /** Add a user-provided prefix to the JWT claim */
+  Prefix: "Prefix",
+
+  /** Do not add a prefix to the JWT claim */
+  NoPrefix: "NoPrefix",
 }
 
 /** External Auth claim validation rule */

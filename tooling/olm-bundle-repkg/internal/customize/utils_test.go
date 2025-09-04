@@ -40,9 +40,9 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:{{ .Values.imageTag }}",
 			expectedParams: map[string]string{
-				"imageRegistry":   "",
-				"imageRepository": "",
-				"imageTag":        "",
+				"imageRegistry":   "registry.io",
+				"imageRepository": "myrepo/myimage",
+				"imageTag":        "v1.0.0",
 			},
 		},
 		{
@@ -60,7 +60,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "{{ .Values.imageRegistry }}/myrepo/myimage:v1.0.0",
 			expectedParams: map[string]string{
-				"imageRegistry": "",
+				"imageRegistry": "registry.io",
 			},
 		},
 		{
@@ -71,7 +71,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "registry.io/{{ .Values.imageRepository }}:v1.0.0",
 			expectedParams: map[string]string{
-				"imageRepository": "",
+				"imageRepository": "myrepo/myimage",
 			},
 		},
 		{
@@ -82,7 +82,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "registry.io/myrepo/myimage:{{ .Values.imageTag }}",
 			expectedParams: map[string]string{
-				"imageTag": "",
+				"imageTag": "v1.0.0",
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigest }}",
 			expectedParams: map[string]string{
-				"imageDigest": "",
+				"imageDigest": "abc123def456",
 			},
 		},
 		{
@@ -105,8 +105,8 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}:v1.0.0",
 			expectedParams: map[string]string{
-				"imageRegistry":   "",
-				"imageRepository": "",
+				"imageRegistry":   "registry.io",
+				"imageRepository": "myrepo/myimage",
 			},
 		},
 
@@ -143,7 +143,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			},
 			expectedImg: "{{ .Values.imageRegistry }}/repo/image:tag",
 			expectedParams: map[string]string{
-				"imageRegistry": "",
+				"imageRegistry": "localhost:5000",
 			},
 		},
 		{
@@ -168,9 +168,9 @@ func TestParameterizeImageComponents(t *testing.T) {
 			suffix:      "Manager",
 			expectedImg: "{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}:{{ .Values.imageTagManager }}",
 			expectedParams: map[string]string{
-				"imageRegistryManager":   "",
-				"imageRepositoryManager": "",
-				"imageTagManager":        "",
+				"imageRegistryManager":   "registry.io",
+				"imageRepositoryManager": "myrepo/myimage",
+				"imageTagManager":        "v1.0.0",
 			},
 		},
 		{
@@ -182,7 +182,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			suffix:      "Controller",
 			expectedImg: "{{ .Values.imageRegistryController }}/myrepo/myimage:v1.0.0",
 			expectedParams: map[string]string{
-				"imageRegistryController": "",
+				"imageRegistryController": "registry.io",
 			},
 		},
 		{
@@ -194,7 +194,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			suffix:      "Worker",
 			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigestWorker }}",
 			expectedParams: map[string]string{
-				"imageDigestWorker": "",
+				"imageDigestWorker": "abc123def456",
 			},
 		},
 		{
@@ -206,7 +206,56 @@ func TestParameterizeImageComponents(t *testing.T) {
 			suffix:      "",
 			expectedImg: "{{ .Values.imageRegistry }}/myrepo/myimage:v1.0.0",
 			expectedParams: map[string]string{
-				"imageRegistry": "",
+				"imageRegistry": "registry.io",
+			},
+		},
+
+		// ImageRootRepositoryParam tests
+		{
+			name:     "only root repository param - multi-level repository",
+			imageRef: "registry.io/org/team/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRootRepositoryParam: "imageRootRepository",
+			},
+			expectedImg: "registry.io/{{ .Values.imageRootRepository }}/team/myimage:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRootRepository": "org",
+			},
+		},
+		{
+			name:     "only root repository param - single-level repository",
+			imageRef: "registry.io/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRootRepositoryParam: "imageRootRepository",
+			},
+			expectedImg: "registry.io/{{ .Values.imageRootRepository }}:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRootRepository": "myimage",
+			},
+		},
+		{
+			name:     "only root repository param - two-level repository",
+			imageRef: "registry.io/org/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRootRepositoryParam: "imageRootRepository",
+			},
+			expectedImg: "registry.io/{{ .Values.imageRootRepository }}/myimage:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRootRepository": "org",
+			},
+		},
+
+		{
+			name:     "root repository param with registry param",
+			imageRef: "registry.io/org/team/myimage:v1.0.0",
+			config: &BundleConfig{
+				ImageRegistryParam:       "imageRegistry",
+				ImageRootRepositoryParam: "imageRootRepository",
+			},
+			expectedImg: "{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/team/myimage:v1.0.0",
+			expectedParams: map[string]string{
+				"imageRegistry":       "registry.io",
+				"imageRootRepository": "org",
 			},
 		},
 	}
