@@ -16,13 +16,13 @@ package e2e
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -49,7 +49,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"aro-hcp-demo",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
 					map[string]interface{}{
 						"clusterName": clusterName,
 					},
@@ -68,7 +68,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("ensuring the cluster is viable")
-				err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
+				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("sending a PATCH request attempting to change the resource name")
@@ -85,8 +85,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					10*time.Minute,
 				)
 				Expect(err).To(HaveOccurred())
-				// The server enforces that 'name' is read-only for updates
-				Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower("Field 'name' is read-only")))
+				Expect(err.Error()).To(ContainSubstring("mismatchingresourcename"))
 			},
 		)
 	})
@@ -111,7 +110,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 					*resourceGroup.Name,
 					"aro-hcp-demo",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
 					map[string]interface{}{
 						"clusterName": clusterName,
 					},
@@ -130,7 +129,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("ensuring the cluster is viable")
-				err = framework.VerifyHCPCluster(ctx, adminRESTConfig)
+				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("sending a PATCH request to set a tag")
