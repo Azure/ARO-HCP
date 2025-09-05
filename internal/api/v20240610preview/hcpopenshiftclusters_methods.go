@@ -292,16 +292,22 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
+func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, bool) {
+	flags, ok := api.GetVisibilityFlags(clusterStructTagMap[path])
+	return flags, ok
+}
+
+func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
+	// Pass the embedded HcpOpenShiftCluster struct so the
+	// struct field names match the clusterStructTagMap keys.
+	return api.ValidateVisibility(c.HcpOpenShiftCluster, current.(*HcpOpenShiftCluster).HcpOpenShiftCluster, clusterStructTagMap, updating)
+}
+
 func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
 	var normalized api.HCPOpenShiftCluster
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded HcpOpenShiftCluster struct so the
-	// struct field names match the clusterStructTagMap keys.
-	errorDetails = api.ValidateVisibility(
-		c.HcpOpenShiftCluster,
-		current.(*HcpOpenShiftCluster).HcpOpenShiftCluster,
-		clusterStructTagMap, updating)
+	errorDetails = c.ValidateVisibility(current, updating)
 
 	c.Normalize(&normalized)
 

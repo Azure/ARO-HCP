@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 // The definitions in this file are meant for unit tests.
@@ -183,6 +184,37 @@ func ExternalAuthTestCase(t *testing.T, tweaks *HCPOpenShiftClusterExternalAuth)
 	externalAuth := MinimumValidExternalAuthTestCase()
 	require.NoError(t, mergo.Merge(externalAuth, tweaks, mergo.WithOverride))
 	return externalAuth
+}
+
+type ExternalTestResource struct {
+	ID         *string
+	Name       *string
+	Type       *string
+	SystemData *generated.SystemData
+	Location   *string
+	Tags       map[string]*string
+	Identity   *generated.ManagedServiceIdentity
+}
+
+type InternalTestResource struct {
+	arm.TrackedResource
+	Identity *arm.ManagedServiceIdentity `json:"identity"`
+}
+
+var _ VersionedCreatableResource[InternalTestResource] = &ExternalTestResource{}
+var testResourceStructTagMap = NewStructTagMap[InternalTestResource]()
+
+func (m *ExternalTestResource) Normalize(v *InternalTestResource) {
+	// FIXME Implement if there's a need for it in tests.
+}
+
+func (m *ExternalTestResource) GetVisibility(path string) (VisibilityFlags, bool) {
+	flags, ok := GetVisibilityFlags(testResourceStructTagMap[path])
+	return flags, ok
+}
+
+func (m *ExternalTestResource) ValidateVisibility(current VersionedCreatableResource[InternalTestResource], updating bool) []arm.CloudErrorBody {
+	return ValidateVisibility(m, current.(*ExternalTestResource), testResourceStructTagMap, updating)
 }
 
 // AssertJSONPath ensures path is valid for struct type T by following
