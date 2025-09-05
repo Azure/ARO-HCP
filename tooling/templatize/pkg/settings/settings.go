@@ -26,6 +26,8 @@ import (
 
 type Settings struct {
 	Environments []Environment `json:"environments"`
+	// Subscriptions holds a mapping of subscription key to the subscription ID.
+	Subscriptions map[string]string `json:"subscriptions"`
 }
 
 type Environment struct {

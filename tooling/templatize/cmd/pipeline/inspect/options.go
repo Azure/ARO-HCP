@@ -86,7 +86,7 @@ func (o *RawInspectOptions) Validate(ctx context.Context) (*ValidatedInspectOpti
 		return nil, err
 	}
 
-	inspectScopes := pipeline.NewStepInspectScopes()
+	inspectScopes := pipeline.NewStepInspectScopes(map[string]string{})
 	if _, ok := inspectScopes[o.Scope]; !ok {
 		scopes := make([]string, 0, len(inspectScopes))
 		for scope := range inspectScopes {
@@ -129,7 +129,7 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 	return pipeline.Inspect(
 		o.PipelineOptions.Pipeline, ctx, &pipeline.InspectOptions{
 			Scope:          o.Scope,
-			ScopeFunctions: pipeline.NewStepInspectScopes(),
+			ScopeFunctions: pipeline.NewStepInspectScopes(o.PipelineOptions.RolloutOptions.Subscriptions),
 			Format:         o.Format,
 			Step:           o.PipelineOptions.Step,
 			Region:         o.PipelineOptions.RolloutOptions.Region,

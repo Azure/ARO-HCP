@@ -131,7 +131,7 @@ func (e *e2eImpl) UseRandomRG() func() error {
 	e.config["defaults"] = asMap
 
 	return func() error {
-		subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+		subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 		if err != nil {
 			return err
 		}

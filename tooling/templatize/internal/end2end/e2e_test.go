@@ -129,7 +129,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	persistAndRun(t, e2eImpl)
 
 	// Todo move to e2e module, if needed more than once
-	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
@@ -329,7 +329,7 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 
 	persistAndRun(t, e2eImpl)
 
-	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
@@ -369,7 +369,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 
 	persistAndRun(t, e2eImpl)
 
-	subsriptionID, err := pipeline.LookupSubscriptionID(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
+	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
 	cred, err := azauth.GetAzureTokenCredentials()
