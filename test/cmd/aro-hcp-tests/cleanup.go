@@ -103,6 +103,7 @@ func NewDeleteExpiredResourcesCommand() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Error listing expired app registrations: %v", err)
 			}
 
+			//TODO (bvesel) - need to ensure we're owner over the app registrations otherwise they won't delete
 			appObjectIds := []string{}
 			for _, app := range expiredAppRegistrations {
 				fmt.Printf("Deleting app registration ClientID=%s ObjectID=%s\n", app.AppID, app.ID)
