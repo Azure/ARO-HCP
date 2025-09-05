@@ -182,6 +182,27 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 
 			GinkgoWriter.Printf("Update operation completed successfully\n")
 
+			By("waiting for pull secret to be stable after operator reconciliation")
+			Eventually(func() bool {
+				verifySecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				
+				var verifyConfig map[string]interface{}
+				if err := json.Unmarshal(verifySecret.Data[corev1.DockerConfigJsonKey], &verifyConfig); err != nil {
+					return false
+				}
+				
+				verifyAuths, ok := verifyConfig["auths"].(map[string]interface{})
+				if !ok {
+					return false
+				}
+				
+				_, exists := verifyAuths[testPullSecretHost]
+				return exists
+			}, 30*time.Second, 2*time.Second).Should(BeTrue(), "test pull secret should persist through operator reconciliation")
+
 			By("verifying the pull secret was added to the global pull secret")
 			updatedGlobalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
