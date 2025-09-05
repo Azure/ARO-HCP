@@ -537,8 +537,18 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		case http.MethodPut:
 			// Initialize versionedRequestCluster to include both
 			// non-zero default values and current read-only values.
+			reqCluster := api.NewDefaultHCPOpenShiftCluster()
+
+			// Some optional create-only fields have dynamic default
+			// values that are determined downstream of this phase of
+			// request processing. To ensure idempotency, add these
+			// values to the target struct for the incoming request.
+			reqCluster.Properties.Version.ID = hcpCluster.Properties.Version.ID
+			reqCluster.Properties.DNS.BaseDomainPrefix = hcpCluster.Properties.DNS.BaseDomainPrefix
+			reqCluster.Properties.Platform.ManagedResourceGroup = hcpCluster.Properties.Platform.ManagedResourceGroup
+
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
 			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:

@@ -121,8 +121,17 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		case http.MethodPut:
 			// Initialize versionedRequestNodePool to include both
 			// non-zero default values and current read-only values.
+			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+
+			// Some optional create-only fields have dynamic default
+			// values that are determined downstream of this phase of
+			// request processing. To ensure idempotency, add these
+			// values to the target struct for the incoming request.
+			reqNodePool.Properties.Version.ID = hcpNodePool.Properties.Version.ID
+			reqNodePool.Properties.Platform.SubnetID = hcpNodePool.Properties.Platform.SubnetID
+
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
 			api.CopyReadOnlyValues(versionedCurrentNodePool, versionedRequestNodePool)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
