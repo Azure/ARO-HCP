@@ -5,7 +5,6 @@ import "./hcpCluster.tsp";
 import "./hcpVersion.tsp";
 import "./hcpOperatorIdentityRoleSet.tsp";
 
-using TypeSpec.Http;
 using TypeSpec.Versioning;
 using Azure.ResourceManager;
 
