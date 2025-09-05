@@ -32,7 +32,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
-	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 )
 
 type perItOrDescribeTestContext struct {
@@ -45,7 +44,7 @@ type perItOrDescribeTestContext struct {
 	clientFactory20240610         *hcpapi20240610.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
-	graphClient                   *graphutil.Client
+	graphClient                   *GraphClient
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
@@ -272,8 +271,8 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	return errors.Join(errs...)
 }
 
-func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*graphutil.Application, error) {
-	appName := fmt.Sprintf("aro-hcp-e2e-%d", rand.Int())
+func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*Application, error) {
+	appName := fmt.Sprintf("%s%d", appRegistrationPrefix, rand.Int())
 	ginkgo.GinkgoLogr.Info("creating app registration", "appName", appName)
 
 	graphClient, err := tc.GetGraphClient(ctx)
@@ -296,7 +295,7 @@ func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*
 	return app, nil
 }
 
-func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
+func CleanupAppRegistrations(ctx context.Context, graphClient *GraphClient, appRegistrationIDs []string) error {
 	var errs []error
 	for _, currAppID := range appRegistrationIDs {
 		if err := graphClient.DeleteApplication(ctx, currAppID); err != nil {
@@ -431,7 +430,11 @@ func (tc *perItOrDescribeTestContext) getSubscriptionIDUnlocked(ctx context.Cont
 	return tc.perBinaryInvocationTestContext.getSubscriptionID(ctx, clientFactory.NewClient())
 }
 
-func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*graphutil.Client, error) {
+func (tc *perItOrDescribeTestContext) GetGraphClientOrDie(ctx context.Context) *GraphClient {
+	return Must(tc.GetGraphClient(ctx))
+}
+
+func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*GraphClient, error) {
 	tc.contextLock.RLock()
 	if tc.graphClient != nil {
 		defer tc.contextLock.RUnlock()
@@ -445,7 +448,7 @@ func (tc *perItOrDescribeTestContext) GetGraphClient(ctx context.Context) (*grap
 	return tc.getGraphClientUnlocked(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context) (*graphutil.Client, error) {
+func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context) (*GraphClient, error) {
 	if tc.graphClient != nil {
 		return tc.graphClient, nil
 	}
@@ -454,7 +457,7 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	return graphutil.NewClient(ctx, creds)
+	return NewGraphClient(ctx, creds)
 }
 
 func (tc *perItOrDescribeTestContext) Location() string {

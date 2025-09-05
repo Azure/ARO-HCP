@@ -28,13 +28,13 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
+func NewDeleteExpiredResourcesCommand() *cobra.Command {
 	nowString := time.Now().Format(time.RFC3339)
 	dryRun := false
 
 	cmd := &cobra.Command{
-		Use:          "delete-expired-resource-groups",
-		Short:        "Look for all resource groups from e2e runs that need to be deleted.",
+		Use:          "delete-expired-resources",
+		Short:        "Look for all expired resources from e2e runs that need to be deleted.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancelCause := context.WithCancelCause(context.Background())
@@ -94,6 +94,26 @@ func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
 				expiredResourceGroupsNames)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error during cleanup: %v", err)
+			}
+
+			// App registration cleanup
+			graphClient := tc.GetGraphClientOrDie(ctx)
+			expiredAppRegistrations, err := graphClient.ListAllExpiredApplications(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error listing expired app registrations: %v", err)
+			}
+
+			appObjectIds := []string{}
+			for _, app := range expiredAppRegistrations {
+				fmt.Printf("Deleting app registration ClientID=%s ObjectID=%s\n", app.AppID, app.ID)
+				appObjectIds = append(appObjectIds, app.ID)
+			}
+
+			err = framework.CleanupAppRegistrations(ctx,
+				graphClient,
+				appObjectIds)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error during app registration cleanup: %v", err)
 			}
 
 			return err

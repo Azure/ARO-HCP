@@ -165,7 +165,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			"url", url,
 		)
 		return fmt.Errorf("route host was never found: %w", lastErr)
-	case err != nil:
+	default:
 		return fmt.Errorf("route host was never found: %w", err)
 	}
 

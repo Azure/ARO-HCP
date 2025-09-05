@@ -144,7 +144,7 @@ func main() {
 	}
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
-	root.AddCommand(NewDeleteExpiredResourceGroupsCommand())
+	root.AddCommand(NewDeleteExpiredResourcesCommand())
 
 	if err := func() error {
 		return root.Execute()
