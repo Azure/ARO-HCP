@@ -26,9 +26,9 @@ import (
 
 type StepInspectScope func(context.Context, *types.Pipeline, types.Step, *InspectOptions) error
 
-func NewStepInspectScopes() map[string]StepInspectScope {
+func NewStepInspectScopes(subscriptions map[string]string) map[string]StepInspectScope {
 	return map[string]StepInspectScope{
-		"vars": inspectVars,
+		"vars": inspectVars(subscriptions),
 	}
 }
 
@@ -63,44 +63,46 @@ func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) er
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
-	var envVars map[string]string
-	switch step := s.(type) {
-	case *types.ShellStep:
-		outputChainingDependencies := make(map[string]bool)
-		for _, stepVar := range step.Variables {
-			if stepVar.Input != nil && stepVar.Input.Step != "" {
-				outputChainingDependencies[stepVar.Input.Step] = true
+func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
+	return func(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
+		var envVars map[string]string
+		switch step := s.(type) {
+		case *types.ShellStep:
+			outputChainingDependencies := make(map[string]bool)
+			for _, stepVar := range step.Variables {
+				if stepVar.Input != nil && stepVar.Input.Step != "" {
+					outputChainingDependencies[stepVar.Input.Step] = true
+				}
 			}
+			outputChainingDependenciesList := make([]string, 0, len(outputChainingDependencies))
+			for depStep := range outputChainingDependencies {
+				outputChainingDependenciesList = append(outputChainingDependenciesList, depStep)
+			}
+			inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options, subscriptions)
+			if err != nil {
+				return fmt.Errorf("failure acquiring output-chaining inputs: %v", err)
+			}
+			envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
+			if err != nil {
+				return fmt.Errorf("failure mapping step variables: %v", err)
+			}
+		default:
+			return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
 		}
-		outputChainingDependenciesList := make([]string, 0, len(outputChainingDependencies))
-		for depStep := range outputChainingDependencies {
-			outputChainingDependenciesList = append(outputChainingDependenciesList, depStep)
-		}
-		inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options)
-		if err != nil {
-			return fmt.Errorf("failure acquiring output-chaining inputs: %v", err)
-		}
-		envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
-		if err != nil {
-			return fmt.Errorf("failure mapping step variables: %v", err)
-		}
-	default:
-		return fmt.Errorf("inspecting step variables not implemented for action type %s", s.ActionType())
-	}
 
-	switch options.Format {
-	case "makefile":
-		printMakefileVars(envVars, options.OutputFile)
-	case "shell":
-		printShellVars(envVars, options.OutputFile)
-	default:
-		return fmt.Errorf("unknown output format %q", options.Format)
+		switch options.Format {
+		case "makefile":
+			printMakefileVars(envVars, options.OutputFile)
+		case "shell":
+			printShellVars(envVars, options.OutputFile)
+		default:
+			return fmt.Errorf("unknown output format %q", options.Format)
+		}
+		return nil
 	}
-	return nil
 }
 
-func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions) (Outputs, error) {
+func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions, subscriptions map[string]string) (Outputs, error) {
 	inputs := make(Outputs)
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
@@ -108,7 +110,7 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *t
 			Configuration:            options.Configuration,
 			Region:                   options.Region,
 			Step:                     depStep,
-			SubsciptionLookupFunc:    LookupSubscriptionID,
+			SubsciptionLookupFunc:    LookupSubscriptionID(subscriptions),
 			NoPersist:                true,
 			DeploymentTimeoutSeconds: 60,
 			Concurrency:              options.Concurrency,

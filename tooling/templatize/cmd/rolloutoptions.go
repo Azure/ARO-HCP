@@ -82,6 +82,8 @@ type RawRolloutOptions struct {
 type validatedRolloutOptions struct {
 	*RawRolloutOptions
 	*ValidatedOptions
+
+	Subscriptions map[string]string
 }
 
 type ValidatedRolloutOptions struct {
@@ -91,8 +93,9 @@ type ValidatedRolloutOptions struct {
 
 type completedRolloutOptions struct {
 	*ValidatedRolloutOptions
-	Options *Options
-	Config  config.Configuration
+	Options       *Options
+	Config        config.Configuration
+	Subscriptions map[string]string
 }
 
 type RolloutOptions struct {
@@ -104,6 +107,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 	if o.DevEnvironment != "" && o.DevSettingsFile == "" {
 		return nil, fmt.Errorf("developer environment %s chosen, but not --dev-settings-file provided", o.DevEnvironment)
 	}
+	var subscriptions map[string]string
 	if o.DevEnvironment != "" && o.DevSettingsFile != "" {
 		for name, value := range map[string]string{
 			"environment":       o.BaseOptions.DeployEnv,
@@ -138,6 +142,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 		o.Region = region
 		o.RegionShortSuffix = env.RegionShortSuffix
 		o.Stamp = strconv.Itoa(env.Stamp)
+		subscriptions = devSettings.Subscriptions
 	}
 
 	validatedBaseOptions, err := o.BaseOptions.Validate()
@@ -149,6 +154,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 		validatedRolloutOptions: &validatedRolloutOptions{
 			RawRolloutOptions: o,
 			ValidatedOptions:  validatedBaseOptions,
+			Subscriptions:     subscriptions,
 		},
 	}, nil
 }
@@ -205,6 +211,7 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 			ValidatedRolloutOptions: o,
 			Options:                 completed,
 			Config:                  variables,
+			Subscriptions:           o.Subscriptions,
 		},
 	}, nil
 }
