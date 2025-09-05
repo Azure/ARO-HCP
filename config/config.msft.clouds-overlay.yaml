@@ -51,11 +51,11 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:86e355daec68ef2fe01cce2daa63409dc47250c3f844da0e85284f169b2d9ce2"
+              digest: "sha256:ad9671ba347edd7d5a35282b392bca511cc8bf0718bd7f8656be2d53adf5dc47"
           # RP Backend
           backend:
             image:
-              digest: "sha256:26f7b10c2e4892e88edc2bc4d086d91c9e6c5694c828a9e78fcef9448667dd8f"
+              digest: "sha256:c46bc36d1efec842307f062444a7a80ca5c5047c29ce9b892cfda76a0e73db0c"
           # Hypershift
           hypershift:
             image:
