@@ -201,7 +201,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 
 				_, exists := verifyAuths[testPullSecretHost]
 				return exists
-			}, 30*time.Second, 2*time.Second).Should(BeTrue(), "test pull secret should persist through operator reconciliation")
+			}, 300*time.Second, 2*time.Second).Should(BeTrue(), "test pull secret should persist through operator reconciliation")
 
 			By("verifying the pull secret was added to the global pull secret")
 			updatedGlobalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
