@@ -636,7 +636,6 @@ model OsDiskProfile {
    * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  @maxLength(285)
   encryptionSetId?: DiskEncryptionSetResourceId;
 }
 
