@@ -309,6 +309,13 @@ param azureMonitoring string
 				for k, v := range rule.Annotations {
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
+				// Some part of the Azure Monitor stack consumes the `description` annotation, removing it from the
+				// alert context. We want to use this value in our IcM connector, so we need to have it in the alert
+				// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
+				// step the post-processing.
+				if description, exists := annotations["description"]; exists {
+					annotations["title"] = description
+				}
 
 				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
 				// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
@@ -390,7 +397,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
         actions: [for g in actionGroups: {
           actionGroupId: g
           actionProperties: {
-            'IcM.Title': '#$.labels.cluster#: #$.annotations.description#'
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
         }]
