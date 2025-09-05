@@ -535,8 +535,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
+			// Initialize versionedRequestCluster to include both
+			// non-zero default values and current read-only values.
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)

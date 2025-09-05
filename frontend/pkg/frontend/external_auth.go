@@ -118,8 +118,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
+			// Initialize versionedRequestExternalAuth to include both
+			// non-zero default values and current read-only values.
 			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			api.CopyReadOnlyValues(versionedCurrentExternalAuth, versionedRequestExternalAuth)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)

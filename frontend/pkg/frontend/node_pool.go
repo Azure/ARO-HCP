@@ -119,8 +119,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
+			// Initialize versionedRequestNodePool to include both
+			// non-zero default values and current read-only values.
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			api.CopyReadOnlyValues(versionedCurrentNodePool, versionedRequestNodePool)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
