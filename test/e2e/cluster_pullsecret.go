@@ -188,17 +188,17 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				if err != nil {
 					return false
 				}
-				
+
 				var verifyConfig map[string]interface{}
 				if err := json.Unmarshal(verifySecret.Data[corev1.DockerConfigJsonKey], &verifyConfig); err != nil {
 					return false
 				}
-				
+
 				verifyAuths, ok := verifyConfig["auths"].(map[string]interface{})
 				if !ok {
 					return false
 				}
-				
+
 				_, exists := verifyAuths[testPullSecretHost]
 				return exists
 			}, 30*time.Second, 2*time.Second).Should(BeTrue(), "test pull secret should persist through operator reconciliation")
