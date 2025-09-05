@@ -57,6 +57,12 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		return fmt.Errorf("failed to get current user object ID: %w", err)
 	}
 
+	// Check for permissions before assignment
+	err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
+	if err == nil {
+		return nil
+	}
+
 	// Assign the Azure Kubernetes Service RBAC Cluster Admin role to the current user
 	err = assignClusterAdminRBACRole(ctx, subscriptionID, resourceGroupName, aksClusterName, userObjectID, clusterAdminRoleID)
 	if err != nil {
