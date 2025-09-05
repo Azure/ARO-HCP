@@ -57,6 +57,12 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		return fmt.Errorf("failed to get current user object ID: %w", err)
 	}
 
+	// Check for permissions before assignment
+	err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
+	if err == nil {
+		return nil
+	}
+
 	// Assign the Azure Kubernetes Service RBAC Cluster Admin role to the current user
 	err = assignClusterAdminRBACRole(ctx, subscriptionID, resourceGroupName, aksClusterName, userObjectID, clusterAdminRoleID)
 	if err != nil {
@@ -174,8 +180,7 @@ func assignClusterAdminRBACRole(ctx context.Context, subscriptionID, resourceGro
 		if errors.As(err, &respErr) && respErr.ErrorCode == "RoleAssignmentExists" {
 			// we could check if the roleassignment exists upfront but even when
 			// the role exists, checking for it is not always reliably detect it
-			// so there is no point why we should check. all our users have
-			// permissions to create such role assignments anyways
+			// so there is no point why we should check.
 			return nil
 		}
 		return fmt.Errorf("failed to create role assignment: %w", err)
