@@ -55,7 +55,6 @@ type Frontend struct {
 	auditClient          audit.Client
 	ready                atomic.Value
 	done                 chan struct{}
-	location             string
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 }
@@ -66,7 +65,6 @@ func NewFrontend(
 	metricsListener net.Listener,
 	reg prometheus.Registerer,
 	dbClient database.DBClient,
-	location string,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 ) *Frontend {
@@ -91,8 +89,7 @@ func NewFrontend(
 		auditClient: auditClient,
 		dbClient:    dbClient,
 		done:        make(chan struct{}),
-		location:    strings.ToLower(location),
-		collector:   metrics.NewSubscriptionCollector(reg, dbClient, location),
+		collector:   metrics.NewSubscriptionCollector(reg, dbClient, arm.GetAzureLocation()),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -182,7 +179,7 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	// This is strictly for development environments to help discover
 	// the frontend's Azure region when port forwarding with kubectl.
 	// e.g. LOCATION=$(curl http://localhost:8443/location)
-	_, _ = writer.Write([]byte(f.location))
+	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
 }
 
 func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {

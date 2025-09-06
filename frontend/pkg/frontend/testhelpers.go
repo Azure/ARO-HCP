@@ -45,7 +45,6 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		nil,
 		reg,
 		mockDBClient,
-		"",
 		nil,
 		newNoopAuditClient(t),
 	)

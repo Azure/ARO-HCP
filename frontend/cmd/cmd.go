@@ -224,7 +224,7 @@ func (opts *FrontendOpts) Run() error {
 		util.TracerName,
 	)
 
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, csClient, auditClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)

@@ -91,7 +91,7 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 	operationResourceID, err := azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", request.PathValue(PathSegmentSubscriptionID),
 		"providers", api.ProviderNamespace,
-		"locations", f.location,
+		"locations", arm.GetAzureLocation(),
 		api.OperationStatusResourceTypeName, operationID))
 	if err != nil {
 		LoggerFromContext(request.Context()).Error(err.Error())

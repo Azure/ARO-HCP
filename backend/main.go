@@ -271,7 +271,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	group.Go(func() error {
 		var (
 			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(argLocation, dbClient, ocmConnection)
+			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{

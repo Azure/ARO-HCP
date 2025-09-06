@@ -127,7 +127,6 @@ func (o *operation) setSpanAttributes(span trace.Span) {
 }
 
 type OperationsScanner struct {
-	location            string
 	dbClient            database.DBClient
 	lockClient          database.LockClientInterface
 	clusterService      ocm.ClusterServiceClientSpec
@@ -149,9 +148,8 @@ type OperationsScanner struct {
 	subscriptionsByState   *prometheus.GaugeVec
 }
 
-func NewOperationsScanner(location string, dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
+func NewOperationsScanner(dbClient database.DBClient, ocmConnection *ocmsdk.Connection) *OperationsScanner {
 	s := &OperationsScanner{
-		location:   location,
 		dbClient:   dbClient,
 		lockClient: dbClient.GetLockClient(),
 		clusterService: ocm.NewClusterServiceClientWithTracing(
@@ -907,7 +905,7 @@ func (s *OperationsScanner) createBillingDocument(ctx context.Context, op operat
 
 	doc := database.NewBillingDocument(op.doc.ExternalID)
 	doc.CreationTime = csCluster.CreationTimestamp()
-	doc.Location = s.location
+	doc.Location = arm.GetAzureLocation()
 	doc.TenantID = op.doc.TenantID
 	doc.ManagedResourceGroup = fmt.Sprintf(
 		"/%s/%s/%s/%s",

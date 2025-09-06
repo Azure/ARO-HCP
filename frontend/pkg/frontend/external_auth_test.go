@@ -153,7 +153,6 @@ func TestCreateExternalAuth(t *testing.T) {
 				nil,
 				reg,
 				mockDBClient,
-				"",
 				mockCSClient,
 				newNoopAuditClient(t),
 			)
