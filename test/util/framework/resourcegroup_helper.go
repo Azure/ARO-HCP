@@ -73,7 +73,7 @@ func CreateResourceGroup(
 	return &resourceGroup.ResourceGroup, nil
 }
 
-// DeleteResourceGroup deletes a resource group and waits for the operation to complete
+// ListAllExpiredResourceGroups returns all expired e2e resource groups
 func ListAllExpiredResourceGroups(
 	ctx context.Context,
 	resourceGroupsClient *armresources.ResourceGroupsClient,

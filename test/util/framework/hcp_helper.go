@@ -22,7 +22,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sync/errgroup"
+	v1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -203,8 +206,8 @@ func GetNodePool(
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
-// CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
-func CreateExternalAuthAndWait(
+// CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
+func CreateOrUpdateExternalAuthAndWait(
 	ctx context.Context,
 	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
 	resourceGroupName string,
@@ -302,4 +305,35 @@ func DeleteExternalAuthAndWait(
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
 	}
+}
+
+func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	_, err = kubeClient.RbacV1().ClusterRoleBindings().Create(ctx, &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "entra-admins",
+		},
+		RoleRef: v1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "cluster-admin",
+		},
+		Subjects: []v1.Subject{
+			{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "User",
+				Name:     subject,
+			},
+		},
+	}, metav1.CreateOptions{})
+
+	if err != nil {
+		return fmt.Errorf("failed to create cluster role binding: %w", err)
+	}
+
+	return nil
 }
