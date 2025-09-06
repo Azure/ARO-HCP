@@ -7,10 +7,12 @@ The individual components are described in the [service components overview (tod
 
 ## Cluster Creation Flow Happy Path in a Nutshell
 
-1. A cluster creation request from ARM enters the ARO HCP service on the istio ingress
-2. The request is routed to the RP frontend
-3. The Istio sidecar of the RP frontend delegates authentication to MISE running as an ext-auth provider
-4. The frontend conducts a preflight check towards Clusters Service, stores a record in CosmosDB on success and issues a request to Clusters Service to create the cluster
+1. A cluster creation request from ARM enters the ARO HCP service on the istio gateway
+2. ExternalAuthorizer rules apply to all requests that hit the istio gateway, and are redirected to MISE to ensure the request comes from ARM
+3. On success, the request is routed to the RP frontend
+4. The frontend conducts a preflight check towards Clusters Service and then issues a request to Clusters Service to create the cluster. It then stores both an Operation record and an HCPOpenShiftCluster record in CosmosDB on success. The frontend returns a 201 response to ARM and a reference to the long-running operation.
+    - (Async) From this point forward, Backend sees the CosmosDB Operation record and asyncronously calls CS to determine current provisioning state and updates the HCPOpenShiftCluster so the customer has live feedback on status of the long-running request.
+    - (Async) At the same time, ARM will automatically issue polling GET requests to the OperationStatus resources on the customer's behalf (to the Frontend) so they see this status in live time.
 5. Clusters Service prepares a managed resource group in the customers subscription and creates the cloud resources for the cluster
 6. Clusters Service posts `ManifestWork` containing `HosterCluster` Hypershift CRs and other supporting resources to the Maestro Server
 7. The Maestro Server posts transfers the `ManifestWork` to the Maestro Agent via Eventgrid Namespaces MQTT
@@ -19,8 +21,7 @@ The individual components are described in the [service components overview (tod
 10. MCE picks up on the finished `HostedCluster` provisioning and updates the `ManagedCluster` CR.
 11. The Maestro Agent transfers all status updates from `HostedCluster`, `ManagedCluster` and other `ManifestWork` resources back to the Maestro Server via Eventgrid Namespaces MQTT
 12. CS notices the status updates and updates the cluster records
-13. The RP backend notices the status update in CS and updates the cluster record in CosmosDB
-14. The RP frontend now reports the cluster as `Provisioned` to ARM
+13. The Backend ultimately reports the updated CS status and completes the asyncronous Operation. ARM reports the Operation as successful and returns the OperationResult. The RP frontend now reports the cluster as `Provisioned` to ARM for all future requests.
 
 ```mermaid
 ---
@@ -72,11 +73,11 @@ subgraph svc_cluster["service cluster"]
         managed_cluster_cr["ManagedCluster CR"]
     end
  end
- arm -- (1)(14) --> istio_ingress -- (2) --> rp_frontend -- (4) --> cs
- rp_frontend -.- rp_backend
+ arm -- (1)(13) --> istio_ingress -- (2) --> mise
+ mise --> istio_ingress -- (3) --> rp_frontend -- (4) --> cs
  cs -- (5) --> managed_resourcegroup
  cs -- (6) --> maestro_server
- rp_frontend -- (3) --> mise
+ rp_backend -- (async) --> cs
  maestro_server -- (7) --> maestro_agent
 
  mce -- (10) --> managed_cluster_cr
@@ -86,7 +87,6 @@ subgraph svc_cluster["service cluster"]
  hypershift -- (9) --> managed_resourcegroup
  hypershift -- (9) --> hypershift_cp_ns
  maestro_agent -- (11) --> maestro_server
- cs -- (13) --> rp_backend
  maestro_server -- (12) --> cs
 ```
 
