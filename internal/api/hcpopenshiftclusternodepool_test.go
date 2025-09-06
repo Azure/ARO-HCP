@@ -318,6 +318,36 @@ func TestNodePoolValidate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Node pool with invalid OSDisk Persistence",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Platform: NodePoolPlatformProfile{
+						OSDisk: OSDiskProfile{Persistence: "invalid_option"}},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'invalid_option' for field 'persistence' (must be one of: Persistent Ephemeral)",
+					Target:  "properties.platform.osDisk.persistence",
+				},
+			},
+		},
+		{
+			name: "Node pool with invalid OSDisk Encryption ID",
+			tweaks: &HCPOpenShiftClusterNodePool{
+				Properties: HCPOpenShiftClusterNodePoolProperties{
+					Platform: NodePoolPlatformProfile{
+						OSDisk: OSDiskProfile{EncryptionSetID: "invalid_option"}},
+				},
+			},
+			expectErrors: []arm.CloudErrorBody{
+				{
+					Message: "Invalid value 'invalid_option' for field 'encryptionSetId' (must be a valid 'Microsoft.Compute/diskEncryptionSets' resource ID)",
+					Target:  "properties.platform.osDisk.encryptionSetId",
+				},
+			},
+		},
 	}
 
 	validate := NewTestValidator()

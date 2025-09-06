@@ -636,6 +636,22 @@ model OsDiskProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   encryptionSetId?: DiskEncryptionSetResourceId;
+
+  /** Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool.
+   * Valid values are: persistent and ephemeral. If not specified, Persistent OS Disks are used. */
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  persistence?: PersistenceType = PersistenceType.Persistent;
+}
+
+/** Supported Persistence types for the OS Disks of the Nodes in the Node Pool */
+union PersistenceType {
+  string,
+
+  /** Persistent OS Disks of the Nodes in the Node Pool */
+  Persistent: "Persistent",
+
+  /** Ephemeral OS Disks of the Nodes in the Node Pool */
+  Ephemeral: "Ephemeral",
 }
 
 /** Supported Azure storage account types
