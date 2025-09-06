@@ -11,6 +11,9 @@ deploy:
 
 	@kubectl create namespace aro-hcp-mitigations --dry-run=client -o json | kubectl apply -f - && \
 	../hack/helm.sh mitigations deploy/mitigations aro-hcp-mitigations
+
+	@kubectl annotate storageclass default storageclass.kubernetes.io/is-default-class-
+	../hack/helm.sh default-sc deploy/default-sc default
 .PHONY: deploy
 
 
