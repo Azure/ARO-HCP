@@ -61,7 +61,7 @@ func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: "fast",
 			},
 			DNS: api.DNSProfile{},
 			Network: api.NetworkProfile{
@@ -103,7 +103,7 @@ func CreateNodePool() error {
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			ProvisioningState: arm.ProvisioningState(""),
 			Version: api.NodePoolVersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: "fast",
 			},
 			Platform: api.NodePoolPlatformProfile{
 				SubnetID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",

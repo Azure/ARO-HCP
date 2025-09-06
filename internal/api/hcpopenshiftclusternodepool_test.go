@@ -295,7 +295,7 @@ func TestNodePoolValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Node pool channel group 'freshmeat' must be the same as control plane channel group 'stable'",
+					Message: "Node pool channel group 'freshmeat' must be the same as control plane channel group 'fast'",
 					Target:  "properties.version.channelGroup",
 				},
 			},
