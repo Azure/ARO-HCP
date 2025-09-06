@@ -27,22 +27,31 @@ type HcpOpenShiftCluster struct {
 	generated.HcpOpenShiftCluster
 }
 
-func newVersionProfile(from *api.VersionProfile) *generated.VersionProfile {
-	return &generated.VersionProfile{
+func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
+	if from == nil {
+		return generated.VersionProfile{}
+	}
+	return generated.VersionProfile{
 		ID:           api.PtrOrNil(from.ID),
 		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
 	}
 }
 
-func newDNSProfile(from *api.DNSProfile) *generated.DNSProfile {
-	return &generated.DNSProfile{
+func newDNSProfile(from *api.DNSProfile) generated.DNSProfile {
+	if from == nil {
+		return generated.DNSProfile{}
+	}
+	return generated.DNSProfile{
 		BaseDomain:       api.PtrOrNil(from.BaseDomain),
 		BaseDomainPrefix: api.PtrOrNil(from.BaseDomainPrefix),
 	}
 }
 
-func newNetworkProfile(from *api.NetworkProfile) *generated.NetworkProfile {
-	return &generated.NetworkProfile{
+func newNetworkProfile(from *api.NetworkProfile) generated.NetworkProfile {
+	if from == nil {
+		return generated.NetworkProfile{}
+	}
+	return generated.NetworkProfile{
 		NetworkType: api.PtrOrNil(generated.NetworkType(from.NetworkType)),
 		PodCIDR:     api.PtrOrNil(from.PodCIDR),
 		ServiceCIDR: api.PtrOrNil(from.ServiceCIDR),
@@ -51,33 +60,45 @@ func newNetworkProfile(from *api.NetworkProfile) *generated.NetworkProfile {
 	}
 }
 
-func newConsoleProfile(from *api.ConsoleProfile) *generated.ConsoleProfile {
-	return &generated.ConsoleProfile{
+func newConsoleProfile(from *api.ConsoleProfile) generated.ConsoleProfile {
+	if from == nil {
+		return generated.ConsoleProfile{}
+	}
+	return generated.ConsoleProfile{
 		URL: api.PtrOrNil(from.URL),
 	}
 }
 
-func newAPIProfile(from *api.APIProfile) *generated.APIProfile {
-	return &generated.APIProfile{
+func newAPIProfile(from *api.APIProfile) generated.APIProfile {
+	if from == nil {
+		return generated.APIProfile{}
+	}
+	return generated.APIProfile{
 		URL:             api.PtrOrNil(from.URL),
 		Visibility:      api.PtrOrNil(generated.Visibility(from.Visibility)),
 		AuthorizedCIDRs: api.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
 	}
 }
 
-func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
-	return &generated.PlatformProfile{
+func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
+	if from == nil {
+		return generated.PlatformProfile{}
+	}
+	return generated.PlatformProfile{
 		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
 		SubnetID:                api.PtrOrNil(from.SubnetID),
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
-		OperatorsAuthentication: newOperatorsAuthenticationProfile(&from.OperatorsAuthentication),
+		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
 		IssuerURL:               api.PtrOrNil(from.IssuerURL),
 	}
 }
 
-func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) *generated.ClusterAutoscalingProfile {
-	return &generated.ClusterAutoscalingProfile{
+func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) generated.ClusterAutoscalingProfile {
+	if from == nil {
+		return generated.ClusterAutoscalingProfile{}
+	}
+	return generated.ClusterAutoscalingProfile{
 		MaxNodeProvisionTimeSeconds: api.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
 		MaxNodesTotal:               api.PtrOrNil(from.MaxNodesTotal),
 		MaxPodGracePeriodSeconds:    api.PtrOrNil(from.MaxPodGracePeriodSeconds),
@@ -85,63 +106,103 @@ func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) *generate
 	}
 }
 
-func newEtcdProfile(from *api.EtcdProfile) *generated.EtcdProfile {
-	return &generated.EtcdProfile{
-		DataEncryption: newEtcdDataEncryptionProfile(&from.DataEncryption),
+func newEtcdProfile(from *api.EtcdProfile) generated.EtcdProfile {
+	if from == nil {
+		return generated.EtcdProfile{}
+	}
+	return generated.EtcdProfile{
+		DataEncryption: api.PtrOrNil(newEtcdDataEncryptionProfile(&from.DataEncryption)),
 	}
 }
-func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) *generated.EtcdDataEncryptionProfile {
-	return &generated.EtcdDataEncryptionProfile{
-		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
+func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) generated.EtcdDataEncryptionProfile {
+	if from == nil {
+		return generated.EtcdDataEncryptionProfile{}
+	}
+	return generated.EtcdDataEncryptionProfile{
+		CustomerManaged:   api.PtrOrNil(newCustomerManagedEncryptionProfile(from.CustomerManaged)),
 		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
-func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
+func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) generated.CustomerManagedEncryptionProfile {
 	if from == nil {
-		return nil
+		return generated.CustomerManagedEncryptionProfile{}
 	}
-	return &generated.CustomerManagedEncryptionProfile{
-		Kms:            newKmsEncryptionProfile(from.Kms),
+	return generated.CustomerManagedEncryptionProfile{
+		Kms:            api.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
 }
-func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) *generated.KmsEncryptionProfile {
+func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) generated.KmsEncryptionProfile {
 	if from == nil {
-		return &generated.KmsEncryptionProfile{
-			ActiveKey: nil,
-		}
+		return generated.KmsEncryptionProfile{}
 	}
-	return &generated.KmsEncryptionProfile{
-		ActiveKey: newKmsKey(&from.ActiveKey),
+	return generated.KmsEncryptionProfile{
+		ActiveKey: api.PtrOrNil(newKmsKey(&from.ActiveKey)),
 	}
 }
-func newKmsKey(from *api.KmsKey) *generated.KmsKey {
-	return &generated.KmsKey{
+func newKmsKey(from *api.KmsKey) generated.KmsKey {
+	if from == nil {
+		return generated.KmsKey{}
+	}
+	return generated.KmsKey{
 		Name:      api.PtrOrNil(from.Name),
 		VaultName: api.PtrOrNil(from.VaultName),
 		Version:   api.PtrOrNil(from.Version),
 	}
 }
 
-func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) *generated.ClusterImageRegistryProfile {
-	profile := &generated.ClusterImageRegistryProfile{
-		State: nil,
+func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) generated.ClusterImageRegistryProfile {
+	if from == nil {
+		return generated.ClusterImageRegistryProfile{}
 	}
-	profile.State = api.Ptr(generated.ClusterImageRegistryProfileState(from.State))
-	return profile
-}
-
-func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) *generated.OperatorsAuthenticationProfile {
-	return &generated.OperatorsAuthenticationProfile{
-		UserAssignedIdentities: newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities),
+	return generated.ClusterImageRegistryProfile{
+		State: api.PtrOrNil(generated.ClusterImageRegistryProfileState(from.State)),
 	}
 }
 
-func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) *generated.UserAssignedIdentitiesProfile {
-	return &generated.UserAssignedIdentitiesProfile{
+func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile) generated.OperatorsAuthenticationProfile {
+	if from == nil {
+		return generated.OperatorsAuthenticationProfile{}
+	}
+	return generated.OperatorsAuthenticationProfile{
+		UserAssignedIdentities: api.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
+	}
+}
+
+func newUserAssignedIdentitiesProfile(from *api.UserAssignedIdentitiesProfile) generated.UserAssignedIdentitiesProfile {
+	if from == nil {
+		return generated.UserAssignedIdentitiesProfile{}
+	}
+	return generated.UserAssignedIdentitiesProfile{
 		ControlPlaneOperators:  api.StringMapToStringPtrMap(from.ControlPlaneOperators),
 		DataPlaneOperators:     api.StringMapToStringPtrMap(from.DataPlaneOperators),
 		ServiceManagedIdentity: api.PtrOrNil(from.ServiceManagedIdentity),
+	}
+}
+
+func newSystemData(from *arm.SystemData) generated.SystemData {
+	if from == nil {
+		return generated.SystemData{}
+	}
+	return generated.SystemData{
+		CreatedBy:          api.PtrOrNil(from.CreatedBy),
+		CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.CreatedByType)),
+		CreatedAt:          from.CreatedAt,
+		LastModifiedBy:     api.PtrOrNil(from.LastModifiedBy),
+		LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.LastModifiedByType)),
+		LastModifiedAt:     from.LastModifiedAt,
+	}
+}
+
+func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) generated.ManagedServiceIdentity {
+	if from == nil {
+		return generated.ManagedServiceIdentity{}
+	}
+	return generated.ManagedServiceIdentity{
+		Type:                   api.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
+		PrincipalID:            api.PtrOrNil(from.PrincipalID),
+		TenantID:               api.PtrOrNil(from.TenantID),
+		UserAssignedIdentities: convertUserAssignedIdentities(from.UserAssignedIdentities),
 	}
 }
 
@@ -152,45 +213,27 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:       api.PtrOrNil(from.ID),
-			Name:     api.PtrOrNil(from.Name),
-			Type:     api.PtrOrNil(from.Type),
-			Location: api.PtrOrNil(from.Location),
-			Tags:     api.StringMapToStringPtrMap(from.Tags),
+			ID:         api.PtrOrNil(from.ID),
+			Name:       api.PtrOrNil(from.Name),
+			Type:       api.PtrOrNil(from.Type),
+			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   api.PtrOrNil(from.Location),
+			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Version:                 newVersionProfile(&from.Properties.Version),
-				DNS:                     newDNSProfile(&from.Properties.DNS),
-				Network:                 newNetworkProfile(&from.Properties.Network),
-				Console:                 newConsoleProfile(&from.Properties.Console),
-				API:                     newAPIProfile(&from.Properties.API),
-				Platform:                newPlatformProfile(&from.Properties.Platform),
-				Autoscaling:             newClusterAutoscalingProfile(&from.Properties.Autoscaling),
+				Version:                 api.PtrOrNil(newVersionProfile(&from.Properties.Version)),
+				DNS:                     api.PtrOrNil(newDNSProfile(&from.Properties.DNS)),
+				Network:                 api.PtrOrNil(newNetworkProfile(&from.Properties.Network)),
+				Console:                 api.PtrOrNil(newConsoleProfile(&from.Properties.Console)),
+				API:                     api.PtrOrNil(newAPIProfile(&from.Properties.API)),
+				Platform:                api.PtrOrNil(newPlatformProfile(&from.Properties.Platform)),
+				Autoscaling:             api.PtrOrNil(newClusterAutoscalingProfile(&from.Properties.Autoscaling)),
 				NodeDrainTimeoutMinutes: api.PtrOrNil(from.Properties.NodeDrainTimeoutMinutes),
-				ClusterImageRegistry:    newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry),
-				Etcd:                    newEtcdProfile(&from.Properties.Etcd),
+				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry)),
+				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.Properties.Etcd)),
 			},
+			Identity: api.PtrOrNil(newManagedServiceIdentity(from.Identity)),
 		},
-	}
-
-	if from.Identity != nil {
-		out.Identity = &generated.ManagedServiceIdentity{
-			Type:                   api.PtrOrNil(generated.ManagedServiceIdentityType(from.Identity.Type)),
-			PrincipalID:            api.PtrOrNil(from.Identity.PrincipalID),
-			TenantID:               api.PtrOrNil(from.Identity.TenantID),
-			UserAssignedIdentities: convertUserAssignedIdentities(from.Identity.UserAssignedIdentities),
-		}
-	}
-
-	if from.SystemData != nil {
-		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
-			CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
-			CreatedAt:          from.SystemData.CreatedAt,
-			LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
-			LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
-			LastModifiedAt:     from.SystemData.LastModifiedAt,
-		}
 	}
 
 	return out
@@ -292,21 +335,32 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
+func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, bool) {
+	flags, ok := clusterVisibilityMap[path]
+	return flags, ok
+}
+
+func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftCluster]()
+	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterVisibilityMap, structTagMap, updating)
+}
+
 func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
-	var normalized api.HCPOpenShiftCluster
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded HcpOpenShiftCluster struct so the
-	// struct field names match the clusterStructTagMap keys.
-	errorDetails = api.ValidateVisibility(
-		c.HcpOpenShiftCluster,
-		current.(*HcpOpenShiftCluster).HcpOpenShiftCluster,
-		clusterStructTagMap, updating)
+	errorDetails = c.ValidateVisibility(current, updating)
 
-	c.Normalize(&normalized)
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized api.HCPOpenShiftCluster
 
-	// Run additional validation on the "normalized" cluster model.
-	errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+		c.Normalize(&normalized)
+
+		// Run additional validation on the "normalized" cluster model.
+		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+	}
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)

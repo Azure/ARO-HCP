@@ -152,21 +152,32 @@ func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) 
 	}
 }
 
+func (h *NodePool) GetVisibility(path string) (api.VisibilityFlags, bool) {
+	flags, ok := nodePoolVisibilityMap[path]
+	return flags, ok
+}
+
+func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool], updating bool) []arm.CloudErrorBody {
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterNodePool]()
+	return api.ValidateVisibility(h, current.(*NodePool), nodePoolVisibilityMap, structTagMap, updating)
+}
+
 func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
-	var normalized api.HCPOpenShiftClusterNodePool
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded NodePool struct so the struct
-	// field names match the nodePoolStructTagMap keys.
-	errorDetails = api.ValidateVisibility(
-		h.NodePool,
-		current.(*NodePool).NodePool,
-		nodePoolStructTagMap, updating)
+	errorDetails = h.ValidateVisibility(current, updating)
 
-	h.Normalize(&normalized)
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized api.HCPOpenShiftClusterNodePool
 
-	// Run additional validation on the "normalized" node pool model.
-	errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
+		h.Normalize(&normalized)
+
+		// Run additional validation on the "normalized" node pool model.
+		errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
+	}
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)
@@ -184,42 +195,48 @@ type NodePoolAutoScaling struct {
 	generated.NodePoolAutoScaling
 }
 
-func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) *generated.NodePoolVersionProfile {
-	return &generated.NodePoolVersionProfile{
+func newNodePoolVersionProfile(from *api.NodePoolVersionProfile) generated.NodePoolVersionProfile {
+	if from == nil {
+		return generated.NodePoolVersionProfile{}
+	}
+	return generated.NodePoolVersionProfile{
 		ID:           api.PtrOrNil(from.ID),
 		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
 	}
 }
 
-func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) *generated.NodePoolPlatformProfile {
-	return &generated.NodePoolPlatformProfile{
+func newNodePoolPlatformProfile(from *api.NodePoolPlatformProfile) generated.NodePoolPlatformProfile {
+	if from == nil {
+		return generated.NodePoolPlatformProfile{}
+	}
+	return generated.NodePoolPlatformProfile{
 		VMSize:                 api.PtrOrNil(from.VMSize),
 		AvailabilityZone:       api.PtrOrNil(from.AvailabilityZone),
 		EnableEncryptionAtHost: api.PtrOrNil(from.EnableEncryptionAtHost),
-		OSDisk:                 newOSDiskProfile(&from.OSDisk),
+		OSDisk:                 api.PtrOrNil(newOSDiskProfile(&from.OSDisk)),
 		SubnetID:               api.PtrOrNil(from.SubnetID),
 	}
 }
 
-func newOSDiskProfile(from *api.OSDiskProfile) *generated.OsDiskProfile {
-	return &generated.OsDiskProfile{
+func newOSDiskProfile(from *api.OSDiskProfile) generated.OsDiskProfile {
+	if from == nil {
+		return generated.OsDiskProfile{}
+	}
+	return generated.OsDiskProfile{
 		SizeGiB:                api.PtrOrNil(from.SizeGiB),
 		DiskStorageAccountType: api.PtrOrNil(generated.DiskStorageAccountType(from.DiskStorageAccountType)),
 		EncryptionSetID:        api.PtrOrNil(from.EncryptionSetID),
 	}
 }
 
-func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) *generated.NodePoolAutoScaling {
-	var autoScaling *generated.NodePoolAutoScaling
-
-	if from != nil {
-		autoScaling = &generated.NodePoolAutoScaling{
-			Max: api.PtrOrNil(from.Max),
-			Min: api.PtrOrNil(from.Min),
-		}
+func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAutoScaling {
+	if from == nil {
+		return generated.NodePoolAutoScaling{}
 	}
-
-	return autoScaling
+	return generated.NodePoolAutoScaling{
+		Max: api.PtrOrNil(from.Max),
+		Min: api.PtrOrNil(from.Min),
+	}
 }
 
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
@@ -229,34 +246,22 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 
 	out := &NodePool{
 		generated.NodePool{
-			ID:       api.PtrOrNil(from.ID),
-			Name:     api.PtrOrNil(from.Name),
-			Type:     api.PtrOrNil(from.Type),
-			Location: api.PtrOrNil(from.Location),
-			Tags:     api.StringMapToStringPtrMap(from.Tags),
+			ID:         api.PtrOrNil(from.ID),
+			Name:       api.PtrOrNil(from.Name),
+			Type:       api.PtrOrNil(from.Type),
+			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
+			Location:   api.PtrOrNil(from.Location),
+			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.NodePoolProperties{
 				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Platform:                newNodePoolPlatformProfile(&from.Properties.Platform),
-				Version:                 newNodePoolVersionProfile(&from.Properties.Version),
+				Platform:                api.PtrOrNil(newNodePoolPlatformProfile(&from.Properties.Platform)),
+				Version:                 api.PtrOrNil(newNodePoolVersionProfile(&from.Properties.Version)),
 				AutoRepair:              api.PtrOrNil(from.Properties.AutoRepair),
-				AutoScaling:             newNodePoolAutoScaling(from.Properties.AutoScaling),
-				Labels:                  []*generated.Label{},
+				AutoScaling:             api.PtrOrNil(newNodePoolAutoScaling(from.Properties.AutoScaling)),
 				Replicas:                api.PtrOrNil(from.Properties.Replicas),
-				Taints:                  []*generated.Taint{},
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
 			},
 		},
-	}
-
-	if from.SystemData != nil {
-		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
-			CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
-			CreatedAt:          from.SystemData.CreatedAt,
-			LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
-			LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
-			LastModifiedAt:     from.SystemData.LastModifiedAt,
-		}
 	}
 
 	for k, v := range from.Properties.Labels {

@@ -468,6 +468,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -517,6 +524,15 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		hcpCluster.SystemData = resourceDoc.SystemData
+		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
+		if resourceDoc.Identity != nil {
+			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
+			hcpCluster.Identity.TenantID = resourceDoc.Identity.TenantID
+			hcpCluster.Identity.Type = resourceDoc.Identity.Type
+		}
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
@@ -556,15 +572,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestCluster)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 

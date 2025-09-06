@@ -15,10 +15,16 @@
 package api
 
 import (
+	"encoding/json"
 	"iter"
+	"net/http"
 	"reflect"
 	"slices"
 	"strings"
+
+	jsonpatch "github.com/evanphx/json-patch"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -39,7 +45,7 @@ func isEmptyValue(v reflect.Value) bool {
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64,
-		reflect.Interface, reflect.Pointer:
+		reflect.Interface, reflect.Pointer, reflect.Struct:
 		return v.IsZero()
 	}
 	return false
@@ -170,4 +176,42 @@ func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
 			}
 		}
 	}
+}
+
+// ApplyRequestBody applies a JSON request body to the value pointed to by v.
+// If the request method is PATCH, the request body is applied to v using JSON
+// Merge Patch (RFC 7396) semantics. Otherwise the request body is unmarshalled
+// directly to v.
+func ApplyRequestBody(request *http.Request, body []byte, v any) *arm.CloudError {
+	switch request.Method {
+	case http.MethodPatch:
+		originalData, err := json.Marshal(v)
+		if err != nil {
+			return arm.NewInternalServerError()
+		}
+
+		modifiedData, err := jsonpatch.MergePatch(originalData, body)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+
+		// Reset *v to its zero value.
+		rv := reflect.ValueOf(v)
+		if rv.Kind() == reflect.Pointer {
+			rv.Elem().SetZero()
+		}
+
+		err = json.Unmarshal(modifiedData, v)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+
+	default:
+		err := json.Unmarshal(body, v)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+	}
+
+	return nil
 }
