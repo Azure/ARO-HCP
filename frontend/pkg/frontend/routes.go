@@ -93,10 +93,10 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListHCPClusters))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListHCPClusters))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
@@ -115,7 +115,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceReadHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -135,10 +135,10 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdateHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdateHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))

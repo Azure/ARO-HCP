@@ -22,19 +22,19 @@ import (
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
-type MockDBClientIterator[T database.DocumentProperties] struct {
+type MockDBClientIterator[T any] struct {
 	ctrl     *gomock.Controller
 	recorder *MockDBClientIteratorMockRecorder[T]
 	isgomock struct{}
 }
 
 // MockDBClientIteratorMockRecorder is the mock recorder for MockDBClientIterator.
-type MockDBClientIteratorMockRecorder[T database.DocumentProperties] struct {
+type MockDBClientIteratorMockRecorder[T any] struct {
 	mock *MockDBClientIterator[T]
 }
 
 // NewMockDBClientIterator creates a new mock instance.
-func NewMockDBClientIterator[T database.DocumentProperties](ctrl *gomock.Controller) *MockDBClientIterator[T] {
+func NewMockDBClientIterator[T any](ctrl *gomock.Controller) *MockDBClientIterator[T] {
 	mock := &MockDBClientIterator[T]{ctrl: ctrl}
 	mock.recorder = &MockDBClientIteratorMockRecorder[T]{mock}
 	return mock
@@ -61,7 +61,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) GetContinuationToken() *MockDBCli
 }
 
 // MockDBClientIteratorGetContinuationTokenCall wrap *gomock.Call
-type MockDBClientIteratorGetContinuationTokenCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorGetContinuationTokenCall[T any] struct {
 	*gomock.Call
 }
 
@@ -99,7 +99,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) GetError() *MockDBClientIteratorG
 }
 
 // MockDBClientIteratorGetErrorCall wrap *gomock.Call
-type MockDBClientIteratorGetErrorCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorGetErrorCall[T any] struct {
 	*gomock.Call
 }
 
@@ -137,7 +137,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) Items(ctx any) *MockDBClientItera
 }
 
 // MockDBClientIteratorItemsCall wrap *gomock.Call
-type MockDBClientIteratorItemsCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorItemsCall[T any] struct {
 	*gomock.Call
 }
 
@@ -412,6 +412,46 @@ func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, 
 	return c
 }
 
+// GetHCPCluster mocks base method.
+func (m *MockDBClient) GetHCPCluster(ctx context.Context, resourceID *arm0.ResourceID) (string, *database.HCPClusterDocument, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHCPCluster", ctx, resourceID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(*database.HCPClusterDocument)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetHCPCluster indicates an expected call of GetHCPCluster.
+func (mr *MockDBClientMockRecorder) GetHCPCluster(ctx, resourceID any) *MockDBClientGetHCPClusterCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHCPCluster", reflect.TypeOf((*MockDBClient)(nil).GetHCPCluster), ctx, resourceID)
+	return &MockDBClientGetHCPClusterCall{Call: call}
+}
+
+// MockDBClientGetHCPClusterCall wrap *gomock.Call
+type MockDBClientGetHCPClusterCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientGetHCPClusterCall) Return(arg0 string, arg1 *database.HCPClusterDocument, arg2 error) *MockDBClientGetHCPClusterCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientGetHCPClusterCall) Do(f func(context.Context, *arm0.ResourceID) (string, *database.HCPClusterDocument, error)) *MockDBClientGetHCPClusterCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientGetHCPClusterCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) (string, *database.HCPClusterDocument, error)) *MockDBClientGetHCPClusterCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetLockClient mocks base method.
 func (m *MockDBClient) GetLockClient() database.LockClientInterface {
 	m.ctrl.T.Helper()
@@ -640,6 +680,44 @@ func (c *MockDBClientListAllSubscriptionDocsCall) Do(f func() database.DBClientI
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.DBClientIterator[arm.Subscription]) *MockDBClientListAllSubscriptionDocsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ListHCPClusters mocks base method.
+func (m *MockDBClient) ListHCPClusters(prefix *arm0.ResourceID, options *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListHCPClusters", prefix, options)
+	ret0, _ := ret[0].(database.DBClientIterator[database.HCPClusterDocument])
+	return ret0
+}
+
+// ListHCPClusters indicates an expected call of ListHCPClusters.
+func (mr *MockDBClientMockRecorder) ListHCPClusters(prefix, options any) *MockDBClientListHCPClustersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHCPClusters", reflect.TypeOf((*MockDBClient)(nil).ListHCPClusters), prefix, options)
+	return &MockDBClientListHCPClustersCall{Call: call}
+}
+
+// MockDBClientListHCPClustersCall wrap *gomock.Call
+type MockDBClientListHCPClustersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientListHCPClustersCall) Return(arg0 database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientListHCPClustersCall) Do(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientListHCPClustersCall) DoAndReturn(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
