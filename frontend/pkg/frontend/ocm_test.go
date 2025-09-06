@@ -75,6 +75,8 @@ func TestRequestIDPropagator(t *testing.T) {
 }
 
 func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
+	arm.SetAzureLocation(api.TestLocation)
+
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 

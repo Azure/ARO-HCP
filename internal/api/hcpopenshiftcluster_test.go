@@ -40,6 +40,8 @@ func compareErrors(x, y []arm.CloudErrorBody) string {
 }
 
 func TestClusterRequired(t *testing.T) {
+	arm.SetAzureLocation(TestLocation)
+
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftCluster
@@ -64,10 +66,6 @@ func TestClusterRequired(t *testing.T) {
 			name:     "Default cluster",
 			resource: NewDefaultHCPOpenShiftCluster(),
 			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Missing required field 'location'",
-					Target:  "location",
-				},
 				{
 					Message: "Missing required field 'subnetId'",
 					Target:  "properties.platform.subnetId",
