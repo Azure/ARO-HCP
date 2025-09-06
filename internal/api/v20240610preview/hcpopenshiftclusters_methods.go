@@ -76,6 +76,15 @@ func newPlatformProfile(from *api.PlatformProfile) *generated.PlatformProfile {
 	}
 }
 
+func newProxyProfile(from *api.ProxyProfile) *generated.ProxyProfile {
+	return &generated.ProxyProfile{
+		HTTPProxy:  api.PtrOrNil(from.HTTPProxy),
+		HTTPSProxy: api.PtrOrNil(from.HTTPSProxy),
+		NoProxy:    api.StringSliceToStringPtrSlice(from.NoProxy),
+		TrustedCa:  api.PtrOrNil(from.TrustedCA),
+	}
+}
+
 func newClusterAutoscalingProfile(from *api.ClusterAutoscalingProfile) *generated.ClusterAutoscalingProfile {
 	return &generated.ClusterAutoscalingProfile{
 		MaxNodeProvisionTimeSeconds: api.PtrOrNil(from.MaxNodeProvisionTimeSeconds),
@@ -90,12 +99,14 @@ func newEtcdProfile(from *api.EtcdProfile) *generated.EtcdProfile {
 		DataEncryption: newEtcdDataEncryptionProfile(&from.DataEncryption),
 	}
 }
+
 func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) *generated.EtcdDataEncryptionProfile {
 	return &generated.EtcdDataEncryptionProfile{
 		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
 		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
+
 func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
 	if from == nil {
 		return nil
@@ -105,6 +116,7 @@ func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProf
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
 }
+
 func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) *generated.KmsEncryptionProfile {
 	if from == nil {
 		return &generated.KmsEncryptionProfile{
@@ -115,6 +127,7 @@ func newKmsEncryptionProfile(from *api.KmsEncryptionProfile) *generated.KmsEncry
 		ActiveKey: newKmsKey(&from.ActiveKey),
 	}
 }
+
 func newKmsKey(from *api.KmsKey) *generated.KmsKey {
 	return &generated.KmsKey{
 		Name:      api.PtrOrNil(from.Name),
@@ -165,6 +178,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Console:                 newConsoleProfile(&from.Properties.Console),
 				API:                     newAPIProfile(&from.Properties.API),
 				Platform:                newPlatformProfile(&from.Properties.Platform),
+				Proxy:                   newProxyProfile(&from.Properties.Proxy),
 				Autoscaling:             newClusterAutoscalingProfile(&from.Properties.Autoscaling),
 				NodeDrainTimeoutMinutes: api.PtrOrNil(from.Properties.NodeDrainTimeoutMinutes),
 				ClusterImageRegistry:    newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry),
@@ -275,6 +289,9 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 			if c.Properties.Platform != nil {
 				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
+			}
+			if c.Properties.Proxy != nil {
+				normalizeProxy(c.Properties.Proxy, &out.Properties.Proxy)
 			}
 			if c.Properties.Autoscaling != nil {
 				normalizeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
@@ -474,6 +491,19 @@ func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssigne
 				PrincipalID: value.PrincipalID,
 			}
 		}
+	}
+}
+
+func normalizeProxy(p *generated.ProxyProfile, out *api.ProxyProfile) {
+	if p.HTTPProxy != nil {
+		out.HTTPProxy = *p.HTTPProxy
+	}
+	if p.HTTPSProxy != nil {
+		out.HTTPSProxy = *p.HTTPSProxy
+	}
+	out.NoProxy = api.TrimStringSlice(api.StringPtrSliceToStringSlice(p.NoProxy))
+	if p.TrustedCa != nil {
+		out.TrustedCA = *p.TrustedCa
 	}
 }
 
