@@ -10,6 +10,12 @@ data:
     instance_types:
     # hand-crafted list to the ones mentioned in https://issues.redhat.com/browse/XCMSTRAT-1002
     # those are the instance types that are also enabled in ARO Classic
+    - id: Standard_D2s_v3
+      ccs_only: true
+      enabled: true
+    - id: Standard_D2ps_v6
+      ccs_only: true
+      enabled: true
     - id: Standard_D8s_v3
       ccs_only: true
       enabled: true

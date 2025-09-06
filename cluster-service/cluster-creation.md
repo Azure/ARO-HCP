@@ -263,7 +263,7 @@ cat <<EOF > nodepool-test.json
     "auto_repair": false,
     "azure_node_pool": {
         "resource_name": "$NAME",
-        "vm_size": "Standard_D8s_v3",
+        "vm_size": "Standard_D2s_v3",
         "os_disk": {
             "size_gibibytes": 64,
             "storage_account_type": "StandardSSD_LRS",

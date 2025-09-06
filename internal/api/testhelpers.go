@@ -160,7 +160,7 @@ func MinimumValidNodePoolTestCase() *HCPOpenShiftClusterNodePool {
 	resource.Name = TestNodePoolName
 	resource.Type = NodePoolResourceType.String()
 	resource.Location = TestLocation
-	resource.Properties.Platform.VMSize = "Standard_D8s_v3"
+	resource.Properties.Platform.VMSize = "Standard_D2s_v3"
 	return resource
 }
 
