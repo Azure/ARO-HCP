@@ -29,11 +29,11 @@ func TestE2E(t *testing.T) {
 	RunSpecs(t, "ARO-HCP E2E Tests")
 }
 
-var _ = BeforeSuite(func() {
-	if err := setup(context.Background()); err != nil {
+var _ = SynchronizedBeforeSuite(func() {
+	if err := Setup(context.Background()); err != nil {
 		panic(err)
 	}
-})
+}, func() {})
 
 var _ = AfterSuite(func() {
 	// Cleanup is done by Resource Group DeferCleanup

@@ -109,6 +109,10 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
 	defer tc.contextLock.RUnlock()
+	if len(resourceGroupNames) == 0 {
+		ginkgo.GinkgoLogr.Info("no resource groups to delete")
+		return
+	}
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	err = CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)

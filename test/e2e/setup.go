@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/log"
@@ -31,7 +32,7 @@ var (
 	e2eSetup integration.SetupModel
 )
 
-func setup(ctx context.Context) error {
+func Setup(ctx context.Context) error {
 	// Use GinkgoLabelFilter to check for the 'requirenothing' label
 	if strings.Contains(GinkgoLabelFilter(), labels.RequireNothing[0]) {
 		// Skip loading the e2esetup file
@@ -43,7 +44,12 @@ func setup(ctx context.Context) error {
 			if bicepName, found := os.LookupEnv("FALLBACK_TO_BICEP"); found {
 				// Fallback: create a complete HCP cluster using bicep
 				log.Logger.Warnf("Failed to load e2e setup file: %v. Falling back to bicep deployment.", err)
-				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, bicepName)
+				tc := framework.NewTestContext()
+				resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-bicep", tc.Location())
+				if err != nil {
+					return fmt.Errorf("failed to create resource group: %w", err)
+				}
+				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, bicepName, *resourceGroup.Name, tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(), tc.Get20240610ClientFactoryOrDie(ctx))
 				if err != nil {
 					return fmt.Errorf("failed to create cluster with bicep fallback: %w", err)
 				}
@@ -53,5 +59,14 @@ func setup(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+func SetupFile() error {
+	var err error
+	e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
+	if err != nil {
+		return fmt.Errorf("failed to load e2e setup file: %w", err)
+	}
 	return nil
 }
