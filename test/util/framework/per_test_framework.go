@@ -348,7 +348,7 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
 	tc.contextLock.RLock()
-	if tc.clientFactory20240610 != nil {
+	if tc.armResourcesClientFactory != nil {
 		defer tc.contextLock.RUnlock()
 		return tc.armResourcesClientFactory, nil
 	}
