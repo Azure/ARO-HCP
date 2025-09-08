@@ -344,9 +344,9 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		}
 		return nil, nil
 	case *types.ARMStep:
-		a := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
-		if a == nil {
-			return nil, fmt.Errorf("failed to create ARM client")
+		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}
 		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, state)
 		if err != nil {

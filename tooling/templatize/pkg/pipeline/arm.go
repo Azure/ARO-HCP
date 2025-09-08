@@ -44,18 +44,18 @@ type armClient struct {
 	GetDeployment func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error)
 }
 
-func newArmClient(subscriptionID, region string) *armClient {
+func newArmClient(subscriptionID, region string) (*armClient, error) {
 	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, nil)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to create deployment client: %w", err)
 	}
 	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to create resource group client: %w", err)
 	}
 	return &armClient{
 		deploymentClient:        deploymentClient,
@@ -65,7 +65,7 @@ func newArmClient(subscriptionID, region string) *armClient {
 		GetDeployment: func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error) {
 			return deploymentClient.Get(ctx, rgName, deploymentName, nil)
 		},
-	}
+	}, nil
 }
 
 // generateDeploymentName generates a unique deployment name for ARM steps.
