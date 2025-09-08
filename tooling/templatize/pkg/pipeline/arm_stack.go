@@ -1,0 +1,131 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package pipeline
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+
+	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"k8s.io/utils/ptr"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
+)
+
+// runArmStackStep transforms a .bicep + .bicepparam into an ARM deployment stack, creates or updates the stack based on the
+// step name, and waits for the stack to finish deploying. This logic is a transliteration of the equivalent logic in the `az` CLI:
+// https://github.com/Azure/azure-cli/blob/cf11272c36d2680a65bd775e10d338afa3a8b902/src/azure-cli/azure/cli/command_modules/resource/custom.py#L1396-L1405
+func runArmStackStep(
+	ctx context.Context,
+	options *PipelineRunOptions,
+	executionTarget ExecutionTarget,
+	step *types.ARMStackStep,
+	state *ExecutionState,
+) (Output, error) {
+
+	cred, err := azauth.GetAzureTokenCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(executionTarget.GetSubscriptionID(), cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource group client: %w", err)
+	}
+	stackClient, err := armdeploymentstacks.NewClient(executionTarget.GetSubscriptionID(), cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployment stack client: %w", err)
+	}
+
+	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist); err != nil {
+		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
+	}
+
+	state.RLock()
+	inputValues, err := getInputValues(step.Variables, options.Configuration, state.Outputs)
+	state.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get input values: %w", err)
+	}
+
+	template, params, err := transformParameters(ctx, options.Configuration, inputValues, step.Parameters, filepath.Dir(options.PipelineFilePath))
+	if err != nil {
+		return nil, err
+	}
+
+	adaptedParams := map[string]*armdeploymentstacks.DeploymentParameter{}
+	for k, v := range params {
+		asMap, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert parameter %s to map, got %T", k, v)
+		}
+		adaptedParams[k] = &armdeploymentstacks.DeploymentParameter{
+			Value: asMap["value"],
+		}
+	}
+
+	stack := armdeploymentstacks.DeploymentStack{
+		Location: ptr.To(executionTarget.GetRegion()),
+		Properties: &armdeploymentstacks.DeploymentStackProperties{
+			ActionOnUnmanage: &armdeploymentstacks.ActionOnUnmanage{
+				Resources:        ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnum(step.ActionOnUnmanage)),
+				ResourceGroups:   ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnum(step.ActionOnUnmanage)),
+				ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnum(step.ActionOnUnmanage)),
+			},
+			BypassStackOutOfSyncError: ptr.To(step.BypassStackOutOfSyncError),
+			Parameters:                adaptedParams,
+			Template:                  template,
+		},
+	}
+
+	var output armdeploymentstacks.DeploymentStack
+	switch step.DeploymentLevel {
+	case "Subscription":
+		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, step.StepName(), stack, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create or update deployment stack at subscription scope: %w", err)
+		}
+		result, err := poller.PollUntilDone(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+		}
+		output = result.DeploymentStack
+	case "ResourceGroup":
+		poller, err := stackClient.BeginCreateOrUpdateAtResourceGroup(ctx, executionTarget.GetResourceGroup(), step.StepName(), stack, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create or update deployment stack at resource group scope: %w", err)
+		}
+		result, err := poller.PollUntilDone(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wait for deployment stack at subscription scope: %w", err)
+		}
+		output = result.DeploymentStack
+	default:
+		return nil, fmt.Errorf("invalid deployment level: %s", step.DeploymentLevel)
+	}
+
+	if output.Properties.Outputs != nil {
+		if outputMap, ok := output.Properties.Outputs.(map[string]any); ok {
+			returnMap := ArmOutput{}
+			for k, v := range outputMap {
+				returnMap[k] = v
+			}
+			return returnMap, nil
+		}
+	}
+	return nil, nil
+}

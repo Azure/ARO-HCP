@@ -112,7 +112,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 
 func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, state *ExecutionState) (Output, error) {
 	// Ensure resourcegroup exists
-	err := a.ensureResourceGroupExists(ctx, rgName, !options.NoPersist)
+	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
@@ -363,17 +363,17 @@ func computeResourceGroupTags(existingTags map[string]*string, persist bool) map
 	return resultTags
 }
 
-func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string, persist bool) error {
-	rg, err := a.resourceGroupClient.Get(ctx, rgName, nil)
+func ensureResourceGroupExists(ctx context.Context, resourceGroupClient *armresources.ResourceGroupsClient, region, rgName string, persist bool) error {
+	rg, err := resourceGroupClient.Get(ctx, rgName, nil)
 	if err != nil {
 		// Resource group doesn't exist - create it
 		// We don't have any existing tags, so pass an empty map instead of nil for clarity.
 		tags := computeResourceGroupTags(map[string]*string{}, persist)
 		resourceGroup := armresources.ResourceGroup{
-			Location: to.Ptr(a.Region),
+			Location: to.Ptr(region),
 			Tags:     tags,
 		}
-		_, err = a.resourceGroupClient.CreateOrUpdate(ctx, rgName, resourceGroup, nil)
+		_, err = resourceGroupClient.CreateOrUpdate(ctx, rgName, resourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create resource group: %w", err)
 		}
@@ -383,7 +383,7 @@ func (a *armClient) ensureResourceGroupExists(ctx context.Context, rgName string
 		patchResourceGroup := armresources.ResourceGroupPatchable{
 			Tags: tags,
 		}
-		_, err = a.resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
+		_, err = resourceGroupClient.Update(ctx, rgName, patchResourceGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update resource group: %w", err)
 		}

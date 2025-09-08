@@ -353,6 +353,12 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, nil
+	case *types.ARMStackStep:
+		output, err := runArmStackStep(ctx, options, executionTarget, step, state)
+		if err != nil {
+			return nil, fmt.Errorf("failed to run ARM step: %w", err)
+		}
+		return output, nil
 	default:
 		fmt.Println("No implementation for action type - skip", s.ActionType())
 		return nil, nil
