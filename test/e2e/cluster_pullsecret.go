@@ -127,7 +127,6 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			Eventually(func() bool {
 				globalSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, "global-pull-secret", metav1.GetOptions{})
