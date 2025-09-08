@@ -89,7 +89,7 @@ spec:
         memory: 32Gi
       - containerName: openshift-controller-manager
         deploymentName: openshift-controller-manager
-        memory: 3Gi        
+        memory: 3Gi
       - containerName: cluster-policy-controller
         deploymentName: cluster-policy-controller
         memory: 2Gi
@@ -98,7 +98,7 @@ spec:
         memory: 2Gi
       - containerName: cluster-autoscaler
         deploymentName: cluster-autoscaler
-        memory: 4Gi        
+        memory: 4Gi
       - containerName: openshift-apiserver
         deploymentName: openshift-apiserver
         memory: 2Gi
@@ -113,7 +113,7 @@ spec:
         memory: 1Gi
       - containerName: ovnkube-control-plane
         deploymentName: ovnkube-control-plane
-        memory: 1Gi        
+        memory: 1Gi
     name: large
   - criteria:
       from: 253
@@ -140,7 +140,7 @@ spec:
         memory: 8Gi
       - containerName: cluster-autoscaler
         deploymentName: cluster-autoscaler
-        memory: 6Gi        
+        memory: 6Gi
       - containerName: etcd
         deploymentName: etcd
         memory: 2Gi
@@ -153,10 +153,10 @@ spec:
       - containerName: ovnkube-control-plane
         deploymentName: ovnkube-control-plane
         memory: 2Gi
-    name: xlarge        
+    name: xlarge
   - criteria:
       from: 361
-    effects:      
+    effects:
       kasGoMemLimit: 72GiB
       resourceRequests:
       - containerName: kube-apiserver
@@ -188,7 +188,7 @@ spec:
         memory: 3Gi
       - containerName: ovnkube-control-plane
         deploymentName: ovnkube-control-plane
-        memory: 2Gi        
+        memory: 2Gi
     name: xxlarge
   transitionDelay:
     decrease: 0s
