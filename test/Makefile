@@ -4,6 +4,10 @@ build: update
 	go build github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests
 .PHONY: build
 
+prow-job-executor:
+	go build -o $@ ./cmd/prow-job-executor
+.PHONY: prow-job-executor
+
 update: update-bicep-json
 .PHONY: update
 
