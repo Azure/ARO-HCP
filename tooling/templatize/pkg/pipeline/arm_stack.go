@@ -79,7 +79,6 @@ func runArmStackStep(
 	}
 
 	stack := armdeploymentstacks.DeploymentStack{
-		Location: ptr.To(executionTarget.GetRegion()),
 		Properties: &armdeploymentstacks.DeploymentStackProperties{
 			ActionOnUnmanage: &armdeploymentstacks.ActionOnUnmanage{
 				Resources:        ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnum(step.ActionOnUnmanage)),
@@ -87,14 +86,21 @@ func runArmStackStep(
 				ManagementGroups: ptr.To(armdeploymentstacks.DeploymentStacksDeleteDetachEnum(step.ActionOnUnmanage)),
 			},
 			BypassStackOutOfSyncError: ptr.To(step.BypassStackOutOfSyncError),
-			Parameters:                adaptedParams,
-			Template:                  template,
+			DenySettings: &armdeploymentstacks.DenySettings{
+				Mode:               ptr.To(armdeploymentstacks.DenySettingsModeNone),
+				ApplyToChildScopes: ptr.To(false),
+				ExcludedActions:    []*string{},
+				ExcludedPrincipals: []*string{},
+			},
+			Parameters: adaptedParams,
+			Template:   template,
 		},
 	}
 
 	var output armdeploymentstacks.DeploymentStack
 	switch step.DeploymentLevel {
 	case "Subscription":
+		stack.Location = ptr.To(executionTarget.GetRegion())
 		poller, err := stackClient.BeginCreateOrUpdateAtSubscription(ctx, step.StepName(), stack, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create or update deployment stack at subscription scope: %w", err)
