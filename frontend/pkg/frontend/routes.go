@@ -59,11 +59,11 @@ func MuxPattern(method string, segments ...string) string {
 	return fmt.Sprintf("%s /%s", method, strings.ToLower(path.Join(segments...)))
 }
 
-func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
+func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// Setup metrics middleware
 	metricsMiddleware := NewMetricsMiddleware(r, f.collector)
 
-	mux := NewMiddlewareMux(
+	middlewareMux := NewMiddlewareMux(
 		MiddlewarePanic,
 		MiddlewareReferer,
 		metricsMiddleware.Metrics(),
@@ -82,28 +82,28 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	)
 
 	// Miscellaneous routes
-	mux.HandleFunc("/", f.NotFound)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
-	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
+	middlewareMux.HandleFunc("/", f.NotFound)
+	middlewareMux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	middlewareMux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
 	// Resource list endpoints
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
 
@@ -113,16 +113,16 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternVersions),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
 
@@ -133,37 +133,37 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareValidateAPIVersion,
 		newMiddlewareLockSubscription(f.dbClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateHCPCluster))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateHCPCluster))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRequestAdminCredential),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRequestAdminCredential))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRevokeCredentials),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRevokeCredentials))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
 
@@ -173,10 +173,10 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		MiddlewareLoggingPostMux,
 		MiddlewareValidateAPIVersion,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationResults),
 		postMuxMiddleware.HandlerFunc(f.OperationResult))
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationStatuses),
 		postMuxMiddleware.HandlerFunc(f.OperationStatus))
 	// Exclude ARO-HCP API version validation for the following endpoints defined by ARM.
@@ -185,14 +185,14 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionGet))
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		newMiddlewareLockSubscription(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(f.ArmSubscriptionPut))
 
@@ -200,14 +200,14 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
-	mux.Handle(
+	middlewareMux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
 
-	return mux
+	return middlewareMux
 }
 
-func (f *Frontend) metricsRoutes() *http.ServeMux {
+func (f *Frontend) metricsRoutes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.Handler())
 
