@@ -81,10 +81,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareValidateStatic,
 	)
 
-	// Miscellaneous routes
 	middlewareMux.HandleFunc("/", f.NotFound)
-	middlewareMux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
-	middlewareMux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
 
 	// Resource list endpoints
 	postMuxMiddleware := NewMiddleware(
@@ -204,7 +201,15 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, "providers", api.ProviderNamespace, PatternDeployments, "preflight"),
 		postMuxMiddleware.HandlerFunc(f.ArmDeploymentPreflight))
 
-	return middlewareMux
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", middlewareMux.ServeHTTP)
+
+	// These endpoints do not use middleware. They are only called
+	// from within the service cluster or via kubectl port forwarding.
+	mux.HandleFunc(MuxPattern(http.MethodGet, "healthz"), f.Healthz)
+	mux.HandleFunc(MuxPattern(http.MethodGet, "location"), f.Location)
+
+	return mux
 }
 
 func (f *Frontend) metricsRoutes() http.Handler {
