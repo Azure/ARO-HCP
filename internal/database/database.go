@@ -91,9 +91,6 @@ type DBClientListActiveOperationDocsOptions struct {
 // DBClient provides a customized interface to the Cosmos DB containers used by the
 // ARO-HCP resource provider.
 type DBClient interface {
-	// DBConnectionTest verifies the database is reachable. Intended for use in health checks.
-	DBConnectionTest(ctx context.Context) error
-
 	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
 	GetLockClient() LockClientInterface
 
@@ -223,14 +220,6 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 		resources:  resources,
 		lockClient: lockClient,
 	}, nil
-}
-
-func (d *cosmosDBClient) DBConnectionTest(ctx context.Context) error {
-	if _, err := d.database.Read(ctx, nil); err != nil {
-		return fmt.Errorf("failed to read Cosmos database information during healthcheck: %v", err)
-	}
-
-	return nil
 }
 
 func (d *cosmosDBClient) GetLockClient() LockClientInterface {
