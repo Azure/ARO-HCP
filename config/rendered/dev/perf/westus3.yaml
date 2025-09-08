@@ -146,6 +146,11 @@ dns:
   parentZoneName: osadev.cloud
   regionalSubdomain: usw3ptest
   svcParentZoneName: hcpsvc.osadev.cloud
+e2e:
+  prow:
+    globalKeyVaultTokenSecret: prow-token
+  regionalGatingTest:
+    prowJobName: ""
 ev2:
   assistedId:
     applicationId: ""
@@ -268,6 +273,7 @@ imageSync:
   ondemandSync:
     pullSecretName: component-sync-pull-secret
   outboundServiceTags: ""
+keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
