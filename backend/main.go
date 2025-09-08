@@ -47,6 +47,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -122,6 +123,17 @@ func Run(cmd *cobra.Command, args []string) error {
 	logger := slog.New(handler)
 	klog.SetLogger(logr.FromSlogHandler(handler))
 
+	if len(argLocation) == 0 {
+		return errors.New("location is required")
+	}
+	arm.SetAzureLocation(argLocation)
+
+	logger.Info(fmt.Sprintf(
+		"%s (%s) started in %s",
+		cmd.Short,
+		version.CommitSHA,
+		arm.GetAzureLocation()))
+
 	// Use pod name as the lock identity.
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -151,7 +163,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(argLocation),
+		semconv.CloudRegion(arm.GetAzureLocation()),
 		semconv.ServiceNameKey.String("ARO HCP Backend"),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -189,8 +201,6 @@ func Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create OCM connection: %w", err)
 	}
-
-	logger.Info(fmt.Sprintf("%s (%s) started", cmd.Short, cmd.Version))
 
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
@@ -261,7 +271,7 @@ func Run(cmd *cobra.Command, args []string) error {
 	group.Go(func() error {
 		var (
 			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(argLocation, dbClient, ocmConnection)
+			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{

@@ -75,6 +75,8 @@ func TestRequestIDPropagator(t *testing.T) {
 }
 
 func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
+	arm.SetAzureLocation(api.TestLocation)
+
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	require.NoError(t, err)
 
@@ -218,7 +220,6 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.ClusterTestCase(t, tc.hcpCluster),
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
-				api.TestLocation,
 				api.TestTenantID,
 				"")
 			require.NoError(t, err)
@@ -297,7 +298,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 		Product(cmv1.NewProduct().
 			ID("aro")).
 		Region(cmv1.NewCloudRegion().
-			ID(api.TestLocation)).
+			ID(arm.GetAzureLocation())).
 		Version(arohcpv1alpha1.NewVersion().
 			ID("").
 			ChannelGroup("stable")).

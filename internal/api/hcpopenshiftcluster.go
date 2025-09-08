@@ -168,6 +168,9 @@ type ClusterImageRegistryProfile struct {
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
+		TrackedResource: arm.TrackedResource{
+			Location: arm.GetAzureLocation(),
+		},
 		Properties: HCPOpenShiftClusterProperties{
 			Version: VersionProfile{
 				ChannelGroup: "stable",

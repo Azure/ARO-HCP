@@ -315,12 +315,12 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
-			Location: cluster.Region().ID(),
 			Resource: arm.Resource{
 				ID:   resourceID.String(),
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
+			Location: arm.GetAzureLocation(),
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
@@ -450,7 +450,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
-			f.location,
 			tenantID,
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
@@ -469,7 +468,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	return clusterBuilder.Build()
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, location, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	apiListening, err := convertVisibilityToListening(hcpCluster.Properties.API.Visibility)
 	if err != nil {
 		return nil, err
@@ -488,7 +487,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		Flavour(cmv1.NewFlavour().
 			ID(csFlavourId)).
 		Region(cmv1.NewCloudRegion().
-			ID(location)).
+			ID(arm.GetAzureLocation())).
 		CloudProvider(cmv1.NewCloudProvider().
 			ID(csCloudProvider)).
 		Product(cmv1.NewProduct().
@@ -580,6 +579,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
+			Location: arm.GetAzureLocation(),
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{

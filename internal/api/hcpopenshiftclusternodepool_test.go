@@ -28,6 +28,8 @@ import (
 )
 
 func TestNodePoolRequired(t *testing.T) {
+	arm.SetAzureLocation(TestLocation)
+
 	tests := []struct {
 		name         string
 		resource     *HCPOpenShiftClusterNodePool
@@ -51,10 +53,6 @@ func TestNodePoolRequired(t *testing.T) {
 			name:     "Default node pool",
 			resource: NewDefaultHCPOpenShiftClusterNodePool(),
 			expectErrors: []arm.CloudErrorBody{
-				{
-					Message: "Missing required field 'location'",
-					Target:  "location",
-				},
 				{
 					Message: "Missing required field 'vmSize'",
 					Target:  "properties.platform.vmSize",

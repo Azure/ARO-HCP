@@ -141,7 +141,6 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource.ID = TestClusterResourceID
 	resource.Name = TestClusterName
 	resource.Type = ClusterResourceType.String()
-	resource.Location = TestLocation
 	resource.Properties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.Properties.Platform.SubnetID = TestSubnetResourceID
 	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
@@ -159,7 +158,6 @@ func MinimumValidNodePoolTestCase() *HCPOpenShiftClusterNodePool {
 	resource.ID = TestNodePoolResourceID
 	resource.Name = TestNodePoolName
 	resource.Type = NodePoolResourceType.String()
-	resource.Location = TestLocation
 	resource.Properties.Platform.VMSize = "Standard_D8s_v3"
 	return resource
 }
