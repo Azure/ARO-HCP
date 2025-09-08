@@ -26,8 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"maps"
-
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -57,6 +55,8 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				testPullSecretHost     = "host.example.com"
 				testPullSecretPassword = "my_password"
 				testPullSecretEmail    = "noreply@example.com"
+				pullSecretName         = "additional-pull-secret"
+				pullSecretNamespace    = "kube-system"
 			)
 			tc := framework.NewTestContext()
 
@@ -114,8 +114,8 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 
 			testPullSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pull-secret",
-					Namespace: "openshift-config",
+					Name:      pullSecretName,
+					Namespace: pullSecretNamespace,
 				},
 				Type: corev1.SecretTypeDockerConfigJson,
 				Data: map[string][]byte{
@@ -124,110 +124,52 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			}
 
 			By("creating the test pull secret in the cluster")
-			_, err = kubeClient.CoreV1().Secrets("openshift-config").Create(ctx, testPullSecret, metav1.CreateOptions{})
+			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting the current global pull secret")
-			globalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
 
-			By("safely merging test pull secret with existing global pull secret using raw JSON")
-			// Parse existing secret as raw JSON to preserve all fields
-			var existingConfig map[string]interface{}
-			err = json.Unmarshal(globalPullSecret.Data[corev1.DockerConfigJsonKey], &existingConfig)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Ensure auths section exists
-			if existingConfig["auths"] == nil {
-				existingConfig["auths"] = make(map[string]interface{})
-			}
-
-			existingAuths, ok := existingConfig["auths"].(map[string]interface{})
-			Expect(ok).To(BeTrue(), "auths field should be a map")
-
-			// Log the merge operation details
-			GinkgoWriter.Printf("=== MERGE OPERATION DEBUG ===\n")
-			GinkgoWriter.Printf("Existing hosts before merge: %v\n", maps.Keys(existingAuths))
-			GinkgoWriter.Printf("Adding new host: %s\n", testPullSecretHost)
-
-			// Add only our test entry without touching existing ones
-			existingAuths[testPullSecretHost] = map[string]interface{}{
-				"email": testPullSecretEmail,
-				"auth":  auth,
-			}
-
-			GinkgoWriter.Printf("Hosts after merge: %v\n", maps.Keys(existingAuths))
-			GinkgoWriter.Printf("Total auth entries: %d\n", len(existingAuths))
-
-			By("updating the global pull secret")
-			updatedDockerConfigJSON, err := json.Marshal(existingConfig)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Log the update operation
-			GinkgoWriter.Printf("=== UPDATE OPERATION DEBUG ===\n")
-			GinkgoWriter.Printf("JSON size before update: %d bytes\n", len(globalPullSecret.Data[corev1.DockerConfigJsonKey]))
-			GinkgoWriter.Printf("JSON size after merge: %d bytes\n", len(updatedDockerConfigJSON))
-			GinkgoWriter.Printf("Updating secret with %d hosts\n", len(existingAuths))
-
-			globalPullSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
-			_, err = kubeClient.CoreV1().Secrets("openshift-config").Update(ctx, globalPullSecret, metav1.UpdateOptions{})
-			if err != nil {
-				GinkgoWriter.Printf("UPDATE FAILED: %v\n", err)
-				// Log the current secret state for debugging
-				currentSecret, _ := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
-				GinkgoWriter.Printf("Current secret resource version: %s\n", currentSecret.ResourceVersion)
-				GinkgoWriter.Printf("Current secret data size: %d bytes\n", len(currentSecret.Data[corev1.DockerConfigJsonKey]))
-			}
-			Expect(err).NotTo(HaveOccurred())
-
-			GinkgoWriter.Printf("Update operation completed successfully\n")
-
-			By("waiting for pull secret to be stable after operator reconciliation")
+			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			Eventually(func() bool {
-				verifySecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
+				globalSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, "global-pull-secret", metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
 
-				var verifyConfig map[string]interface{}
-				if err := json.Unmarshal(verifySecret.Data[corev1.DockerConfigJsonKey], &verifyConfig); err != nil {
+				var globalConfig map[string]interface{}
+				if err := json.Unmarshal(globalSecret.Data[corev1.DockerConfigJsonKey], &globalConfig); err != nil {
 					return false
 				}
 
-				verifyAuths, ok := verifyConfig["auths"].(map[string]interface{})
+				globalAuths, ok := globalConfig["auths"].(map[string]interface{})
 				if !ok {
 					return false
 				}
 
-				_, exists := verifyAuths[testPullSecretHost]
+				_, exists := globalAuths[testPullSecretHost]
 				return exists
-			}, 300*time.Second, 2*time.Second).Should(BeTrue(), "test pull secret should persist through operator reconciliation")
+			}, 300*time.Second, 2*time.Second).Should(BeTrue(), "additional pull secret should be merged into global-pull-secret by HCCO")
 
-			By("verifying the pull secret was added to the global pull secret")
-			updatedGlobalPullSecret, err := kubeClient.CoreV1().Secrets("openshift-config").Get(ctx, "pull-secret", metav1.GetOptions{})
+			By("verifying the DaemonSet for global pull secret synchronization is created")
+			Eventually(func() error {
+				_, err := kubeClient.AppsV1().DaemonSets(pullSecretNamespace).Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
+				return err
+			}, 60*time.Second, 2*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
+
+			By("verifying the pull secret was merged into the global pull secret")
+			globalPullSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, "global-pull-secret", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			// Log verification details
-			GinkgoWriter.Printf("=== VERIFICATION DEBUG ===\n")
-			GinkgoWriter.Printf("Retrieved secret resource version: %s\n", updatedGlobalPullSecret.ResourceVersion)
-			GinkgoWriter.Printf("Secret data size: %d bytes\n", len(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey]))
-
-			// Verify using raw JSON to avoid struct limitations
-			var verifyConfig map[string]interface{}
-			err = json.Unmarshal(updatedGlobalPullSecret.Data[corev1.DockerConfigJsonKey], &verifyConfig)
+			var globalConfig map[string]interface{}
+			err = json.Unmarshal(globalPullSecret.Data[corev1.DockerConfigJsonKey], &globalConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			verifyAuths, ok := verifyConfig["auths"].(map[string]interface{})
+			globalAuths, ok := globalConfig["auths"].(map[string]interface{})
 			Expect(ok).To(BeTrue(), "auths field should be a map")
 
-			GinkgoWriter.Printf("Parsed hosts in updated secret: %v\n", maps.Keys(verifyAuths))
-			GinkgoWriter.Printf("Expected host: %s\n", testPullSecretHost)
-			GinkgoWriter.Printf("Host present: %t\n", func() bool { _, ok := verifyAuths[testPullSecretHost]; return ok }())
-
 			By("checking that the test pull secret is present in the global pull secret")
-			Expect(verifyAuths).To(HaveKey(testPullSecretHost))
+			Expect(globalAuths).To(HaveKey(testPullSecretHost))
 
-			testEntry, ok := verifyAuths[testPullSecretHost].(map[string]interface{})
+			testEntry, ok := globalAuths[testPullSecretHost].(map[string]interface{})
 			Expect(ok).To(BeTrue(), "test entry should be a map")
 			Expect(testEntry["email"]).To(Equal(testPullSecretEmail))
 			Expect(testEntry["auth"]).To(Equal(auth))
