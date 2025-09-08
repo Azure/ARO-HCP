@@ -575,7 +575,7 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, optio
 
 	if options != nil {
 		if options.Request != nil {
-			query += " AND c.properties.request == @request"
+			query += " AND c.properties.request = @request"
 			queryParameter := azcosmos.QueryParameter{
 				Name:  "@request",
 				Value: string(*options.Request),
