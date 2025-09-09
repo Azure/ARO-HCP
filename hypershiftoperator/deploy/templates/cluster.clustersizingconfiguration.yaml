@@ -191,5 +191,5 @@ spec:
         memory: 2Gi
     name: xxlarge
   transitionDelay:
-    decrease: 0s
+    decrease: 20m
     increase: 0s
