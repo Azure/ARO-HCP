@@ -330,8 +330,10 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
 					State(csEncryptionAtHostStateDisabled),
 			).
-			OSDiskSizeGibibytes(0).
-			OSDiskStorageAccountType(""),
+			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+				SizeGibibytes(0).
+				StorageAccountType(""),
+			),
 		).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
