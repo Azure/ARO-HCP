@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications"
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
 )
@@ -38,7 +40,8 @@ type PasswordCredential struct {
 	EndTime    time.Time `json:"endTime"`
 }
 
-// CreateApplication creates a new Microsoft Entra application
+// CreateApplication creates a new Microsoft Entra application with
+// requestedAccessTokenVersion=2 to allow token issuance from login.microsoftonline.com
 func (c *Client) CreateApplication(ctx context.Context, displayName string, redirectURIs []string) (*Application, error) {
 	app := models.NewApplication()
 	app.SetDisplayName(&displayName)
@@ -47,6 +50,11 @@ func (c *Client) CreateApplication(ctx context.Context, displayName string, redi
 	webApp := models.NewWebApplication()
 	webApp.SetRedirectUris(redirectURIs)
 	app.SetWeb(webApp)
+
+	// set requestedAccessTokenVersion=2
+	apiApp := models.NewApiApplication()
+	apiApp.SetRequestedAccessTokenVersion(to.Ptr[int32](2))
+	app.SetApi(apiApp)
 
 	createdApp, err := c.graphClient.Applications().Post(ctx, app, nil)
 	if err != nil {
