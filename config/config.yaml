@@ -759,7 +759,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+          digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
       # Backplane API
       backplaneAPI:
         image:
@@ -957,7 +957,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1070,7 +1070,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
