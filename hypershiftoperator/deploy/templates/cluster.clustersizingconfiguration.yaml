@@ -2,7 +2,6 @@ apiVersion: scheduling.hypershift.openshift.io/v1alpha1
 kind: ClusterSizingConfiguration
 metadata:
   name: cluster
-  namespace: default
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "2"
@@ -191,5 +190,5 @@ spec:
         memory: 2Gi
     name: xxlarge
   transitionDelay:
-    decrease: 0s
+    decrease: 20m
     increase: 0s
