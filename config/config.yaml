@@ -177,7 +177,7 @@ defaults:
         issuer: ""
       subscriptions: []
     loganalytics:
-      enable: false
+      enable: true
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
