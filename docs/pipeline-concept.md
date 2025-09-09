@@ -64,16 +64,16 @@ Used for deploying Azure infrastructure using [Bicep](bicep.md) templates. These
   ...
   steps:
   - name: region-infra
-    action: ARM                                          (1)
+    action: ARM | ARMStack                               (1)
     template: templates/region.bicep                     (2)
     parameters: configurations/region.tmpl.bicepparam    (3)
-    deploymentLevel: ResourceGroup                       (4)
+    ...                                                  (4)
 ```
 
-1. `action: ARM` marks the step as an ARM step.
+1. `action: ARM` or `action: ARMStack` marks the step as an ARM step.
 2. `template`: The path to the Bicep template file that defines the infrastructure to be deployed.
 3. `parameters`: The path to the Bicep parameters file that provides input values for the template.
-4. `deploymentLevel`: The scope at which the deployment should occur. Valid values are `ResourceGroup` and `Subscription`.
+4. ... for more details see the [Bicep docs](bicep.md)
 
 This step type supports dry-run testing via [what-if](https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/deploy-what-if?tabs=azure-powershell).
 

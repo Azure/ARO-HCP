@@ -124,10 +124,11 @@ resourceGroups:
     - resourceGroup: global
       step: ocp-acr-replication
   - name: infra
-    action: ARM
+    action: ARMStack
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: globalMSIId
       input:
