@@ -32,7 +32,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
           title: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
         }
-        expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[5m])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[5m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[5m])) > 5 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1h])) > 60'
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[5m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[5m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[5m])) > 5 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1h])) > 60'
         for: 'PT2M'
         severity: 3
       }
@@ -58,7 +58,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
           title: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
         }
-        expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h])) > 360'
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360'
         for: 'PT15M'
         severity: 3
       }
@@ -84,7 +84,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
           title: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
         }
-        expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[1d])) > 1440'
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d])) > 1440'
         for: 'PT1H'
         severity: 3
       }
@@ -110,7 +110,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           description: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
           title: 'High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})'
         }
-        expression: '1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id) (count_over_time(probe_success{}[3d])) > 4320'
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d])) > 4320'
         for: 'PT3H'
         severity: 3
       }

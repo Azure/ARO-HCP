@@ -1,0 +1,117 @@
+rule_files:
+- HCPkasMonitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - perfect success, no alerts should fire
+- interval: 1m
+  input_series:
+  - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
+    values: "1+0x70" # Perfect success for sufficient time
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: kas-monitor-ErrorBudgetBurn
+    exp_alerts: [] # Should not fire with perfect success
+# Test 2: Complete failure should trigger fast burn alert (5m/1h windows, for: 2m)
+- interval: 30s # Generate data every 30 seconds to meet sample count requirements
+  input_series:
+  - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
+    # Complete failure: 0% success (100% failure) for sufficient duration
+    # With 30s interval: 5m window has 10 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
+    # Alert condition: 1 - (0/10) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
+    # With 'for: 2m', alert should fire at 63m (condition true at 61m + 2m)
+    values: "0+0x130" # Complete failure for 65+ minutes (130 * 30s = 65m)
+  alert_rule_test:
+  - eval_time: 63m # When first alert should fire (after 'for' condition satisfied)
+    alertname: kas-monitor-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        long_window: 1h
+        short_window: 5m
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+# Test 3: Medium burn rate - Alert 2 (30m/6h windows, for: 15m)
+- interval: 30s # Generate data every 30 seconds
+  input_series:
+  - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
+    # Complete failure for sufficient duration
+    # With 30s interval: 30m window has 60 samples (>30 ✓), 6h window has 720 samples (>360 ✓)
+    values: "0+0x800" # Complete failure for 400+ minutes (800 * 30s = 400m)
+  alert_rule_test:
+  - eval_time: 390m # After 6h+30m to satisfy both windows and 'for' condition (15m)
+    alertname: kas-monitor-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        long_window: 1h
+        short_window: 5m
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+    - exp_labels:
+        severity: critical
+        long_window: 6h
+        short_window: 30m
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+# Test 4: All four alerts should fire simultaneously after prolonged failure
+- interval: 30s
+  input_series:
+  - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
+    # Complete failure for 3+ days to satisfy all four alert time windows
+    values: "0+0x9000" # 4500 minutes = 75 hours = 3+ days of failure
+  alert_rule_test:
+  - eval_time: 4500m # After sufficient time for all windows + 'for' conditions
+    alertname: kas-monitor-ErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        long_window: 1h
+        short_window: 5m
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+    - exp_labels:
+        severity: critical
+        long_window: 6h
+        short_window: 30m
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+    - exp_labels:
+        severity: critical
+        long_window: 1d
+        short_window: 2h
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
+    - exp_labels:
+        severity: critical
+        long_window: 3d
+        short_window: 6h
+        probe_url: https://api.example.com/health
+        namespace: test-hcp-namespace
+        _id: test-hcp-id
+        cluster: test-cluster
+      exp_annotations:
+        description: "High error budget burn for https://api.example.com/health (current value: 1)"
