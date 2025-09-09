@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,6 +28,17 @@ import (
 	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
+
+// Helper to convert ManagedServiceIdentity to AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
+func toIdentityUpdate(identity *api.ManagedServiceIdentity) *api.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
+	if identity == nil {
+		return nil
+	}
+	return &api.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
+		Type:                   identity.Type,
+		UserAssignedIdentities: identity.UserAssignedIdentities,
+	}
+}
 
 var _ = Describe("Update HCPOpenShiftCluster", func() {
 	Context("Negative", func() {
@@ -85,7 +97,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					10*time.Minute,
 				)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("mismatchingresourcename"))
+				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"))
 			},
 		)
 	})
@@ -134,7 +146,18 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
+				// Fetch the current cluster to get the existing identity
+				got, err := framework.GetHCPCluster(
+					ctx,
+					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					*resourceGroup.Name,
+					clusterName,
+					5*time.Minute,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
 				update := api.HcpOpenShiftClusterUpdate{
+					Identity: toIdentityUpdate(got.Identity),
 					Tags: map[string]*string{
 						"test": &val,
 					},
@@ -155,7 +178,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(*resp.Tags["test"]).To(Equal(val))
 
 				By("verifying the tag is present on the cluster")
-				got, err := framework.GetHCPCluster(
+				got, err = framework.GetHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
