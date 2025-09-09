@@ -35,7 +35,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster to test TLS using bicep templates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+	It("should create an HCP cluster and validate TLS certificates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
 
 		const (
 			customerNetworkSecurityGroupName = "customer-nsg-name"
@@ -133,47 +133,38 @@ var _ = Describe("Customer", func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		It("should have a valid TLS certificate for the Kubernetes API server", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
-			By("ensuring the API TLS certificate issued is not an OpenShift root CA")
-			testCtx := framework.NewTestContext()
+		By("ensuring the API TLS certificate issued is not an OpenShift root CA")
+		clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+		Expect(err).NotTo(HaveOccurred())
+		apiServerURL := clusterResp.Properties.API.URL
+		actualAPICert, err := tlsCertFromURL(ctx, *apiServerURL)
+		Expect(err).NotTo(HaveOccurred())
 
-			By("examining the server certificate returned by the Kube API server")
-			clusterResp, err := testCtx.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			apiServerURL := clusterResp.Properties.API.URL
-			actualCert, err := tlsCertFromURL(ctx, *apiServerURL)
-			Expect(err).NotTo(HaveOccurred())
+		fmt.Print(GinkgoWriter, "Issuer: %s", actualAPICert.Issuer)
+		Expect(actualAPICert.Issuer).NotTo(SatisfyAll(
+			HaveField("CommonName", "root-ca"),
+			HaveField("OrganizationalUnit", ContainElements("openshift")),
+		), "expected certificate not issued by an OpenShift root CA")
 
-			fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
-			Expect(actualCert.Issuer).NotTo(SatisfyAll(
-				HaveField("CommonName", "root-ca"),
-				HaveField("OrganizationalUnit", ContainElements("openshift")),
-			), "expected certificate not issued by an OpenShift root CA")
-		})
+		By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
+		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
-		It("should have a valid TLS certificate for the default Ingress", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
-			By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
-			testCtx := framework.NewTestContext()
+		By("waiting for the console URL to become available")
+		ingressURL := func(g Gomega) *string {
+			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+			g.Expect(err).NotTo(HaveOccurred())
+			return resp.Properties.Console.URL
+		}
+		Eventually(ingressURL, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
 
-			hcpOpenShiftClustersClient := testCtx.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-
-			By("waiting for the console URL to become available")
-			ingressURL := func(g Gomega) *string {
-				resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-				g.Expect(err).NotTo(HaveOccurred())
-				return resp.Properties.Console.URL
-			}
-			Eventually(ingressURL, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
-
-			By("examining the server certificate returned by the default ingress when routing the console URL")
-			actualCert, err := tlsCertFromURL(ctx, *ingressURL(Default))
-			Expect(err).NotTo(HaveOccurred())
-			fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
-			Expect(actualCert.Issuer).NotTo(SatisfyAll(
-				HaveField("CommonName", "root-ca"),
-				HaveField("OrganizationalUnit", ContainElements("openshift")),
-			), "expected certificate not issued by an OpenShift root CA")
-		})
+		By("examining the server certificate returned by the default ingress when routing the console URL")
+		actualCert, err := tlsCertFromURL(ctx, *ingressURL(Default))
+		Expect(err).NotTo(HaveOccurred())
+		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
+		Expect(actualCert.Issuer).NotTo(SatisfyAll(
+			HaveField("CommonName", "root-ca"),
+			HaveField("OrganizationalUnit", ContainElements("openshift")),
+		), "expected certificate not issued by an OpenShift root CA")
 	})
 })
 
