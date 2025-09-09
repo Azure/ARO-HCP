@@ -83,6 +83,33 @@ resourceGroups:
 9. covered in detail in the [Output templates and output chaining](#output-templates-and-output-chaining) section
 10. If `true`, a Bicep step is not allowed to declare any resources and can only provide output by inspecting `existing` resources. See details in the [output templates and output chaining](#output-templates-and-output-chaining) and [dry runs](#dry-runs) sections.
 
+Alternatively, you can use the `ARMStack` action type, which uses an Azure Deployment Stack instead of a direct ARM deployment. A deployment stack keeps track of the resources it created across different scopes (RGs, subscriptions). This is useful in case resources need to be automatically deleted if they were removed from the bicep template.
+
+> [!NOTE] ARM deployments with `Completion` runmode try to achieve something similar to a deployment stacks, but are more fragile. Their granularity of the deletion is not as fine-grained as with a deployment stack. They acts on the entire resource group and clean up anything not managed by the current bicep template, which is dangerous in case multiple bicep templates manage resources in the same resource group.
+
+```yaml
+$schema: "pipeline.schema.v1"
+
+serviceGroup: Microsoft.Azure.ARO.HCP.Region
+rolloutName: Region Rollout
+resourceGroups:
+- name: regional
+  resourceGroup: {{ .regionRG }}
+  subscription: {{ .svc.subscription.key }}
+  steps:
+  - name: region
+    action: ARMStack
+    <same as ARM step>
+    actionOnUnmanage: delete|detach
+```
+
+The `actionOnUnmanage` property is used to specify the action to be taken when a resource vanishes from the bicep template.
+
+* `delete`: The resource will be deleted.
+* `detach`: The will not be deleted, but will be detached from the deployment stack.
+
+[!IMPORTANT] Deployment stacks don't support dry-runs with `what-if`. So keep using the `ARM` action type for `outputOnly: true` steps.
+
 ## Cross-Subscription deployments
 
 By default, a Bicep template deployment runs within a specified subscription and resource group. However, when a deployment needs to reach out to another resource group or subscription, modules are the mechanism to switch the deployment scope. Declaring a module and specifying its scope results in the creation of a separate Azure deployment within the targeted subscription and resource group. This approach is essential in various scenarios because the infrastructure for ARO HCP spreads accross various subscriptions and resourcegroups. You can find details about this in [SD-DDR-0051: ARO HCP Azure Deployment Layout](https://docs.google.com/document/d/1a5d-LPbgYMozLyRle7sJRI1h10zDurqFT_jnMGWwRwY/edit?tab=t.0#heading=h.hzsa87ps5uhr).
@@ -139,7 +166,7 @@ resourceGroups:
   subscription: {{ .svc.subscription.key }}
   steps:
   - name: region
-    action: ARM
+    action: ARMStack
     template: templates/region.bicep
     parameters: configurations/region.tmpl.bicepparam
     variables:
