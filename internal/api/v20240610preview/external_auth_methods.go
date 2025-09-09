@@ -235,7 +235,8 @@ func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) generated.E
 		return generated.ExternalAuthClaimProfile{}
 	}
 	return generated.ExternalAuthClaimProfile{
-		Mappings: api.PtrOrNil(newTokenClaimMappingsProfile(&from.Mappings)),
+		Mappings:        api.PtrOrNil(newTokenClaimMappingsProfile(&from.Mappings)),
+		ValidationRules: newTokenClaimValidationRules(from.ValidationRules),
 	}
 }
 
@@ -267,6 +268,30 @@ func newGroupClaimProfile(from *api.GroupClaimProfile) generated.GroupClaimProfi
 	return generated.GroupClaimProfile{
 		Claim:  api.PtrOrNil(from.Claim),
 		Prefix: api.PtrOrNil(from.Prefix),
+	}
+}
+
+func newTokenClaimValidationRules(from []api.TokenClaimValidationRule) []*generated.TokenClaimValidationRule {
+	if from == nil {
+		return nil
+	}
+	out := make([]*generated.TokenClaimValidationRule, 0, len(from))
+	for _, rule := range from {
+		out = append(out, &generated.TokenClaimValidationRule{
+			Type:          api.PtrOrNil(generated.TokenValidationRuleType(rule.Type)),
+			RequiredClaim: api.PtrOrNil(newTokenRequiredClaim(&rule.RequiredClaim)),
+		})
+	}
+	return out
+}
+
+func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequiredClaim {
+	if from == nil {
+		return generated.TokenRequiredClaim{}
+	}
+	return generated.TokenRequiredClaim{
+		Claim:         api.PtrOrNil(from.Claim),
+		RequiredValue: api.PtrOrNil(from.RequiredValue),
 	}
 }
 
