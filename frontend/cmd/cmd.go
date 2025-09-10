@@ -48,7 +48,6 @@ import (
 
 type FrontendOpts struct {
 	auditLogQueueSize  int
-	auditTCPAddress    string
 	auditConnectSocket bool
 
 	clustersServiceURL            string
@@ -85,7 +84,6 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&opts.auditTCPAddress, "audit-tcp-address", os.Getenv("AUDIT_TCP_ADDRESS"), "OTEL Address to send audit logging to")
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
 	rootCmd.Flags().BoolVar(&opts.auditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket instead")
 
@@ -145,7 +143,7 @@ func (opts *FrontendOpts) Run() error {
 		arm.GetAzureLocation()))
 
 	auditClient, err := audit.NewOtelAuditClient(
-		audit.CreateConn(opts.auditConnectSocket, opts.auditTCPAddress),
+		audit.CreateConn(opts.auditConnectSocket),
 		base.WithLogger(logger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
@@ -156,8 +154,6 @@ func (opts *FrontendOpts) Run() error {
 
 	if opts.auditConnectSocket {
 		logger.Info("audit logging to default_fluent.socket")
-	} else if opts.auditTCPAddress != "" {
-		logger.Info(fmt.Sprintf("audit logging to %s", opts.auditTCPAddress))
 	}
 
 	// Initialize the global OpenTelemetry tracer.

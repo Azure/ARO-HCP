@@ -220,15 +220,11 @@
       "additionalProperties": false,
       "type": "object",
       "properties": {
-        "tcpAddress": {
-          "type": "string"
-        },
         "connectSocket": {
           "type": "boolean"
         }
       },
       "required": [
-        "tcpAddress",
         "connectSocket"
       ]
     },
