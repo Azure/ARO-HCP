@@ -193,21 +193,14 @@ def validate_dashboard_errors(data) -> Optional[str]:
         return "Dashboard does not have a datasource of type prometheus"
 
 
-def validate_dashboard_warnings(data) -> list[str]:
-    warnings = []
-
+def validate_dashboard_warnings(data) -> Optional[str]:
     dashboard = data.get("dashboard")
     templating = dashboard.get("templating", {})
     variables = templating.get("list", [])
     var_datasource = next((v for v in variables if v.get("name") == "datasource"), {})
 
-    var_datasource_regex = var_datasource.get("regex")
-    if not var_datasource_regex:
-        warnings.append(
-            "Dashboard does not have a regex set for the datasource variable"
-        )
-
-    return warnings
+    if not var_datasource.get("regex"):
+        return "Dashboard does not have a regex set for the datasource variable"
 
 
 def print_tabulated(rows: list[tuple[any, any, any]]):
@@ -257,12 +250,11 @@ def main():
                     (local_folder["path"], dashboard["dashboard"]["title"], error)
                 )
 
-            warnings = validate_dashboard_warnings(dashboard)
-            if warnings:
-                for warning in warnings:
-                    dashboard_validation_warnings.append(
-                        (local_folder["path"], dashboard["dashboard"]["title"], warning)
-                    )
+            warning = validate_dashboard_warnings(dashboard)
+            if warning:
+                dashboard_validation_warnings.append(
+                    (local_folder["path"], dashboard["dashboard"]["title"], warning)
+                )
 
             temp_file = tempfile.NamedTemporaryFile()
             create_dashboard(
