@@ -302,13 +302,14 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 }
 
 func convertCIDRBlockAllowAccessRPToCS(in api.APIProfile) *arohcpv1alpha1.CIDRBlockAccessBuilder {
+	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 	if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
-		return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess)
+	} else {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
 	}
-	return nil
+	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess)
 }
 
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
