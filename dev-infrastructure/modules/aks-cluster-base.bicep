@@ -395,17 +395,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           rotationPollInterval: '1h'
         }
       }
-      omsagent: (logAnalyticsWorkspaceId != '')
-        ? {
-            enabled: true
-            config: {
-              logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
-              useAADAuth: 'true'
-            }
-          }
-        : {
-            enabled: false
-          }
+      omsagent: {
+        enabled: false
+      }
     }
     agentPoolProfiles: [
       {
@@ -470,6 +462,15 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
           metricLabelsAllowlist: metricLabelsAllowlist
           metricAnnotationsAllowList: metricAnnotationsAllowList
         }
+      }
+      containerInsights: (logAnalyticsWorkspaceId != '') ? {
+        enabled: true
+        logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
+        windowsHostLogs: {
+          enabled: false
+        }
+      } : {
+        enabled: false
       }
     }
     disableLocalAccounts: true

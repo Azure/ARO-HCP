@@ -6,6 +6,9 @@ param dcrStreams array = [
   'Microsoft-ContainerLogV2'
   'Microsoft-KubeEvents'
   'Microsoft-KubePodInventory'
+  'Microsoft-KubeNodeInventory'
+  'Microsoft-KubeServices'
+  'Microsoft-InsightsMetrics'
 ]
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-03-01' existing = {
@@ -45,6 +48,9 @@ resource aksClusterDcr 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
               interval: '1m'
               namespaceFilteringMode: 'Off'
               enableContainerLogV2: true
+              enableNodeInventory: true
+              enableKubeServices: true
+              enableInsightsMetrics: true
             }
           }
           extensionName: 'ContainerInsights'
