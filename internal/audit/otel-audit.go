@@ -45,9 +45,7 @@ func (c *AuditClient) Send(ctx context.Context, msg msgs.Msg, options ...base.Se
 	return c.client.Send(ctx, msg)
 }
 
-func NewOtelAuditClient(connectSocket bool, remoteAddress string, options ...base.Option) (*AuditClient, error) {
-	var createConn audit.CreateConn
-
+func CreateConn(connectSocket bool, remoteAddress string) (createConn audit.CreateConn) {
 	switch {
 	case connectSocket:
 		createConn = func() (conn.Audit, error) {
@@ -62,7 +60,10 @@ func NewOtelAuditClient(connectSocket bool, remoteAddress string, options ...bas
 			return conn.NewNoOP(), nil
 		}
 	}
+	return createConn
+}
 
+func NewOtelAuditClient(createConn audit.CreateConn, options ...base.Option) (*AuditClient, error) {
 	client, err := audit.New(createConn, audit.WithAuditOptions(options...))
 	if err != nil {
 		return nil, err

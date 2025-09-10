@@ -145,8 +145,7 @@ func (opts *FrontendOpts) Run() error {
 		arm.GetAzureLocation()))
 
 	auditClient, err := audit.NewOtelAuditClient(
-		opts.auditConnectSocket,
-		opts.auditTCPAddress,
+		audit.CreateConn(opts.auditConnectSocket, opts.auditTCPAddress),
 		base.WithLogger(logger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,

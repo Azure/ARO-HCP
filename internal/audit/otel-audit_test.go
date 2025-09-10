@@ -42,12 +42,12 @@ func TestConnect(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
 	f := strings.Split(testServer.URL, "/")
-	_, err := NewOtelAuditClient(true, "")
+	_, err := NewOtelAuditClient(CreateConn(true, ""))
 	require.Error(t, err, "failed to connect to audit server(/var/run/mdsd/default_fluent.socket): dial unix /var/run/mdsd/default_fluent.socket: connect: no such file or directory")
 
-	_, err = NewOtelAuditClient(false, f[2])
+	_, err = NewOtelAuditClient(CreateConn(false, f[2]))
 	require.NoError(t, err)
 
-	_, err = NewOtelAuditClient(false, "127.0.0.1:12345")
+	_, err = NewOtelAuditClient(CreateConn(false, "127.0.0.1:12345"))
 	require.Error(t, err, "error creating audit client dial tcp 127.0.0.1:12345: connect: connection refused")
 }
