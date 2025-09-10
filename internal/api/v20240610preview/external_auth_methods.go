@@ -79,21 +79,32 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	}
 }
 
+func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
+	flags, ok := externalAuthVisibilityMap[path]
+	return flags, ok
+}
+
+func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
+	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
+	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
+}
+
 func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
-	var normalized api.HCPOpenShiftClusterExternalAuth
 	var errorDetails []arm.CloudErrorBody
 
-	// Pass the embedded ExternalAuth struct so the
-	// struct field names match the externalAuthStructTagMap keys.
-	errorDetails = api.ValidateVisibility(
-		c.ExternalAuth,
-		current.(*ExternalAuth).ExternalAuth,
-		externalAuthStructTagMap, updating)
+	errorDetails = c.ValidateVisibility(current, updating)
 
-	c.Normalize(&normalized)
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized api.HCPOpenShiftClusterExternalAuth
 
-	// Run additional validation on the "normalized" cluster model.
-	errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+		c.Normalize(&normalized)
+
+		// Run additional validation on the "normalized" cluster model.
+		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+	}
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)
@@ -186,8 +197,11 @@ type HcpOpenShiftClusterExternalAuth struct {
 	generated.ExternalAuth
 }
 
-func newExternalAuthCondition(from *api.ExternalAuthCondition) *generated.ExternalAuthCondition {
-	return &generated.ExternalAuthCondition{
+func newExternalAuthCondition(from *api.ExternalAuthCondition) generated.ExternalAuthCondition {
+	if from == nil {
+		return generated.ExternalAuthCondition{}
+	}
+	return generated.ExternalAuthCondition{
 		Type:    api.PtrOrNil(generated.ExternalAuthConditionType(from.Type)),
 		Status:  api.PtrOrNil(generated.StatusType(from.Status)),
 		Reason:  api.PtrOrNil(from.Reason),
@@ -195,33 +209,89 @@ func newExternalAuthCondition(from *api.ExternalAuthCondition) *generated.Extern
 	}
 }
 
-func newTokenIssuerProfile(from *api.TokenIssuerProfile) *generated.TokenIssuerProfile {
-	return &generated.TokenIssuerProfile{
+func newTokenIssuerProfile(from *api.TokenIssuerProfile) generated.TokenIssuerProfile {
+	if from == nil {
+		return generated.TokenIssuerProfile{}
+	}
+	return generated.TokenIssuerProfile{
 		URL:       api.PtrOrNil(from.URL),
 		Audiences: api.StringSliceToStringPtrSlice(from.Audiences),
 		CA:        api.PtrOrNil(from.CA),
 	}
 }
 
-func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) *generated.ExternalAuthClaimProfile {
-	var groups *generated.GroupClaimProfile
-
-	if from.Mappings.Groups != nil {
-		groups = &generated.GroupClaimProfile{
-			Claim:  api.PtrOrNil(from.Mappings.Groups.Claim),
-			Prefix: api.PtrOrNil(from.Mappings.Groups.Prefix),
-		}
+func newExternalAuthClientComponent(from *api.ExternalAuthClientComponentProfile) generated.ExternalAuthClientComponentProfile {
+	if from == nil {
+		return generated.ExternalAuthClientComponentProfile{}
 	}
+	return generated.ExternalAuthClientComponentProfile{
+		Name:                api.PtrOrNil(from.Name),
+		AuthClientNamespace: api.PtrOrNil(from.AuthClientNamespace),
+	}
+}
 
-	return &generated.ExternalAuthClaimProfile{
-		Mappings: &generated.TokenClaimMappingsProfile{
-			Username: &generated.UsernameClaimProfile{
-				Claim:        api.PtrOrNil(from.Mappings.Username.Claim),
-				Prefix:       api.PtrOrNil(from.Mappings.Username.Prefix),
-				PrefixPolicy: api.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.Mappings.Username.PrefixPolicy)),
-			},
-			Groups: groups,
-		},
+func newExternalAuthClaimProfile(from *api.ExternalAuthClaimProfile) generated.ExternalAuthClaimProfile {
+	if from == nil {
+		return generated.ExternalAuthClaimProfile{}
+	}
+	return generated.ExternalAuthClaimProfile{
+		Mappings:        api.PtrOrNil(newTokenClaimMappingsProfile(&from.Mappings)),
+		ValidationRules: newTokenClaimValidationRules(from.ValidationRules),
+	}
+}
+
+func newTokenClaimMappingsProfile(from *api.TokenClaimMappingsProfile) generated.TokenClaimMappingsProfile {
+	if from == nil {
+		return generated.TokenClaimMappingsProfile{}
+	}
+	return generated.TokenClaimMappingsProfile{
+		Username: api.PtrOrNil(newUsernameClaimProfile(&from.Username)),
+		Groups:   api.PtrOrNil(newGroupClaimProfile(from.Groups)),
+	}
+}
+
+func newUsernameClaimProfile(from *api.UsernameClaimProfile) generated.UsernameClaimProfile {
+	if from == nil {
+		return generated.UsernameClaimProfile{}
+	}
+	return generated.UsernameClaimProfile{
+		Claim:        api.PtrOrNil(from.Claim),
+		Prefix:       api.PtrOrNil(from.Prefix),
+		PrefixPolicy: api.PtrOrNil(generated.UsernameClaimPrefixPolicy(from.PrefixPolicy)),
+	}
+}
+
+func newGroupClaimProfile(from *api.GroupClaimProfile) generated.GroupClaimProfile {
+	if from == nil {
+		return generated.GroupClaimProfile{}
+	}
+	return generated.GroupClaimProfile{
+		Claim:  api.PtrOrNil(from.Claim),
+		Prefix: api.PtrOrNil(from.Prefix),
+	}
+}
+
+func newTokenClaimValidationRules(from []api.TokenClaimValidationRule) []*generated.TokenClaimValidationRule {
+	if from == nil {
+		return nil
+	}
+	out := make([]*generated.TokenClaimValidationRule, 0, len(from))
+	for _, rule := range from {
+		out = append(out, &generated.TokenClaimValidationRule{
+			Type:          api.PtrOrNil(generated.TokenValidationRuleType(rule.Type)),
+			RequiredClaim: api.PtrOrNil(newTokenRequiredClaim(&rule.RequiredClaim)),
+		})
+	}
+	return out
+}
+
+func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequiredClaim {
+	if from == nil {
+		return generated.TokenRequiredClaim{}
+	}
+	return generated.TokenRequiredClaim{
+		Claim:         api.PtrOrNil(from.Claim),
+		RequiredValue: api.PtrOrNil(from.RequiredValue),
 	}
 }
 
@@ -232,35 +302,22 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 
 	out := &ExternalAuth{
 		generated.ExternalAuth{
-			ID:   api.PtrOrNil(from.ID),
-			Name: api.PtrOrNil(from.Name),
-			Type: api.PtrOrNil(from.Type),
+			ID:         api.PtrOrNil(from.ID),
+			Name:       api.PtrOrNil(from.Name),
+			Type:       api.PtrOrNil(from.Type),
+			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
-				Condition:         newExternalAuthCondition(&from.Properties.Condition),
-				Claim:             newExternalAuthClaimProfile(&from.Properties.Claim),
+				Condition:         api.PtrOrNil(newExternalAuthCondition(&from.Properties.Condition)),
+				Issuer:            api.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
+				Claim:             api.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
 		},
-	}
-	out.Properties.Issuer = newTokenIssuerProfile(&from.Properties.Issuer)
-
-	if from.SystemData != nil {
-		out.SystemData = &generated.SystemData{
-			CreatedBy:          api.PtrOrNil(from.SystemData.CreatedBy),
-			CreatedByType:      api.PtrOrNil(generated.CreatedByType(from.SystemData.CreatedByType)),
-			CreatedAt:          from.SystemData.CreatedAt,
-			LastModifiedBy:     api.PtrOrNil(from.SystemData.LastModifiedBy),
-			LastModifiedByType: api.PtrOrNil(generated.CreatedByType(from.SystemData.LastModifiedByType)),
-			LastModifiedAt:     from.SystemData.LastModifiedAt,
-		}
 	}
 
 	for _, client := range from.Properties.Clients {
 		out.Properties.Clients = append(out.Properties.Clients, &generated.ExternalAuthClientProfile{
-			Component: &generated.ExternalAuthClientComponentProfile{
-				Name:                api.PtrOrNil(client.Component.Name),
-				AuthClientNamespace: api.PtrOrNil(client.Component.AuthClientNamespace),
-			},
+			Component:   api.PtrOrNil(newExternalAuthClientComponent(&client.Component)),
 			ClientID:    api.PtrOrNil(client.ClientID),
 			ExtraScopes: api.StringSliceToStringPtrSlice(client.ExtraScopes),
 			Type:        api.PtrOrNil(generated.ExternalAuthClientType(client.Type)),

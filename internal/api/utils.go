@@ -15,10 +15,17 @@
 package api
 
 import (
+	"encoding/json"
 	"iter"
+	"net/http"
 	"reflect"
 	"slices"
 	"strings"
+
+	"dario.cat/mergo"
+	jsonpatch "github.com/evanphx/json-patch"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -39,7 +46,7 @@ func isEmptyValue(v reflect.Value) bool {
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64,
-		reflect.Interface, reflect.Pointer:
+		reflect.Interface, reflect.Pointer, reflect.Struct:
 		return v.IsZero()
 	}
 	return false
@@ -170,4 +177,185 @@ func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
 			}
 		}
 	}
+}
+
+// CopyReadOnlyValues copies from src any empty values for read-only fields in dst.
+func CopyReadOnlyValues[T any](src VersionedCreatableResource[T], dst VersionedCreatableResource[T]) {
+	var recurse func(sv, dv reflect.Value, path string)
+
+	// For nullable types, we don't know ahead of time if the element
+	// type has any read-only fields. So we recurse with a test value
+	// and if the test value comes back with a non-zero value, we set
+	// dv to it.
+
+	recurse = func(sv, dv reflect.Value, path string) {
+		switch sv.Kind() {
+		case reflect.Pointer, reflect.Interface:
+			if !sv.IsNil() && dv.CanSet() {
+				var elemPtr reflect.Value
+				elemType := sv.Type().Elem()
+				if dv.IsNil() {
+					elemPtr = reflect.New(elemType)
+				} else {
+					elemPtr = dv
+				}
+				recurse(sv.Elem(), elemPtr.Elem(), path)
+				if !elemPtr.Elem().IsZero() {
+					dv.Set(elemPtr)
+				}
+			}
+
+		case reflect.Map:
+			if !sv.IsNil() && dv.CanSet() {
+				var newMap reflect.Value
+				elemType := sv.Type().Elem()
+				if dv.IsNil() {
+					newMap = reflect.MakeMap(sv.Type())
+				} else {
+					newMap = dv
+				}
+
+				iter := sv.MapRange()
+				for iter.Next() {
+					elemPtr := reflect.New(elemType)
+					recurse(iter.Value(), elemPtr.Elem(), path)
+					if !elemPtr.Elem().IsZero() {
+						newMap.SetMapIndex(iter.Key(), elemPtr.Elem())
+					}
+				}
+
+				if newMap.Len() > 0 {
+					dv.Set(newMap)
+				}
+			}
+
+		// FIXME Our current APIs don't include any read-only fields in
+		//       slice elements, but this is how I THINK it would work.
+		//       Needs more testing. Maybe just avoid this scenario.
+		case reflect.Slice:
+			if !sv.IsNil() && dv.CanSet() {
+				var newSlice reflect.Value
+				elemType := sv.Type().Elem()
+				if dv.IsNil() {
+					newSlice = reflect.MakeSlice(sv.Type(), 0, sv.Cap())
+				} else {
+					newSlice = dv
+				}
+
+				for i := 0; i < sv.Len(); i++ {
+					elemPtr := reflect.New(elemType)
+					recurse(sv.Index(i), elemPtr.Elem(), path)
+					if !elemPtr.Elem().IsZero() {
+						newSlice = reflect.Append(newSlice, elemPtr.Elem())
+					}
+				}
+
+				if newSlice.Len() > 0 {
+					dv.Set(newSlice)
+				}
+			}
+
+		case reflect.Struct:
+			var numExportedFields int
+
+			for i := 0; i < sv.NumField(); i++ {
+				structField := sv.Type().Field(i)
+
+				if structField.IsExported() {
+					numExportedFields++
+					if structField.Anonymous {
+						recurse(sv.Field(i), dv.Field(i), path)
+					} else {
+						recurse(sv.Field(i), dv.Field(i), join(path, structField.Name))
+					}
+				}
+			}
+
+			// Handle struct types with no exported fields as if
+			// it were a scalar type. Talking to you, time.Time.
+			if numExportedFields == 0 && dv.IsZero() && dv.CanSet() {
+				flags, ok := src.GetVisibility(path)
+				if ok && flags.ReadOnly() {
+					dv.Set(sv)
+				}
+			}
+
+		default:
+			if dv.IsZero() && dv.CanSet() {
+				flags, ok := src.GetVisibility(path)
+				if ok && flags.ReadOnly() {
+					dv.Set(sv)
+				}
+			}
+		}
+	}
+
+	sv := reflect.ValueOf(src).Elem()
+	dv := reflect.ValueOf(dst).Elem()
+	if sv.Type() == dv.Type() {
+		recurse(sv, dv, "")
+	}
+}
+
+// ApplyRequestBody applies a JSON request body to the value pointed to by v.
+// If the request method is PATCH, the request body is applied to v using JSON
+// Merge Patch (RFC 7396) semantics. Otherwise the request body is unmarshalled
+// directly to v.
+func ApplyRequestBody(request *http.Request, body []byte, v any) *arm.CloudError {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return arm.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
+	}
+
+	switch request.Method {
+	case http.MethodPatch:
+		originalData, err := json.Marshal(v)
+		if err != nil {
+			return arm.NewInternalServerError()
+		}
+
+		modifiedData, err := jsonpatch.MergePatch(originalData, body)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+
+		// Reset *v to its zero value.
+		rv.Elem().SetZero()
+
+		err = json.Unmarshal(modifiedData, v)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+
+	default:
+		// We need to unmarshal in two phases because Unmarshal in
+		// encoding/json (v1) replaces Go maps instead of merging JSON
+		// keys into them. This is critical for UserAssignedIdentities.
+		//
+		// First we unmarshal the request body into a newly-allocated
+		// struct of v's type, then merge the allocated struct into v.
+		//
+		// FIXME encoding/json/v2 claims to handle this better but is
+		//       currently experimental. Its "Unmarshal" docs state:
+		//
+		//      "Maps are not cleared. If the Go map is nil, then a
+		//       new map is allocated to decode into. If the decoded
+		//       key matches an existing Go map entry, the entry
+		//       value is reused by decoding the JSON object value
+		//       into it."
+
+		src := reflect.New(rv.Elem().Type()).Interface()
+
+		err := json.Unmarshal(body, src)
+		if err != nil {
+			return arm.NewInvalidRequestContentError(err)
+		}
+
+		err = mergo.Merge(v, src, mergo.WithOverride)
+		if err != nil {
+			return arm.NewInternalServerError()
+		}
+	}
+
+	return nil
 }
