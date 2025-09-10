@@ -163,6 +163,67 @@ def delete_stale_dashboard(
         g.delete_dashboard(d["title"])
 
 
+def validate_dashboard_errors(data) -> list[str]:
+    errors = []
+
+    dashboard = data.get("dashboard")
+    if not dashboard:
+        errors.append("Invalid dashboard, missing 'dashboard' key")
+        return errors
+
+    title = dashboard.get("title")
+    if not title:
+        errors.append("Invalid dashboard, missing 'title' key")
+        return errors
+
+    templating = dashboard.get("templating", {})
+    if not templating:
+        errors.append("Dashboard is missing 'templating' key")
+        return errors
+
+    variables = templating.get("list", [])
+    if not variables:
+        errors.append("Dashboard does not have any variables set")
+        return errors
+
+    var_datasource = next((v for v in variables if v.get("query") == "prometheus"), {})
+    if not var_datasource:
+        errors.append("Dashboard does not have a datasource of type prometheus")
+
+    return errors
+
+
+def validate_dashboard_warnings(data) -> list[str]:
+    warnings = []
+
+    dashboard = data.get("dashboard")
+    templating = dashboard.get("templating", {})
+    variables = templating.get("list", [])
+    var_datasource = next((v for v in variables if v.get("name") == "datasource"), {})
+
+    var_datasource_regex = var_datasource.get("regex")
+    if not var_datasource_regex:
+        warnings.append(
+            "Dashboard does not have a regex set for the datasource variable"
+        )
+
+    return warnings
+
+
+def print_tabulated(rows: list[tuple[any, any, any]]):
+    # compute column widths
+    widths = [max(len(str(x)) for x in col) for col in zip(*rows)]
+
+    # build table lines
+    lines = []
+    for row in rows:
+        line = " | ".join(str(val).ljust(w) for val, w in zip(row, widths))
+        lines.append(line)
+
+    table = "\n".join(lines)
+    print(table)
+
+
 def main():
     RESOURCEGROUP = os.getenv("GLOBAL_RESOURCEGROUP", "global")
     DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
@@ -180,12 +241,30 @@ def main():
 
     dashboards_visited = set()
 
+    dashboard_validation_errors: list[tuple[any, any, any]] = []
+    dashboard_validation_warnings: list[tuple[any, any, any]] = []
+
     for local_folder in config["grafana-dashboards"]["dashboardFolders"]:
         folder_uid = get_or_create_folder(local_folder["name"], g, existing_folders)
 
         for dashboard in fs_get_dashboards(
             os.path.join(WORK_DIR, local_folder["path"])
         ):
+
+            errors = validate_dashboard_errors(dashboard)
+            if errors:
+                for error in errors:
+                    dashboard_validation_errors.append(
+                        (local_folder["path"], dashboard["dashboard"]["title"], error)
+                    )
+
+            warnings = validate_dashboard_warnings(dashboard)
+            if warnings:
+                for warning in warnings:
+                    dashboard_validation_warnings.append(
+                        (local_folder["path"], dashboard["dashboard"]["title"], warning)
+                    )
+
             temp_file = tempfile.NamedTemporaryFile()
             create_dashboard(
                 temp_file.name, dashboard, folder_uid, existing_dashboards, g
@@ -202,6 +281,15 @@ def main():
             g,
             config["grafana-dashboards"]["azureManagedFolders"],
         )
+
+    if dashboard_validation_warnings:
+        print("The following dashboards have warnings:")
+        print_tabulated(dashboard_validation_warnings)
+
+    if dashboard_validation_errors:
+        print("The following dashboards have errors and need to be fixed:")
+        print_tabulated(dashboard_validation_errors)
+        exit(1)
 
 
 if __name__ == "__main__":
