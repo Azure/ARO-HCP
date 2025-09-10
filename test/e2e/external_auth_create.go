@@ -60,7 +60,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			By("creating a resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth-cluster", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "external-auth-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a customer-infra")
