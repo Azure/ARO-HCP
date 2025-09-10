@@ -813,9 +813,9 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		return err
 	}
 
-	groupsClaim := arohcpv1alpha1.NewGroupsClaim()
+	var groupsClaim *arohcpv1alpha1.GroupsClaimBuilder
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		groupsClaim.
+		groupsClaim = arohcpv1alpha1.NewGroupsClaim().
 			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
 			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix)
 	}
