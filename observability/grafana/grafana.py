@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+from typing import Optional
 
 
 def run_command(command):
@@ -163,34 +164,33 @@ def delete_stale_dashboard(
         g.delete_dashboard(d["title"])
 
 
-def validate_dashboard_errors(data) -> list[str]:
-    errors = []
-
+def validate_dashboard_errors(data) -> Optional[str]:
     dashboard = data.get("dashboard")
     if not dashboard:
-        errors.append("Invalid dashboard, missing 'dashboard' key")
-        return errors
+        return "Invalid dashboard, missing 'dashboard' key"
 
     title = dashboard.get("title")
     if not title:
-        errors.append("Invalid dashboard, missing 'title' key")
-        return errors
+        return "Invalid dashboard, missing 'title' key"
+
+    uid = dashboard.get("uid")
+    if not uid:
+        return "Invalid dashboard, missing 'uid' key"
+
+    if len(uid) > 40:
+        return f"Dashboard uid '{uid}' is too long, must be less than 40 characters"
 
     templating = dashboard.get("templating", {})
     if not templating:
-        errors.append("Dashboard is missing 'templating' key")
-        return errors
+        return "Dashboard is missing 'templating' key"
 
     variables = templating.get("list", [])
     if not variables:
-        errors.append("Dashboard does not have any variables set")
-        return errors
+        return "Dashboard does not have any variables set"
 
     var_datasource = next((v for v in variables if v.get("query") == "prometheus"), {})
     if not var_datasource:
-        errors.append("Dashboard does not have a datasource of type prometheus")
-
-    return errors
+        return "Dashboard does not have a datasource of type prometheus"
 
 
 def validate_dashboard_warnings(data) -> list[str]:
@@ -251,12 +251,11 @@ def main():
             os.path.join(WORK_DIR, local_folder["path"])
         ):
 
-            errors = validate_dashboard_errors(dashboard)
-            if errors:
-                for error in errors:
-                    dashboard_validation_errors.append(
-                        (local_folder["path"], dashboard["dashboard"]["title"], error)
-                    )
+            error = validate_dashboard_errors(dashboard)
+            if error:
+                dashboard_validation_errors.append(
+                    (local_folder["path"], dashboard["dashboard"]["title"], error)
+                )
 
             warnings = validate_dashboard_warnings(dashboard)
             if warnings:
