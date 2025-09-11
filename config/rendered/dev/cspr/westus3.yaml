@@ -480,9 +480,11 @@ monitoring:
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:
+    commonName: ""
     issuer: OneCertV2-PrivateCA
     manage: false
     name: msi-refresher
+    sanDnsNames: []
   firstPartyAppClientId: ""
   image:
     digest: ""
