@@ -162,7 +162,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	cloudError = versionedRequestExternalAuth.ValidateStatic(versionedCurrentExternalAuth, updating, request)
+	cloudError = versionedRequestExternalAuth.ValidateStatic(versionedCurrentExternalAuth, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)

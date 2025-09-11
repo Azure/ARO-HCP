@@ -15,8 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -166,7 +164,7 @@ func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api
 	return api.ValidateVisibility(h, current.(*NodePool), nodePoolVisibilityMap, structTagMap, updating)
 }
 
-func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
+func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool) *arm.CloudError {
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = h.ValidateVisibility(current, updating)
@@ -180,7 +178,7 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 		h.Normalize(&normalized)
 
 		// Run additional validation on the "normalized" node pool model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
+		errorDetails = append(errorDetails, normalized.Validate(validate, cluster)...)
 	}
 
 	// Returns nil if errorDetails is empty.

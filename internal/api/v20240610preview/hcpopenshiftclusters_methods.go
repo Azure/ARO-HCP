@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -345,7 +344,7 @@ func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableR
 	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterVisibilityMap, structTagMap, updating)
 }
 
-func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
+func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool) *arm.CloudError {
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = c.ValidateVisibility(current, updating)
@@ -359,7 +358,7 @@ func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCl
 		c.Normalize(&normalized)
 
 		// Run additional validation on the "normalized" cluster model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+		errorDetails = append(errorDetails, normalized.Validate(validate)...)
 	}
 
 	// Returns nil if errorDetails is empty.

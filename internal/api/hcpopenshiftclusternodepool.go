@@ -16,7 +16,6 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -162,8 +161,8 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(validate *validator.Validate, request *http.Request, cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, nodePool)
+func (nodePool *HCPOpenShiftClusterNodePool) Validate(validate *validator.Validate, cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+	errorDetails := ValidateRequest(validate, nodePool)
 
 	// Proceed with complex, multi-field validation only if single-field
 	// validation has passed. This avoids running further checks on data
