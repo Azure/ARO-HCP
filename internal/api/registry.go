@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -76,6 +77,8 @@ type VersionedHCPOpenShiftVersion VersionedResource
 
 type Version interface {
 	fmt.Stringer
+
+	GetValidator() *validator.Validate
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
