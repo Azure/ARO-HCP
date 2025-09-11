@@ -117,10 +117,6 @@ param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
 param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
 param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 
-param manageMsiRefresherCertificate = {{ .msiCredentialsRefresher.certificate.manage }}
-param msiRefresherCertificateName = '{{ .msiCredentialsRefresher.certificate.name }}'
-param msiRefresherCertificateIssuer = '{{ .msiCredentialsRefresher.certificate.issuer }}'
-
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
