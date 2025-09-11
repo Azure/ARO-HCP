@@ -1352,7 +1352,9 @@
           "required": [
             "name",
             "issuer",
-            "manage"
+            "manage",
+            "commonName",
+            "sanDnsNames"
           ]
         }
       },
