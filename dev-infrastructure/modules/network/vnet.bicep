@@ -75,7 +75,9 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
         az resource tag \
           --tags stampcreatorserviceinfo=true \
           --resource-group "${VNET_RG}" \
-          --name "${VNET_NAME}" --resource-type Microsoft.Network/virtualnetworks
+          --name "${VNET_NAME}" \
+          --resource-type Microsoft.Network/virtualnetworks \
+          --api-version 2024-05-01
       fi
     '''
     timeout: 'PT5M'
