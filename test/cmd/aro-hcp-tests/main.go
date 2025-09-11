@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 
+	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -27,7 +28,7 @@ import (
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	// If using ginkgo, import your tests here
-	_ "github.com/Azure/ARO-HCP/test/e2e"
+	e2eTests "github.com/Azure/ARO-HCP/test/e2e"
 )
 
 func main() {
@@ -69,11 +70,43 @@ func main() {
 		Parallelism: 15,
 	})
 
+	ext.AddSuite(e.Suite{
+		Name: "per-run-cluster-tests/parallel",
+		Qualifiers: []string{
+			// Remember that the label constants are (currently) slices, not items.
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireHappyPathInfra[0]),
+		},
+		Parallelism: 15,
+	})
+
+	ext.AddSuite(e.Suite{
+		Name: "per-run-cluster-validation/parallel",
+		Qualifiers: []string{
+			// Remember that the label constants are (currently) slices, not items.
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.TeardownValidation[0]),
+		},
+		Parallelism: 15,
+	})
+
 	// If using Ginkgo, build test specs automatically
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
+
+	specsHappyPath := specs.Select(et.HasLabel(labels.RequireHappyPathInfra[0]))
+	specsHappyPath.AddBeforeAll(func() {
+		if err = e2eTests.Setup(); err != nil {
+			panic(err)
+		}
+	})
+
+	specsValidation := specs.Select(et.HasLabel(labels.TeardownValidation[0]))
+	specsValidation.AddBeforeAll(func() {
+		if err = e2eTests.Setup(); err != nil {
+			panic(err)
+		}
+	})
 
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
@@ -145,6 +178,7 @@ func main() {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 	root.AddCommand(NewDeleteExpiredResourceGroupsCommand())
+	root.AddCommand(NewRunHappyPathWithValidationsCommand())
 
 	if err := func() error {
 		return root.Execute()
