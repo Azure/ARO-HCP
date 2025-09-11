@@ -243,6 +243,10 @@ func (v version) MarshalHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) ([]by
 	return arm.MarshalJSON(v.NewHCPOpenShiftCluster(from))
 }
 
+func (c *HcpOpenShiftCluster) GetVersion() api.Version {
+	return versionedInterface
+}
+
 func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.ID != nil {
 		out.ID = *c.ID

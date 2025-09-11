@@ -26,6 +26,10 @@ type NodePool struct {
 	generated.NodePool
 }
 
+func (h *NodePool) GetVersion() api.Version {
+	return versionedInterface
+}
+
 func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
 		out.ID = *h.ID

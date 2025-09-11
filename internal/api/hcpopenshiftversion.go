@@ -32,3 +32,7 @@ type HCPOpenShiftVersionProperties struct {
 	Enabled            bool      `json:"enabled"`
 	EndOfLifeTimestamp time.Time `json:"endOfLifeTimestamp"`
 }
+
+func (version *HCPOpenShiftVersion) NewVersioned(versionedInterface Version) VersionedResource {
+	return versionedInterface.NewHCPOpenShiftVersion(version)
+}

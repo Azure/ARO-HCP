@@ -107,6 +107,10 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	}
 }
 
+func (nodePool *HCPOpenShiftClusterNodePool) NewVersioned(versionedInterface Version) VersionedResource {
+	return versionedInterface.NewHCPOpenShiftClusterNodePool(nodePool)
+}
+
 func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 

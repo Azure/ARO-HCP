@@ -26,6 +26,10 @@ type ExternalAuth struct {
 	generated.ExternalAuth
 }
 
+func (h *ExternalAuth) GetVersion() api.Version {
+	return versionedInterface
+}
+
 func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	if h.ID != nil {
 		out.ID = *h.ID

@@ -43,7 +43,16 @@ var (
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
+type Resource interface {
+	NewVersioned(versionedInterface Version) VersionedResource
+}
+
+type VersionedResource interface {
+	GetVersion() Version
+}
+
 type VersionedCreatableResource[T any] interface {
+	VersionedResource
 	Normalize(*T)
 	GetVisibility(path string) (VisibilityFlags, bool)
 	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody
@@ -64,7 +73,7 @@ type VersionedHCPOpenShiftClusterExternalAuth interface {
 	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
 }
 
-type VersionedHCPOpenShiftVersion interface{}
+type VersionedHCPOpenShiftVersion VersionedResource
 
 type Version interface {
 	fmt.Stringer
