@@ -320,7 +320,10 @@ func TestNodePoolValidate(t *testing.T) {
 			cluster := MinimumValidClusterTestCase()
 			resource := NodePoolTestCase(t, tt.tweaks)
 
-			actualErrors := resource.Validate(validate, cluster)
+			actualErrors := ValidateRequest(validate, resource)
+			if len(actualErrors) == 0 {
+				actualErrors = resource.Validate(cluster)
+			}
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)

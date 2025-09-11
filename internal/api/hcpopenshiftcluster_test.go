@@ -729,7 +729,10 @@ func TestClusterValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := ClusterTestCase(t, tt.tweaks)
 
-			actualErrors := resource.Validate(validate)
+			actualErrors := ValidateRequest(validate, resource)
+			if len(actualErrors) == 0 {
+				actualErrors = resource.Validate()
+			}
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {

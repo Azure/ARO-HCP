@@ -177,8 +177,15 @@ func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePo
 
 		h.Normalize(&normalized)
 
-		// Run additional validation on the "normalized" node pool model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, cluster)...)
+		errorDetails = api.ValidateRequest(h.GetVersion().GetValidator(), &normalized)
+
+		// Proceed with complex, multi-field validation only if single-field
+		// validation has passed. This avoids running further checks on data
+		// we already know to be invalid and prevents the response body from
+		// becoming overwhelming.
+		if len(errorDetails) == 0 {
+			errorDetails = normalized.Validate(cluster)
+		}
 	}
 
 	// Returns nil if errorDetails is empty.
