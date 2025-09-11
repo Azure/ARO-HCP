@@ -15,41 +15,36 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 var (
 	e2eSetup integration.SetupModel
 )
 
-func setup(ctx context.Context) error {
+func Setup() error {
 	// Use GinkgoLabelFilter to check for the 'requirenothing' label
 	if strings.Contains(GinkgoLabelFilter(), labels.RequireNothing[0]) {
 		// Skip loading the e2esetup file
 		e2eSetup = integration.SetupModel{} // zero value
 	} else {
 		var err error
-		e2eSetup, err = integration.LoadE2ESetupFile(os.Getenv("SETUP_FILEPATH"))
+		// Load pre created cluster setup file for per test cluster tests
+		setupFilePath := os.Getenv("SETUP_FILEPATH")
+		if setupFilePath == "" {
+			setupFilePath = filepath.Join("test", "e2e", "test-artifacts", "e2e-setup.json")
+		}
+		e2eSetup, err = integration.LoadE2ESetupFile(setupFilePath)
 		if err != nil {
-			if bicepName, found := os.LookupEnv("FALLBACK_TO_BICEP"); found {
-				// Fallback: create a complete HCP cluster using bicep
-				log.Logger.Warnf("Failed to load e2e setup file: %v. Falling back to bicep deployment.", err)
-				e2eSetup, err = integration.FallbackCreateClusterWithBicep(ctx, bicepName)
-				if err != nil {
-					return fmt.Errorf("failed to create cluster with bicep fallback: %w", err)
-				}
-			} else {
-				return fmt.Errorf("failed to load e2e setup file and FALLBACK_TO_BICEP is not set: %w", err)
-			}
+			return fmt.Errorf("failed to load e2e setup file: %w", err)
 		}
 	}
 

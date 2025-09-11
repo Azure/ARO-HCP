@@ -17,7 +17,6 @@
 package e2e
 
 import (
-	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -30,11 +29,7 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	if err := setup(context.Background()); err != nil {
+	if err := Setup(); err != nil {
 		panic(err)
 	}
-})
-
-var _ = AfterSuite(func() {
-	// Cleanup is done by Resource Group DeferCleanup
 })
