@@ -200,7 +200,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, hcpCluster, updating, request)
+	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, hcpCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)

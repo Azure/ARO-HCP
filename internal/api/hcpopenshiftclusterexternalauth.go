@@ -16,7 +16,6 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	validator "github.com/go-playground/validator/v10"
@@ -213,8 +212,8 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 	return errorDetails
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, externalAuth)
+func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate) []arm.CloudErrorBody {
+	errorDetails := ValidateRequest(validate, externalAuth)
 
 	// Proceed with complex, multi-field validation only if single-field
 	// validation has passed. This avoids running further checks on data

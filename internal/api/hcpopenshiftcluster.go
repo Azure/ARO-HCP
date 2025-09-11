@@ -17,7 +17,6 @@ package api
 import (
 	"fmt"
 	"net"
-	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -486,8 +485,8 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	return errorDetails
 }
 
-func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, cluster)
+func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate) []arm.CloudErrorBody {
+	errorDetails := ValidateRequest(validate, cluster)
 
 	// Proceed with complex, multi-field validation only if single-field
 	// validation has passed. This avoids running further checks on data

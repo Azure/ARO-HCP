@@ -15,14 +15,12 @@
 package api
 
 import (
-	"net/http"
 	"path"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -141,15 +139,12 @@ func TestClusterRequired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodPut, "localhost", nil)
-			require.NoError(t, err)
-
 			resource := tt.resource
 			if resource == nil {
 				resource = ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateRequest(validate, request, resource)
+			actualErrors := ValidateRequest(validate, resource)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {
@@ -732,12 +727,9 @@ func TestClusterValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodPut, TestClusterResourceID, nil)
-			require.NoError(t, err)
-
 			resource := ClusterTestCase(t, tt.tweaks)
 
-			actualErrors := resource.Validate(validate, request)
+			actualErrors := resource.Validate(validate)
 
 			diff := compareErrors(tt.expectErrors, actualErrors)
 			if diff != "" {

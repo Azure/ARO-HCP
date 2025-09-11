@@ -15,8 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -93,7 +91,7 @@ func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource
 	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
 }
 
-func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
+func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool) *arm.CloudError {
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = c.ValidateVisibility(current, updating)
@@ -107,7 +105,7 @@ func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterEx
 		c.Normalize(&normalized)
 
 		// Run additional validation on the "normalized" cluster model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
+		errorDetails = append(errorDetails, normalized.Validate(validate)...)
 	}
 
 	// Returns nil if errorDetails is empty.

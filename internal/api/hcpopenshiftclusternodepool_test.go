@@ -16,12 +16,10 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"path"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -69,10 +67,7 @@ func TestNodePoolRequired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodPut, "localhost", nil)
-			require.NoError(t, err)
-
-			actualErrors := ValidateRequest(validate, request, tt.resource)
+			actualErrors := ValidateRequest(validate, tt.resource)
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)
@@ -325,7 +320,7 @@ func TestNodePoolValidate(t *testing.T) {
 			cluster := MinimumValidClusterTestCase()
 			resource := NodePoolTestCase(t, tt.tweaks)
 
-			actualErrors := resource.Validate(validate, nil, cluster)
+			actualErrors := resource.Validate(validate, cluster)
 
 			// from hcpopenshiftcluster_test.go
 			diff := compareErrors(tt.expectErrors, actualErrors)
