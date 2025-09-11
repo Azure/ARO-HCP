@@ -27,5 +27,3 @@ clustersService:
 tracing:
   address: ""
   exporter: ""
-audit:
-  tcpAddress: ""

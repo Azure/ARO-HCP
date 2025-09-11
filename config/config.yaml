@@ -421,7 +421,7 @@ defaults:
   # Frontend
   frontend:
     audit:
-      tcpAddress: ""
+      connectSocket: false
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
@@ -901,7 +901,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
+              connectSocket: false
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
@@ -1058,7 +1058,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
+              connectSocket: false
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'

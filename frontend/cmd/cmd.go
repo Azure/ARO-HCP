@@ -47,8 +47,8 @@ import (
 )
 
 type FrontendOpts struct {
-	auditLogQueueSize int
-	auditTCPAddress   string
+	auditLogQueueSize  int
+	auditConnectSocket bool
 
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -84,8 +84,8 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&opts.auditTCPAddress, "audit-tcp-address", os.Getenv("AUDIT_TCP_ADDRESS"), "OTEL Address to send audit logging to")
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
+	rootCmd.Flags().BoolVar(&opts.auditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket instead")
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
@@ -143,7 +143,7 @@ func (opts *FrontendOpts) Run() error {
 		arm.GetAzureLocation()))
 
 	auditClient, err := audit.NewOtelAuditClient(
-		opts.auditTCPAddress,
+		audit.CreateConn(opts.auditConnectSocket),
 		base.WithLogger(logger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
@@ -152,8 +152,8 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
 	}
 
-	if opts.auditTCPAddress != "" {
-		logger.Info(fmt.Sprintf("audit logging to %s", opts.auditTCPAddress))
+	if opts.auditConnectSocket {
+		logger.Info("audit logging to default_fluent.socket")
 	}
 
 	// Initialize the global OpenTelemetry tracer.
