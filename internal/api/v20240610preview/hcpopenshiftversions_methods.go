@@ -24,7 +24,7 @@ type HcpOpenShiftVersion struct {
 	generated.HcpOpenShiftVersion
 }
 
-func NewHcpOpenShiftVersion(from *api.HCPOpenShiftVersion) *HcpOpenShiftVersion {
+func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.VersionedHCPOpenShiftVersion {
 	return &HcpOpenShiftVersion{
 		generated.HcpOpenShiftVersion{
 			ID:   api.PtrOrNil(from.ID),
@@ -40,5 +40,5 @@ func NewHcpOpenShiftVersion(from *api.HCPOpenShiftVersion) *HcpOpenShiftVersion 
 }
 
 func (v version) MarshalHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) ([]byte, error) {
-	return arm.MarshalJSON(NewHcpOpenShiftVersion(from))
+	return arm.MarshalJSON(v.NewHCPOpenShiftVersion(from))
 }

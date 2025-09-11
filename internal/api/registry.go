@@ -64,6 +64,8 @@ type VersionedHCPOpenShiftClusterExternalAuth interface {
 	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
 }
 
+type VersionedHCPOpenShiftVersion interface{}
+
 type Version interface {
 	fmt.Stringer
 
@@ -72,6 +74,7 @@ type Version interface {
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
 	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
+	NewHCPOpenShiftVersion(*HCPOpenShiftVersion) VersionedHCPOpenShiftVersion
 
 	// Response Marshaling
 	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
