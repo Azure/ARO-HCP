@@ -589,7 +589,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating)
+	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -1148,7 +1148,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a cluster creation request.
-			cloudError = versionedCluster.ValidateStatic(versionedCluster, false)
+			cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedCluster, versionedCluster, false)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
@@ -1174,7 +1174,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedNodePool, versionedNodePool, nil, false)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
@@ -1200,7 +1200,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			cloudError = versionedExternalAuth.ValidateStatic(versionedExternalAuth, false)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedExternalAuth, versionedExternalAuth, nil, false)
 
 		default:
 			// Disregard foreign resource types.
