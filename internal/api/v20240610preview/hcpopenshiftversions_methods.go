@@ -42,3 +42,7 @@ func (v version) NewHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) api.Versi
 func (v version) MarshalHCPOpenShiftVersion(from *api.HCPOpenShiftVersion) ([]byte, error) {
 	return arm.MarshalJSON(v.NewHCPOpenShiftVersion(from))
 }
+
+func (v *HcpOpenShiftVersion) GetVersion() api.Version {
+	return versionedInterface
+}
