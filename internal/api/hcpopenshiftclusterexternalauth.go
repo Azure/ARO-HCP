@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"time"
 
-	validator "github.com/go-playground/validator/v10"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -212,17 +210,11 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 	return errorDetails
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, externalAuth)
+func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(errorDetails) == 0 {
-		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
-		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
-	}
+	errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
+	errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
 
 	return errorDetails
 }

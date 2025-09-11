@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -485,34 +484,28 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	return errorDetails
 }
 
-func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, cluster)
+func (cluster *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(errorDetails) == 0 {
-		errorDetails = append(errorDetails, cluster.validateVersion()...)
-		errorDetails = append(errorDetails, cluster.validateNetworkCIDRs()...)
+	errorDetails = append(errorDetails, cluster.validateVersion()...)
+	errorDetails = append(errorDetails, cluster.validateNetworkCIDRs()...)
 
-		// ID field is unset during deployment preflight validation.
-		if cluster != nil && cluster.ID != "" {
-			clusterResourceID, err := azcorearm.ParseResourceID(cluster.ID)
-			if err != nil {
-				return []arm.CloudErrorBody{
-					{
-						Code:    arm.CloudErrorCodeInternalServerError,
-						Message: fmt.Sprintf("Invalid value '%s' for field 'id'", cluster.ID),
-						Target:  "id",
-					},
-				}
+	// ID field is unset during deployment preflight validation.
+	if cluster != nil && cluster.ID != "" {
+		clusterResourceID, err := azcorearm.ParseResourceID(cluster.ID)
+		if err != nil {
+			return []arm.CloudErrorBody{
+				{
+					Code:    arm.CloudErrorCodeInternalServerError,
+					Message: fmt.Sprintf("Invalid value '%s' for field 'id'", cluster.ID),
+					Target:  "id",
+				},
 			}
-
-			errorDetails = append(errorDetails, cluster.validateManagedResourceGroup(clusterResourceID)...)
-			errorDetails = append(errorDetails, cluster.validateSubnetID(clusterResourceID)...)
-			errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities(clusterResourceID)...)
 		}
+
+		errorDetails = append(errorDetails, cluster.validateManagedResourceGroup(clusterResourceID)...)
+		errorDetails = append(errorDetails, cluster.validateSubnetID(clusterResourceID)...)
+		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities(clusterResourceID)...)
 	}
 
 	return errorDetails

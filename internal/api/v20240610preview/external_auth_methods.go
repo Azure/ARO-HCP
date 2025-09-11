@@ -104,8 +104,15 @@ func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterEx
 
 		c.Normalize(&normalized)
 
-		// Run additional validation on the "normalized" cluster model.
-		errorDetails = append(errorDetails, normalized.Validate(validate)...)
+		errorDetails = api.ValidateRequest(c.GetVersion().GetValidator(), &normalized)
+
+		// Proceed with complex, multi-field validation only if single-field
+		// validation has passed. This avoids running further checks on data
+		// we already know to be invalid and prevents the response body from
+		// becoming overwhelming.
+		if len(errorDetails) == 0 {
+			errorDetails = normalized.Validate(nil)
+		}
 	}
 
 	// Returns nil if errorDetails is empty.
