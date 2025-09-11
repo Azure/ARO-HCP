@@ -51,7 +51,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:84efda0d58201cfe0b7e38587b9b1e1ce581b11a062ca4d3ea23d473ca3e8ca8"
+              digest: "sha256:9b62a8100ef5228363089daece26519b5c8e72d797d0514638688940fc32ed52"
             audit:
               connectSocket: true
           # RP Backend
@@ -120,7 +120,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:84efda0d58201cfe0b7e38587b9b1e1ce581b11a062ca4d3ea23d473ca3e8ca8"
+              digest: "sha256:9b62a8100ef5228363089daece26519b5c8e72d797d0514638688940fc32ed52"
           # RP Backend
           backend:
             image:
@@ -187,7 +187,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:86e355daec68ef2fe01cce2daa63409dc47250c3f844da0e85284f169b2d9ce2"
+              digest: "sha256:9b62a8100ef5228363089daece26519b5c8e72d797d0514638688940fc32ed52"
           # RP Backend
           backend:
             image:
