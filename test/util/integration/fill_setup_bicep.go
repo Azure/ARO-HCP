@@ -24,14 +24,16 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
-// FallbackCreateClusterWithBicep creates a complete cluster using the demo.bicep file if setup file loading fails.
+// CreateClusterWithBicep creates a complete cluster using the bicep JSON file.
 // Returns a filled SetupModel and error.
-func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName string) (SetupModel, error) {
+func CreateClusterWithBicep(ctx context.Context, bicepJSONFile string, resourceGroupName string, deploymentsClient *armresources.DeploymentsClient, clientFactory *hcpsdk20240610preview.ClientFactory) (SetupModel, error) {
 	var setup SetupModel
 	// 1. Generate names
 	clusterName := "e2e-cluster-" + rand.String(8)
@@ -43,37 +45,17 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		"clusterName": clusterName,
 	}
 
-	// 3. Create a resource group
-	location := os.Getenv("LOCATION")
-	if location == "" {
-		location = "uksouth" // default fallback
-	}
-	// Use framework's invocation context for resource group creation
-	tc := framework.NewTestContext()
-	resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-bicep", location)
-	if err != nil {
-		return setup, fmt.Errorf("failed to create resource group: %w", err)
-	}
-	resourceGroupName := *resourceGroup.Name
-
 	log.Logger.Infof("Using resource group: %s, cluster name: %s", resourceGroupName, clusterName)
 
-	// 4. Read the pre-built ARM template JSON from test-artifacts (relative to e2e directory)
-	var jsonFile string
-	if bicepJSONFileName != "" {
-		jsonFile = bicepJSONFileName + ".json"
-	} else {
-		jsonFile = "demo.json"
-	}
-	jsonPath := filepath.Join("bicep-templates", jsonFile)
+	// 3. Read the pre-built ARM template JSON from test-artifacts (relative to test directory)
+	jsonPath := filepath.Join("test", "e2e", "test-artifacts", "generated-test-artifacts", bicepJSONFile)
 	templateBytes, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return setup, fmt.Errorf("failed to read pre-built ARM template: %w", err)
 	}
 
-	// 5. Deploy the ARM template using the Azure SDK
+	// 4. Deploy the ARM template using the Azure SDK
 	deploymentName := "aro-hcp-e2e-setup"
-	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 	deploymentResult, err := framework.CreateBicepTemplateAndWait(
 		ctx,
 		deploymentsClient,
@@ -85,22 +67,6 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	)
 	if err != nil {
 		return setup, fmt.Errorf("failed to deploy ARM template: %w", err)
-	}
-
-	// Get bicep deployment info and write to test-artifacts/bicep-deployment-dump.json
-	deployment, err := deploymentsClient.Get(ctx, resourceGroupName, deploymentName, nil)
-	if err != nil {
-		log.Logger.Warnf("Failed to get deployment info: %v", err)
-	} else {
-		data, err := json.MarshalIndent(deployment, "", "  ")
-		if err != nil {
-			log.Logger.Warnf("Failed to marshal deployment info: %v", err)
-		} else {
-			err = os.WriteFile("test-artifacts/bicep-deployment-dump.json", data, 0644)
-			if err != nil {
-				log.Logger.Warnf("Failed to write deployment dump to file: %v", err)
-			}
-		}
 	}
 
 	// Extract outputs
@@ -132,22 +98,13 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	}
 
 	// Fetch ARM resources for ARMData
-	clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+	clusterClient := clientFactory.NewHcpOpenShiftClustersClient()
 	clusterResp, err := clusterClient.Get(ctx, resourceGroupName, clusterName, nil)
 	var clusterData hcpsdk20240610preview.HcpOpenShiftCluster
 	if err != nil {
 		log.Logger.Warnf("Failed to get cluster ARM data: %v", err)
 	} else {
 		clusterData = clusterResp.HcpOpenShiftCluster
-	}
-
-	nodepoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
-	var nodepoolData hcpsdk20240610preview.NodePool
-	if err != nil {
-		log.Logger.Warnf("Failed to get nodepool ARM data: %v", err)
-	} else {
-		nodepoolData = nodepoolResp.NodePool
 	}
 
 	setup = SetupModel{
@@ -166,20 +123,29 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 			Name:    clusterName,
 			ARMData: clusterData,
 		},
-		Nodepools: []Nodepool{
-			{
-				Name:    nodepoolName,
-				ARMData: nodepoolData,
-			},
-		},
+		Nodepools: []Nodepool{},
 	}
 
-	// Marshal setup to JSON and write to test-artifacts/e2e-setup.json
+	nodepoolClient := clientFactory.NewNodePoolsClient()
+	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
+	if err != nil {
+		log.Logger.Warnf("Failed to get nodepool ARM data: %v", err)
+	} else {
+		setup.Nodepools = append(setup.Nodepools, Nodepool{
+			Name:    nodepoolName,
+			ARMData: nodepoolResp.NodePool,
+		})
+	}
+
+	// Marshal setup to JSON and write to artifacts directory
 	setupJSON, err := json.MarshalIndent(setup, "", "  ")
 	if err != nil {
 		log.Logger.Warnf("Failed to marshal SetupModel to JSON: %v", err)
 	} else {
-		outputPath := filepath.Join("test-artifacts", "e2e-setup.json")
+		outputPath := os.Getenv("SETUP_FILEPATH")
+		if outputPath == "" {
+			outputPath = filepath.Join("test", "e2e", "test-artifacts", "e2e-setup.json")
+		}
 		if err := os.WriteFile(outputPath, setupJSON, 0644); err != nil {
 			log.Logger.Warnf("Failed to write SetupModel JSON to file: %v", err)
 		}

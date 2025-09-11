@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,7 +42,7 @@ var _ = Describe("ARO-HCP Cluster Deletion", func() {
 		By("checking that the HCP cluster is not present")
 		_, err := hcpClient.Get(ctx, resourceGroup, clusterName, nil)
 		Expect(err).ToNot(BeNil())
-		errMessage := fmt.Sprintf("The Resource 'Microsoft.RedHatOpenShift/HCPOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
-		Expect(err.Error()).To(ContainSubstring(errMessage))
+		errMessage := fmt.Sprintf("hcpOpenShiftClusters/%s' under resource group '%s' was not found.", clusterName, resourceGroup)
+		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
 	})
 })

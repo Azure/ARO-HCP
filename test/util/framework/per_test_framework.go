@@ -63,6 +63,16 @@ func NewTestContext() *perItOrDescribeTestContext {
 	return tc
 }
 
+// RunCleanupAndDebugWithDefer returns a function that, when deferred, will call
+// deleteCreatedResources and collectDebugInfo in the correct order (debug info first, then cleanup).
+// This is used to allow for deferred cleanup outside of Ginkgo execution.
+func (tc *perItOrDescribeTestContext) RunCleanupAndDebugWithDefer(ctx context.Context) func() {
+	return func() {
+		tc.collectDebugInfo(ctx)
+		tc.deleteCreatedResources(ctx)
+	}
+}
+
 // BeforeEach gives a chance for initialization (none yet) and registers the cleanup
 func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
