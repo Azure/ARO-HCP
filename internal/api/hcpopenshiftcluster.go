@@ -494,18 +494,22 @@ func (cluster *HCPOpenShiftCluster) Validate(validate *validator.Validate, reque
 	// we already know to be invalid and prevents the response body from
 	// becoming overwhelming.
 	if len(errorDetails) == 0 {
-		var clusterResourceID *azcorearm.ResourceID
-
-		// This should never fail under normal operating conditions,
-		// but there may be unit test cases where this is incomplete.
-		if request != nil && request.URL != nil {
-			clusterResourceID, _ = azcorearm.ParseResourceID(request.URL.Path)
-		}
-
 		errorDetails = append(errorDetails, cluster.validateVersion()...)
 		errorDetails = append(errorDetails, cluster.validateNetworkCIDRs()...)
 
-		if clusterResourceID != nil {
+		// ID field is unset during deployment preflight validation.
+		if cluster != nil && cluster.ID != "" {
+			clusterResourceID, err := azcorearm.ParseResourceID(cluster.ID)
+			if err != nil {
+				return []arm.CloudErrorBody{
+					{
+						Code:    arm.CloudErrorCodeInternalServerError,
+						Message: fmt.Sprintf("Invalid value '%s' for field 'id'", cluster.ID),
+						Target:  "id",
+					},
+				}
+			}
+
 			errorDetails = append(errorDetails, cluster.validateManagedResourceGroup(clusterResourceID)...)
 			errorDetails = append(errorDetails, cluster.validateSubnetID(clusterResourceID)...)
 			errorDetails = append(errorDetails, cluster.validateUserAssignedIdentities(clusterResourceID)...)
