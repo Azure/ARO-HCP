@@ -13,7 +13,7 @@ spec:
       for: 2m
       labels:
         long_window: 1h
-        severity: critical
+        severity: warning
         short_window: 5m
       annotations:
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
@@ -22,7 +22,7 @@ spec:
       for: 15m
       labels:
         long_window: 6h
-        severity: critical
+        severity: warning
         short_window: 30m
       annotations:
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
@@ -31,7 +31,7 @@ spec:
       for: 1h
       labels:
         long_window: 1d
-        severity: critical
+        severity: info
         short_window: 2h
       annotations:
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
@@ -40,7 +40,7 @@ spec:
       for: 3h
       labels:
         long_window: 3d
-        severity: critical
+        severity: info
         short_window: 6h
       annotations:
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
