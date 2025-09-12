@@ -382,6 +382,12 @@ param azureMonitoring string
 	return nil
 }
 
+// A note on IcM: the connection between prometheusRuleGroups to IcM via actionGroups is tenuous. Keep the following
+// references in mind when working in this area:
+// 1. a general document on how to customize what IcM alerts look like:  https://msazure.visualstudio.com/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/alerts/HowDoI/CustomizeICMFields.md&_a=preview&version=GBmaster&anchor=using-template-parameters
+// 2. the best reference for which IcM fields exist and how to set them: https://dev.azure.com/msazure/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/metrics/Prometheus/PromIcMConnectorsetup.md&_a=preview&version=GBmaster
+// 3. the official top-level document: https://eng.ms/docs/products/icm/developers/connectors/icmaction#edit-an-azure-monitor-icm-connector-definition-icm-action
+
 func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
 	tmpl, err := template.New("prometheusRuleGroup").Funcs(
 		map[string]any{"contains": strings.Contains},
