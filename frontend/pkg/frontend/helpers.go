@@ -265,19 +265,6 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 	}
 
 	switch doc.InternalID.Kind() {
-	case arohcpv1alpha1.ClusterKind:
-		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
-		}
-
-		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
 	case arohcpv1alpha1.NodePoolKind:
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
