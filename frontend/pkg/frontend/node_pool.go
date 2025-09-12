@@ -218,17 +218,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	// This is temporary to not introduce too many changes at once.
-	csNodePool, err := csNodePoolBuilder.Build()
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	var csNodePool *arohcpv1alpha1.NodePool
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -243,7 +237,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))

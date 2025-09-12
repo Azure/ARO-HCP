@@ -607,18 +607,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	// This is temporary to not introduce too many changes at once.
-	csClusterBuilder = f.clusterServiceClient.AddProperties(csClusterBuilder)
-	csCluster, err := csClusterBuilder.Build()
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	var csCluster *arohcpv1alpha1.Cluster
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -626,7 +619,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csCluster)
+		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))

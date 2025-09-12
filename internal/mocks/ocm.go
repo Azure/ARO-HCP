@@ -44,44 +44,6 @@ func (m *MockClusterServiceClientSpec) EXPECT() *MockClusterServiceClientSpecMoc
 	return m.recorder
 }
 
-// AddProperties mocks base method.
-func (m *MockClusterServiceClientSpec) AddProperties(builder *v1alpha1.ClusterBuilder) *v1alpha1.ClusterBuilder {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddProperties", builder)
-	ret0, _ := ret[0].(*v1alpha1.ClusterBuilder)
-	return ret0
-}
-
-// AddProperties indicates an expected call of AddProperties.
-func (mr *MockClusterServiceClientSpecMockRecorder) AddProperties(builder any) *MockClusterServiceClientSpecAddPropertiesCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProperties", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).AddProperties), builder)
-	return &MockClusterServiceClientSpecAddPropertiesCall{Call: call}
-}
-
-// MockClusterServiceClientSpecAddPropertiesCall wrap *gomock.Call
-type MockClusterServiceClientSpecAddPropertiesCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecAddPropertiesCall) Return(arg0 *v1alpha1.ClusterBuilder) *MockClusterServiceClientSpecAddPropertiesCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecAddPropertiesCall) Do(f func(*v1alpha1.ClusterBuilder) *v1alpha1.ClusterBuilder) *MockClusterServiceClientSpecAddPropertiesCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecAddPropertiesCall) DoAndReturn(f func(*v1alpha1.ClusterBuilder) *v1alpha1.ClusterBuilder) *MockClusterServiceClientSpecAddPropertiesCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // DeleteBreakGlassCredentials mocks base method.
 func (m *MockClusterServiceClientSpec) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID ocm.InternalID) error {
 	m.ctrl.T.Helper()
@@ -776,18 +738,18 @@ func (c *MockClusterServiceClientSpecPostBreakGlassCredentialCall) DoAndReturn(f
 }
 
 // PostCluster mocks base method.
-func (m *MockClusterServiceClientSpec) PostCluster(ctx context.Context, cluster *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
+func (m *MockClusterServiceClientSpec) PostCluster(ctx context.Context, builder *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PostCluster", ctx, cluster)
+	ret := m.ctrl.Call(m, "PostCluster", ctx, builder)
 	ret0, _ := ret[0].(*v1alpha1.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PostCluster indicates an expected call of PostCluster.
-func (mr *MockClusterServiceClientSpecMockRecorder) PostCluster(ctx, cluster any) *MockClusterServiceClientSpecPostClusterCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) PostCluster(ctx, builder any) *MockClusterServiceClientSpecPostClusterCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostCluster), ctx, cluster)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostCluster), ctx, builder)
 	return &MockClusterServiceClientSpecPostClusterCall{Call: call}
 }
 
@@ -803,30 +765,30 @@ func (c *MockClusterServiceClientSpecPostClusterCall) Return(arg0 *v1alpha1.Clus
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostClusterCall) Do(f func(context.Context, *v1alpha1.Cluster) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
+func (c *MockClusterServiceClientSpecPostClusterCall) Do(f func(context.Context, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context.Context, *v1alpha1.Cluster) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
+func (c *MockClusterServiceClientSpecPostClusterCall) DoAndReturn(f func(context.Context, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecPostClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // PostExternalAuth mocks base method.
-func (m *MockClusterServiceClientSpec) PostExternalAuth(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error) {
+func (m *MockClusterServiceClientSpec) PostExternalAuth(ctx context.Context, clusterInternalID ocm.InternalID, builder *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PostExternalAuth", ctx, clusterInternalID, nodePool)
+	ret := m.ctrl.Call(m, "PostExternalAuth", ctx, clusterInternalID, builder)
 	ret0, _ := ret[0].(*v1alpha1.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PostExternalAuth indicates an expected call of PostExternalAuth.
-func (mr *MockClusterServiceClientSpecMockRecorder) PostExternalAuth(ctx, clusterInternalID, nodePool any) *MockClusterServiceClientSpecPostExternalAuthCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) PostExternalAuth(ctx, clusterInternalID, builder any) *MockClusterServiceClientSpecPostExternalAuthCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostExternalAuth", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostExternalAuth), ctx, clusterInternalID, nodePool)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostExternalAuth", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostExternalAuth), ctx, clusterInternalID, builder)
 	return &MockClusterServiceClientSpecPostExternalAuthCall{Call: call}
 }
 
@@ -842,30 +804,30 @@ func (c *MockClusterServiceClientSpecPostExternalAuthCall) Return(arg0 *v1alpha1
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostExternalAuthCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecPostExternalAuthCall {
+func (c *MockClusterServiceClientSpecPostExternalAuthCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecPostExternalAuthCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostExternalAuthCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecPostExternalAuthCall {
+func (c *MockClusterServiceClientSpecPostExternalAuthCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecPostExternalAuthCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // PostNodePool mocks base method.
-func (m *MockClusterServiceClientSpec) PostNodePool(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *v1alpha1.NodePool) (*v1alpha1.NodePool, error) {
+func (m *MockClusterServiceClientSpec) PostNodePool(ctx context.Context, clusterInternalID ocm.InternalID, builder *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PostNodePool", ctx, clusterInternalID, nodePool)
+	ret := m.ctrl.Call(m, "PostNodePool", ctx, clusterInternalID, builder)
 	ret0, _ := ret[0].(*v1alpha1.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PostNodePool indicates an expected call of PostNodePool.
-func (mr *MockClusterServiceClientSpecMockRecorder) PostNodePool(ctx, clusterInternalID, nodePool any) *MockClusterServiceClientSpecPostNodePoolCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) PostNodePool(ctx, clusterInternalID, builder any) *MockClusterServiceClientSpecPostNodePoolCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostNodePool), ctx, clusterInternalID, nodePool)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).PostNodePool), ctx, clusterInternalID, builder)
 	return &MockClusterServiceClientSpecPostNodePoolCall{Call: call}
 }
 
@@ -881,30 +843,30 @@ func (c *MockClusterServiceClientSpecPostNodePoolCall) Return(arg0 *v1alpha1.Nod
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecPostNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
+func (c *MockClusterServiceClientSpecPostNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
+func (c *MockClusterServiceClientSpecPostNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecPostNodePoolCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // UpdateCluster mocks base method.
-func (m *MockClusterServiceClientSpec) UpdateCluster(ctx context.Context, internalID ocm.InternalID, cluster *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
+func (m *MockClusterServiceClientSpec) UpdateCluster(ctx context.Context, internalID ocm.InternalID, builder *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateCluster", ctx, internalID, cluster)
+	ret := m.ctrl.Call(m, "UpdateCluster", ctx, internalID, builder)
 	ret0, _ := ret[0].(*v1alpha1.Cluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateCluster indicates an expected call of UpdateCluster.
-func (mr *MockClusterServiceClientSpecMockRecorder) UpdateCluster(ctx, internalID, cluster any) *MockClusterServiceClientSpecUpdateClusterCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateCluster(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateClusterCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateCluster), ctx, internalID, cluster)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCluster", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateCluster), ctx, internalID, builder)
 	return &MockClusterServiceClientSpecUpdateClusterCall{Call: call}
 }
 
@@ -920,30 +882,30 @@ func (c *MockClusterServiceClientSpecUpdateClusterCall) Return(arg0 *v1alpha1.Cl
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecUpdateClusterCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.Cluster) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
+func (c *MockClusterServiceClientSpecUpdateClusterCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.Cluster) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
+func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ClusterBuilder) (*v1alpha1.Cluster, error)) *MockClusterServiceClientSpecUpdateClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // UpdateExternalAuth mocks base method.
-func (m *MockClusterServiceClientSpec) UpdateExternalAuth(ctx context.Context, internalID ocm.InternalID, nodePool *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error) {
+func (m *MockClusterServiceClientSpec) UpdateExternalAuth(ctx context.Context, internalID ocm.InternalID, builder *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateExternalAuth", ctx, internalID, nodePool)
+	ret := m.ctrl.Call(m, "UpdateExternalAuth", ctx, internalID, builder)
 	ret0, _ := ret[0].(*v1alpha1.ExternalAuth)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateExternalAuth indicates an expected call of UpdateExternalAuth.
-func (mr *MockClusterServiceClientSpecMockRecorder) UpdateExternalAuth(ctx, internalID, nodePool any) *MockClusterServiceClientSpecUpdateExternalAuthCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateExternalAuth(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateExternalAuthCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuth", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateExternalAuth), ctx, internalID, nodePool)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuth", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateExternalAuth), ctx, internalID, builder)
 	return &MockClusterServiceClientSpecUpdateExternalAuthCall{Call: call}
 }
 
@@ -959,30 +921,30 @@ func (c *MockClusterServiceClientSpecUpdateExternalAuthCall) Return(arg0 *v1alph
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecUpdateExternalAuthCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecUpdateExternalAuthCall {
+func (c *MockClusterServiceClientSpecUpdateExternalAuthCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecUpdateExternalAuthCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecUpdateExternalAuthCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuth) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecUpdateExternalAuthCall {
+func (c *MockClusterServiceClientSpecUpdateExternalAuthCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error)) *MockClusterServiceClientSpecUpdateExternalAuthCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // UpdateNodePool mocks base method.
-func (m *MockClusterServiceClientSpec) UpdateNodePool(ctx context.Context, internalID ocm.InternalID, nodePool *v1alpha1.NodePool) (*v1alpha1.NodePool, error) {
+func (m *MockClusterServiceClientSpec) UpdateNodePool(ctx context.Context, internalID ocm.InternalID, builder *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateNodePool", ctx, internalID, nodePool)
+	ret := m.ctrl.Call(m, "UpdateNodePool", ctx, internalID, builder)
 	ret0, _ := ret[0].(*v1alpha1.NodePool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateNodePool indicates an expected call of UpdateNodePool.
-func (mr *MockClusterServiceClientSpecMockRecorder) UpdateNodePool(ctx, internalID, nodePool any) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateNodePool(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateNodePool), ctx, internalID, nodePool)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNodePool", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateNodePool), ctx, internalID, builder)
 	return &MockClusterServiceClientSpecUpdateNodePoolCall{Call: call}
 }
 
@@ -998,13 +960,13 @@ func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Return(arg0 *v1alpha1.N
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (c *MockClusterServiceClientSpecUpdateNodePoolCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecUpdateNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePool) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
+func (c *MockClusterServiceClientSpecUpdateNodePoolCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.NodePoolBuilder) (*v1alpha1.NodePool, error)) *MockClusterServiceClientSpecUpdateNodePoolCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

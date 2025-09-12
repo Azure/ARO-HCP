@@ -180,17 +180,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	// This is temporary to not introduce too many changes at once.
-	csExternalAuth, err := csExternalAuthBuilder.Build()
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
+	var csExternalAuth *arohcpv1alpha1.ExternalAuth
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -205,7 +199,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
