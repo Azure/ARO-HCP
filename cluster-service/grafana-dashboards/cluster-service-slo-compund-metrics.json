@@ -1,38 +1,17 @@
 {
   "description": "ARO HCP Cluster Service Component",
-  "graphTooltip": 0,
   "panels": [
     {
       "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
       "id": 14,
-      "panels": [],
       "title": "Availability SLOs",
       "type": "row"
     },
     {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 4,
-        "x": 0,
-        "y": 1
-      },
+      "gridPos": {"h": 12, "w": 4, "x": 0, "y": 1},
       "id": 29,
       "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
         "content": "Over a 28-day rolling window, 99% of API requests will return with a successful status, where successful is defined as a non-5xx HTTP response code.",
         "mode": "markdown"
       },
@@ -40,70 +19,35 @@
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Percentage of CS API is available (not returning 5xx Internal Service Errors).",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
+          "color": {"mode": "thresholds"},
+          "max": 1,
+          "min": 0,
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
-              {
-                "color": "dark-red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0.99
-              }
+              {"color": "dark-red"},
+              {"color": "green", "value": 99}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 1
-      },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 1},
       "id": 1,
-      "maxDataPoints": 1001,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "instant": false,
           "legendFormat": "Availability",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -111,102 +55,34 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "**Purpose:** This graph displays the Error Budget Burn Rate over the past 28 days to monitor the long-term reliability of Clusters Service Availability.\n\n---\n\n### **Understanding Long-Term Burn Rate Recovery**\n\nThe 28-day Burn Rate is a rolling cumulative metric. After an incident, even if short-term performance looks good, the long-term Burn Rate may remain consistently high and recover slowly. This typically happens because:\n\n1.  **Old Good Data Ages Out:** As time passes, older, well-performing data rolls out of the 28-day window, and new data might not fully compensate for its positive contribution.\n2.  **Traffic Impact:** If traffic (RPS) is high at the time of the incident, problematic requests will constitute a larger proportion of the rolling window.  In such scenarios, error dilution becomes difficult, extending the Burn Rate's recovery period, and this impact is further amplified for services with low sample volume and potentially high incident density.\n3.  **Limited Dilution Capacity:** The weight and volume of newly added healthy requests may be insufficient to quickly dilute historical errors, slowing down the Burn Rate's decrease.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "#EAB839",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "#EAB839", "value": 75},
+              {"color": "red", "value": 90}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 9,
-        "y": 1
-      },
-      "id": 28,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "percent"
         }
       },
+      "gridPos": {"h": 6, "w": 9, "x": 9, "y": 1},
+      "id": 28,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - availability:api_inbound_request_count:sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) / (1 - 0.99), 0)",
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - availability:api_inbound_request_count:sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) * 100",
           "legendFormat": "Error budget burn rate",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -214,74 +90,35 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "An error budget is the maximum amount of allowable errors a service can incur within its SLO window before it is considered out of compliance with its reliability target. \n\nThe Error budget exhaustion shows how much allowable errors the service has used. \n\nFor example, we have API Availability 99% target value, that means the error budget is 1%. Suppose that actual value is 99.7%, that means the error budget exhaustion is 30%",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
+          "color": {"mode": "thresholds"},
           "max": 1,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "yellow", "value": 0.75},
+              {"color": "red", "value": 0.9}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 1
-      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 1},
       "id": 22,
-      "maxDataPoints": 1001,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - availability:api_inbound_request_count:sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) / (1 - 0.99), 0)",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - availability:api_inbound_request_count:sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) * 100",
           "refId": "A"
         }
       ],
@@ -289,112 +126,39 @@
       "type": "gauge"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 5 minutes and last 1 hour remains at 13.44 or greater.\n\nThis threshold means consuming:\n-  2% of the error budget in 1h \n-  100% in approximately 2 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 20,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 13.44
-              }
+              {"color": "green"},
+              {"color": "red", "value": 13.44}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 7
-      },
-      "id": 31,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 7},
+      "id": 31,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(availability:api_inbound_request_count:burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "clamp_min(availability:api_inbound_request_count:burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}, 0)",
           "legendFormat": "Burn Rate - 5m",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(availability:api_inbound_request_count:burnrate1h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "clamp_min(availability:api_inbound_request_count:burnrate1h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}, 0)",
           "legendFormat": "Burn Rate - 1h",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -402,112 +166,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 30 minutes and last 6 hours remains at 5.6 or greater.\n\nThis threshold means consuming:\n-  5% of the error budget in 6h \n-  100% in 5 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 10,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 5.6
-              }
+              {"color": "green"},
+              {"color": "red", "value": 5.6}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 9,
-        "y": 7
-      },
-      "id": 32,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 9, "y": 7},
+      "id": 32,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate30m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 30m",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate6h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 6h",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -515,112 +206,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 2 hours and last 1 days remains at 2.8 or greater. \n\nThis threshold means consuming:\n-  10% of the error budget in 1 day \n-  100% in approximately 10 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 5,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 2.8
-              }
+              {"color": "green"},
+              {"color": "red", "value": 2.8}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 14,
-        "y": 7
-      },
-      "id": 38,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 14, "y": 7},
+      "id": 38,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate2h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 2h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate1d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 1d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -628,112 +246,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 6 hours and last 3 days remains at 0.934 or greater.\n\nThis threshold means consuming:\n-  10% of the error budget in 3 days \n-  100% in approximately 26 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 2,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.934
-              }
+              {"color": "green"},
+              {"color": "red", "value": 0.934}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 19,
-        "y": 7
-      },
-      "id": 34,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 19, "y": 7},
+      "id": 34,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate6h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 6h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "availability:api_inbound_request_count:burnrate3d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "hide": false,
-          "instant": false,
           "legendFormat": "Burn Rate - 3d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -741,23 +286,16 @@
       "type": "timeseries"
     },
     {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 4,
-        "x": 0,
-        "y": 26
-      },
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
+      "id": 30,
+      "title": "Latency SLOs",
+      "type": "row"
+    },
+    {
+      "gridPos": {"h": 12, "w": 4, "x": 0, "y": 26},
       "id": 41,
       "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
         "content": "Over a 28-day rolling window, 90% of successful API calls (determined as a non-5xx HTTP response) will complete within 100ms.",
         "mode": "markdown"
       },
@@ -765,71 +303,35 @@
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Percentage of requests to operate cluster are successful with a latency of <100ms",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "links": [],
-          "mappings": [],
+          "color": {"mode": "thresholds"},
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0.90
-              }
+              {"color": "red"},
+              {"color": "green", "value": 0.9}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 26
-      },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 26},
       "id": 42,
-      "maxDataPoints": 1001,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "latency:api_inbound_request_duration:p90_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "instant": false,
           "legendFormat": "P90 Latency",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -837,103 +339,33 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "**Purpose:** This graph displays the Error Budget Burn Rate over the past 28 days to monitor the long-term reliability of Clusters Service P90 Latency.\n\n---\n\n### **Understanding Long-Term Burn Rate Recovery**\n\nThe 28-day Burn Rate is a rolling cumulative metric. After an incident, even if short-term performance looks good, the long-term Burn Rate may remain consistently high and recover slowly. This typically happens because:\n\n1.  **Old Good Data Ages Out:** As time passes, older, well-performing data rolls out of the 28-day window, and new data might not fully compensate for its positive contribution.\n2.  **Traffic Impact:** If traffic (RPS) is high at the time of the incident, problematic requests will constitute a larger proportion of the rolling window.  In such scenarios, error dilution becomes difficult, extending the Burn Rate's recovery period, and this impact is further amplified for services with low sample volume and potentially high incident density.\n3.  **Limited Dilution Capacity:** The weight and volume of newly added healthy requests may be insufficient to quickly dilute historical errors, slowing down the Burn Rate's decrease.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 1,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "#EAB839",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "#EAB839", "value": 0.75},
+              {"color": "red", "value": 0.9}
             ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 9,
-        "y": 26
-      },
-      "id": 43,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          }
         }
       },
+      "gridPos": {"h": 6, "w": 9, "x": 9, "y": 26},
+      "id": 43,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - latency:api_inbound_request_duration:p90_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - latency:api_inbound_request_duration:p90_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) * 10",
           "legendFormat": "P90 Error budget burn rate",
-          "range": true,
           "refId": "C"
         }
       ],
@@ -941,74 +373,35 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "An error budget is the maximum amount of allowable errors a service can incur within its SLO window before it is considered out of compliance with its reliability target. \n\nThe Error budget exhaustion shows how much allowable errors the service has used. \n\nFor example, we have P90 API Latency 90% target value, that means the error budget is 10%. Suppose that actual value is 95%, that means the error budget exhaustion is 50%",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
+          "color": {"mode": "thresholds"},
           "max": 1,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "yellow", "value": 0.75},
+              {"color": "red", "value": 0.9}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 26
-      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 26},
       "id": 44,
-      "maxDataPoints": 1001,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - latency:api_inbound_request_duration:p90_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"})/(1 - 0.90), 0)",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - latency:api_inbound_request_duration:p90_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"})/(1 - 0.90)",
           "refId": "A"
         }
       ],
@@ -1016,112 +409,39 @@
       "type": "gauge"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 5 minutes and last 1 hour remains at 13.44 or greater.\n\nThis threshold means consuming:\n-  2% of the error budget in 1h \n-  100% in approximately 2 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 20,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 13.44
-              }
+              {"color": "green"},
+              {"color": "red", "value": 13.44}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 32
-      },
-      "id": 45,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 32},
+      "id": 45,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
           "legendFormat": "P90 Burn Rate - 5m",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:burnrate1h{cluster=\"$cluster\", service=\"clusters-service-metrics\", latency=\"0.1\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate1h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
           "legendFormat": "P90 Burn Rate - 1h",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -1129,112 +449,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 30 minutes and last 6 hours remains at 5.6 or greater.\n\nThis threshold means consuming:\n-  5% of the error budget in 6h \n-  100% in 5 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 10,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 5.6
-              }
+              {"color": "green"},
+              {"color": "red", "value": 5.6}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 9,
-        "y": 32
-      },
-      "id": 46,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 9, "y": 32},
+      "id": 46,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate30m{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate30m{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 30m",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 6h",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -1242,112 +489,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 2 hours and last 1 days remains at 2.8 or greater. \n\n\nThis threshold means consuming:\n-  10% of the error budget in 1 day \n-  100% in approximately 10 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 5,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 2.8
-              }
+              {"color": "green"},
+              {"color": "red", "value": 2.8}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 14,
-        "y": 32
-      },
-      "id": 47,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 14, "y": 32},
+      "id": 47,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate2h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate2h{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 2h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate1d{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate1d{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 1d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -1355,112 +529,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 6 hours and last 3 days remains at 0.934 or greater.\n\nThis threshold means consuming:\n-  10% of the error budget in 3 days \n-  100% in approximately 26 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 2,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.934
-              }
+              {"color": "green"},
+              {"color": "red", "value": 0.934}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 19,
-        "y": 32
-      },
-      "id": 48,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 19, "y": 32},
+      "id": 48,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 6h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p90_burnrate3d{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.90), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p90_burnrate3d{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "P90 Burn Rate - 3d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -1468,36 +569,9 @@
       "type": "timeseries"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 13
-      },
-      "id": 30,
-      "panels": [],
-      "title": "Latency SLOs",
-      "type": "row"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 4,
-        "x": 0,
-        "y": 14
-      },
-      "id": 30,
+      "gridPos": {"h": 12, "w": 4, "x": 0, "y": 14},
+      "id": 49,
       "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
         "content": "Over a 28-day rolling window, 99% of successful API calls (determined as a non-5xx HTTP response) will complete within 1s.",
         "mode": "markdown"
       },
@@ -1505,71 +579,35 @@
       "type": "text"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Percentage of requests to operate cluster are successful with a latency of <1s",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "links": [],
-          "mappings": [],
+          "color": {"mode": "thresholds"},
+          "max": 1,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 0.95
-              }
+              {"color": "red"},
+              {"color": "green", "value": 0.99}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 14
-      },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 14},
       "id": 12,
-      "maxDataPoints": 1001,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "expr": "latency:api_inbound_request_duration:p99_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
-          "instant": false,
-          "legendFormat": "Latency",
-          "range": true,
+          "legendFormat": "P99 Latency",
           "refId": "A"
         }
       ],
@@ -1577,178 +615,70 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "**Purpose:** This graph displays the Error Budget Burn Rate over the past 28 days to monitor the long-term reliability of Clusters Service P99 Latency.\n\n---\n\n### **Understanding Long-Term Burn Rate Recovery**\n\nThe 28-day Burn Rate is a rolling cumulative metric. After an incident, even if short-term performance looks good, the long-term Burn Rate may remain consistently high and recover slowly. This typically happens because:\n\n1.  **Old Good Data Ages Out:** As time passes, older, well-performing data rolls out of the 28-day window, and new data might not fully compensate for its positive contribution.\n2.  **Traffic Impact:** If traffic (RPS) is high at the time of the incident, problematic requests will constitute a larger proportion of the rolling window.  In such scenarios, error dilution becomes difficult, extending the Burn Rate's recovery period, and this impact is further amplified for services with low sample volume and potentially high incident density.\n3.  **Limited Dilution Capacity:** The weight and volume of newly added healthy requests may be insufficient to quickly dilute historical errors, slowing down the Burn Rate's decrease.",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 1,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "#EAB839",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "#EAB839", "value": 0.75},
+              {"color": "red", "value": 0.9}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 9,
-        "x": 9,
-        "y": 14
-      },
-      "id": 27,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "percentunit"
         }
       },
+      "gridPos": {"h": 6, "w": 9, "x": 9, "y": 14},
+      "id": 27,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - latency:api_inbound_request_duration:p99_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"})/(1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - latency:api_inbound_request_duration:p99_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}) * 100",
           "legendFormat": "P99 Error budget burn rate",
-          "range": true,
           "refId": "C"
         }
       ],
-      "title": "Latency - Error Budget Burn Rate (28d)",
+      "title": "P99 Latency - Error Budget Burn Rate (28d)",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "An error budget is the maximum amount of allowable errors a service can incur within its SLO window before it is considered out of compliance with its reliability target. \n\nThe Error budget exhaustion shows how much allowable errors the service has used. \n\nFor example, we have API Availability 99% target value, that means the error budget is 1%. Suppose that actual value is 99.7%, that means the error budget exhaustion is 30%",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
+          "color": {"mode": "thresholds"},
           "max": 1,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.75
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
+              {"color": "green"},
+              {"color": "yellow", "value": 0.75},
+              {"color": "red", "value": 0.9}
             ]
           },
           "unit": "percentunit"
-        },
-        "overrides": []
+        }
       },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 14
-      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 14},
       "id": 21,
-      "maxDataPoints": 1001,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "reduceOptions": {"calcs": ["lastNotNull"]}
       },
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min((1 - latency:api_inbound_request_duration:p99_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"})/(1 - 0.99), 0)",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "(1 - latency:api_inbound_request_duration:p99_sli_ratio_28d{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"})/(1 - 0.99)",
           "refId": "A"
         }
       ],
@@ -1756,112 +686,39 @@
       "type": "gauge"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 5 minutes and last 1 hour remains at 13.44 or greater.\n\nThis threshold means consuming:\n-  2% of the error budget in 1h \n-  100% in approximately 2 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 20,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 13.44
-              }
+              {"color": "green"},
+              {"color": "red", "value": 13.44}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 4,
-        "y": 20
-      },
-      "id": 35,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 4, "y": 20},
+      "id": 35,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate5m{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Burn Rate - 5m",
-          "range": true,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate5m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
+          "legendFormat": "P99 Burn Rate - 5m",
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate1h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Burn Rate - 1h",
-          "range": true,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate1h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
+          "legendFormat": "P99 Burn Rate - 1h",
           "refId": "A"
         }
       ],
@@ -1869,112 +726,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Page if the burn rate over the last 30 minutes and last 6 hours remains at 5.6 or greater.\n\nThis threshold means consuming:\n-  5% of the error budget in 6h \n-  100% in 5 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 10,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 5.6
-              }
+              {"color": "green"},
+              {"color": "red", "value": 5.6}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 9,
-        "y": 20
-      },
-      "id": 36,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 9, "y": 20},
+      "id": 36,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate30m{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate30m{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
           "legendFormat": "Burn Rate - 30m",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate6h{cluster=\"$cluster\", namespace=\"clusters-service\", service=\"clusters-service-metrics\"}",
           "legendFormat": "Burn Rate - 6h",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -1982,112 +766,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 2 hours and last 1 days remains at 2.8 or greater. \n\n\nThis threshold means consuming:\n-  10% of the error budget in 1 day \n-  100% in approximately 10 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 5,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 2.8
-              }
+              {"color": "green"},
+              {"color": "red", "value": 2.8}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 14,
-        "y": 20
-      },
-      "id": 39,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 14, "y": 20},
+      "id": 39,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate2h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate2h{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "Burn Rate - 2h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate1d{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate1d{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "Burn Rate - 1d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -2095,112 +806,39 @@
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Send a warning notification if the burn rate over the last 6 hours and last 3 days remains at 0.934 or greater.\n\nThis threshold means consuming:\n-  10% of the error budget in 3 days \n-  100% in approximately 26 days",
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": {"mode": "palette-classic"},
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "dashed+area"
-            }
+            "axisSoftMax": 2,
+            "axisSoftMin": 0,
+            "thresholdsStyle": {"mode": "dashed+area"}
           },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.934
-              }
+              {"color": "green"},
+              {"color": "red", "value": 0.934}
             ]
           },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 19,
-        "y": 20
-      },
-      "id": 37,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+          "unit": "short"
         }
       },
+      "gridPos": {"h": 6, "w": 5, "x": 19, "y": 20},
+      "id": 37,
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate6h{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "Burn Rate - 6h",
-          "range": true,
           "refId": "C"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "clamp_min(latency:api_inbound_request_duration:p99_burnrate3d{cluster=\"$cluster\", service=\"clusters-service-metrics\"} / (1 - 0.99), 0)",
-          "hide": false,
-          "instant": false,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "latency:api_inbound_request_duration:p99_burnrate3d{cluster=\"$cluster\", service=\"clusters-service-metrics\", namespace=\"clusters-service\"}",
           "legendFormat": "Burn Rate - 3d",
-          "range": true,
           "refId": "A"
         }
       ],
@@ -2209,35 +847,21 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": [],
   "templating": {
     "list": [
       {
-        "hide": 0,
-        "includeAll": false,
         "label": "Data Source",
-        "multi": false,
         "name": "datasource",
-        "options": [],
         "query": "prometheus",
-        "queryValue": "",
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
-        "skipUrlSync": false,
         "type": "datasource"
       },
       {
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
         "definition": "label_values(up,cluster)",
-        "hide": 0,
-        "includeAll": false,
         "label": "cluster",
-        "multi": false,
         "name": "cluster",
-        "options": [],
         "query": {
           "qryType": 1,
           "query": "label_values(up,cluster)",
@@ -2245,8 +869,6 @@
         },
         "refresh": 1,
         "regex": "^.*-svc-\\d+$",
-        "skipUrlSync": false,
-        "sort": 0,
         "type": "query"
       }
     ]
@@ -2255,11 +877,6 @@
     "from": "now-28d",
     "to": "now"
   },
-  "timepicker": {},
-  "timezone": "browser",
-  "title": "ARO HCP Cluster Service SLOs (Compound Metrics)",
-  "uid": "aro-hcp-cluster-service-slos-rec-rules",
-  "version": 1,
-  "weekStart": "",
-  "refresh": "5m"
+  "title": "ARO HCP CS SLOs (Compound Metrics)",
+  "uid": "aro-hcp-cs-slos-rec-rules"
 }
