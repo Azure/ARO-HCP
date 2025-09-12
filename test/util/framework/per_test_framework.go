@@ -76,14 +76,14 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
 		cleanupTimeout = 90 * time.Minute
 	}
-	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
+	ginkgo.DeferCleanup(tc.DeleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	// Registered later and thus runs before deleting namespaces.
-	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
+	ginkgo.DeferCleanup(tc.CollectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
 }
 
-// deleteCreatedResources deletes what was created that we know of.
-func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
+// DeleteCreatedResources deletes what was created that we know of.
+func (tc *perItOrDescribeTestContext) DeleteCreatedResources(ctx context.Context) {
 	if tc.perBinaryInvocationTestContext.skipCleanup {
 		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
@@ -150,8 +150,8 @@ func CleanupResourceGroups(ctx context.Context, hcpClient *hcpapi20240610.HcpOpe
 	return errors.Join(errs...)
 }
 
-// collectDebugInfo collects information and saves it in artifact dir
-func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
+// CollectDebugInfo collects information and saves it in artifact dir
+func (tc *perItOrDescribeTestContext) CollectDebugInfo(ctx context.Context) {
 	tc.contextLock.RLock()
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("collecting debug info")
