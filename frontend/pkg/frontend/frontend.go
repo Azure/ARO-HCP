@@ -1496,6 +1496,6 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
-	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
+	hcpClusterVersion := ConvertCStoHCPOpenShiftVersion(resourceID, version)
 	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
 }

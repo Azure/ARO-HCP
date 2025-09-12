@@ -283,13 +283,13 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
 			KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
 		azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
-		azureEtcdDataEncryptionCustomerManagedBuilder = azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
+		azureEtcdDataEncryptionCustomerManagedBuilder.Kms(azureKmsEncryptionBuilder)
 		azureEtcdDataEncryptionBuilder.CustomerManaged(azureEtcdDataEncryptionCustomerManagedBuilder)
 	}
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
-// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into HCPOpenShiftCluster object
+// ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
 	// ProvisioningState is stored in Cosmos and is applied to the
@@ -432,7 +432,7 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 	return "arohcp-" + clusterName + "-" + uuid.New().String()
 }
 
-// BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object
+// BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object.
 func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.Cluster, error) {
 	var err error
 
@@ -458,10 +458,9 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		}
 	}
 
-	clusterBuilder = clusterBuilder.
-		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(csNodeDrainGracePeriodUnit).
-			Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
+	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+		Unit(csNodeDrainGracePeriodUnit).
+		Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
 
 	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
 
@@ -482,7 +481,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		return nil, err
 	}
 
-	clusterBuilder = clusterBuilder.
+	clusterBuilder.
 		Name(hcpCluster.Name).
 		Flavour(cmv1.NewFlavour().
 			ID(csFlavourId)).
@@ -524,13 +523,12 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		if err != nil {
 			return nil, err
 		}
-		azureBuilder = azureBuilder.EtcdEncryption(etcdEncryption)
+		azureBuilder.EtcdEncryption(etcdEncryption)
 	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.Properties.Platform.NetworkSecurityGroupID != "" {
-		azureBuilder = azureBuilder.
-			NetworkSecurityGroupResourceID(hcpCluster.Properties.Platform.NetworkSecurityGroupID)
+		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.Properties.Platform.NetworkSecurityGroupID)
 	}
 
 	// Only pass managed identity information if the x-ms-identity-url header is present.
@@ -551,26 +549,24 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
 
 		if hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
-			managedIdentitiesBuilder = managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
+			managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
 				ResourceID(hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
 		}
 
-		azureBuilder = azureBuilder.OperatorsAuthentication(
-			arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
+		azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 	}
 
-	clusterBuilder = clusterBuilder.Azure(azureBuilder)
+	clusterBuilder.Azure(azureBuilder)
 
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.Properties.DNS.BaseDomainPrefix != "" {
-		clusterBuilder = clusterBuilder.
-			DomainPrefix(hcpCluster.Properties.DNS.BaseDomainPrefix)
+		clusterBuilder.DomainPrefix(hcpCluster.Properties.DNS.BaseDomainPrefix)
 	}
 
 	return clusterBuilder, nil
 }
 
-// ConvertCStoNodePool converts a CS Node Pool object into HCPOpenShiftClusterNodePool object
+// ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
 func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
@@ -631,13 +627,13 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	return nodePool
 }
 
-// BuildCSNodePool creates a CS Node Pool object from an HCPOpenShiftClusterNodePool object
+// BuildCSNodePool creates a CS NodePool object from an HCPOpenShiftClusterNodePool object.
 func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
-	npBuilder := arohcpv1alpha1.NewNodePool()
+	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
-		npBuilder = npBuilder.
+		nodePoolBuilder.
 			ID(nodePool.Name).
 			Version(arohcpv1alpha1.NewVersion().
 				ID(ocm.ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)).
@@ -654,15 +650,14 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
-	npBuilder = npBuilder.
-		Labels(nodePool.Properties.Labels)
+	nodePoolBuilder.Labels(nodePool.Properties.Labels)
 
 	if nodePool.Properties.AutoScaling != nil {
-		npBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
+		nodePoolBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
 			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
 			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
 	} else {
-		npBuilder.Replicas(int(nodePool.Properties.Replicas))
+		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
 	}
 
 	if len(nodePool.Properties.Taints) > 0 {
@@ -674,19 +669,19 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				Value(t.Value)
 			taintBuilders = append(taintBuilders, newTaintBuilder)
 		}
-		npBuilder = npBuilder.Taints(taintBuilders...)
+		nodePoolBuilder.Taints(taintBuilders...)
 	}
 
 	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
-		npBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
+		nodePoolBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
 
-	return npBuilder.Build()
+	return nodePoolBuilder.Build()
 }
 
-// ConvertCStoExternalAuth converts a CS External Auth object into HCPOpenShiftClusterExternalAuth object
+// ConvertCStoExternalAuth converts a CS ExternalAuth object into HCPOpenShiftClusterExternalAuth object.
 func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *arohcpv1alpha1.ExternalAuth) (*api.HCPOpenShiftClusterExternalAuth, error) {
 	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyCSToRP(csExternalAuth.Claim().Mappings().UserName().PrefixPolicy())
 	if err != nil {
@@ -765,13 +760,13 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	return externalAuth, nil
 }
 
-// BuildCSExternalAuth creates a CS External Auth object from an HCPOpenShiftClusterExternalAuth object
+// BuildCSExternalAuth creates a CS ExternalAuth object from an HCPOpenShiftClusterExternalAuth object.
 func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuth, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
-		externalAuthBuilder = externalAuthBuilder.ID(externalAuth.Name)
+		externalAuthBuilder.ID(externalAuth.Name)
 	}
 
 	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
@@ -797,7 +792,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 			Type(clientType)
 		clientConfigs = append(clientConfigs, newClientConfig)
 	}
-	externalAuthBuilder = externalAuthBuilder.Clients(clientConfigs...)
+	externalAuthBuilder.Clients(clientConfigs...)
 
 	err := buildClaims(externalAuthBuilder, *externalAuth)
 	if err != nil {
@@ -844,7 +839,7 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 	return nil
 }
 
-// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential.
+// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
 func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *api.HCPOpenShiftClusterAdminCredential {
 	return &api.HCPOpenShiftClusterAdminCredential{
 		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
@@ -852,7 +847,8 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 	}
 }
 
-func ConvertCStoHCPOpenshiftVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
+// ConvertCStoHCPOpenShiftVersion converts a CS Version object into an HCPOpenShiftVersion object.
+func ConvertCStoHCPOpenShiftVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
 	return &api.HCPOpenShiftVersion{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
