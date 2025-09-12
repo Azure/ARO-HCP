@@ -91,7 +91,7 @@ func TestCreateExternalAuth(t *testing.T) {
 			},
 		},
 	}
-	expectedCSExternalAuth, _ := arohcpv1alpha1.NewExternalAuth().
+	expectedBuilder := arohcpv1alpha1.NewExternalAuth().
 		ID(strings.ToLower(api.TestExternalAuthName)).
 		Issuer(arohcpv1alpha1.NewTokenIssuer().
 			URL(dummyURL).
@@ -109,18 +109,17 @@ func TestCreateExternalAuth(t *testing.T) {
 			).
 			ValidationRules(),
 		).
-		Clients().
-		Build()
+		Clients()
 	tests := []struct {
-		name                   string
-		urlPath                string
-		subscription           *arm.Subscription
-		systemData             *arm.SystemData
-		subDoc                 *arm.Subscription
-		clusterDoc             *database.ResourceDocument
-		externalAuthDoc        *database.ResourceDocument
-		expectedCSExternalAuth *arohcpv1alpha1.ExternalAuth
-		expectedStatusCode     int
+		name               string
+		urlPath            string
+		subscription       *arm.Subscription
+		systemData         *arm.SystemData
+		subDoc             *arm.Subscription
+		clusterDoc         *database.ResourceDocument
+		externalAuthDoc    *database.ResourceDocument
+		expectedBuilder    *arohcpv1alpha1.ExternalAuthBuilder
+		expectedStatusCode int
 	}{
 		{
 			name:    "PUT External Auth - Create a new External Auth",
@@ -130,10 +129,10 @@ func TestCreateExternalAuth(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
-			clusterDoc:             clusterDoc,
-			externalAuthDoc:        externalAuthDoc,
-			expectedCSExternalAuth: expectedCSExternalAuth,
-			expectedStatusCode:     http.StatusCreated,
+			clusterDoc:         clusterDoc,
+			externalAuthDoc:    externalAuthDoc,
+			expectedBuilder:    expectedBuilder,
+			expectedStatusCode: http.StatusCreated,
 		},
 	}
 
@@ -167,13 +166,10 @@ func TestCreateExternalAuth(t *testing.T) {
 
 			// CreateOrUpdateExternalAuth
 			mockCSClient.EXPECT().
-				PostExternalAuth(gomock.Any(), clusterDoc.InternalID, test.expectedCSExternalAuth).
+				PostExternalAuth(gomock.Any(), clusterDoc.InternalID, test.expectedBuilder).
 				DoAndReturn(
-					func(ctx context.Context, clusterInternalID ocm.InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
-						builder := arohcpv1alpha1.NewExternalAuth().
-							Copy(externalAuth).
-							HREF(dummyExternalAuthHREF)
-						return builder.Build()
+					func(ctx context.Context, clusterInternalID ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
+						return builder.HREF(dummyExternalAuthHREF).Build()
 					},
 				)
 

@@ -47,10 +47,6 @@ func (csc *clusterServiceClientWithTracing) startChildSpan(ctx context.Context, 
 		Start(ctx, name)
 }
 
-func (csc *clusterServiceClientWithTracing) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
-	return csc.csc.AddProperties(builder)
-}
-
 func (csc *clusterServiceClientWithTracing) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetCluster")
 	defer span.End()
@@ -86,11 +82,11 @@ func (csc *clusterServiceClientWithTracing) GetClusterInflightChecks(ctx context
 	return csc.csc.GetClusterInflightChecks(ctx, internalID)
 }
 
-func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostCluster")
 	defer span.End()
 
-	cluster, err := csc.csc.PostCluster(ctx, cluster)
+	cluster, err := csc.csc.PostCluster(ctx, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -100,11 +96,11 @@ func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clu
 	return cluster, err
 }
 
-func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateCluster")
 	defer span.End()
 
-	cluster, err := csc.csc.UpdateCluster(ctx, internalID, cluster)
+	cluster, err := csc.csc.UpdateCluster(ctx, internalID, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -161,11 +157,11 @@ func (csc *clusterServiceClientWithTracing) GetNodePoolStatus(ctx context.Contex
 	return nodePoolStatus, err
 }
 
-func (csc *clusterServiceClientWithTracing) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+func (csc *clusterServiceClientWithTracing) PostNodePool(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostNodePool")
 	defer span.End()
 
-	nodePool, err := csc.csc.PostNodePool(ctx, clusterInternalID, nodePool)
+	nodePool, err := csc.csc.PostNodePool(ctx, clusterInternalID, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -175,11 +171,11 @@ func (csc *clusterServiceClientWithTracing) PostNodePool(ctx context.Context, cl
 	return nodePool, err
 }
 
-func (csc *clusterServiceClientWithTracing) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+func (csc *clusterServiceClientWithTracing) UpdateNodePool(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateNodePool")
 	defer span.End()
 
-	nodePool, err := csc.csc.UpdateNodePool(ctx, internalID, nodePool)
+	nodePool, err := csc.csc.UpdateNodePool(ctx, internalID, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -236,11 +232,11 @@ func (csc *clusterServiceClientWithTracing) GetExternalAuth(ctx context.Context,
 	return externalAuth, err
 }
 
-func (csc *clusterServiceClientWithTracing) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+func (csc *clusterServiceClientWithTracing) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostExternalAuth")
 	defer span.End()
 
-	externalAuth, err := csc.csc.PostExternalAuth(ctx, clusterInternalID, externalAuth)
+	externalAuth, err := csc.csc.PostExternalAuth(ctx, clusterInternalID, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
@@ -250,11 +246,11 @@ func (csc *clusterServiceClientWithTracing) PostExternalAuth(ctx context.Context
 	return externalAuth, err
 }
 
-func (csc *clusterServiceClientWithTracing) UpdateExternalAuth(ctx context.Context, internalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+func (csc *clusterServiceClientWithTracing) UpdateExternalAuth(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateExternalAuth")
 	defer span.End()
 
-	externalAuth, err := csc.csc.UpdateExternalAuth(ctx, internalID, externalAuth)
+	externalAuth, err := csc.csc.UpdateExternalAuth(ctx, internalID, builder)
 	if err != nil {
 		span.RecordError(err)
 	} else {

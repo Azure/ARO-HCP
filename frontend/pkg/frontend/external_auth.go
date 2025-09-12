@@ -99,11 +99,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
+		hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(resourceID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -173,19 +173,21 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
 
 	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
-	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
+	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
+	var csExternalAuth *arohcpv1alpha1.ExternalAuth
+
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -197,10 +199,10 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -267,7 +269,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 // the necessary conversions for the API version of the request.
 func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpExternalAuth, err := ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
 	if err != nil {
 		return nil, err
 	}
