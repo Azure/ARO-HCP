@@ -20,15 +20,11 @@ spec:
   - name: 'userIsController'
     expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
   matchConstraints:
-    matchPolicy: Equivalent
-    namespaceSelector: {}
-    objectSelector: {}
     resourceRules:
     - apiGroups: [""]
       apiVersions: ["v1"]
       operations: ["CREATE"]
       resources: ["serviceaccounts/token"]
-      scope: '*'
   variables:
   - name: requestHasOnlyOneAudience
     expression: "object.spec.audiences.size() == 1"
@@ -63,15 +59,11 @@ spec:
   - name: 'userIsController'
     expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
   matchConstraints:
-    matchPolicy: Equivalent
-    namespaceSelector: {}
-    objectSelector: {}
     resourceRules:
     - apiGroups: [""]
       apiVersions: ["v1"]
       operations: ["CREATE", "UPDATE"]
       resources: ["secrets"]
-      scope: '*'
   variables:
   - name: hasOwner
     expression: "has(object.metadata.ownerReferences) && (size(object.metadata.ownerReferences) == 1 && object.metadata.ownerReferences.all(o, o.kind == 'AcrPullBinding' && (o.apiVersion.startsWith('msi-acrpull.microsoft.com/') || o.apiVersion.startsWith('acrpull.microsoft.com/'))))"
@@ -111,15 +103,11 @@ spec:
   - name: 'userIsController'
     expression: "request.userInfo.username == 'system:serviceaccount:'+params.data.controllerNamespace+':'+params.data.controllerServiceAccountName"
   matchConstraints:
-    matchPolicy: Equivalent
-    namespaceSelector: {}
-    objectSelector: {}
     resourceRules:
     - apiGroups: [""]
       apiVersions: ["v1"]
       operations: ["UPDATE"]
       resources: ["serviceaccounts"]
-      scope: '*'
   variables:
   - name: secretsUnchanged
     expression: "oldObject.?secrets == object.?secrets"
