@@ -600,7 +600,16 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(hcpCluster)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
+	csClusterBuilder, err := BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// This is temporary to not introduce too many changes at once.
+	csClusterBuilder = f.clusterServiceClient.AddProperties(csClusterBuilder)
+	csCluster, err := csClusterBuilder.Build()
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

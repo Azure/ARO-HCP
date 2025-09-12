@@ -379,12 +379,14 @@ func TestBuildCSNodePool(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		f := NewTestFrontend(t)
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 			expected, err := tc.expectedCSNodePool.Build()
 			require.NoError(t, err)
-			generatedCSNodePool, _ := f.BuildCSNodePool(ctx, tc.hcpNodePool, false)
+			generatedCSNodePoolBuilder, err := BuildCSNodePool(ctx, tc.hcpNodePool, false)
+			require.NoError(t, err)
+			generatedCSNodePool, err := generatedCSNodePoolBuilder.Build()
+			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSNodePool, "BuildCSNodePool(%v, %v)", resourceID, expected)
 		})
 	}
@@ -567,12 +569,13 @@ func TestBuildCSExternalAuth(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		f := NewTestFrontend(t)
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := ContextWithLogger(context.Background(), api.NewTestLogger())
 			expected, err := tc.expectedCSExternalAuth.Build()
 			require.NoError(t, err)
-			generatedCSExternalAuth, err := f.BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			generatedCSExternalAuthBuilder, err := BuildCSExternalAuth(ctx, tc.hcpExternalAuth, false)
+			require.NoError(t, err)
+			generatedCSExternalAuth, err := generatedCSExternalAuthBuilder.Build()
 			require.NoError(t, err)
 			assert.Equalf(t, expected, generatedCSExternalAuth, "BuildCSExternalAuth(%v, %v)", resourceID, expected)
 		})

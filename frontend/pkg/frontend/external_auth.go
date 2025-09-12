@@ -173,7 +173,15 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
 
 	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
-	csExternalAuth, err := f.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
+	csExternalAuthBuilder, err := BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// This is temporary to not introduce too many changes at once.
+	csExternalAuth, err := csExternalAuthBuilder.Build()
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

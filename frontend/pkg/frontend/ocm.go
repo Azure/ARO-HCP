@@ -432,8 +432,8 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 	return "arohcp-" + clusterName + "-" + uuid.New().String()
 }
 
-// BuildCSCluster creates a CS Cluster object from an HCPOpenShiftCluster object.
-func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.Cluster, error) {
+// BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
+func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	// Ensure required headers are present.
@@ -462,9 +462,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		Unit(csNodeDrainGracePeriodUnit).
 		Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
 
-	clusterBuilder = f.clusterServiceClient.AddProperties(clusterBuilder)
-
-	return clusterBuilder.Build()
+	return clusterBuilder, nil
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
@@ -627,8 +625,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	return nodePool
 }
 
-// BuildCSNodePool creates a CS NodePool object from an HCPOpenShiftClusterNodePool object.
-func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePool, error) {
+// BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
+func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
 
 	// These attributes cannot be updated after node pool creation.
@@ -678,7 +676,7 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
 	}
 
-	return nodePoolBuilder.Build()
+	return nodePoolBuilder, nil
 }
 
 // ConvertCStoExternalAuth converts a CS ExternalAuth object into HCPOpenShiftClusterExternalAuth object.
@@ -760,8 +758,8 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	return externalAuth, nil
 }
 
-// BuildCSExternalAuth creates a CS ExternalAuth object from an HCPOpenShiftClusterExternalAuth object.
-func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuth, error) {
+// BuildCSExternalAuth creates a CS ExternalAuthBuilder object from an HCPOpenShiftClusterExternalAuth object.
+func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth, updating bool) (*arohcpv1alpha1.ExternalAuthBuilder, error) {
 	externalAuthBuilder := arohcpv1alpha1.NewExternalAuth()
 
 	// These attributes cannot be updated after node pool creation.
@@ -799,7 +797,7 @@ func (f *Frontend) BuildCSExternalAuth(ctx context.Context, externalAuth *api.HC
 		return nil, err
 	}
 
-	return externalAuthBuilder.Build()
+	return externalAuthBuilder, nil
 }
 
 func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {

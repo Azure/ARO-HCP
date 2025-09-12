@@ -211,7 +211,15 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	versionedRequestNodePool.Normalize(hcpNodePool)
 
 	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
-	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
+	csNodePoolBuilder, err := BuildCSNodePool(ctx, hcpNodePool, updating)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// This is temporary to not introduce too many changes at once.
+	csNodePool, err := csNodePoolBuilder.Build()
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
