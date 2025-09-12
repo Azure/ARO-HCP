@@ -4361,5 +4361,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Prometheus Overview",
+  "uid": "prometheus-overview",
   "version": 1
 }
