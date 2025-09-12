@@ -413,11 +413,11 @@ func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, 
 }
 
 // GetHCPCluster mocks base method.
-func (m *MockDBClient) GetHCPCluster(ctx context.Context, resourceID *arm0.ResourceID) (string, *database.HCPClusterDocument, error) {
+func (m *MockDBClient) GetHCPCluster(ctx context.Context, resourceID *arm0.ResourceID) (string, *database.HCPCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHCPCluster", ctx, resourceID)
 	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(*database.HCPClusterDocument)
+	ret1, _ := ret[1].(*database.HCPCluster)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -435,19 +435,19 @@ type MockDBClientGetHCPClusterCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBClientGetHCPClusterCall) Return(arg0 string, arg1 *database.HCPClusterDocument, arg2 error) *MockDBClientGetHCPClusterCall {
+func (c *MockDBClientGetHCPClusterCall) Return(arg0 string, arg1 *database.HCPCluster, arg2 error) *MockDBClientGetHCPClusterCall {
 	c.Call = c.Call.Return(arg0, arg1, arg2)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientGetHCPClusterCall) Do(f func(context.Context, *arm0.ResourceID) (string, *database.HCPClusterDocument, error)) *MockDBClientGetHCPClusterCall {
+func (c *MockDBClientGetHCPClusterCall) Do(f func(context.Context, *arm0.ResourceID) (string, *database.HCPCluster, error)) *MockDBClientGetHCPClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientGetHCPClusterCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) (string, *database.HCPClusterDocument, error)) *MockDBClientGetHCPClusterCall {
+func (c *MockDBClientGetHCPClusterCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) (string, *database.HCPCluster, error)) *MockDBClientGetHCPClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -685,10 +685,10 @@ func (c *MockDBClientListAllSubscriptionDocsCall) DoAndReturn(f func() database.
 }
 
 // ListHCPClusters mocks base method.
-func (m *MockDBClient) ListHCPClusters(prefix *arm0.ResourceID, options *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument] {
+func (m *MockDBClient) ListHCPClusters(prefix *arm0.ResourceID, options *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPCluster] {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListHCPClusters", prefix, options)
-	ret0, _ := ret[0].(database.DBClientIterator[database.HCPClusterDocument])
+	ret0, _ := ret[0].(database.DBClientIterator[database.HCPCluster])
 	return ret0
 }
 
@@ -705,19 +705,19 @@ type MockDBClientListHCPClustersCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBClientListHCPClustersCall) Return(arg0 database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
+func (c *MockDBClientListHCPClustersCall) Return(arg0 database.DBClientIterator[database.HCPCluster]) *MockDBClientListHCPClustersCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBClientListHCPClustersCall) Do(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
+func (c *MockDBClientListHCPClustersCall) Do(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPCluster]) *MockDBClientListHCPClustersCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientListHCPClustersCall) DoAndReturn(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPClusterDocument]) *MockDBClientListHCPClustersCall {
+func (c *MockDBClientListHCPClustersCall) DoAndReturn(f func(*arm0.ResourceID, *database.DBClientListResourceDocsOptions) database.DBClientIterator[database.HCPCluster]) *MockDBClientListHCPClustersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -54,6 +54,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+	nodePoolID := request.PathValue(PathSegmentNodePoolName)
+
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -77,14 +82,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	resourceItemID, armNodePool, err := f.dbClient.HCPClusterCRUD().NodePoolCRUD(subscriptionID, resourceGroupID, hcpClusterID).Get(ctx, nodePoolID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (resourceDoc != nil)
+	var updating = (armNodePool != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
@@ -92,7 +97,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	var successStatusCode int
 
 	if updating {
-		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
+		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, armNodePool.GetResourceDocument().InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -133,12 +138,12 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		resourceDoc = database.NewResourceDocument(resourceID)
+		armNodePool = database.NewNodePool(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, armNodePool.GetResourceDocument())
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -147,7 +152,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 
-	_, clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+	_, armHCPCluster, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -158,7 +163,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterResourceDoc.InternalID)
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, armHCPCluster.GetResourceDocument().InternalID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID.Parent))
@@ -204,7 +209,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, armNodePool.GetResourceDocument().InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -212,21 +217,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, armHCPCluster.GetResourceDocument().InternalID, csNodePool)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		armNodePool.Properties.ResourceDocument.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -236,19 +234,19 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, armNodePool.GetResourceDocument().ResourceID, armNodePool.GetResourceDocument().InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(armNodePool, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
 	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
 
 	// Record the latest system data values from ARM, if present.
 	if systemData != nil {
@@ -276,14 +274,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	armNodePool, err = transactionResult.GetNodePool(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSNodePool(csNodePool, armNodePool.GetResourceDocument(), versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

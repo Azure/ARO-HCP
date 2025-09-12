@@ -12,8 +12,6 @@ import (
 	"reflect"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
@@ -31,20 +29,16 @@ type DBTransaction interface {
 
 	// CreateResourceDoc adds a create request to the transaction
 	// and returns the tentative item ID.
-	CreateResourceDoc(doc *ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string
+	CreateResourceDoc(doc DocumentProperties, o *azcosmos.TransactionalBatchItemOptions) string
 
-	// CreateResourceDocumentContent adds a create request to the transaction
-	// and returns the tentative item ID.
-	CreateResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string
-
-	UpsertResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string
+	UpsertResourceDocumentContent(doc DocumentProperties, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
 
 	// CreateOperationDoc adds a create request to the transaction
 	// and returns the tentative item ID.
-	CreateOperationDoc(doc *OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string
+	CreateOperationDoc(doc *OperationDocumentWrapper, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchOperationDoc adds a set of patch operations to the transaction.
 	PatchOperationDoc(itemID string, ops OperationDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
@@ -57,23 +51,19 @@ type DBTransaction interface {
 }
 
 type DBTransactionResult interface {
-	// GetResourceDoc returns the ResourceDocument for itemID.
-	// The ResourceDocument is only available if the transaction was
+	GetExternalAuth(itemID string) (*ExternalAuth, error)
+	// GetHCPCluster returns the HCPCluster for itemID.
+	// The HCPCluster is only available if the transaction was
 	// executed with the EnableContentResponseOnWrite option set, or
 	// the document was requested with DBTransaction.ReadDoc.
-	GetResourceDoc(itemID string) (*ResourceDocument, error)
-
-	// GetHCPCluster returns the HCPClusterDocument for itemID.
-	// The HCPClusterDocument is only available if the transaction was
-	// executed with the EnableContentResponseOnWrite option set, or
-	// the document was requested with DBTransaction.ReadDoc.
-	GetHCPCluster(itemID string) (*HCPClusterDocument, error)
+	GetHCPCluster(itemID string) (*HCPCluster, error)
+	GetNodePool(itemID string) (*NodePool, error)
 
 	// GetOperationDoc returns the OperationDocument for itemID.
 	// The OperationDocument is only available if the transaction was
 	// executed with the EnableContentResponseOnWrite option set, or
 	// the document was requested with DBTransaction.ReadDoc.
-	GetOperationDoc(itemID string) (*OperationDocument, error)
+	GetOperationDoc(itemID string) (*OperationDocumentWrapper, error)
 }
 
 // ErrItemNotFound occurs when the requested item ID was not found,
@@ -118,41 +108,17 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 	})
 }
 
-func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string {
-	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
+func (t *cosmosDBTransaction) CreateResourceDoc(doc DocumentProperties, o *azcosmos.TransactionalBatchItemOptions) string {
+	typedDoc := NewTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
+	// overwrite the existing typedDocument to clear it out
+	doc.SetTypedDocument(*typedDoc)
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc, api.NodePoolResourceType.String(), api.ExternalAuthResourceType.String())
-		} else {
-			err = ErrWrongPartition
-		}
-
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.ResourceID, err)
-		}
-
-		b.CreateItem(data, o)
-		return typedDoc.ID, nil
-	})
-
-	return typedDoc.ID
-}
-
-// CreateResourceDocumentContent will eventually replace CreateResourceDoc once we have converted every type to fully self contain
-// the data that is being serialized.
-func (t *cosmosDBTransaction) CreateResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
-	typedDoc := newTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
-
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		var data []byte
-		var err error
-
-		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc, doc.GetResourceType().String())
+			data, err = typedDocumentMarshal(doc)
 		} else {
 			err = ErrWrongPartition
 		}
@@ -168,15 +134,17 @@ func (t *cosmosDBTransaction) CreateResourceDocumentContent(doc ResourceDocument
 	return typedDoc.ID
 }
 
-func (t *cosmosDBTransaction) UpsertResourceDocumentContent(doc ResourceDocumentContent, o *azcosmos.TransactionalBatchItemOptions) string {
-	typedDoc := newTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
+func (t *cosmosDBTransaction) UpsertResourceDocumentContent(doc DocumentProperties, o *azcosmos.TransactionalBatchItemOptions) string {
+	typedDoc := NewTypedDocument(doc.GetSubscriptionID(), doc.GetResourceType())
+	// overwrite the existing typedDocument to clear it out
+	doc.SetTypedDocument(*typedDoc)
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc, doc.GetResourceType().String())
+			data, err = typedDocumentMarshal(doc)
 		} else {
 			err = ErrWrongPartition
 		}
@@ -199,16 +167,17 @@ func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocume
 	})
 }
 
-func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string {
-	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, OperationResourceType)
+func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocumentWrapper, o *azcosmos.TransactionalBatchItemOptions) string {
+	typedDoc := NewTypedDocument(doc.Properties.ExternalID.SubscriptionID, OperationResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
+	doc.SetTypedDocument(*typedDoc)
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc, OperationResourceType.String())
+			data, err = typedDocumentMarshal(typedDoc)
 		} else {
 			err = ErrWrongPartition
 		}
@@ -296,33 +265,41 @@ func newCosmosDBTransactionResult() *cosmosDBTransactionResult {
 	return &cosmosDBTransactionResult{make(map[string]json.RawMessage)}
 }
 
-func getCosmosDBTransactionResultDoc[T DocumentProperties](r *cosmosDBTransactionResult, itemID string) (*T, error) {
+func getCosmosDBTransactionResultDoc[T any](r *cosmosDBTransactionResult, itemID string) (*T, error) {
 	data, ok := r.items[itemID]
 	if !ok {
 		return nil, ErrItemNotFound
 	}
 
-	typedDoc, innerDoc, err := typedDocumentUnmarshal[T](data)
+	ret, err := typedDocumentUnmarshal[T](data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item '%s': %w", itemID, err)
 	}
+	retAsTypedDocument, ok := any(ret).(TypedResource)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement TypedResource interface", ret)
+	}
 
 	// Verify the document ID agrees with the requested ID.
-	if typedDoc.ID != itemID {
+	if retAsTypedDocument.GetTypedDocument().ID != itemID {
 		return nil, ErrItemNotFound
 	}
 
-	return innerDoc, nil
+	return ret, nil
 }
 
-func (r *cosmosDBTransactionResult) GetResourceDoc(itemID string) (*ResourceDocument, error) {
-	return getCosmosDBTransactionResultDoc[ResourceDocument](r, itemID)
+func (r *cosmosDBTransactionResult) GetExternalAuth(itemID string) (*ExternalAuth, error) {
+	return getCosmosDBTransactionResultDoc[ExternalAuth](r, itemID)
 }
 
-func (r *cosmosDBTransactionResult) GetHCPCluster(itemID string) (*HCPClusterDocument, error) {
-	return getCosmosDBTransactionResultDoc[HCPClusterDocument](r, itemID)
+func (r *cosmosDBTransactionResult) GetHCPCluster(itemID string) (*HCPCluster, error) {
+	return getCosmosDBTransactionResultDoc[HCPCluster](r, itemID)
 }
 
-func (r *cosmosDBTransactionResult) GetOperationDoc(itemID string) (*OperationDocument, error) {
-	return getCosmosDBTransactionResultDoc[OperationDocument](r, itemID)
+func (r *cosmosDBTransactionResult) GetNodePool(itemID string) (*NodePool, error) {
+	return getCosmosDBTransactionResultDoc[NodePool](r, itemID)
+}
+
+func (r *cosmosDBTransactionResult) GetOperationDoc(itemID string) (*OperationDocumentWrapper, error) {
+	return getCosmosDBTransactionResultDoc[OperationDocumentWrapper](r, itemID)
 }

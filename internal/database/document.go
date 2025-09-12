@@ -27,8 +27,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-// baseDocument includes fields common to all container items.
-type baseDocument struct {
+// BaseDocument includes fields common to all container items.
+type BaseDocument struct {
 	ID string `json:"id,omitempty"`
 
 	// https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live
@@ -42,15 +42,29 @@ type baseDocument struct {
 	CosmosTimestamp   int         `json:"_ts,omitempty"`
 }
 
-// newBaseDocument returns a baseDocument with a unique ID.
-func newBaseDocument() baseDocument {
-	return baseDocument{ID: uuid.New().String()}
+// NewBaseDocument returns a BaseDocument with a unique ID.
+func NewBaseDocument() BaseDocument {
+	return BaseDocument{ID: uuid.New().String()}
+}
+
+type TypedResource interface {
+	GetTypedDocument() *TypedDocument
+	GetSubscriptionID() string
+	GetReportingID() string
+
+	SetTypedDocument(in TypedDocument)
 }
 
 // DocumentProperties is an interface for types that can serve as
-// typedDocument.Properties.
+// TypedDocument.Properties.
 type DocumentProperties interface {
-	GetValidTypes() []string
+	TypedResource
+	GetResourceDocument() *ResourceDocument
+
+	GetResourceType() azcorearm.ResourceType
+	GetResourceID() *azcorearm.ResourceID
+
+	SetResourceID(resourceID *azcorearm.ResourceID)
 }
 
 // ResourceDocumentContent will eventually replace DocumentProperties.  It provides the metadata required for an entire
@@ -67,7 +81,7 @@ type ResourceDocumentContent interface {
 // BillingDocument records timestamps of Hosted Control Plane OpenShift cluster
 // creation and deletion for the purpose of customer billing.
 type BillingDocument struct {
-	baseDocument
+	BaseDocument
 
 	// The cluster creation time represents the time when the cluster was provisioned successfully
 	CreationTime time.Time `json:"creationTime,omitempty"`
@@ -88,7 +102,7 @@ type BillingDocument struct {
 
 func NewBillingDocument(resourceID *azcorearm.ResourceID) *BillingDocument {
 	return &BillingDocument{
-		baseDocument:   newBaseDocument(),
+		BaseDocument:   NewBaseDocument(),
 		SubscriptionID: resourceID.SubscriptionID,
 		ResourceID:     resourceID,
 	}
@@ -244,6 +258,28 @@ const (
 // in Cosmos DB. It omits the location segment from actual operation endpoints.
 var OperationResourceType = azcorearm.NewResourceType(api.ProviderNamespace, api.OperationStatusResourceTypeName)
 
+// TODO swizzle names
+type OperationDocumentWrapper struct {
+	TypedDocument `json:",inline"`
+	Properties    OperationDocument `json:"properties"`
+}
+
+func (doc *OperationDocumentWrapper) GetTypedDocument() TypedDocument {
+	return doc.TypedDocument
+}
+
+func (doc *OperationDocumentWrapper) GetResourceType() azcorearm.ResourceType {
+	return OperationResourceType
+}
+
+func (doc *OperationDocumentWrapper) SetTypedDocument(in TypedDocument) {
+	doc.TypedDocument = in
+}
+
+func (doc *OperationDocumentWrapper) GetReportingID() string {
+	return doc.GetTypedDocument().ID
+}
+
 // OperationDocument tracks an asynchronous operation.
 type OperationDocument struct {
 	// TenantID is the tenant ID of the client that requested the operation
@@ -278,10 +314,10 @@ type OperationDocument struct {
 	Error *arm.CloudErrorBody `json:"error,omitempty"`
 }
 
-func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID, correlationData *arm.CorrelationData) *OperationDocument {
+func NewOperationDocument(request OperationRequest, externalID *azcorearm.ResourceID, internalID ocm.InternalID, correlationData *arm.CorrelationData) *OperationDocumentWrapper {
 	now := time.Now().UTC()
 
-	doc := &OperationDocument{
+	doc := OperationDocument{
 		Request:            request,
 		ExternalID:         externalID,
 		InternalID:         internalID,
@@ -301,7 +337,9 @@ func NewOperationDocument(request OperationRequest, externalID *azcorearm.Resour
 		doc.Status = arm.ProvisioningStateDeleting
 	}
 
-	return doc
+	return &OperationDocumentWrapper{
+		Properties: doc,
+	}
 }
 
 // GetValidTypes returns the valid resource types for an OperationDocument.

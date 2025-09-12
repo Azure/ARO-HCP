@@ -106,7 +106,11 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
 
-	dbIterator := f.dbClient.ListResourceDocs(prefix, nil)
+	dbIterator, err := f.dbClient.SubscriptionCRUD().ListAllTransitiveDescendents(ctx, subscriptionID, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		return arm.NewInternalServerError()
+	}
 
 	// Start a deletion operation for all clusters under the subscription.
 	// Cluster Service will delete all node pools belonging to these clusters
@@ -139,8 +143,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 	return nil
 }
-
-func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
+func (f *Frontend) DeleteResourceExternalAuth(ctx context.Context, transaction database.DBTransaction, resourceItemID, subscriptionID, resourceGroupID, hcpClusterID, externalAuthID string, armExternalAuth *database.ExternalAuth) (string, *arm.CloudError) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
@@ -152,21 +155,63 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		return "", arm.NewInternalServerError()
 	}
 
-	switch resourceDoc.InternalID.Kind() {
-	case arohcpv1alpha1.ClusterKind:
-		err = f.clusterServiceClient.DeleteCluster(ctx, resourceDoc.InternalID)
+	err = f.clusterServiceClient.DeleteExternalAuth(ctx, armExternalAuth.GetResourceDocument().InternalID)
+	if err != nil {
+		cloudError := CSErrorToCloudError(err, armExternalAuth.GetResourceDocument().ResourceID)
+		if cloudError.StatusCode == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB.
+			// This can happen in test environments if a user bypasses
+			// the RP to delete a resource (e.g. "ocm delete"). It can
+			// also happen if an asynchronous deletion operation fails.
+			// To provide a way out of this mess we will try to delete
+			// the errant Cosmos DB document here.
+			logger.Info(fmt.Sprintf("Deleting errant Resources container item for '%s'", armExternalAuth.GetResourceDocument().ResourceID))
+			recoveryErr := f.dbClient.HCPClusterCRUD().NodePoolCRUD(subscriptionID, resourceGroupID, hcpClusterID).Delete(ctx, externalAuthID)
+			if recoveryErr != nil {
+				logger.Error(recoveryErr.Error())
+			}
+		} else {
+			logger.Error(err.Error())
+		}
+		return "", cloudError
+	}
 
-	case arohcpv1alpha1.NodePoolKind:
-		err = f.clusterServiceClient.DeleteNodePool(ctx, resourceDoc.InternalID)
-
-	case arohcpv1alpha1.ExternalAuthKind:
-		err = f.clusterServiceClient.DeleteExternalAuth(ctx, resourceDoc.InternalID)
-
-	default:
-		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	resourceDocument := armExternalAuth.GetResourceDocument()
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             resourceDocument.ResourceID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
 
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDocument.ResourceID, resourceDocument.InternalID, correlationData)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
+	return operationID, nil
+}
+func (f *Frontend) DeleteResourceHCPCluster(ctx context.Context, transaction database.DBTransaction, resourceItemID, subscriptionID, resourceGroupID, hcpClusterID string, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
+	const operationRequest = database.OperationRequestDelete
+	var err error
+
+	logger := LoggerFromContext(ctx)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		return "", arm.NewInternalServerError()
+	}
+
+	err = f.clusterServiceClient.DeleteCluster(ctx, resourceDoc.InternalID)
 	if err != nil {
 		cloudError := CSErrorToCloudError(err, resourceDoc.ResourceID)
 		if cloudError.StatusCode == http.StatusNotFound {
@@ -177,7 +222,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 			// To provide a way out of this mess we will try to delete
 			// the errant Cosmos DB document here.
 			logger.Info(fmt.Sprintf("Deleting errant Resources container item for '%s'", resourceDoc.ResourceID))
-			recoveryErr := f.dbClient.DeleteResourceDoc(ctx, resourceDoc.ResourceID)
+			recoveryErr := f.dbClient.HCPClusterCRUD().Delete(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 			if recoveryErr != nil {
 				logger.Error(recoveryErr.Error())
 			}
@@ -200,16 +245,11 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		return "", arm.NewInternalServerError()
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
-
-	var patchOperations database.ResourceDocumentPatchOperations
-	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
-
-	iterator := f.dbClient.ListResourceDocs(resourceDoc.ResourceID, nil)
-
+	iterator, err := f.dbClient.HCPClusterCRUD().ListAllTransitiveDescendents(ctx, subscriptionID, resourceGroupID, hcpClusterID, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		return "", arm.NewInternalServerError()
+	}
 	for childItemID, childResourceDoc := range iterator.Items(ctx) {
 		// This operation is not accessible through any REST endpoint.
 		// Its purpose is to cause the backend to delete the resource
@@ -220,15 +260,79 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 		var patchOperations database.ResourceDocumentPatchOperations
 		patchOperations.SetActiveOperationID(&childOperationID)
-		patchOperations.SetProvisioningState(childOperationDoc.Status)
+		patchOperations.SetProvisioningState(childOperationDoc.Properties.Status)
 		transaction.PatchResourceDoc(childItemID, patchOperations, nil)
 	}
-
 	err = iterator.GetError()
 	if err != nil {
 		logger.Error(err.Error())
 		return "", arm.NewInternalServerError()
 	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
+	return operationID, nil
+}
+
+func (f *Frontend) DeleteNodePool(ctx context.Context, transaction database.DBTransaction, resourceItemID, subscriptionID, resourceGroupID, hcpClusterID, nodePoolID string, armNodePool *database.NodePool) (string, *arm.CloudError) {
+	const operationRequest = database.OperationRequestDelete
+	var err error
+
+	logger := LoggerFromContext(ctx)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		return "", arm.NewInternalServerError()
+	}
+
+	err = f.clusterServiceClient.DeleteNodePool(ctx, armNodePool.GetResourceDocument().InternalID)
+	if err != nil {
+		cloudError := CSErrorToCloudError(err, armNodePool.GetResourceDocument().ResourceID)
+		if cloudError.StatusCode == http.StatusNotFound {
+			// StatusNotFound means we have stale data in Cosmos DB.
+			// This can happen in test environments if a user bypasses
+			// the RP to delete a resource (e.g. "ocm delete"). It can
+			// also happen if an asynchronous deletion operation fails.
+			// To provide a way out of this mess we will try to delete
+			// the errant Cosmos DB document here.
+			logger.Info(fmt.Sprintf("Deleting errant Resources container item for '%s'", armNodePool.GetResourceDocument().ResourceID))
+			recoveryErr := f.dbClient.HCPClusterCRUD().NodePoolCRUD(subscriptionID, resourceGroupID, hcpClusterID).Delete(ctx, nodePoolID)
+			if recoveryErr != nil {
+				logger.Error(recoveryErr.Error())
+			}
+		} else {
+			logger.Error(err.Error())
+		}
+		return "", cloudError
+	}
+
+	// Cluster Service will take care of canceling any ongoing operations
+	// on the resource or child resources, but we need to do some database
+	// bookkeeping to reflect that.
+	resourceDocument := armNodePool.GetResourceDocument()
+	err = f.CancelActiveOperations(ctx, transaction, &database.DBClientListActiveOperationDocsOptions{
+		ExternalID:             resourceDocument.ResourceID,
+		IncludeNestedResources: true,
+	})
+	if err != nil {
+		logger.Error(err.Error())
+		return "", arm.NewInternalServerError()
+	}
+
+	operationDoc := database.NewOperationDocument(operationRequest, resourceDocument.ResourceID, resourceDocument.InternalID, correlationData)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
 
 	return operationID, nil
 }
@@ -272,18 +376,6 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			return nil, CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	case arohcpv1alpha1.ExternalAuthKind:
-		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, doc.InternalID)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
-		}
-		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()

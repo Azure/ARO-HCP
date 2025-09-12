@@ -53,6 +53,11 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+	externalAuthID := request.PathValue(PathSegmentExternalAuthName)
+
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -74,16 +79,16 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	pk := database.NewPartitionKey(subscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	resourceItemID, externalAuthDoc, err := f.dbClient.HCPClusterCRUD().ExternalAuthCRUD(subscriptionID, resourceGroupID, hcpClusterID).Get(ctx, externalAuthID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (resourceDoc != nil)
+	var updating = (externalAuthDoc != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
@@ -91,14 +96,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	var successStatusCode int
 
 	if updating {
-		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
+		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, externalAuthDoc.GetResourceDocument().InternalID)
 		if err != nil {
-			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", externalAuthDoc.GetResourceDocument().ResourceID, err))
+			arm.WriteCloudError(writer, CSErrorToCloudError(err, externalAuthDoc.GetResourceDocument().ResourceID))
 			return
 		}
 
-		hcpExternalAuth, err := ConvertCStoExternalAuth(resourceID, csExternalAuth)
+		hcpExternalAuth, err := ConvertCStoExternalAuth(externalAuthDoc.GetResourceDocument().ResourceID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -133,12 +138,12 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		resourceDoc = database.NewResourceDocument(resourceID)
+		externalAuthDoc = database.NewExternalAuth(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, externalAuthDoc.GetResourceDocument())
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -176,7 +181,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, externalAuthDoc.GetResourceDocument().InternalID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -184,43 +189,44 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+		_, clusterDoc, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
 
-		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuth)
+		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.GetResourceDocument().InternalID, csExternalAuth)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
+		newInternalID, err := ocm.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
+		externalAuthDoc.SetInternalID(newInternalID)
 	}
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, externalAuthDoc.GetResourceDocument().ResourceID, externalAuthDoc.GetResourceDocument().InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(externalAuthDoc, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
 	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
 
 	// Record the latest system data values from ARM, if present.
 	if systemData != nil {
@@ -239,14 +245,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	externalAuthDoc, err = transactionResult.GetExternalAuth(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSExternalAuth(csExternalAuth, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSExternalAuth(csExternalAuth, externalAuthDoc.GetResourceDocument(), versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

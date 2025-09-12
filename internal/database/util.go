@@ -16,35 +16,33 @@ package database
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type queryItemsIterator[T any] struct {
-	pager              *runtime.Pager[azcosmos.QueryItemsResponse]
-	singlePage         bool
-	continuationToken  string
-	err                error
-	validResourceTypes []string
+	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
+	singlePage        bool
+	continuationToken string
+	err               error
 }
 
 // newqueryItemsIterator is a failable push iterator for a paged query response.
-func newQueryItemsIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse], validResourceTypes ...string) DBClientIterator[T] {
+func newQueryItemsIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
 	return &queryItemsIterator[T]{
-		pager:              pager,
-		validResourceTypes: validResourceTypes,
+		pager: pager,
 	}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
-func newQueryItemsSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse], validResourceTypes ...string) DBClientIterator[T] {
+func newQueryItemsSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
 	return &queryItemsIterator[T]{
-		pager:              pager,
-		singlePage:         true,
-		validResourceTypes: validResourceTypes,
+		pager:      pager,
+		singlePage: true,
 	}
 }
 
@@ -62,9 +60,13 @@ func (iter *queryItemsIterator[T]) Items(ctx context.Context) DBClientIteratorIt
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, item := range response.Items {
-				typedDoc, innerDoc, err := typedDocumentUnmarshal[T](item, iter.validResourceTypes...)
+				typedDoc, innerDoc, err := typedDocumentUnmarshal[T](item)
 				if err != nil {
 					iter.err = err
+					return
+				}
+				if err := typedDoc.validateType((*innerDoc).GetValidTypes()); err != nil {
+					iter.err = fmt.Errorf("unexpected type '%s': %w", typedDoc.ID, err)
 					return
 				}
 

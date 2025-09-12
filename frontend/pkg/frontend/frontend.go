@@ -187,7 +187,7 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write([]byte(f.location))
 }
 
-func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -198,180 +198,32 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	options := database.DBClientListResourceDocsOptions{
-		PageSizeHint: api.Ptr(int32(20)),
-	}
-
-	// The Resource Provider Contract implies $top is only honored when
-	// following a "nextLink" after the initial collection GET request.
-	// So only check for it when the URL includes a $skipToken.
-	urlQuery := request.URL.Query()
-	if urlQuery.Has("$skipToken") {
-		options.ContinuationToken = api.Ptr(urlQuery.Get("$skipToken"))
-		top, err := strconv.ParseInt(urlQuery.Get("$top"), 10, 32)
-		if err == nil && top > 0 {
-			options.PageSizeHint = api.Ptr(int32(top))
-		}
-	}
-
-	// FIXME We may want to cap pageSizeHint. If we get a large enough
-	//       $top argument (and there's enough actual clusters to reach
-	//       that), we could potentially hit the 8MB response size limit.
-
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-	resourceTypeName := path.Base(request.URL.Path)
 	location := request.PathValue(PathSegmentLocation)
-
-	var resourceTypeUsesDatabase bool
-	var clusterInternalID ocm.InternalID
-	var query string
-
-	// Map of resource documents by Cluster Service item ID.
-	documentMap := make(map[string]*database.ResourceDocument)
 
 	pagedResponse := arm.NewPagedResponse()
 
-	switch resourceTypeName {
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		options.ResourceType = &api.NodePoolResourceType
-		resourceTypeUsesDatabase = true
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		options.ResourceType = &api.ExternalAuthResourceType
-		resourceTypeUsesDatabase = true
-	}
+	csIterator := f.clusterServiceClient.ListVersions()
 
-	if resourceTypeUsesDatabase {
-		var needClusterInternalID bool
-
-		// Even though the bulk of the list content comes from Cluster Service,
-		// we start by querying Cosmos DB because its continuation token meets
-		// the requirements of a skipToken for ARM pagination. We then query
-		// Cluster Service for the exact set of IDs returned by Cosmos.
-
-		prefixParts := []string{"/subscriptions", subscriptionID}
-		if resourceGroupName != "" {
-			prefixParts = append(prefixParts, "resourceGroups", resourceGroupName)
-		}
-		if resourceName != "" {
-			// This is a nested resource request. Build a resource ID for
-			// the parent cluster. We use this below to get the cluster's
-			// ResourceDocument from Cosmos DB.
-			prefixParts = append(prefixParts, "providers", api.ProviderNamespace, api.ClusterResourceTypeName, resourceName)
-			needClusterInternalID = true
-		}
-		prefix, err := azcorearm.ParseResourceID(path.Join(prefixParts...))
+	for csVersion := range csIterator.Items(ctx) {
+		versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
+		stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+			"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
+		resourceID, err := azcorearm.ParseResourceID(stringResource)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
-		dbIterator := f.dbClient.ListResourceDocs(prefix, &options)
-
-		for _, resourceDoc := range dbIterator.Items(ctx) {
-			documentMap[resourceDoc.InternalID.ID()] = resourceDoc
-		}
-
-		err = dbIterator.GetError()
+		value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
-		// MiddlewareReferer ensures Referer is present.
-		err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		// Build a Cluster Service query that looks for
-		// the specific IDs returned by the Cosmos query.
-		queryIDs := make([]string, 0, len(documentMap))
-		for key := range documentMap {
-			queryIDs = append(queryIDs, "'"+key+"'")
-		}
-		query = fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-		logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
-
-		if needClusterInternalID {
-			_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, prefix)
-			if err != nil {
-				logger.Error(err.Error())
-				if database.IsResponseError(err, http.StatusNotFound) {
-					arm.WriteResourceNotFoundError(writer, prefix)
-				} else {
-					arm.WriteInternalServerError(writer)
-				}
-				return
-			}
-			clusterInternalID = resourceDoc.InternalID
-		}
+		pagedResponse.AddValue(value)
 	}
-
-	switch resourceTypeName {
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		csIterator := f.clusterServiceClient.ListNodePools(clusterInternalID, query)
-
-		for csNodePool := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csNodePool.ID()]; ok {
-				value, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		csIterator := f.clusterServiceClient.ListExternalAuths(clusterInternalID, query)
-
-		for csExternalAuth := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csExternalAuth.ID()]; ok {
-				value, err := marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.VersionResourceTypeName):
-		csIterator := f.clusterServiceClient.ListVersions()
-
-		for csVersion := range csIterator.Items(ctx) {
-			versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
-			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
-				"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
-			resourceID, err := azcorearm.ParseResourceID(stringResource)
-			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
-			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			pagedResponse.AddValue(value)
-		}
-		err = csIterator.GetError()
-
-	default:
-		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
-	}
+	err = csIterator.GetError()
 
 	// Check for iteration error.
 	if err != nil {
@@ -386,9 +238,8 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func cosmosListOptions(resourceType *azcorearm.ResourceType, queryParams url.Values) database.DBClientListResourceDocsOptions {
+func cosmosListOptions(queryParams url.Values) database.DBClientListResourceDocsOptions {
 	options := database.DBClientListResourceDocsOptions{
-		ResourceType: resourceType,
 		PageSizeHint: api.Ptr(int32(20)),
 	}
 	// The Resource Provider Contract implies $top is only honored when
@@ -404,6 +255,110 @@ func cosmosListOptions(resourceType *azcorearm.ResourceType, queryParams url.Val
 	return options
 }
 
+func (f *Frontend) ArmResourceListExternalAuth(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+
+	var clusterInternalID ocm.InternalID
+	var query string
+
+	// Map of resource documents by Cluster Service item ID.
+	documentMap := make(map[string]*database.ExternalAuth)
+
+	pagedResponse := arm.NewPagedResponse()
+
+	// Even though the bulk of the list content comes from Cluster Service,
+	// we start by querying Cosmos DB because its continuation token meets
+	// the requirements of a skipToken for ARM pagination. We then query
+	// Cluster Service for the exact set of IDs returned by Cosmos.
+
+	options := cosmosListOptions(request.URL.Query())
+	dbIterator, err := f.dbClient.HCPClusterCRUD().ExternalAuthCRUD(subscriptionID, resourceGroupID, hcpClusterID).List(ctx, &options)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	for _, resourceDoc := range dbIterator.Items(ctx) {
+		documentMap[resourceDoc.GetResourceDocument().InternalID.ID()] = resourceDoc
+	}
+
+	err = dbIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(documentMap))
+	for key := range documentMap {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query = fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	_, armHCPCluster, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
+	if err != nil {
+		logger.Error(err.Error())
+		if database.IsResponseError(err, http.StatusNotFound) {
+			arm.WriteResourceNotFoundError(writer, nil)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+	clusterInternalID = armHCPCluster.GetResourceDocument().InternalID
+
+	csIterator := f.clusterServiceClient.ListExternalAuths(clusterInternalID, query)
+
+	for csExternalAuth := range csIterator.Items(ctx) {
+		if doc, ok := documentMap[csExternalAuth.ID()]; ok {
+			value, err := marshalCSExternalAuth(csExternalAuth, doc.GetResourceDocument(), versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+
+	// Check for iteration error.
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
 func (f *Frontend) ArmResourceListHCPClusters(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
@@ -415,31 +370,33 @@ func (f *Frontend) ArmResourceListHCPClusters(writer http.ResponseWriter, reques
 		return
 	}
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
 
 	// Map of resource documents by Cluster Service item ID.
-	documentMap := make(map[string]*database.HCPClusterDocument)
+	documentMap := make(map[string]*database.HCPCluster)
 
 	// Even though the bulk of the list content comes from Cluster Service,
 	// we start by querying Cosmos DB because its continuation token meets
 	// the requirements of a skipToken for ARM pagination. We then query
 	// Cluster Service for the exact set of IDs returned by Cosmos.
 
-	prefixParts := []string{"/subscriptions", subscriptionID}
-	if resourceGroupName != "" {
-		prefixParts = append(prefixParts, "resourceGroups", resourceGroupName)
+	options := cosmosListOptions(request.URL.Query())
+	var dbIterator database.DBClientIterator[database.HCPCluster]
+	if len(resourceGroupID) == 0 {
+		dbIterator, err = f.dbClient.HCPClusterCRUD().ListAll(ctx, subscriptionID, &options)
+	} else {
+		dbIterator, err = f.dbClient.HCPClusterCRUD().List(ctx, subscriptionID, resourceGroupID, &options)
+
 	}
-	prefix, err := azcorearm.ParseResourceID(path.Join(prefixParts...))
+
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	options := cosmosListOptions(&api.ClusterResourceType, request.URL.Query())
-	dbIterator := f.dbClient.ListHCPClusters(prefix, &options)
 	for _, resourceDoc := range dbIterator.Items(ctx) {
-		documentMap[resourceDoc.InternalID.ID()] = resourceDoc
+		documentMap[resourceDoc.GetResourceDocument().InternalID.ID()] = resourceDoc
 	}
 
 	err = dbIterator.GetError()
@@ -471,6 +428,110 @@ func (f *Frontend) ArmResourceListHCPClusters(writer http.ResponseWriter, reques
 	for csCluster := range csIterator.Items(ctx) {
 		if doc, ok := documentMap[csCluster.ID()]; ok {
 			value, err := marshalCSCluster(csCluster, doc, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+
+	// Check for iteration error.
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+
+	var clusterInternalID ocm.InternalID
+	var query string
+
+	// Map of resource documents by Cluster Service item ID.
+	documentMap := make(map[string]*database.NodePool)
+
+	pagedResponse := arm.NewPagedResponse()
+
+	// Even though the bulk of the list content comes from Cluster Service,
+	// we start by querying Cosmos DB because its continuation token meets
+	// the requirements of a skipToken for ARM pagination. We then query
+	// Cluster Service for the exact set of IDs returned by Cosmos.
+
+	options := cosmosListOptions(request.URL.Query())
+	dbIterator, err := f.dbClient.HCPClusterCRUD().NodePoolCRUD(subscriptionID, resourceGroupID, hcpClusterID).List(ctx, &options)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	for _, resourceDoc := range dbIterator.Items(ctx) {
+		documentMap[resourceDoc.GetResourceDocument().InternalID.ID()] = resourceDoc
+	}
+
+	err = dbIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(documentMap))
+	for key := range documentMap {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query = fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	_, hcpCluster, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
+	if err != nil {
+		logger.Error(err.Error())
+		if database.IsResponseError(err, http.StatusNotFound) {
+			arm.WriteResourceNotFoundError(writer, nil)
+		} else {
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+	clusterInternalID = hcpCluster.GetResourceDocument().InternalID
+
+	csIterator := f.clusterServiceClient.ListNodePools(clusterInternalID, query)
+
+	for csNodePool := range csIterator.Items(ctx) {
+		if nodePoolDoc, ok := documentMap[csNodePool.ID()]; ok {
+			value, err := marshalCSNodePool(csNodePool, nodePoolDoc.GetResourceDocument(), versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -527,10 +588,10 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-// ArmResourceReadHCPCluster implements the GET single HCP Cluster API contract for ARM
+// ArmResourceRead implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
-func (f *Frontend) ArmResourceReadHCPCluster(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceReadNodePool(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -548,10 +609,42 @@ func (f *Frontend) ArmResourceReadHCPCluster(writer http.ResponseWriter, request
 		return
 	}
 
-	_, hcpCluster, err := f.dbClient.GetHCPCluster(ctx, resourceID)
+	responseBody, cloudError := f.MarshalResource(ctx, resourceID, versionedInterface)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+// ArmResourceRead implements the GET single resource API contract for ARM
+// * 200 If the resource exists
+// * 404 If the resource does not exist
+func (f *Frontend) ArmResourceReadExternalAuth(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+	externalAuthID := request.PathValue(PathSegmentExternalAuthName)
+
+	_, externalAuth, err := f.dbClient.HCPClusterCRUD().ExternalAuthCRUD(subscriptionID, resourceGroupID, hcpClusterID).Get(ctx, externalAuthID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
+			resourceID, _ := ResourceIDFromContext(ctx)
 			arm.WriteCloudError(writer, arm.NewResourceNotFoundError(resourceID))
 		} else {
 			arm.WriteCloudError(writer, arm.NewInternalServerError())
@@ -559,14 +652,63 @@ func (f *Frontend) ArmResourceReadHCPCluster(writer http.ResponseWriter, request
 		return
 	}
 
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpCluster.InternalID)
+	csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, externalAuth.GetResourceDocument().InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, externalAuth.GetResourceDocument().ResourceID))
+		return
+	}
+	responseBody, err := marshalCSExternalAuth(csExternalAuth, externalAuth.GetResourceDocument(), versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, hcpCluster, versionedInterface)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+// ArmResourceReadHCPCluster implements the GET single HCP Cluster API contract for ARM
+// * 200 If the resource exists
+// * 404 If the resource does not exist
+func (f *Frontend) ArmResourceReadHCPCluster(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+
+	_, hcpClusterDoc, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
+	if err != nil {
+		logger.Error(err.Error())
+		if database.IsResponseError(err, http.StatusNotFound) {
+			resourceID, _ := ResourceIDFromContext(ctx)
+			arm.WriteCloudError(writer, arm.NewResourceNotFoundError(resourceID))
+		} else {
+			arm.WriteCloudError(writer, arm.NewInternalServerError())
+		}
+		return
+	}
+
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpClusterDoc.GetResourceDocument().InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, CSErrorToCloudError(err, hcpClusterDoc.GetResourceDocument().ResourceID))
+		return
+	}
+
+	responseBody, err := marshalCSCluster(csCluster, hcpClusterDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -604,6 +746,10 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 		return
 	}
 
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -627,14 +773,14 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	_, resourceDoc, err := f.dbClient.GetHCPCluster(ctx, resourceID)
+	_, hcpClusterDoc, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (resourceDoc != nil)
+	var updating = (hcpClusterDoc != nil)
 	var operationRequest database.OperationRequest
 
 	var versionedCurrentCluster api.VersionedHCPOpenShiftCluster
@@ -642,7 +788,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 	var successStatusCode int
 
 	if updating {
-		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
+		csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpClusterDoc.GetResourceDocument().InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -688,12 +834,12 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 			return
 		}
 
-		resourceDoc = database.NewHCPClusterDocument(resourceID)
+		hcpClusterDoc = database.NewHCPClusterDocument(resourceID)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, &resourceDoc.ResourceDocument)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, hcpClusterDoc.GetResourceDocument())
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -723,7 +869,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	// at this point the hcpCluster contains all the fields specified by the user on the versioned request.
 	// regardless of create or update, the user's input gets to overwrite any field he expressed a preference for.
-	resourceDoc.CustomerDesiredState.HCPOpenShiftCluster = database.KeepCustomerOwnedFieldsFromHCPOpenShiftCluster(*hcpCluster)
+	database.ClearUnownedFields(hcpClusterDoc)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
 	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
@@ -735,7 +881,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, hcpClusterDoc.GetResourceDocument().InternalID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
@@ -750,7 +896,7 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
+		hcpClusterDoc.GetResourceDocument().InternalID, err = ocm.NewInternalID(csCluster.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -761,21 +907,21 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, hcpClusterDoc.GetResourceDocument().ResourceID, hcpClusterDoc.GetResourceDocument().InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	upsertOptions := &azcosmos.TransactionalBatchItemOptions{}
-	if len(resourceDoc.CosmosETag) > 0 {
-		upsertOptions.IfMatchETag = ptr.To(resourceDoc.CosmosETag)
+	if len(hcpClusterDoc.CosmosETag) > 0 {
+		upsertOptions.IfMatchETag = ptr.To(hcpClusterDoc.CosmosETag)
 	}
-	resourceItemID := transaction.UpsertResourceDocumentContent(resourceDoc, upsertOptions)
+	resourceItemID := transaction.UpsertResourceDocumentContent(hcpClusterDoc, upsertOptions)
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
 	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
+	patchOperations.SetProvisioningState(operationDoc.Properties.Status)
 
 	// Record the latest system data values form ARM, if present.
 	if systemData != nil {
@@ -812,14 +958,14 @@ func (f *Frontend) ArmResourceCreateOrUpdateHCPCluster(writer http.ResponseWrite
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetHCPCluster(resourceItemID)
+	hcpClusterDoc, err = transactionResult.GetHCPCluster(resourceItemID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSCluster(csCluster, hcpClusterDoc, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -898,11 +1044,152 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusAccepted)
 }
 
+// ArmResourceDelete implements the deletion API contract for ARM
+// * 200 if a deletion is successful
+// * 202 if an asynchronous delete is initiated
+// * 204 if a well-formed request attempts to delete a nonexistent resource
+func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestDelete
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if database.IsResponseError(err, http.StatusNotFound) {
+			writer.WriteHeader(http.StatusNoContent)
+		} else {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	transaction := f.dbClient.NewTransaction(pk)
+
+	operationID, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
+	if cloudError != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if cloudError.StatusCode == http.StatusNotFound {
+			writer.WriteHeader(http.StatusNoContent)
+		} else {
+			arm.WriteCloudError(writer, cloudError)
+		}
+		return
+	}
+
+	f.ExposeOperation(writer, request, operationID, transaction)
+
+	_, err = transaction.Execute(ctx, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
+// ArmResourceDelete implements the deletion API contract for ARM
+// * 200 if a deletion is successful
+// * 202 if an asynchronous delete is initiated
+// * 204 if a well-formed request attempts to delete a nonexistent resource
+func (f *Frontend) ArmResourceDeleteNodePool(writer http.ResponseWriter, request *http.Request) {
+	const operationRequest = database.OperationRequestDelete
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+	nodePoolID := request.PathValue(PathSegmentNodePoolName)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+
+	resourceItemID, armNodePool, err := f.dbClient.HCPClusterCRUD().NodePoolCRUD(subscriptionID, resourceGroupID, hcpClusterID).Get(ctx, nodePoolID)
+	if err != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if database.IsResponseError(err, http.StatusNotFound) {
+			writer.WriteHeader(http.StatusNoContent)
+		} else {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+		}
+		return
+	}
+
+	// CheckForProvisioningStateConflict does not log conflict errors
+	// but does log unexpected errors like database failures.
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, armNodePool.GetResourceDocument())
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	transaction := f.dbClient.NewTransaction(pk)
+
+	operationID, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, armNodePool)
+	if cloudError != nil {
+		// For resource not found errors on deletion, ARM requires
+		// us to simply return 204 No Content and no response body.
+		if cloudError.StatusCode == http.StatusNotFound {
+			writer.WriteHeader(http.StatusNoContent)
+		} else {
+			arm.WriteCloudError(writer, cloudError)
+		}
+		return
+	}
+
+	f.ExposeOperation(writer, request, operationID, transaction)
+
+	_, err = transaction.Execute(ctx, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	writer.WriteHeader(http.StatusAccepted)
+}
+
 func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseWriter, request *http.Request) {
 	const operationRequest = database.OperationRequestRequestCredential
 
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
@@ -922,7 +1209,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -935,7 +1222,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc.GetResourceDocument())
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -943,10 +1230,15 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 
 	// New credential cannot be requested while credentials are being revoked.
 
-	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+	iterator, err := f.dbClient.OperationsCRUD().ListActive(ctx, resourceID.SubscriptionID, &database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
 		ExternalID: resourceID,
 	})
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	for _, _ = range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
@@ -963,7 +1255,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
-	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.InternalID)
+	csCredential, err := f.clusterServiceClient.PostBreakGlassCredential(ctx, resourceDoc.GetResourceDocument().InternalID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1000,6 +1292,10 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupID := request.PathValue(PathSegmentResourceGroupName)
+	hcpClusterID := request.PathValue(PathSegmentResourceName)
+
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -1018,7 +1314,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
-	_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	_, resourceDoc, err := f.dbClient.HCPClusterCRUD().Get(ctx, subscriptionID, resourceGroupID, hcpClusterID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1031,7 +1327,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc.GetResourceDocument())
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
@@ -1039,10 +1335,15 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 
 	// Credential revocation cannot be requested while another revocation is in progress.
 
-	iterator := f.dbClient.ListActiveOperationDocs(pk, &database.DBClientListActiveOperationDocsOptions{
+	iterator, err := f.dbClient.OperationsCRUD().ListActive(ctx, resourceID.SubscriptionID, &database.DBClientListActiveOperationDocsOptions{
 		Request:    api.Ptr(database.OperationRequestRevokeCredentials),
 		ExternalID: resourceID,
 	})
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	for _, _ = range iterator.Items(ctx) {
 		writer.Header().Set("Retry-After", strconv.Itoa(10))
@@ -1059,7 +1360,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
-	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.InternalID)
+	err = f.clusterServiceClient.DeleteBreakGlassCredentials(ctx, resourceDoc.GetResourceDocument().InternalID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1080,7 +1381,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 		return
 	}
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, resourceID, resourceDoc.GetResourceDocument().InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -1108,7 +1409,7 @@ func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	subscription, err := f.dbClient.SubscriptionCRUD().Get(ctx, subscriptionID)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1153,9 +1454,11 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	_, err = f.dbClient.GetSubscriptionDoc(ctx, subscriptionID)
+	_, err = f.dbClient.SubscriptionCRUD().Get(ctx, subscriptionID)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		err = f.dbClient.CreateSubscriptionDoc(ctx, subscriptionID, &subscription)
+		err = f.dbClient.SubscriptionCRUD().Create(ctx, subscriptionID, &database.SubscriptionWrapper{
+			Properties: subscription,
+		})
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1167,7 +1470,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		arm.WriteInternalServerError(writer)
 		return
 	} else {
-		updated, err := f.dbClient.UpdateSubscriptionDoc(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
+		updated, err := f.dbClient.SubscriptionCRUD().Update(ctx, subscriptionID, func(updateSubscription *arm.Subscription) bool {
 			messages := getSubscriptionDifferences(updateSubscription, &subscription)
 			for _, message := range messages {
 				logger.Info(message)
@@ -1400,9 +1703,9 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
+	doc, err := f.dbClient.OperationsCRUD().Get(ctx, subscriptionID, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1415,12 +1718,12 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, &doc.Properties) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.ToStatus())
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, doc.Properties.ToStatus())
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -1428,20 +1731,21 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, armHCPCluster *database.HCPClusterDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(armHCPCluster.ResourceID, csCluster)
+func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, armHCPCluster *database.HCPCluster, versionedInterface api.Version) ([]byte, error) {
+	armHCPClusterResourceDocument := armHCPCluster.GetResourceDocument()
+	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(armHCPClusterResourceDocument.ResourceID, csCluster)
 	if err != nil {
 		return nil, err
 	}
 
-	hcpCluster.SystemData = armHCPCluster.SystemData
-	hcpCluster.Tags = maps.Clone(armHCPCluster.Tags)
-	hcpCluster.Properties.ProvisioningState = armHCPCluster.ProvisioningState
+	hcpCluster.SystemData = armHCPClusterResourceDocument.SystemData
+	hcpCluster.Tags = maps.Clone(armHCPClusterResourceDocument.Tags)
+	hcpCluster.Properties.ProvisioningState = armHCPClusterResourceDocument.ProvisioningState
 
-	if armHCPCluster.Identity != nil {
-		hcpCluster.Identity.PrincipalID = armHCPCluster.Identity.PrincipalID
-		hcpCluster.Identity.TenantID = armHCPCluster.Identity.TenantID
-		hcpCluster.Identity.Type = armHCPCluster.Identity.Type
+	if armHCPClusterResourceDocument.Identity != nil {
+		hcpCluster.Identity.PrincipalID = armHCPClusterResourceDocument.Identity.PrincipalID
+		hcpCluster.Identity.TenantID = armHCPClusterResourceDocument.Identity.TenantID
+		hcpCluster.Identity.Type = armHCPClusterResourceDocument.Identity.Type
 	}
 
 	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)
@@ -1501,9 +1805,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
+	doc, err := f.dbClient.OperationsCRUD().Get(ctx, subscriptionID, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1516,7 +1820,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, &doc.Properties) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1541,7 +1845,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	//
 	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
 	//
-	switch doc.Status {
+	switch doc.Properties.Status {
 	case arm.ProvisioningStateSucceeded:
 		// Handled below.
 	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
@@ -1550,7 +1854,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	default:
 		// Operation is still in progress.
-		f.AddLocationHeader(writer, request, doc.OperationID)
+		f.AddLocationHeader(writer, request, doc.Properties.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -1560,7 +1864,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var successStatusCode int
 
-	switch doc.Request {
+	switch doc.Properties.Request {
 	case database.OperationRequestCreate:
 		successStatusCode = http.StatusCreated
 	case database.OperationRequestUpdate:
@@ -1574,15 +1878,15 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
+		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Properties.Request))
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	var responseBody []byte
 
-	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
+	if doc.Properties.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.Properties.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1598,7 +1902,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	} else {
 		var cloudError *arm.CloudError
 
-		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
+		responseBody, cloudError = f.MarshalResource(ctx, doc.Properties.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
 			return

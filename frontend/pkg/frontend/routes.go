@@ -99,13 +99,13 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceListHCPClusters))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListNodePools))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListExternalAuth))
 	mux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListVersion))
 
 	// Resource read endpoints
 	postMuxMiddleware = NewMiddleware(
@@ -141,7 +141,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdateHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDeleteHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodPost, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, ActionRequestAdminCredential),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceActionRequestAdminCredential))
@@ -156,7 +156,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateNodePool))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDeleteNodePool))
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
@@ -165,7 +165,7 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateExternalAuth))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceDeleteExternalAuth))
 
 	// Operation endpoints
 	postMuxMiddleware = NewMiddleware(

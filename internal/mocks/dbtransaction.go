@@ -477,10 +477,10 @@ func (m *MockDBTransactionResult) EXPECT() *MockDBTransactionResultMockRecorder 
 }
 
 // GetHCPCluster mocks base method.
-func (m *MockDBTransactionResult) GetHCPCluster(itemID string) (*database.HCPClusterDocument, error) {
+func (m *MockDBTransactionResult) GetHCPCluster(itemID string) (*database.HCPCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHCPCluster", itemID)
-	ret0, _ := ret[0].(*database.HCPClusterDocument)
+	ret0, _ := ret[0].(*database.HCPCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -498,19 +498,19 @@ type MockDBTransactionResultGetHCPClusterCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockDBTransactionResultGetHCPClusterCall) Return(arg0 *database.HCPClusterDocument, arg1 error) *MockDBTransactionResultGetHCPClusterCall {
+func (c *MockDBTransactionResultGetHCPClusterCall) Return(arg0 *database.HCPCluster, arg1 error) *MockDBTransactionResultGetHCPClusterCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionResultGetHCPClusterCall) Do(f func(string) (*database.HCPClusterDocument, error)) *MockDBTransactionResultGetHCPClusterCall {
+func (c *MockDBTransactionResultGetHCPClusterCall) Do(f func(string) (*database.HCPCluster, error)) *MockDBTransactionResultGetHCPClusterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionResultGetHCPClusterCall) DoAndReturn(f func(string) (*database.HCPClusterDocument, error)) *MockDBTransactionResultGetHCPClusterCall {
+func (c *MockDBTransactionResultGetHCPClusterCall) DoAndReturn(f func(string) (*database.HCPCluster, error)) *MockDBTransactionResultGetHCPClusterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

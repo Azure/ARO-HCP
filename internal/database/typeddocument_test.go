@@ -35,24 +35,24 @@ func (p testProperties) GetValidTypes() []string {
 func TestTypedDocumentMarshal(t *testing.T) {
 	tests := []struct {
 		name     string
-		typedDoc *typedDocument
+		typedDoc *TypedDocument
 		err      string
 	}{
 		{
 			name: "sucessful marshal",
-			typedDoc: &typedDocument{
+			typedDoc: &TypedDocument{
 				ResourceType: testResourceType,
 			},
 			err: "",
 		},
 		{
 			name:     "missing resource type",
-			typedDoc: &typedDocument{},
+			typedDoc: &TypedDocument{},
 			err:      "missing type",
 		},
 		{
 			name: "invalid resource type",
-			typedDoc: &typedDocument{
+			typedDoc: &TypedDocument{
 				ResourceType: "invalid",
 			},
 			err: "invalid type 'invalid' for testProperties",
