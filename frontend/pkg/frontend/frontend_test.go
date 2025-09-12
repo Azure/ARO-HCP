@@ -385,7 +385,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"properties": map[string]any{
 					"version": map[string]any{
 						"id":           "4.0",
-						"channelGroup": "stable",
+						"channelGroup": "fast",
 					},
 					"api": map[string]any{
 						"visibility": "Public",
@@ -407,7 +407,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
-						"channelGroup": "stable",
+						"channelGroup": "fast",
 					},
 					"network": map[string]any{
 						// 1 invalid fields
@@ -434,7 +434,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
-						"channelGroup": "stable",
+						"channelGroup": "fast",
 					},
 					"platform": map[string]any{
 						"vmSize": "Standard_D8s_v3",
@@ -452,7 +452,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				"apiVersion": api.TestAPIVersion,
 				"properties": map[string]any{
 					"version": map[string]any{
-						"channelGroup": "stable",
+						"channelGroup": "fast",
 					},
 					"platform": map[string]any{
 						// 1 missing required field
