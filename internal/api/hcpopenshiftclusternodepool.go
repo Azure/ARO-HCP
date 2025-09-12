@@ -16,11 +16,9 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -107,6 +105,10 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	}
 }
 
+func (nodePool *HCPOpenShiftClusterNodePool) NewVersioned(versionedInterface Version) VersionedResource {
+	return versionedInterface.NewHCPOpenShiftClusterNodePool(nodePool)
+}
+
 func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -158,18 +160,12 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(validate *validator.Validate, request *http.Request, cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, nodePool)
+func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(errorDetails) == 0 {
-		if cluster != nil {
-			errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
-			errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
-		}
+	if cluster != nil {
+		errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
+		errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
 	}
 
 	return errorDetails

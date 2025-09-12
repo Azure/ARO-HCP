@@ -15,7 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -239,8 +238,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	return out
 }
 
-func (v version) MarshalHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) ([]byte, error) {
-	return arm.MarshalJSON(v.NewHCPOpenShiftCluster(from))
+func (c *HcpOpenShiftCluster) GetVersion() api.Version {
+	return versionedInterface
 }
 
 func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
@@ -343,27 +342,6 @@ func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, b
 func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
 	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftCluster]()
 	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterVisibilityMap, structTagMap, updating)
-}
-
-func (c *HcpOpenShiftCluster) ValidateStatic(current api.VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = c.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized api.HCPOpenShiftCluster
-
-		c.Normalize(&normalized)
-
-		// Run additional validation on the "normalized" cluster model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
 }
 
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
