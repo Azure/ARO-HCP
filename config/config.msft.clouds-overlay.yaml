@@ -187,7 +187,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:9b62a8100ef5228363089daece26519b5c8e72d797d0514638688940fc32ed52"
+              digest: "sha256:86e355daec68ef2fe01cce2daa63409dc47250c3f844da0e85284f169b2d9ce2"
           # RP Backend
           backend:
             image:
