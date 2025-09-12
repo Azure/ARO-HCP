@@ -242,3 +242,12 @@ pullBinding:
   workloadIdentityTenantId: ""
 tracing:
   address: ""
+ocpVersions:
+  defaultVersion:
+    channelGroupName: ""
+    version: ""
+  channelGroups:
+    - url: ""
+      channelGroupName: ""
+      minVersion: ""
+      maxVersion: ""
