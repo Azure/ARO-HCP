@@ -390,7 +390,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	// Check for iteration error.
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil))
 		return
 	}
 
@@ -506,11 +506,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 
-		hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+		hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -600,7 +600,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	versionedRequestCluster.Normalize(hcpCluster)
 
 	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	csClusterBuilder, err := BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
+	csClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -614,7 +614,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 	} else {
@@ -622,7 +622,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
 			return
 		}
 
@@ -1302,7 +1302,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -1462,7 +1462,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ConvertCStoAdminCredential(csBreakGlassCredential))
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1498,6 +1498,6 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
-	hcpClusterVersion := ConvertCStoHCPOpenShiftVersion(resourceID, version)
+	hcpClusterVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
 	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
 }

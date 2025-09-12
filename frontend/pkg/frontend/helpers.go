@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
@@ -168,7 +169,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	}
 
 	if err != nil {
-		cloudError := CSErrorToCloudError(err, resourceDoc.ResourceID)
+		cloudError := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID)
 		if cloudError.StatusCode == http.StatusNotFound {
 			// StatusNotFound means we have stale data in Cosmos DB.
 			// This can happen in test environments if a user bypasses
@@ -243,7 +244,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
+			return nil, ocm.CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
 		if err != nil {
@@ -269,7 +270,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
+			return nil, ocm.CSErrorToCloudError(err, resourceID)
 		}
 
 		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
@@ -282,7 +283,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
+			return nil, ocm.CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
 		if err != nil {
@@ -294,7 +295,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
-			return nil, CSErrorToCloudError(err, resourceID)
+			return nil, ocm.CSErrorToCloudError(err, resourceID)
 		}
 		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
 		if err != nil {

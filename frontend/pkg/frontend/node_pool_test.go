@@ -85,7 +85,7 @@ func TestCreateNodePool(t *testing.T) {
 			VMSize(dummyVMSize).
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
-					State(csEncryptionAtHostStateDisabled),
+					State("disabled"),
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
@@ -162,9 +162,9 @@ func TestCreateNodePool(t *testing.T) {
 						Listening(arohcpv1alpha1.ListeningMethodExternal)).
 					Azure(arohcpv1alpha1.NewAzure().
 						NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-							OutboundType(csOutboundType))).
+							OutboundType("load_balancer"))).
 					ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-						State(csImageRegistryStateEnabled)).
+						State("enabled")).
 					Version(arohcpv1alpha1.NewVersion().
 						ChannelGroup("stable")).
 					Build())
