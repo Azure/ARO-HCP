@@ -25,7 +25,7 @@ tests:
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         long_window: 1h
         short_window: 5m
         probe_url: https://api.example.com/health
@@ -46,7 +46,7 @@ tests:
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         long_window: 1h
         short_window: 5m
         probe_url: https://api.example.com/health
@@ -56,7 +56,7 @@ tests:
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
-        severity: critical
+        severity: warning
         long_window: 6h
         short_window: 30m
         probe_url: https://api.example.com/health
@@ -76,7 +76,7 @@ tests:
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         long_window: 1h
         short_window: 5m
         probe_url: https://api.example.com/health
@@ -86,7 +86,7 @@ tests:
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
-        severity: critical
+        severity: warning
         long_window: 6h
         short_window: 30m
         probe_url: https://api.example.com/health
@@ -96,7 +96,7 @@ tests:
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
-        severity: critical
+        severity: info
         long_window: 1d
         short_window: 2h
         probe_url: https://api.example.com/health
@@ -106,7 +106,7 @@ tests:
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
     - exp_labels:
-        severity: critical
+        severity: info
         long_window: 3d
         short_window: 6h
         probe_url: https://api.example.com/health
