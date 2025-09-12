@@ -20,7 +20,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
     * Access your CS deployment locally
 
         ```bash
-        KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+        KUBECONFIG=$(make infra.svc.aks.kubeconfigfile) kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
         ```
 
       Alternative: if you run CS on your local machine, this step is not necessary.
@@ -130,14 +130,17 @@ This document outlines the process of creating an HCP via the Cluster Service ru
         ```
 
     * Create Azure key vault for storing etcd data encryption key
+      > [!NOTE] KeyVault names must be between 3-24 alphanumeric characters
         ```bash
         RESOURCENAME=<resource-group>
-        SUBSCRIPTION_ID=<subscription-id>
+        SUBSCRIPTION_Id=$(az account show --query id --output tsv)
         CURRENT_USER_ID=$(az ad signed-in-user show -o json | jq -r '.id')
-        az keyvault create --name ${USER}-${CS_CLUSTER_NAME}-"kv" -g ${RESOURCENAME} --location "westus3" --enable-rbac-authorization true
-        az keyvault key create --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name "etcd-data-kms-encryption-key" --kty RSA --size 2048
-        
-        export etcd_key_version=$(az keyvault key list-versions --vault-name ${USER}-${CS_CLUSTER_NAME}-"kv" --name etcd-data-kms-encryption-key  --query "[].kid" -o tsv | cut -d'/' -f6)
+        VAULT_NAME=${CS_CLUSTER_NAME-${OPERATORS_UAMIS_SUFFIX}-kv:0:24}
+        az keyvault create --name ${VAULT_NAME} -g ${RESOURCENAME} --location "westus3" --enable-rbac-authorization true
+        az role assignment create --assignee "${CURRENT_USER_ID}" --role "Key Vault Crypto Officer" --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCENAME}/providers/Microsoft.KeyVault/vaults/${VAULT_NAME}"
+        az keyvault key create --vault-name ${VAULT_NAME} --name "etcd-data-kms-encryption-key" --kty RSA --size 2048
+
+        export etcd_key_version=$(az keyvault key list-versions --vault-name ${VAULT_NAME} --name etcd-data-kms-encryption-key  --query "[].kid" -o tsv | cut -d'/' -f6)
         ```
 
 1. Create the cluster. This assumes OCP 4.19 clusters will be created.
@@ -151,6 +154,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
     SUBSCRIPTIONID=$(az account list | jq -r ".[] | select (.name == \"$SUBSCRIPTION_ID\") | .id")
     RESOURCEGROUPNAME="<INSERT-NAME>"
     TENANTID=$(az account list | jq -r ".[] | select (.name == \"$SUBSCRIPTION_ID\") | .tenantId")
+    VAULT_NAME=${CS_CLUSTER_NAME-${OPERATORS_UAMIS_SUFFIX}-kv:0:24}
     MANAGEDRGNAME="<INSERT-NAME>"
     SUBNETRESOURCEID="<INSERT-NAME>"
     NSG="<INSERT-NAME>"
@@ -185,7 +189,7 @@ This document outlines the process of creating an HCP via the Cluster Service ru
               "encryption_type": "kms",
               "kms": {
                 "active_key": {
-                  "key_vault_name": ${USER}-${CS_CLUSTER_NAME}-"kv",
+                  "key_vault_name": ${VAULT_NAME},
                   "key_name": "etcd-data-kms-encryption-key",
                   "key_version": ${etcd_key_version}
                 }
