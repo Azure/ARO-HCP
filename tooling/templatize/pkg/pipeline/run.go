@@ -343,6 +343,11 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("error running provider and feature registration Step, %v", err)
 		}
 		return nil, nil
+	case *types.HelmStep:
+		if err := runHelmStep(step, ctx, options, executionTarget, state); err != nil {
+			return nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
+		}
+		return nil, nil
 	case *types.ARMStep:
 		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
 		if err != nil {
@@ -369,19 +374,11 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
-			group, exists := inputs[i.Input.ResourceGroup]
-			if !exists {
-				return nil, fmt.Errorf("variable %s invalid: refers to missing group %q", i.Name, i.Input.ResourceGroup)
+			value, err := resolveInput(*i.Input, inputs)
+			if err != nil {
+				return nil, err
 			}
-			if v, found := group[i.Input.Step]; found {
-				value, err := v.GetValue(i.Input.Name)
-				if err != nil {
-					return nil, fmt.Errorf("variable %s invalid: failed to get value for input %s.%s: %w", i.Name, i.Input.Step, i.Input.Name, err)
-				}
-				values[i.Name] = value.Value
-			} else {
-				return nil, fmt.Errorf("variable %s invalid: resource group %s has no step %s", i.Name, i.Input.ResourceGroup, i.Input.Step)
-			}
+			values[i.Name] = value
 		} else if i.ConfigRef != "" {
 			value, err := cfg.GetByPath(i.ConfigRef)
 			if err != nil {
@@ -393,4 +390,20 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 		}
 	}
 	return values, nil
+}
+
+func resolveInput(input types.Input, outputs Outputs) (any, error) {
+	group, exists := outputs[input.ResourceGroup]
+	if !exists {
+		return nil, fmt.Errorf("variable invalid: refers to missing group %q", input.ResourceGroup)
+	}
+	if v, found := group[input.Step]; found {
+		value, err := v.GetValue(input.Name)
+		if err != nil {
+			return nil, fmt.Errorf("variable invalid: failed to get value for input %s.%s: %w", input.Step, input.Name, err)
+		}
+		return value.Value, nil
+	} else {
+		return nil, fmt.Errorf("variable invalid: resource group %s has no step %s", input.ResourceGroup, input.Step)
+	}
 }
