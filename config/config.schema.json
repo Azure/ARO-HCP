@@ -1337,13 +1337,24 @@
             },
             "manage": {
               "type": "boolean"
+            },
+            "commonName": {
+              "type": "string"
+            },
+            "sanDnsNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
             "issuer",
-            "manage"
+            "manage",
+            "commonName",
+            "sanDnsNames"
           ]
         }
       },

@@ -492,6 +492,8 @@ defaults:
       name: "msi-refresher"
       manage: true
       issuer: OneCertV2-PrivateCA
+      commonName: ""
+      sanDnsNames: []
   # Maestro
   maestro:
     server:
