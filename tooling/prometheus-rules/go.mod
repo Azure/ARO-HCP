@@ -5,7 +5,7 @@ go 1.24.3
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.10.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.85.0
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.66.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	k8s.io/apimachinery v0.34.0
