@@ -45,15 +45,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 		It("creates a cluster and fails to update its name with a PATCH request",
 			labels.RequireNothing, labels.Medium, labels.Negative,
 			func(ctx context.Context) {
-				const (
-					clusterName = "patch-name-cluster"
-					location    = "uksouth"
-				)
+				const clusterName = "patch-name-cluster"
 
 				tc := framework.NewTestContext()
 
 				By("creating a resource group")
-				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", location)
+				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
 				By("deploying demo template (single-step infra + identities + cluster)")
@@ -106,15 +103,12 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 		It("creates a cluster and updates tags with a PATCH request",
 			labels.RequireNothing, labels.Medium, labels.Positive,
 			func(ctx context.Context) {
-				const (
-					clusterName = "patch-tags-cluster"
-					location    = "uksouth"
-				)
+				const clusterName = "patch-tags-cluster"
 
 				tc := framework.NewTestContext()
 
 				By("creating a resource group")
-				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", location)
+				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
 				By("deploying demo template (single-step infra + identities + cluster)")
