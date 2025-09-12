@@ -16,10 +16,11 @@ resourceGroups:
   subscription: '{{ .global.subscription.key }}'
   steps:
   - name: infra
-    action: ARM
+    action: ARMStack
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
   - name: output
     action: ARM
     template: templates/output-global.bicep
@@ -45,10 +46,11 @@ resourceGroups:
     issuer:
       value: OneCertV2-PrivateCA
   - name: certificates
-    action: ARM
+    action: ARMStack
     template: templates/global-certificates.bicep
     parameters: configurations/global-certificates.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     dependsOn:
     - resourceGroup: global
       step: onecert-private-kv-issuer
@@ -114,10 +116,11 @@ resourceGroups:
       step: infra
   # create global ARO HCP ACRs for OCP and SVC images
   - name: acrs
-    action: ARM
+    action: ARMStack
     template: templates/global-acr.bicep
     parameters: configurations/global-acr.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     dependsOn:
     - resourceGroup: global
       step: infra
@@ -161,10 +164,11 @@ resourceGroups:
         name: globalMSIId
   # deploys the image mirror for the ACRs
   - name: imagemirror
-    action: ARM
+    action: ARMStack
     template: templates/global-image-sync.bicep
     parameters: configurations/global-image-sync.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     dependsOn:
     - resourceGroup: global
       step: mirror-oc-mirror-image

@@ -44,10 +44,11 @@ resourceGroups:
   steps:
   # Create SVC KV
   - name: infra
-    action: ARM
+    action: ARMStack
     template: templates/svc-infra.bicep
     parameters: configurations/svc-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: globalMSIId
       input:
@@ -92,10 +93,11 @@ resourceGroups:
       value: OneCertV2-PublicCA
   # Create SVC cluster
   - name: cluster
-    action: ARM
+    action: ARMStack
     template: templates/svc-cluster.bicep
     parameters: configurations/svc-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: globalMSIId
       input:
