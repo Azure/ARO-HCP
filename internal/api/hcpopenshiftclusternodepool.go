@@ -89,6 +89,9 @@ type Taint struct {
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
+		TrackedResource: arm.TrackedResource{
+			Location: arm.GetAzureLocation(),
+		},
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",

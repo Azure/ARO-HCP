@@ -17,12 +17,10 @@ package e2e
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -30,15 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
-
-type dockerConfig struct {
-	Auths map[string]dockerConfigAuth `json:"auths"`
-}
-
-type dockerConfigAuth struct {
-	Email string `json:"email"`
-	Auth  string `json:"auth"`
-}
 
 var _ = Describe("Cluster Pull Secret Management", func() {
 	BeforeEach(func() {
@@ -100,77 +89,38 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			username := "test-user"
 			auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + testPullSecretPassword))
 
-			testDockerConfig := dockerConfig{
-				Auths: map[string]dockerConfigAuth{
-					testPullSecretHost: {
-						Email: testPullSecretEmail,
-						Auth:  auth,
-					},
-				},
-			}
-
-			testDockerConfigJSON, err := json.Marshal(testDockerConfig)
+			testPullSecret, err := framework.CreateTestDockerConfigSecret(
+				testPullSecretHost,
+				username,
+				testPullSecretPassword,
+				testPullSecretEmail,
+				pullSecretName,
+				pullSecretNamespace,
+			)
 			Expect(err).NotTo(HaveOccurred())
-
-			testPullSecret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      pullSecretName,
-					Namespace: pullSecretNamespace,
-				},
-				Type: corev1.SecretTypeDockerConfigJson,
-				Data: map[string][]byte{
-					corev1.DockerConfigJsonKey: testDockerConfigJSON,
-				},
-			}
 
 			By("creating the test pull secret in the cluster")
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
-			Eventually(func() bool {
-				globalSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, "global-pull-secret", metav1.GetOptions{})
-				if err != nil {
-					return false
-				}
-
-				var globalConfig map[string]interface{}
-				if err := json.Unmarshal(globalSecret.Data[corev1.DockerConfigJsonKey], &globalConfig); err != nil {
-					return false
-				}
-
-				globalAuths, ok := globalConfig["auths"].(map[string]interface{})
-				if !ok {
-					return false
-				}
-
-				_, exists := globalAuths[testPullSecretHost]
-				return exists
-			}, 300*time.Second, 2*time.Second).Should(BeTrue(), "additional pull secret should be merged into global-pull-secret by HCCO")
+			Eventually(func() error {
+				return verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 2*time.Second).Should(Succeed(), "additional pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().DaemonSets(pullSecretNamespace).Get(ctx, "global-pull-secret-syncer", metav1.GetOptions{})
-				return err
+				return verifiers.VerifyGlobalPullSecretSyncer().Verify(ctx, adminRESTConfig)
 			}, 60*time.Second, 2*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
 
 			By("verifying the pull secret was merged into the global pull secret")
-			globalPullSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, "global-pull-secret", metav1.GetOptions{})
+			err = verifiers.VerifyPullSecretAuthData(
+				"global-pull-secret",
+				pullSecretNamespace,
+				testPullSecretHost,
+				auth,
+				testPullSecretEmail,
+			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
-
-			var globalConfig map[string]interface{}
-			err = json.Unmarshal(globalPullSecret.Data[corev1.DockerConfigJsonKey], &globalConfig)
-			Expect(err).NotTo(HaveOccurred())
-
-			globalAuths, ok := globalConfig["auths"].(map[string]interface{})
-			Expect(ok).To(BeTrue(), "auths field should be a map")
-
-			By("checking that the test pull secret is present in the global pull secret")
-			Expect(globalAuths).To(HaveKey(testPullSecretHost))
-
-			testEntry, ok := globalAuths[testPullSecretHost].(map[string]interface{})
-			Expect(ok).To(BeTrue(), "test entry should be a map")
-			Expect(testEntry["email"]).To(Equal(testPullSecretEmail))
-			Expect(testEntry["auth"]).To(Equal(auth))
 		})
 })

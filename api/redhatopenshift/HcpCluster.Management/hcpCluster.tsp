@@ -5,9 +5,6 @@ import "@azure-tools/typespec-azure-resource-manager";
 
 import "./hcpCluster-models.tsp";
 
-using TypeSpec.Rest;
-using TypeSpec.Http;
-using Azure.Core;
 using Azure.ResourceManager;
 
 namespace Microsoft.RedHatOpenShift;

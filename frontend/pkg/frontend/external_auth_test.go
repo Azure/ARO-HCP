@@ -104,8 +104,10 @@ func TestCreateExternalAuth(t *testing.T) {
 					Claim(dummyClaim).
 					Prefix("").
 					PrefixPolicy(""),
-				),
-			),
+				).
+				Groups(arohcpv1alpha1.NewGroupsClaim()),
+			).
+			ValidationRules(),
 		).
 		Clients().
 		Build()
@@ -151,7 +153,6 @@ func TestCreateExternalAuth(t *testing.T) {
 				nil,
 				reg,
 				mockDBClient,
-				"",
 				mockCSClient,
 				newNoopAuditClient(t),
 			)

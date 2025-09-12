@@ -421,7 +421,7 @@ defaults:
   # Frontend
   frontend:
     audit:
-      tcpAddress: ""
+      connectSocket: false
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
@@ -492,6 +492,8 @@ defaults:
       name: "msi-refresher"
       manage: true
       issuer: OneCertV2-PrivateCA
+      commonName: ""
+      sanDnsNames: []
   # Maestro
   maestro:
     server:
@@ -730,7 +732,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:a839e8fa1dfa14e9ba04a2ac192f32f5b8864af147ec5d9a6fa80a9c2c933cab
+          digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
@@ -759,7 +761,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+          digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
       # Backplane API
       backplaneAPI:
         image:
@@ -901,7 +903,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
+              connectSocket: false
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
@@ -957,7 +959,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1058,7 +1060,7 @@ clouds:
           # Frontend
           frontend:
             audit:
-              tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
+              connectSocket: false
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
@@ -1070,7 +1072,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

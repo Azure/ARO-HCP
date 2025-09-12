@@ -41,6 +41,11 @@ const (
 	// option flags
 	VisibilityCaseInsensitive
 
+	// VisibilityNullable is a computed flag that is set when the
+	// field has a pointer type and has the VisibilityUpdate flag.
+	// It means the field can be set to "null" in a PATCH request.
+	VisibilityNullable
+
 	VisibilityDefault = VisibilityRead | VisibilityCreate | VisibilityUpdate
 )
 
@@ -56,6 +61,10 @@ func (f VisibilityFlags) CaseInsensitive() bool {
 	return f&VisibilityCaseInsensitive != 0
 }
 
+func (f VisibilityFlags) IsNullable() bool {
+	return f&VisibilityNullable != 0
+}
+
 func (f VisibilityFlags) String() string {
 	s := []string{}
 	if f&VisibilityRead != 0 {
@@ -69,6 +78,9 @@ func (f VisibilityFlags) String() string {
 	}
 	if f&VisibilityCaseInsensitive != 0 {
 		s = append(s, "nocase")
+	}
+	if f&VisibilityNullable != 0 {
+		s = append(s, "nullable")
 	}
 	return strings.Join(s, " ")
 }
@@ -97,21 +109,17 @@ func GetVisibilityFlags(tag reflect.StructTag) (VisibilityFlags, bool) {
 	return flags, ok
 }
 
-func join(ns, name string) string {
-	res := ns
-	if res != "" {
-		res += "."
-	}
-	res += name
-	return res
-}
+// VisibilityMap maps dot-separated struct field names to visibility flags.
+type VisibilityMap map[string]VisibilityFlags
 
-type StructTagMap map[string]reflect.StructTag
-
-func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
+func buildVisibilityMap(visibilityMap VisibilityMap, t reflect.Type, path string, implicitFlags VisibilityFlags) {
 	switch t.Kind() {
 	case reflect.Map, reflect.Pointer, reflect.Slice:
-		buildStructTagMap(structTagMap, t.Elem(), path)
+		flags, found := visibilityMap[path]
+		if found && flags.CanUpdate() {
+			visibilityMap[path] |= VisibilityNullable
+		}
+		buildVisibilityMap(visibilityMap, t.Elem(), path, implicitFlags)
 
 	case reflect.Struct:
 		for i := 0; i < t.NumField(); i++ {
@@ -123,53 +131,63 @@ func buildStructTagMap(structTagMap StructTagMap, t reflect.Type, path string) {
 				continue
 			}
 
+			flags := implicitFlags
+
 			// Omit embedded field names from the key.
 			// Generated API structs do not have them.
 			if field.Anonymous {
 				subpath = path
 			} else {
 				subpath = join(path, field.Name)
-				structTagMap[subpath] = field.Tag
+
+				explicitFlags, found := GetVisibilityFlags(field.Tag)
+				if found {
+					flags = explicitFlags
+				}
+				visibilityMap[subpath] = flags
 			}
 
-			buildStructTagMap(structTagMap, field.Type, subpath)
+			buildVisibilityMap(visibilityMap, field.Type, subpath, flags)
 		}
 	}
 }
 
-// NewStructTagMap returns a mapping of dot-separated struct field names
-// to struct tags for the given type.  Each versioned API should create
-// its own visibiilty map for tracked resource types.
+// NewVisibilityMap returns a mapping of dot-separated struct field names
+// to visibility flags for the given type. Each versioned API should create
+// its own visibility map for resource types with PUT and PATCH methods.
 //
 // Note: This assumes field names for internal and versioned structs are
 // identical where visibility is explicitly specified. If some divergence
 // emerges, one workaround could be to pass a field name override map.
-func NewStructTagMap[T any]() StructTagMap {
-	structTagMap := StructTagMap{}
-	buildStructTagMap(structTagMap, reflect.TypeFor[T](), "")
-	return structTagMap
+func NewVisibilityMap[T any]() VisibilityMap {
+	visibilityMap := VisibilityMap{}
+	buildVisibilityMap(visibilityMap, reflect.TypeFor[T](), "", VisibilityDefault)
+	return visibilityMap
 }
 
 type validateVisibility struct {
-	structTagMap StructTagMap
-	updating     bool
-	errs         []arm.CloudErrorBody
+	visibilityMap VisibilityMap
+	structTagMap  StructTagMap
+	updating      bool
+	errs          []arm.CloudErrorBody
 }
 
 // ValidateVisibility compares the new value (newVal) to the current value
 // (curVal) and returns any violations of visibility restrictions as defined
-// by structTagMap.
-func ValidateVisibility(newVal, curVal interface{}, structTagMap StructTagMap, updating bool) []arm.CloudErrorBody {
+// by visibilityMap.
+func ValidateVisibility(newVal, curVal interface{}, visibilityMap VisibilityMap, structTagMap StructTagMap, updating bool) []arm.CloudErrorBody {
 	vv := validateVisibility{
-		structTagMap: structTagMap,
-		updating:     updating,
+		visibilityMap: visibilityMap,
+		structTagMap:  structTagMap,
+		updating:      updating,
 	}
-	vv.recurse(reflect.ValueOf(newVal), reflect.ValueOf(curVal), "", "", "", VisibilityDefault)
+	vv.recurse(reflect.ValueOf(newVal), reflect.ValueOf(curVal), "", "", "")
 	return vv.errs
 }
 
-// mapKey is a lookup key for the StructTagMap.  It DOES NOT include subscripts
-// for arrays, maps or slices since all elements are the same type.
+// mapKey is a lookup key for VisibilityMap and StructTagMap.  It DOES NOT
+// include subscripts for arrays, maps or slices since all elements are the
+// same type.
 //
 // namespace is the struct field path up to but not including the field being
 // evaluated, analogous to path.Dir.  It DOES include subscripts for arrays,
@@ -178,67 +196,53 @@ func ValidateVisibility(newVal, curVal interface{}, structTagMap StructTagMap, u
 // fieldname is the current field being evaluated, analgous to path.Base.  It
 // also includes subscripts for arrays, maps and slices when evaluating their
 // immediate elements.
-func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, namespace, fieldname string, implicitVisibility VisibilityFlags) {
-	flags, ok := GetVisibilityFlags(vv.structTagMap[mapKey])
-	if !ok {
-		flags = implicitVisibility
-	}
+func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, namespace, fieldname string) {
+	flags := vv.visibilityMap[mapKey]
 
 	if newVal.Type() != curVal.Type() {
 		panic(fmt.Sprintf("%s: value types differ (%s vs %s)", join(namespace, fieldname), newVal.Type().Name(), curVal.Type().Name()))
 	}
 
-	// Generated API structs are all pointer fields. A nil pointer in
-	// the incoming request (newVal) means the value is absent, which
-	// is always acceptable for visibility validation.
-	switch newVal.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		if newVal.IsNil() {
-			return
-		}
-	}
-
 	switch newVal.Kind() {
 	case reflect.Bool:
 		if newVal.Bool() != curVal.Bool() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		}
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if newVal.Int() != curVal.Int() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		}
 
 	case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if newVal.Uint() != curVal.Uint() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		}
 
 	case reflect.Float32, reflect.Float64:
 		if newVal.Float() != curVal.Float() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		}
 
 	case reflect.Complex64, reflect.Complex128:
 		if newVal.Complex() != curVal.Complex() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		}
 
 	case reflect.String:
 		if flags.CaseInsensitive() {
 			if !strings.EqualFold(newVal.String(), curVal.String()) {
-				vv.checkFlags(flags, namespace, fieldname)
+				vv.checkFlags(flags, namespace, fieldname, false)
 			}
 		} else {
 			if newVal.String() != curVal.String() {
-				vv.checkFlags(flags, namespace, fieldname)
+				vv.checkFlags(flags, namespace, fieldname, false)
 			}
 		}
 
 	case reflect.Slice:
-		// We already know that newVal is not nil.
-		if curVal.IsNil() {
-			vv.checkFlags(flags, namespace, fieldname)
+		if newVal.IsNil() != curVal.IsNil() {
+			vv.checkFlags(flags, namespace, fieldname, newVal.IsNil())
 			return
 		}
 
@@ -246,28 +250,26 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 
 	case reflect.Array:
 		if newVal.Len() != curVal.Len() {
-			vv.checkFlags(flags, namespace, fieldname)
+			vv.checkFlags(flags, namespace, fieldname, false)
 		} else {
 			for i := 0; i < min(newVal.Len(), curVal.Len()); i++ {
 				subscript := fmt.Sprintf("[%d]", i)
-				vv.recurse(newVal.Index(i), curVal.Index(i), mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.Index(i), curVal.Index(i), mapKey, namespace, fieldname+subscript)
 			}
 		}
 
 	case reflect.Interface, reflect.Pointer:
-		// We already know that newVal is not nil.
-		if curVal.IsNil() {
-			vv.checkFlags(flags, namespace, fieldname)
-		} else {
-			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname, flags)
+		if newVal.IsNil() != curVal.IsNil() {
+			vv.checkFlags(flags, namespace, fieldname, newVal.IsNil())
+		} else if !newVal.IsNil() && !curVal.IsNil() {
+			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname)
 		}
 
 	case reflect.Map:
 		// Determine if newVal and curVal share identical keys.
 		var keysEqual = true
 
-		// We already know that newVal is not nil.
-		if curVal.IsNil() || newVal.Len() != curVal.Len() {
+		if newVal.IsNil() != curVal.IsNil() || newVal.Len() != curVal.Len() {
 			keysEqual = false
 		} else {
 			iter := newVal.MapRange()
@@ -280,7 +282,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 		// Skip recursion if visibility check on the map itself fails.
-		if !keysEqual && !vv.checkFlags(flags, namespace, fieldname) {
+		if !keysEqual && !vv.checkFlags(flags, namespace, fieldname, newVal.IsNil()) {
 			return
 		}
 
@@ -302,43 +304,51 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 			k := iter.Key()
 			subscript := fmt.Sprintf("[%q]", k.Interface())
 			if curVal.IsNil() || !curVal.MapIndex(k).IsValid() {
-				vv.recurse(newVal.MapIndex(k), zeroVal, mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.MapIndex(k), zeroVal, mapKey, namespace, fieldname+subscript)
 			} else {
-				vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript, flags)
+				vv.recurse(newVal.MapIndex(k), curVal.MapIndex(k), mapKey, namespace, fieldname+subscript)
 			}
 		}
 
 	case reflect.Struct:
 		for i := 0; i < newVal.NumField(); i++ {
 			structField := newVal.Type().Field(i)
-			mapKeyNext := join(mapKey, structField.Name)
-			namespaceNext := join(namespace, fieldname)
-			fieldnameNext := GetJSONTagName(vv.structTagMap[mapKeyNext])
-			if fieldnameNext == "" {
-				fieldnameNext = structField.Name
+
+			if structField.Anonymous {
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKey, namespace, fieldname)
+			} else {
+				mapKeyNext := join(mapKey, structField.Name)
+				namespaceNext := join(namespace, fieldname)
+				fieldnameNext := GetJSONTagName(vv.structTagMap[mapKeyNext])
+				if fieldnameNext == "" {
+					fieldnameNext = structField.Name
+				}
+				vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext)
 			}
-			vv.recurse(newVal.Field(i), curVal.Field(i), mapKeyNext, namespaceNext, fieldnameNext, flags)
 		}
 	}
 }
 
-func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, fieldname string) bool {
-	if flags.ReadOnly() {
-		vv.errs = append(vv.errs,
-			arm.CloudErrorBody{
-				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: fmt.Sprintf("Field '%s' is read-only", fieldname),
-				Target:  join(namespace, fieldname),
-			})
-		return false
+func (vv *validateVisibility) checkFlags(flags VisibilityFlags, namespace, fieldname string, newValIsNil bool) bool {
+	var message string
+
+	if vv.updating && newValIsNil && !flags.IsNullable() {
+		message = fmt.Sprintf("Field '%s' cannot be removed", fieldname)
 	} else if vv.updating && !flags.CanUpdate() {
+		message = fmt.Sprintf("Field '%s' cannot be updated", fieldname)
+	} else if flags.ReadOnly() {
+		message = fmt.Sprintf("Field '%s' is read-only", fieldname)
+	}
+
+	if message != "" {
 		vv.errs = append(vv.errs,
 			arm.CloudErrorBody{
 				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: fmt.Sprintf("Field '%s' cannot be updated", fieldname),
+				Message: message,
 				Target:  join(namespace, fieldname),
 			})
 		return false
 	}
+
 	return true
 }

@@ -113,7 +113,7 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:a839e8fa1dfa14e9ba04a2ac192f32f5b8864af147ec5d9a6fa80a9c2c933cab
+    digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -159,7 +159,7 @@ firstPartyAppCertificate:
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
 frontend:
   audit:
-    tcpAddress: arobit-forwarder.arobit.svc.cluster.local:24224
+    connectSocket: false
   cert:
     issuer: Self
     name: frontend-cert-pers-usw3test
@@ -251,7 +251,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:97fa6698d24c4a18e2d50aa1df51191d8c55099059e149f43a74940831f8591b
+    digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -482,9 +482,11 @@ monitoring:
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
   certificate:
+    commonName: ""
     issuer: OneCertV2-PrivateCA
     manage: false
     name: msi-refresher
+    sanDnsNames: []
   firstPartyAppClientId: ""
   image:
     digest: ""

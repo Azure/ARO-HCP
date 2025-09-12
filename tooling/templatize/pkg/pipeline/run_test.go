@@ -302,7 +302,13 @@ func TestPipelineRun(t *testing.T) {
 					Subscription:  "test",
 				},
 				Steps: []types.Step{
-					types.NewShellStep("step", "echo hello"),
+					&types.ShellStep{
+						StepMeta: types.StepMeta{
+							Name:   "step",
+							Action: "Shell",
+						},
+						Command: "echo hello",
+					},
 				},
 			},
 		},

@@ -109,7 +109,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 		Configuration:            o.PipelineOptions.RolloutOptions.Config,
 		Region:                   o.PipelineOptions.RolloutOptions.Region,
 		Step:                     o.PipelineOptions.Step,
-		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID,
+		SubsciptionLookupFunc:    pipeline.LookupSubscriptionID(o.PipelineOptions.RolloutOptions.Subscriptions),
 		NoPersist:                o.NoPersist,
 		DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 		PipelineFilePath:         o.PipelineOptions.PipelineFilePath,

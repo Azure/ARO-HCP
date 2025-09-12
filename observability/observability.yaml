@@ -5,8 +5,7 @@ prometheusRules:
   - ../frontend/alerts/frontend-prometheusRule.yaml
   - ../observability/alerts/tested-rules
   - ../backend/alerts/backend-prometheusRule.yaml
-  untestedRules:
-  - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
+  untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
   outputReplacements:
@@ -28,8 +27,6 @@ grafana-dashboards:
   dashboardFolders:
   - name: istio
     path: ../istio/grafana-dashboards
-  - name: Image Sync
-    path: ../image-sync/grafana-dashboards
   - name: Infrastructure
     path: infra-dashboards
   - name: Frontend

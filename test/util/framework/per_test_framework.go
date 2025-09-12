@@ -272,18 +272,18 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	return errors.Join(errs...)
 }
 
-func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*graphutil.Application, error) {
+func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx context.Context) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
 	appName := fmt.Sprintf("aro-hcp-e2e-%d", rand.Int())
 	ginkgo.GinkgoLogr.Info("creating app registration", "appName", appName)
 
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get graph client: %w", err)
+		return nil, nil, fmt.Errorf("failed to get graph client: %w", err)
 	}
 
 	app, err := graphClient.CreateApplication(ctx, appName, []string{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create app registration: %w", err)
+		return nil, nil, fmt.Errorf("failed to create app registration: %w", err)
 	}
 
 	func() {
@@ -293,7 +293,12 @@ func (tc *perItOrDescribeTestContext) NewAppRegistration(ctx context.Context) (*
 		tc.knownAppRegistrationIDs = append(tc.knownAppRegistrationIDs, app.ID)
 	}()
 
-	return app, nil
+	sp, err := graphClient.CreateServicePrincipal(ctx, app.AppID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create service principal: %w", err)
+	}
+
+	return app, sp, nil
 }
 
 func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
@@ -348,7 +353,7 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
 	tc.contextLock.RLock()
-	if tc.clientFactory20240610 != nil {
+	if tc.armResourcesClientFactory != nil {
 		defer tc.contextLock.RUnlock()
 		return tc.armResourcesClientFactory, nil
 	}

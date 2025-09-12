@@ -118,7 +118,7 @@ module miseArtifactSync '../modules/acr/mcr-artifact-sync.bicep' = if (deployMis
     acrName: svcAcrName
     artifactSyncRuleName: 'miseArtifactSync'
     sourceRepositoryPath: 'mcr.microsoft.com/msftonly/mise/mise-1p-container-image'
-    targetRepositoryName: 'mise'
+    targetRepositoryName: 'mise-1p-container-image'
     artifactSyncStatus: 'Active'
   }
   dependsOn: [

@@ -315,12 +315,12 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
-			Location: cluster.Region().ID(),
 			Resource: arm.Resource{
 				ID:   resourceID.String(),
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
+			Location: arm.GetAzureLocation(),
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
 			Version: api.VersionProfile{
@@ -450,7 +450,6 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
-			f.location,
 			tenantID,
 			requestHeader.Get(arm.HeaderNameIdentityURL),
 		)
@@ -469,7 +468,7 @@ func (f *Frontend) BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeade
 	return clusterBuilder.Build()
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, location, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	apiListening, err := convertVisibilityToListening(hcpCluster.Properties.API.Visibility)
 	if err != nil {
 		return nil, err
@@ -488,7 +487,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		Flavour(cmv1.NewFlavour().
 			ID(csFlavourId)).
 		Region(cmv1.NewCloudRegion().
-			ID(location)).
+			ID(arm.GetAzureLocation())).
 		CloudProvider(cmv1.NewCloudProvider().
 			ID(csCloudProvider)).
 		Product(cmv1.NewProduct().
@@ -580,6 +579,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
+			Location: arm.GetAzureLocation(),
 		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
@@ -591,8 +591,8 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				VMSize:                 np.AzureNodePool().VMSize(),
 				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
 				OSDisk: api.OSDiskProfile{
-					SizeGiB:                int32(np.AzureNodePool().OSDiskSizeGibibytes()),
-					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OSDiskStorageAccountType()),
+					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
+					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
@@ -647,8 +647,9 @@ func (f *Frontend) BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShi
 				ResourceName(nodePool.Name).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OSDiskSizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
-				OSDiskStorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType))).
+				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+					SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+					StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
@@ -812,35 +813,33 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		return err
 	}
 
-	claimBuilder := arohcpv1alpha1.NewExternalAuthClaim()
-
-	mappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings()
-	mappingsBuilder.UserName(arohcpv1alpha1.NewUsernameClaim().
-		Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-		Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-		PrefixPolicy(usernameClaimPrefixPolicy),
-	)
-
+	groupsClaim := arohcpv1alpha1.NewGroupsClaim()
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		mappingsBuilder.Groups(arohcpv1alpha1.NewGroupsClaim().
+		groupsClaim.
 			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
+			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix)
+	}
+
+	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
+	for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
+		newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
+			Claim(t.RequiredClaim.Claim).
+			RequiredValue(t.RequiredClaim.RequiredValue)
+		validationRules = append(validationRules, newClientConfig)
+	}
+
+	externalAuthBuilder.
+		Claim(arohcpv1alpha1.NewExternalAuthClaim().
+			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
+				UserName(arohcpv1alpha1.NewUsernameClaim().
+					Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
+					Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
+					PrefixPolicy(usernameClaimPrefixPolicy),
+				).
+				Groups(groupsClaim),
+			).
+			ValidationRules(validationRules...),
 		)
-	}
-	claimBuilder.Mappings(mappingsBuilder)
-
-	if len(hcpExternalAuth.Properties.Claim.ValidationRules) > 0 {
-		validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
-		for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
-			newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
-				Claim(t.RequiredClaim.Claim).
-				RequiredValue(t.RequiredClaim.RequiredValue)
-			validationRules = append(validationRules, newClientConfig)
-		}
-		claimBuilder.ValidationRules(validationRules...)
-	}
-
-	externalAuthBuilder.Claim(claimBuilder)
 
 	return nil
 }

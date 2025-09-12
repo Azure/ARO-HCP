@@ -16,9 +16,6 @@ package audit
 
 import (
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/microsoft/go-otel-audit/audit/msgs"
@@ -39,12 +36,9 @@ func TestEnsureDefaults(t *testing.T) {
 }
 
 func TestConnect(t *testing.T) {
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	_, err := NewOtelAuditClient(CreateConn(true))
+	require.Error(t, err, "failed to connect to audit server(/var/run/mdsd/default_fluent.socket): dial unix /var/run/mdsd/default_fluent.socket: connect: no such file or directory")
 
-	f := strings.Split(testServer.URL, "/")
-	_, err := NewOtelAuditClient(f[2])
+	_, err = NewOtelAuditClient(CreateConn(false))
 	require.NoError(t, err)
-
-	_, err = NewOtelAuditClient("127.0.0.1:12345")
-	require.Error(t, err, "error creating audit client dial tcp 127.0.0.1:12345: connect: connection refused")
 }

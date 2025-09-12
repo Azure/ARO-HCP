@@ -15,7 +15,6 @@
 package frontend
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -55,6 +54,13 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	body, err := BodyFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -105,13 +111,28 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		hcpNodePool.SystemData = resourceDoc.SystemData
+		hcpNodePool.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarify on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
+			// Initialize versionedRequestNodePool to include both
+			// non-zero default values and current read-only values.
+			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+
+			// Some optional create-only fields have dynamic default
+			// values that are determined downstream of this phase of
+			// request processing. To ensure idempotency, add these
+			// values to the target struct for the incoming request.
+			reqNodePool.Properties.Version.ID = hcpNodePool.Properties.Version.ID
+			reqNodePool.Properties.Platform.SubnetID = hcpNodePool.Properties.Platform.SubnetID
+
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
+			api.CopyReadOnlyValues(versionedCurrentNodePool, versionedRequestNodePool)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
@@ -172,15 +193,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestNodePool); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestNodePool)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 

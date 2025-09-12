@@ -140,7 +140,7 @@ func main() {
 	registry.Register(ext)
 
 	root := &cobra.Command{
-		Long: "OpenShift Tests Extension Example",
+		Long: "ARO-HCP E2E Tests",
 	}
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)

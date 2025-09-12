@@ -55,7 +55,6 @@ type Frontend struct {
 	auditClient          audit.Client
 	ready                atomic.Value
 	done                 chan struct{}
-	location             string
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
 }
@@ -66,7 +65,6 @@ func NewFrontend(
 	metricsListener net.Listener,
 	reg prometheus.Registerer,
 	dbClient database.DBClient,
-	location string,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 ) *Frontend {
@@ -91,8 +89,7 @@ func NewFrontend(
 		auditClient: auditClient,
 		dbClient:    dbClient,
 		done:        make(chan struct{}),
-		location:    strings.ToLower(location),
-		collector:   metrics.NewSubscriptionCollector(reg, dbClient, location),
+		collector:   metrics.NewSubscriptionCollector(reg, dbClient, arm.GetAzureLocation()),
 		healthGauge: promauto.With(reg).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
@@ -182,7 +179,7 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	// This is strictly for development environments to help discover
 	// the frontend's Azure region when port forwarding with kubectl.
 	// e.g. LOCATION=$(curl http://localhost:8443/location)
-	_, _ = writer.Write([]byte(f.location))
+	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
 }
 
 func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
@@ -468,6 +465,13 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -517,13 +521,35 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		// the Tags map to remain nil so we can see if the request
 		// body included a new set of resource tags.
 
+		hcpCluster.SystemData = resourceDoc.SystemData
+		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+
+		if resourceDoc.Identity != nil {
+			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
+			hcpCluster.Identity.TenantID = resourceDoc.Identity.TenantID
+			hcpCluster.Identity.Type = resourceDoc.Identity.Type
+		}
+
 		operationRequest = database.OperationRequestUpdate
 
 		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
 		switch request.Method {
 		case http.MethodPut:
+			// Initialize versionedRequestCluster to include both
+			// non-zero default values and current read-only values.
+			reqCluster := api.NewDefaultHCPOpenShiftCluster()
+
+			// Some optional create-only fields have dynamic default
+			// values that are determined downstream of this phase of
+			// request processing. To ensure idempotency, add these
+			// values to the target struct for the incoming request.
+			reqCluster.Properties.Version.ID = hcpCluster.Properties.Version.ID
+			reqCluster.Properties.DNS.BaseDomainPrefix = hcpCluster.Properties.DNS.BaseDomainPrefix
+			reqCluster.Properties.Platform.ManagedResourceGroup = hcpCluster.Properties.Platform.ManagedResourceGroup
+
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
+			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
@@ -556,15 +582,10 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	if err = json.Unmarshal(body, versionedRequestCluster); err != nil {
-		logger.Error(err.Error())
-		arm.WriteInvalidRequestContentError(writer, err)
+	cloudError = api.ApplyRequestBody(request, body, versionedRequestCluster)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 

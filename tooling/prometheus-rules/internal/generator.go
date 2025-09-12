@@ -309,6 +309,13 @@ param azureMonitoring string
 				for k, v := range rule.Annotations {
 					annotations[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
 				}
+				// Some part of the Azure Monitor stack consumes the `description` annotation, removing it from the
+				// alert context. We want to use this value in our IcM connector, so we need to have it in the alert
+				// context - simply duplicating it in the annotations and referring to our new copy is enough to side-
+				// step the post-processing.
+				if description, exists := annotations["description"]; exists {
+					annotations["title"] = description
+				}
 
 				// We want to provide a sufficiently specific set of distinct labels to use for the correlation ID in IcM,
 				// where insufficiently specific IDs will mean that alerts get aggregated under one incident.
@@ -375,6 +382,12 @@ param azureMonitoring string
 	return nil
 }
 
+// A note on IcM: the connection between prometheusRuleGroups to IcM via actionGroups is tenuous. Keep the following
+// references in mind when working in this area:
+// 1. a general document on how to customize what IcM alerts look like:  https://msazure.visualstudio.com/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/alerts/HowDoI/CustomizeICMFields.md&_a=preview&version=GBmaster&anchor=using-template-parameters
+// 2. the best reference for which IcM fields exist and how to set them: https://dev.azure.com/msazure/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/metrics/Prometheus/PromIcMConnectorsetup.md&_a=preview&version=GBmaster
+// 3. the official top-level document: https://eng.ms/docs/products/icm/developers/connectors/icmaction#edit-an-azure-monitor-icm-connector-definition-icm-action
+
 func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
 	tmpl, err := template.New("prometheusRuleGroup").Funcs(
 		map[string]any{"contains": strings.Contains},
@@ -390,7 +403,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
         actions: [for g in actionGroups: {
           actionGroupId: g
           actionProperties: {
-            'IcM.Title': concat('#$.labels.cluster#',': ','#$.annotations.description#')
+            'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
           }
         }]

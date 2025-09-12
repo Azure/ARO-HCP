@@ -27,25 +27,31 @@ func (v version) String() string {
 }
 
 var (
-	validate                 = api.NewValidator()
-	clusterStructTagMap      = api.NewStructTagMap[api.HCPOpenShiftCluster]()
-	nodePoolStructTagMap     = api.NewStructTagMap[api.HCPOpenShiftClusterNodePool]()
-	externalAuthStructTagMap = api.NewStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
+	versionedInterface        = version{}
+	validate                  = api.NewValidator()
+	clusterVisibilityMap      = api.NewVisibilityMap[api.HCPOpenShiftCluster]()
+	nodePoolVisibilityMap     = api.NewVisibilityMap[api.HCPOpenShiftClusterNodePool]()
+	externalAuthVisibilityMap = api.NewVisibilityMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
 	//       a field with @visibility("read","create") becoming updatable,
 	//       then earlier versions of the API will need to override their
-	//       StructTagMap to maintain the original visibility flags. This
+	//       VisibilityMap to maintain the original visibility flags. This
 	//       is where such overrides should happen, along with a comment
 	//       about what changed and when. For example:
 	//
 	//       // This field became updatable in version YYYY-MM-DD.
-	//       clusterStructTagMap["Properties.FieldName"] = reflect.StructTag("visibility:\"read create\"")
+	//       clusterVisibilityMap["Properties.FieldName"] = api.VisibilityRead | api.VisibilityCreate
 	//
 
-	api.Register(version{})
+	// We normalize node pool labels to a map, so there is
+	// no normalized Label model with Key and Value fields.
+	nodePoolVisibilityMap["Properties.Labels.Key"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
+	nodePoolVisibilityMap["Properties.Labels.Value"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
+
+	api.Register(versionedInterface)
 
 	// Register enum type validations
 	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))

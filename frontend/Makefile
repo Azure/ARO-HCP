@@ -136,7 +136,7 @@ deploy:
 		--set mise.tracing.exporter=${MISE_TRACING_EXPORTER} \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
-		--set audit.tcpAddress=${AUDIT_TCP_ADDRESS} \
+		--set audit.connectSocket=${AUDIT_CONNECT_SOCKET} \
 		--namespace aro-hcp
 .PHONY: deploy
 

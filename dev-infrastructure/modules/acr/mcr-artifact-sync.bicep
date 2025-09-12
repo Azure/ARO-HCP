@@ -14,7 +14,7 @@ param targetRepositoryName string
 param artifactSyncStatus string = 'Active'
 
 @description('KQL query for artifact sync scope filter')
-param kqlQuery string = ''
+param kqlQuery string = 'Tags'
 
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName
@@ -27,11 +27,9 @@ resource artifactSyncRule 'Microsoft.ContainerRegistry/registries/cacheRules@202
     sourceRepository: sourceRepositoryPath
     targetRepository: targetRepositoryName
     artifactSyncStatus: artifactSyncStatus
-    artifactSyncScopeFilterProperties: empty(kqlQuery)
-      ? null
-      : {
-          type: 'KQL'
-          query: kqlQuery
-        }
+    artifactSyncScopeFilterProperties: {
+      type: 'KQL'
+      query: kqlQuery
+    }
   }
 }

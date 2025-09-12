@@ -5,7 +5,6 @@ import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
-using TypeSpec.Http;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -636,7 +635,6 @@ model OsDiskProfile {
    * https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
    */
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  @maxLength(285)
   encryptionSetId?: DiskEncryptionSetResourceId;
 }
 

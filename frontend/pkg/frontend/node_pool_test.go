@@ -49,7 +49,6 @@ import (
 var dummyClusterHREF = ocm.GenerateClusterHREF(api.TestClusterName)
 var dummyNodePoolHREF = ocm.GenerateNodePoolHREF(dummyClusterHREF, api.TestNodePoolName)
 
-var dummyLocation = "Spain"
 var dummyVMSize = "Big"
 var dummyVersionID = "4.18.0"
 
@@ -62,8 +61,11 @@ func TestCreateNodePool(t *testing.T) {
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
 	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
 
+	arm.SetAzureLocation(api.TestLocation)
+	location := arm.GetAzureLocation()
+
 	requestBody := generated.NodePool{
-		Location: &dummyLocation,
+		Location: &location,
 		Properties: &generated.NodePoolProperties{
 			Version: &generated.NodePoolVersionProfile{
 				ID:           &dummyVersionID,
@@ -85,8 +87,9 @@ func TestCreateNodePool(t *testing.T) {
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
 					State(csEncryptionAtHostStateDisabled),
 			).
-			OSDiskSizeGibibytes(64).
-			OSDiskStorageAccountType("Premium_LRS"),
+			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+				SizeGibibytes(64).
+				StorageAccountType("Premium_LRS")),
 		).
 		Labels(make(map[string]string)).
 		Subnet("").
@@ -139,7 +142,6 @@ func TestCreateNodePool(t *testing.T) {
 				nil,
 				reg,
 				mockDBClient,
-				"",
 				mockCSClient,
 				newNoopAuditClient(t),
 			)

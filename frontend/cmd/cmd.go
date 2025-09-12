@@ -47,8 +47,8 @@ import (
 )
 
 type FrontendOpts struct {
-	auditLogQueueSize int
-	auditTCPAddress   string
+	auditLogQueueSize  int
+	auditConnectSocket bool
 
 	clustersServiceURL            string
 	clusterServiceProvisionShard  string
@@ -84,8 +84,8 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
-	rootCmd.Flags().StringVar(&opts.auditTCPAddress, "audit-tcp-address", os.Getenv("AUDIT_TCP_ADDRESS"), "OTEL Address to send audit logging to")
 	rootCmd.Flags().IntVar(&opts.auditLogQueueSize, "audit-log-queue-size", 2048, "Log Queue size for audit logging client")
+	rootCmd.Flags().BoolVar(&opts.auditConnectSocket, "audit-connect-socket", os.Getenv("AUDIT_CONNECT_SOCKET") == "true", "Connect to mdsd audit socket instead")
 
 	rootCmd.Flags().StringVar(&opts.cosmosName, "cosmos-name", os.Getenv("DB_NAME"), "Cosmos database name")
 	rootCmd.Flags().StringVar(&opts.cosmosURL, "cosmos-url", os.Getenv("DB_URL"), "Cosmos database URL")
@@ -130,10 +130,20 @@ func (opts *FrontendOpts) Run() error {
 	ctx := context.Background()
 
 	logger := util.DefaultLogger()
-	logger.Info(fmt.Sprintf("%s (%s) started", frontend.ProgramName, version.CommitSHA))
+
+	if len(opts.location) == 0 {
+		return errors.New("location is required")
+	}
+	arm.SetAzureLocation(opts.location)
+
+	logger.Info(fmt.Sprintf(
+		"%s (%s) started in %s",
+		frontend.ProgramName,
+		version.CommitSHA,
+		arm.GetAzureLocation()))
 
 	auditClient, err := audit.NewOtelAuditClient(
-		opts.auditTCPAddress,
+		audit.CreateConn(opts.auditConnectSocket),
 		base.WithLogger(logger),
 		base.WithSettings(base.Settings{
 			QueueSize: opts.auditLogQueueSize,
@@ -142,15 +152,15 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("could not initialize Otel Audit Client: %w", err)
 	}
 
-	if opts.auditTCPAddress != "" {
-		logger.Info(fmt.Sprintf("audit logging to %s", opts.auditTCPAddress))
+	if opts.auditConnectSocket {
+		logger.Info("audit logging to default_fluent.socket")
 	}
 
 	// Initialize the global OpenTelemetry tracer.
 	otelShutdown, err := tracing.ConfigureOpenTelemetryTracer(
 		ctx,
 		logger,
-		semconv.CloudRegion(opts.location),
+		semconv.CloudRegion(arm.GetAzureLocation()),
 		semconv.ServiceNameKey.String(frontend.ProgramName),
 		semconv.ServiceVersionKey.String(version.CommitSHA),
 	)
@@ -214,12 +224,7 @@ func (opts *FrontendOpts) Run() error {
 		util.TracerName,
 	)
 
-	if len(opts.location) == 0 {
-		return errors.New("location is required")
-	}
-	logger.Info(fmt.Sprintf("Application running in %s", opts.location))
-
-	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, opts.location, csClient, auditClient)
+	f := frontend.NewFrontend(logger, listener, metricsListener, prometheus.DefaultRegisterer, dbClient, csClient, auditClient)
 
 	stop := make(chan struct{})
 	signalChannel := make(chan os.Signal, 1)
