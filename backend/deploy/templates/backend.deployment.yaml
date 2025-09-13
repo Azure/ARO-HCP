@@ -6,7 +6,7 @@ metadata:
   name: aro-hcp-backend
 spec:
   progressDeadlineSeconds: 600
-  replicas: 2
+  replicas: {{ .Values.deployment.replicas }}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -22,7 +22,7 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: backend
+      serviceAccountName: '{{ .Values.serviceAccount.name }}'
       containers:
       - name: aro-hcp-backend
         image: '{{ .Values.deployment.imageName }}'
