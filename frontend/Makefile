@@ -79,11 +79,11 @@ deploy:
 	fi; \
 	FRONTEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
-			-n frontend \
+			-n ${MANAGED_IDENTITY_NAME} \
 			--query clientId -o tsv) && \
 	FRONTEND_MI_TENANT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
-			-n frontend \
+			-n ${MANAGED_IDENTITY_NAME} \
 			--query tenantId -o tsv) &&\
 	IMAGE_PULLER_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
@@ -99,11 +99,11 @@ deploy:
 			--output tsv) && \
 	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
-	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
+	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace mise "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	../hack/helm.sh aro-hcp-frontend-dev deploy aro-hcp \
+	../hack/helm.sh aro-hcp-frontend-dev deploy ${NAMESPACE} \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
 		--set configMap.databaseName=${DB_NAME} \
@@ -111,12 +111,14 @@ deploy:
 		--set configMap.frontendMiClientId="$${FRONTEND_MI_CLIENT_ID}" \
 		--set credsKeyVault.name=${SERVICE_KEY_VAULT} \
 		--set credsKeyVault.secret=${CERTIFICATE_NAME} \
+		--set serviceAccount.name=${SERVICE_ACCOUNT_NAME} \
 		--set serviceAccount.workloadIdentityClientId="$${FRONTEND_MI_CLIENT_ID}" \
 		--set serviceAccount.workloadIdentityTenantId="$${FRONTEND_MI_TENANT_ID}" \
 		--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 		--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 		--set configMap.currentVersion="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set configMap.location=${LOCATION}  \
+		--set deployment.replicas=${REPLICAS} \
 		--set deployment.imageName="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set pullBinding.registry=${ARO_HCP_IMAGE_ACR}.azurecr.io \
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
@@ -137,11 +139,11 @@ deploy:
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
 		--set audit.connectSocket=${AUDIT_CONNECT_SOCKET} \
-		--namespace aro-hcp
+		--namespace ${NAMESPACE}
 .PHONY: deploy
 
 undeploy:
-	helm uninstall aro-hcp-frontend-dev --namespace aro-hcp
+	helm uninstall aro-hcp-frontend-dev --namespace ${NAMESPACE}
 .PHONY: undeploy
 
 smoke-tests:

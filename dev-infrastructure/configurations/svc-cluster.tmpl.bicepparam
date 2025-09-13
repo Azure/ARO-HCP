@@ -44,6 +44,9 @@ param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 param rpCosmosZoneRedundantMode = '{{ .frontend.cosmosDB.zoneRedundantMode }}'
+param frontendMIName = '{{ .frontend.managedIdentityName }}'
+param frontendNamespace = '{{ .frontend.k8s.namespace }}'
+param frontendServiceAccountName = '{{ .frontend.k8s.serviceAccountName }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'

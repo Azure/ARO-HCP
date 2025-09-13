@@ -7,7 +7,7 @@ metadata:
   namespace: '{{ .Release.namespace }}'
 spec:
   progressDeadlineSeconds: 600
-  replicas: 2
+  replicas: {{ .Values.deployment.replicas }}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -23,7 +23,7 @@ spec:
         app: aro-hcp-frontend
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: frontend
+      serviceAccountName: '{{ .Values.serviceAccount.name }}'
       containers:
       - name: aro-hcp-frontend
         image: '{{ .Values.deployment.imageName }}'
