@@ -56,6 +56,11 @@ backend:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
+  k8s:
+    namespace: aro-hcp
+    replicas: 2
+    serviceAccountName: backend
+  managedIdentityName: backend
   tracing:
     address: ""
     exporter: ""
@@ -118,6 +123,7 @@ clustersService:
     repository: app-sre/uhc-clusters-service
   k8s:
     namespace: clusters-service
+    replicas: 3
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
   postgres:
@@ -173,6 +179,11 @@ frontend:
     digest: ""
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
+  k8s:
+    namespace: aro-hcp
+    replicas: 2
+    serviceAccountName: frontend
+  managedIdentityName: frontend
   tracing:
     address: ""
     exporter: ""
@@ -295,7 +306,12 @@ logs:
 maestro:
   agent:
     consumerName: hcp-underlay-usw3-mgmt-1
+    k8s:
+      namespace: maestro
+      replicas: 3
+      serviceAccountName: maestro
     loglevel: 4
+    managedIdentityName: maestro-consumer
     sidecar:
       image:
         digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
@@ -326,6 +342,7 @@ maestro:
   server:
     k8s:
       namespace: maestro
+      replicas: 3
       serviceAccountName: maestro
     loglevel: 4
     managedIdentityName: maestro-server

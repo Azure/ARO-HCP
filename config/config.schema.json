@@ -17,7 +17,7 @@
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
       "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
     },
-    "k8sServiceAccount": {
+    "k8sDeployment": {
       "type": "object",
       "properties": {
         "namespace": {
@@ -25,6 +25,10 @@
         },
         "serviceAccountName": {
           "$ref": "#/definitions/serviceAccountName"
+        },
+        "replicas": {
+          "type": "number",
+          "minimum": 1
         }
       },
       "additionalProperties": false,
@@ -794,7 +798,7 @@
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
         "k8s": {
-          "$ref": "#/definitions/k8sServiceAccount"
+          "$ref": "#/definitions/k8sDeployment"
         },
         "postgres": {
           "$ref": "#/definitions/postgres"
@@ -927,12 +931,21 @@
         },
         "tracing": {
           "$ref": "#/definitions/tracing"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the backend to interact with Azure"
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing"
+        "tracing",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "frontend": {
@@ -946,6 +959,13 @@
         },
         "tracing": {
           "$ref": "#/definitions/tracing"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the frontend to interact with Azure"
         },
         "cosmosDB": {
           "type": "object",
@@ -998,7 +1018,9 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing"
+        "tracing",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "billing": {
@@ -1033,6 +1055,7 @@
             "cloudName"
           ]
         },
+
         "kusto": {
           "type": "object",
           "properties": {
@@ -1321,7 +1344,7 @@
           "description": "The client ID of the first party application that will be used by the refresher"
         },
         "k8s": {
-          "$ref": "#/definitions/k8sServiceAccount"
+          "$ref": "#/definitions/k8sDeployment"
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -1609,7 +1632,7 @@
               "$ref": "#/definitions/tracing"
             },
             "k8s": {
-              "$ref": "#/definitions/k8sServiceAccount"
+              "$ref": "#/definitions/k8sDeployment"
             }
           },
           "additionalProperties": false,
@@ -1630,6 +1653,12 @@
             "loglevel": {
               "type": "integer"
             },
+            "managedIdentityName": {
+              "type": "string"
+            },
+            "k8s": {
+              "$ref": "#/definitions/k8sDeployment"
+            },
             "sidecar": {
               "type:": "object",
               "additionalProperties": false,
@@ -1644,7 +1673,9 @@
           "required": [
             "consumerName",
             "loglevel",
-            "sidecar"
+            "sidecar",
+            "managedIdentityName",
+            "k8s"
           ]
         },
         "eventGrid": {
