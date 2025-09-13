@@ -79,6 +79,8 @@ resourceGroups:
       configRef: maestro.server.k8s.namespace
     - name: SERVICE_ACCOUNT_NAME
       configRef: maestro.server.k8s.serviceAccountName
+    - name: REPLICAS
+      configRef: maestro.server.k8s.replicas
     - name: MANAGED_IDENTITY_NAME
       configRef: maestro.server.managedIdentityName
     - name: CS_NAMESPACE

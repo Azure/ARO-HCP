@@ -22,6 +22,7 @@ deploy:
 		--set image.digest=${IMAGE_DIGEST} \
 		--set image.registry=${ACR_NAME}.azurecr.io \
 		--set image.repository=${IMAGE_REPO} \
+		--set deployment.replicas=${REPLICAS} \
 		--set database.host=$${DATABASE_HOST} \
 		--set database.name=${DATABASE_NAME} \
 		--set clustersService.namespace=${CS_NAMESPACE} \
