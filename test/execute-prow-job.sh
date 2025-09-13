@@ -11,5 +11,4 @@ if [ "${DRY_RUN:-false}" = "true" ]; then
 fi
 
 # Start the Prow job
-export zz_injected_EV2RolloutVersion="build.NUMBER.sdp-pipelines.COMMIT.ARO-HCP.COMMIT"
 ./prow-job-executor execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}"
