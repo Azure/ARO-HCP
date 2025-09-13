@@ -15,8 +15,8 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
-    template: templates/output-global.bicep
-    parameters: configurations/output-global.tmpl.bicepparam
+    template: ../dev-infrastructure/templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: service
@@ -25,7 +25,7 @@ resourceGroups:
   steps:
   - name: regionalGating
     action: Shell
-    command: ../test/execute-prow-job.sh
+    command: ./execute-prow-job.sh
     serviceValidation:
     - GA
     dryRun:
@@ -40,7 +40,7 @@ resourceGroups:
     - name: PROW_JOB_NAME
       configRef: e2e.regionalGatingTest.prowJobName
     - name: REGION
-      value: region
+      configRef: region
     - name: KEY_VAULT_DNSSUFFIX
       configRef: keyVaultDNSSuffix
     shellIdentity:
