@@ -56,6 +56,7 @@ deploy:
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
+	  --set replicas=${REPLICAS} \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageDigest=${IMAGE_DIGEST} \

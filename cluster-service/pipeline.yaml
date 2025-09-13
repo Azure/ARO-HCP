@@ -134,6 +134,8 @@ resourceGroups:
       configRef: clustersService.k8s.namespace
     - name: SERVICE_ACCOUNT_NAME
       configRef: clustersService.k8s.serviceAccountName
+    - name: REPLICAS
+      configRef: clustersService.k8s.replicas
     - name: ENVIRONMENT
       configRef: clustersService.environment
     - name: DENYASSIGNMENTS
