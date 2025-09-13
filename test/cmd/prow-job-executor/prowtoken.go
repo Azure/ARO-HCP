@@ -35,6 +35,17 @@ type RawProwTokenOptions struct {
 func (o *RawProwTokenOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&o.KeyVaultURI, "prow-token-keyvault-uri", o.KeyVaultURI, "Keyvault URI to use for the Prow token")
 	cmd.Flags().StringVar(&o.Secret, "prow-token-keyvault-secret", o.Secret, "Keyvault secret to use for the Prow token")
+
+	// Mark required flags
+	for _, flag := range []string{
+		"prow-token-keyvault-uri",
+		"prow-token-keyvault-secret",
+	} {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			return fmt.Errorf("failed to mark flag %q as required: %w", flag, err)
+		}
+	}
+
 	return nil
 }
 

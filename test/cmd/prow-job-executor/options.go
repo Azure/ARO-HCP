@@ -21,11 +21,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/api/validation"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	prowgangway "sigs.k8s.io/prow/pkg/gangway"
 
 	"github.com/Azure/ARO-HCP/test/pkg/prowjob"
@@ -38,80 +35,20 @@ const (
 	defaultProwURL    = "https://prow.ci.openshift.org/prowjob"
 
 	// EV2 rollout annotation prefix
-	ev2RolloutPrefix = "ev2.rollout/"
+	ev2RolloutPrefix           = "ev2.rollout/"
+	ev2RolloutRegionAnnotation = ev2RolloutPrefix + "region"
 )
 
-// validateKubernetesLabel validates a Kubernetes label key-value pair using official Kubernetes validation
-func validateKubernetesLabel(key, value string) error {
-	// Validate label key using IsQualifiedName - this is the correct function for Kubernetes label keys
-	if errs := k8svalidation.IsQualifiedName(key); len(errs) > 0 {
-		return fmt.Errorf("label key %q is invalid: %s", key, strings.Join(errs, "; "))
-	}
-
-	// Validate value using official Kubernetes validation
-	if errs := k8svalidation.IsValidLabelValue(value); len(errs) > 0 {
-		return fmt.Errorf("label value %q is invalid: %s", value, strings.Join(errs, "; "))
-	}
-
-	return nil
-}
-
-// validateAnnotationsMap validates a complete set of annotations using official Kubernetes validation
-func validateAnnotationsMap(annotations map[string]string) error {
-	// Use official Kubernetes validation that checks both individual annotation format and total size
-	if errs := validation.ValidateAnnotations(annotations, field.NewPath("annotations")); len(errs) > 0 {
-		var errMessages []string
-		for _, err := range errs {
-			errMessages = append(errMessages, err.Error())
-		}
-		return fmt.Errorf("annotations validation failed: %s", strings.Join(errMessages, "; "))
-	}
-
-	return nil
-}
-
-// parseEV2RolloutVersionAsAnnotations parses a flexible tag.value.tag.value format and returns annotations
-// Expected format: tag1.value1.tag2.value2.tag3.value3, e.g. build.NUMBER.sdp-pipelines.COMMIT.ARO-HCP.COMMIT
-// Converts to annotations with "ev2.rollout/" prefix
-func parseEV2RolloutVersionAsAnnotations(version string) (map[string]string, error) {
-	if version == "" {
-		return map[string]string{}, nil
-	}
-
-	// Split by dots
-	parts := strings.Split(version, ".")
-
-	// Must have even number of parts (tag.value pairs)
-	if len(parts)%2 != 0 {
-		return nil, fmt.Errorf("invalid rollout version format: %s (expected: tag.value.tag.value...)", version)
-	}
-
-	if len(parts) == 0 {
-		return map[string]string{}, nil
-	}
-
-	annotations := make(map[string]string)
-	for i := 0; i < len(parts); i += 2 {
-		tag := parts[i]
-		value := parts[i+1]
-
-		// Convert to annotation key with prefix
-		annotationKey := ev2RolloutPrefix + tag
-
-		// Validate the annotation key format using IsQualifiedName
-		if errs := k8svalidation.IsQualifiedName(annotationKey); len(errs) > 0 {
-			return nil, fmt.Errorf("invalid EV2 rollout annotation key %q in %q: %s", annotationKey, version, strings.Join(errs, "; "))
-		}
-
-		annotations[annotationKey] = value
-	}
-
-	return annotations, nil
-}
+//
+// Execute command types and functions
+//
 
 func DefaultExecuteOptions() *RawExecuteOptions {
 	return &RawExecuteOptions{
 		RawProwTokenOptions: NewDefaultRawProwTokenOptions(),
+		Labels:              make(map[string]string),
+		Annotations:         make(map[string]string),
+		EnvironmentVars:     make(map[string]string),
 		PollInterval:        60 * time.Second,
 		Timeout:             2 * time.Hour,
 		GangwayURL:          defaultGangwayURL,
@@ -122,9 +59,9 @@ func DefaultExecuteOptions() *RawExecuteOptions {
 func (o *RawExecuteOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&o.Region, "region", o.Region, "Target Azure region for the job execution")
 	cmd.Flags().StringVar(&o.ProwJobName, "job-name", o.ProwJobName, "Name of the specific ProwJob to execute")
-	cmd.Flags().StringArrayVar(&o.Labels, "label", o.Labels, "Kubernetes labels to apply to the job pod in k=v format (can be specified multiple times)")
-	cmd.Flags().StringArrayVar(&o.Annotations, "annotation", o.Annotations, "Kubernetes annotations to apply to the job pod in k=v format (can be specified multiple times)")
-	cmd.Flags().StringArrayVar(&o.EnvironmentVars, "environment-variable", o.EnvironmentVars, "Environment variables to pass to the job in k=v format (can be specified multiple times)")
+	cmd.Flags().StringToStringVar(&o.Labels, "label", o.Labels, "Kubernetes labels to apply to the job pod in k=v format (can be specified multiple times)")
+	cmd.Flags().StringToStringVar(&o.Annotations, "annotation", o.Annotations, "Kubernetes annotations to apply to the job pod in k=v format (can be specified multiple times)")
+	cmd.Flags().StringToStringVar(&o.EnvironmentVars, "environment-variable", o.EnvironmentVars, "Environment variables to pass to the job in k=v format (can be specified multiple times)")
 	cmd.Flags().StringVar(&o.EV2RolloutVersion, "ev2-rollout-version", o.EV2RolloutVersion, fmt.Sprintf("EV2 rollout version (format: tag.value.tag.value...) - will be provided as %stag=value annotations to the job", ev2RolloutPrefix))
 	cmd.Flags().DurationVar(&o.PollInterval, "poll-interval", o.PollInterval, "Status polling interval")
 	cmd.Flags().DurationVar(&o.Timeout, "timeout", o.Timeout, "Maximum wait time for job completion")
@@ -150,9 +87,9 @@ type RawExecuteOptions struct {
 
 	Region            string
 	ProwJobName       string
-	Labels            []string
-	Annotations       []string
-	EnvironmentVars   []string
+	Labels            map[string]string
+	Annotations       map[string]string
+	EnvironmentVars   map[string]string
 	EV2RolloutVersion string
 	PollInterval      time.Duration
 	Timeout           time.Duration
@@ -212,22 +149,21 @@ func (o *RawExecuteOptions) Validate(ctx context.Context) (*ValidatedExecuteOpti
 		}
 	}
 
-	// Parse and validate labels
-	labels, err := parseLabels(o.Labels)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse labels: %w", err)
+	// Validate labels
+	for key, value := range o.Labels {
+		if err := validateKubernetesLabel(key, value); err != nil {
+			return nil, fmt.Errorf("invalid label %s=%s: %w", key, value, err)
+		}
 	}
 
-	// Parse and validate annotations
-	annotations, err := parseAnnotations(o.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse annotations: %w", err)
-	}
+	// Start with user-provided annotations
+	annotations := make(map[string]string)
+	maps.Copy(annotations, o.Annotations)
 
 	// Add region as annotation
-	annotations[ev2RolloutPrefix+"region"] = o.Region
+	annotations[ev2RolloutRegionAnnotation] = o.Region
 
-	// Parse EV2 rollout version and add to annotations
+	// Parse EV2 rollout version
 	ev2Annotations, err := parseEV2RolloutVersionAsAnnotations(o.EV2RolloutVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse EV2 rollout version: %w", err)
@@ -243,10 +179,11 @@ func (o *RawExecuteOptions) Validate(ctx context.Context) (*ValidatedExecuteOpti
 		return nil, fmt.Errorf("annotations validation failed: %w", err)
 	}
 
-	// Parse and validate environment variables
-	envVars, err := parseEnvironmentVars(o.EnvironmentVars)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse environment variables: %w", err)
+	// Validate environment variables
+	for key := range o.EnvironmentVars {
+		if err := validateEnvVarKey(key); err != nil {
+			return nil, fmt.Errorf("invalid environment variable key %q: %w", key, err)
+		}
 	}
 
 	if o.PollInterval <= 0 {
@@ -260,9 +197,9 @@ func (o *RawExecuteOptions) Validate(ctx context.Context) (*ValidatedExecuteOpti
 	return &ValidatedExecuteOptions{
 		validatedExecuteOptions: &validatedExecuteOptions{
 			RawExecuteOptions:         o,
-			ParsedLabels:              labels,
+			ParsedLabels:              o.Labels,
 			ParsedAnnotations:         allAnnotations,
-			ParsedEnvironmentVars:     envVars,
+			ParsedEnvironmentVars:     o.EnvironmentVars,
 			ValidatedProwTokenOptions: validated,
 		},
 	}, nil
@@ -313,75 +250,48 @@ func (o *ExecuteOptions) Execute(ctx context.Context) error {
 	})
 }
 
-// parseLabels converts slice of "k=v" strings to map[string]string with Kubernetes label validation
-func parseLabels(labels []string) (map[string]string, error) {
-	result := make(map[string]string)
-	for _, label := range labels {
-		parts := strings.SplitN(label, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid label format %q, expected k=v", label)
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if err := validateKubernetesLabel(key, value); err != nil {
-			return nil, fmt.Errorf("invalid label %q: %w", label, err)
-		}
-
-		result[key] = value
+// parseEV2RolloutVersionAsAnnotations parses a flexible tag.value.tag.value format and returns annotations
+// Expected format: tag1.value1.tag2.value2.tag3.value3, e.g. build.NUMBER.sdp-pipelines.COMMIT.ARO-HCP.COMMIT
+// Converts to annotations with "ev2.rollout/" prefix
+func parseEV2RolloutVersionAsAnnotations(version string) (map[string]string, error) {
+	if version == "" {
+		return map[string]string{}, nil
 	}
-	return result, nil
+
+	// Split by dots
+	parts := strings.Split(version, ".")
+
+	// Must have even number of parts (tag.value pairs)
+	if len(parts)%2 != 0 {
+		return nil, fmt.Errorf("invalid rollout version format: %s (expected: tag.value.tag.value...)", version)
+	}
+
+	if len(parts) == 0 {
+		return map[string]string{}, nil
+	}
+
+	annotations := make(map[string]string)
+	for i := 0; i < len(parts); i += 2 {
+		tag := parts[i]
+		value := parts[i+1]
+
+		// Convert to annotation key with prefix
+		annotationKey := ev2RolloutPrefix + tag
+
+		// Validate the annotation key format using IsQualifiedName
+		if errs := k8svalidation.IsQualifiedName(annotationKey); len(errs) > 0 {
+			return nil, fmt.Errorf("invalid EV2 rollout annotation key %q in %q: %s", annotationKey, version, strings.Join(errs, "; "))
+		}
+
+		annotations[annotationKey] = value
+	}
+
+	return annotations, nil
 }
 
-// parseAnnotations converts slice of "k=v" strings to map[string]string (validation happens later on complete map)
-func parseAnnotations(annotations []string) (map[string]string, error) {
-	result := make(map[string]string)
-	for _, annotation := range annotations {
-		parts := strings.SplitN(annotation, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid annotation format %q, expected k=v", annotation)
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if key == "" {
-			return nil, fmt.Errorf("annotation key cannot be empty in %q", annotation)
-		}
-
-		result[key] = value
-	}
-	return result, nil
-}
-
-// parseEnvironmentVars converts slice of "k=v" strings to map[string]string for environment variables
-func parseEnvironmentVars(envVars []string) (map[string]string, error) {
-	result := make(map[string]string)
-	for _, envVar := range envVars {
-		parts := strings.SplitN(envVar, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid environment variable format %q, expected k=v", envVar)
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if key == "" {
-			return nil, fmt.Errorf("environment variable key cannot be empty in %q", envVar)
-		}
-
-		result[key] = value
-	}
-	return result, nil
-}
-
-// validateUUID validates that the given string is a valid UUID
-func validateUUID(id string) error {
-	if _, err := uuid.Parse(id); err != nil {
-		return fmt.Errorf("execution ID must be a valid UUID format: %w", err)
-	}
-	return nil
-}
-
+//
 // Monitor command types and functions
+//
 
 func DefaultMonitorOptions() *RawMonitorOptions {
 	return &RawMonitorOptions{
