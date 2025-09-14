@@ -57,6 +57,7 @@ Additional options to reduce unused code as much as possible.
 ``` yaml
 go:
   inject-spans: false
+  remove-unreferenced-types: true
 ```
 
 ### Tag v20240610preview
