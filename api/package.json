@@ -14,7 +14,7 @@
   "scripts": {
     "format-check": "tsp format --check \"**/*.tsp\"",
     "format": "tsp format \"**/*.tsp\"",
-    "generate": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error && autorest --verbose autorest-config.yaml"
+    "generate": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error && autorest readme.md --verbose"
   },
   "devDependencies": {
     "@typespec/compiler": "^1.2.1",
