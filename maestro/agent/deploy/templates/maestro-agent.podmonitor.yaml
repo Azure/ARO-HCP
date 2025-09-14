@@ -2,14 +2,14 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: maestro-agent
-  namespace: maestro
+  namespace: '{{ .Release.Namespace }}'
 spec:
   selector:
     matchLabels:
       app: maestro-agent
   namespaceSelector:
     matchNames:
-    - maestro
+    - '{{ .Release.Namespace }}'
   podMetricsEndpoints:
   - path: /metrics
     port: metrics

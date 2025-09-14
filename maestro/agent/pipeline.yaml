@@ -62,6 +62,14 @@ resourceGroups:
       configRef: mgmt.rg
     - name: CONSUMER_NAME
       configRef: maestro.agent.consumerName
+    - name: NAMESPACE
+      configRef: maestro.agent.k8s.namespace
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: maestro.agent.k8s.serviceAccountName
+    - name: MAESTRO_MI_NAME
+      configRef: maestro.agent.managedIdentityName
+    - name: REPLICAS
+      configRef: maestro.agent.k8s.replicas
     - name: MAESTRO_LOG_LEVEL
       configRef: maestro.agent.loglevel
     - name: KEYVAULT_NAME
