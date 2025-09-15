@@ -15,10 +15,13 @@
 package database
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 const testResourceType = "test"
@@ -108,4 +111,136 @@ func TestTypedDocumentUnmarshal(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_resourceDocumentMarshal(t *testing.T) {
+	type args struct {
+		typedDoc       *typedDocument
+		innerDoc       *ResourceDocument
+		documentFilter ResourceDocumentStateFilter
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "clear everything",
+			args: args{
+				typedDoc: &typedDocument{
+					ResourceType: api.ClusterResourceType.String(),
+				},
+				innerDoc: &ResourceDocument{
+					CustomerDesiredState: map[string]any{
+						"alligator": "adept",
+					},
+					ServiceProviderState: map[string]any{
+						"avocado": "alert",
+					},
+				},
+				documentFilter: RemoveAllState,
+			},
+			want:    `{"partitionKey":"","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters","properties":{"internalId":"","customerDesiredState":null,"serviceProviderState":null}}`,
+			wantErr: assert.NoError,
+		},
+		{
+			name: "clear hcp",
+			args: args{
+				typedDoc: &typedDocument{
+					ResourceType: api.ClusterResourceType.String(),
+				},
+				// cannot unmarshal string into Go struct field HCPOpenShiftClusterProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
+				innerDoc: &ResourceDocument{
+					CustomerDesiredState: map[string]any{
+						"alligator": "adept",
+						"hcpOpenShiftCluster": map[string]any{
+							"bat": "black",
+							"properties": map[string]any{
+								"version": map[string]any{
+									"id": "1.2.3",
+								},
+							},
+						},
+					},
+					ServiceProviderState: map[string]any{
+						"alligator": "adept",
+						"hcpOpenShiftCluster": map[string]any{
+							"bat": "black",
+							"properties": map[string]any{
+								"dns": map[string]any{
+									"baseDomain": "example.com",
+								},
+							},
+						},
+					},
+				},
+				documentFilter: FilterHCPClusterState,
+			},
+			// verifying that we filter out all unknown fields and serialize equivalently
+			want: jsonFor(
+				&typedDocument{
+					ResourceType: api.ClusterResourceType.String(),
+				},
+				&ResourceDocument{},
+				CustomerDesiredHCPClusterState{
+					HCPOpenShiftCluster: api.HCPOpenShiftCluster{
+						Properties: api.HCPOpenShiftClusterProperties{
+							Version: api.VersionProfile{
+								ID: "1.2.3",
+							},
+						},
+					},
+				},
+				ServiceProviderHCPClusterState{
+					HCPOpenShiftCluster: api.HCPOpenShiftCluster{
+						Properties: api.HCPOpenShiftClusterProperties{
+							DNS: api.DNSProfile{
+								BaseDomain: "example.com",
+							},
+						},
+					},
+				},
+			),
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resourceDocumentMarshal(tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)
+			if !tt.wantErr(t, err, fmt.Sprintf("resourceDocumentMarshal(%v, %v, %v)", tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)) {
+				return
+			}
+			t.Log(string(got))
+			assert.Equalf(t, tt.want, string(got), "resourceDocumentMarshal(%v, %v, %v)", tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)
+		})
+	}
+}
+
+func jsonFor(typedDocument *typedDocument, doc *ResourceDocument, customer, serviceProvider any) string {
+	doc = toResourceDocument(doc, customer, serviceProvider)
+	return string(api.Must(typedDocumentMarshal(typedDocument, doc)))
+}
+
+func toResourceDocument(doc *ResourceDocument, customer, serviceProvider any) *ResourceDocument {
+	doc.CustomerDesiredState = api.Must(objToMap(customer))
+	doc.ServiceProviderState = api.Must(objToMap(serviceProvider))
+	return doc
+}
+
+func objToMap(obj any) (map[string]any, error) {
+	if obj == nil {
+		return nil, nil
+	}
+
+	currBytes, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal original: %w", err)
+	}
+	endingMap := map[string]any{}
+	if err := json.Unmarshal(currBytes, &endingMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into filtered map: %w", err)
+	}
+
+	return endingMap, nil
 }

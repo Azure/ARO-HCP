@@ -260,44 +260,6 @@ func (c *MockDBClientCreateOperationDocCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
-// CreateResourceDoc mocks base method.
-func (m *MockDBClient) CreateResourceDoc(ctx context.Context, doc *database.ResourceDocument) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateResourceDoc", ctx, doc)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateResourceDoc indicates an expected call of CreateResourceDoc.
-func (mr *MockDBClientMockRecorder) CreateResourceDoc(ctx, doc any) *MockDBClientCreateResourceDocCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResourceDoc", reflect.TypeOf((*MockDBClient)(nil).CreateResourceDoc), ctx, doc)
-	return &MockDBClientCreateResourceDocCall{Call: call}
-}
-
-// MockDBClientCreateResourceDocCall wrap *gomock.Call
-type MockDBClientCreateResourceDocCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientCreateResourceDocCall) Return(arg0 error) *MockDBClientCreateResourceDocCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientCreateResourceDocCall) Do(f func(context.Context, *database.ResourceDocument) error) *MockDBClientCreateResourceDocCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientCreateResourceDocCall) DoAndReturn(f func(context.Context, *database.ResourceDocument) error) *MockDBClientCreateResourceDocCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // CreateSubscriptionDoc mocks base method.
 func (m *MockDBClient) CreateSubscriptionDoc(ctx context.Context, subscriptionID string, subscription *arm.Subscription) error {
 	m.ctrl.T.Helper()

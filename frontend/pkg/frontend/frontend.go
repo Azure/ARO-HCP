@@ -433,7 +433,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -640,7 +640,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterHCPClusterState, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
