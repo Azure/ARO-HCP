@@ -19,11 +19,13 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 type HostedClusterVerifier interface {
@@ -95,6 +97,26 @@ var standardVerifiers = []HostedClusterVerifier{
 	verifyAllAPIServicesAvailable(),
 }
 
+func runVerifierWithTiming(ctx context.Context, verifier HostedClusterVerifier, restConfig *rest.Config) error {
+	verifierName := verifier.Name()
+	startTime := time.Now()
+
+	klog.InfoS("Starting verifier", "verifier", verifierName, "startTime", startTime.Format(time.RFC3339))
+
+	err := verifier.Verify(ctx, restConfig)
+
+	duration := time.Since(startTime)
+	endTime := time.Now()
+
+	if err != nil {
+		klog.ErrorS(err, "Verifier failed", "verifier", verifierName, "duration", duration.String(), "startTime", startTime.Format(time.RFC3339), "endTime", endTime.Format(time.RFC3339))
+		return fmt.Errorf("%v failed: %w", verifierName, err)
+	}
+
+	klog.InfoS("Verifier completed successfully", "verifier", verifierName, "duration", duration.String(), "startTime", startTime.Format(time.RFC3339), "endTime", endTime.Format(time.RFC3339))
+	return nil
+}
+
 func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additionalVerifiers ...HostedClusterVerifier) error {
 	allVerifiers := append(standardVerifiers, additionalVerifiers...)
 
@@ -104,9 +126,9 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 		wg.Add(1)
 		go func(ctx context.Context, verifier HostedClusterVerifier) {
 			defer wg.Done()
-			err := verifier.Verify(ctx, adminRESTConfig)
+			err := runVerifierWithTiming(ctx, verifier, adminRESTConfig)
 			if err != nil {
-				errCh <- fmt.Errorf("%v failed: %w", verifier.Name(), err)
+				errCh <- err
 			}
 		}(ctx, verifier)
 	}
@@ -119,4 +141,9 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 	}
 
 	return errors.Join(errs...)
+}
+
+// VerifyWithTiming wraps a single verifier execution with timing logs
+func VerifyWithTiming(ctx context.Context, verifier HostedClusterVerifier, restConfig *rest.Config) error {
+	return runVerifierWithTiming(ctx, verifier, restConfig)
 }
