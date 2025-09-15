@@ -133,6 +133,9 @@ func VerifyHCPCluster(ctx context.Context, adminRESTConfig *rest.Config, additio
 		}(ctx, verifier)
 	}
 	wg.Wait()
+
+	// Ensure logs from goroutines are flushed to GinkgoWriter
+	klog.Flush()
 	close(errCh)
 
 	errs := []error{}
