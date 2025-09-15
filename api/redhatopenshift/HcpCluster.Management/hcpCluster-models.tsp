@@ -389,10 +389,10 @@ model LoadBalancerProfile {
 /** Represents an effective outbound IP resource of the cluster's public load balancer */
 model EffectiveOutboundIp {
   /** The fully qualified Azure resource ID of an IP address resource */
-  id: EffectiveOutboundIpResourceId
+  id: PublicIpAddressResourceId
 }
 
-scalar EffectiveOutboundIpResourceId
+scalar PublicIpAddressResourceId
   extends Azure.Core.armResourceIdentifier<[
     {
       type: "Microsoft.Network/publicIPAddresses",
