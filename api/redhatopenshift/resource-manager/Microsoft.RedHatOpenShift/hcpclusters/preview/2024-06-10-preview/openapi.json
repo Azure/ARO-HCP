@@ -1678,25 +1678,13 @@
       "description": "Represents an effective outbound IP resource of the cluster's public load balancer",
       "properties": {
         "id": {
-          "$ref": "#/definitions/EffectiveOutboundIpResourceId",
+          "$ref": "#/definitions/PublicIpAddressResourceId",
           "description": "The fully qualified Azure resource ID of an IP address resource"
         }
       },
       "required": [
         "id"
       ]
-    },
-    "EffectiveOutboundIpResourceId": {
-      "type": "string",
-      "format": "arm-id",
-      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
-      "x-ms-arm-id-details": {
-        "allowedResources": [
-          {
-            "type": "Microsoft.Network/publicIPAddresses"
-          }
-        ]
-      }
     },
     "EtcdDataEncryptionProfile": {
       "type": "object",
@@ -3365,6 +3353,18 @@
         ]
       },
       "readOnly": true
+    },
+    "PublicIpAddressResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.Network/publicIPAddresses"
+          }
+        ]
+      }
     },
     "RoleDefinition": {
       "type": "object",
