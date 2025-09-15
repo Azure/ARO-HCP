@@ -8,5 +8,5 @@ roleRef:
   name: maestro-agent:execution
 subjects:
 - kind: ServiceAccount
-  name: maestro
+  name: '{{ .Values.serviceAccountName }}'
   namespace: '{{ .Release.Namespace }}'

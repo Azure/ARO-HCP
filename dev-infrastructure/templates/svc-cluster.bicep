@@ -290,6 +290,24 @@ param frontendIngressCertName string
 @description('Frontend Ingress Certificate Issuer')
 param frontendIngressCertIssuer string
 
+@description('The name of the frontend managed identity')
+param frontendMIName string
+
+@description('The namespace of the frontend managed identity')
+param frontendNamespace string
+
+@description('The service account name of the frontend managed identity')
+param frontendServiceAccountName string
+
+@description('The name of the backend managed identity')
+param backendMIName string
+
+@description('The namespace of the backend managed identity')
+param backendNamespace string
+
+@description('The service account name of the backend managed identity')
+param backendServiceAccountName string
+
 @description('The name of the FPA certificate in the SVC keyvault')
 param fpaCertificateName string
 
@@ -449,14 +467,14 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     workloadIdentities: items({
       frontend_wi: {
-        uamiName: 'frontend'
-        namespace: 'aro-hcp'
-        serviceAccountName: 'frontend'
+        uamiName: frontendMIName
+        namespace: frontendNamespace
+        serviceAccountName: frontendServiceAccountName
       }
       backend_wi: {
-        uamiName: 'backend'
-        namespace: 'aro-hcp'
-        serviceAccountName: 'backend'
+        uamiName: backendMIName
+        namespace: backendNamespace
+        serviceAccountName: backendServiceAccountName
       }
       billing_wi: {
         uamiName: 'aro-billing'
@@ -477,11 +495,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
         uamiName: csMIName
         namespace: csNamespace
         serviceAccountName: csServiceAccountName
-      }
-      image_sync_wi: {
-        uamiName: 'image-sync'
-        namespace: 'image-sync'
-        serviceAccountName: 'image-sync'
       }
       logs_wi: {
         uamiName: logsMSI
@@ -539,8 +552,8 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   }
 }
 
-var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'frontend')[0]
-var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'backend')[0]
+var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == frontendMIName)[0]
+var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == backendMIName)[0]
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'

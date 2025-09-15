@@ -8,5 +8,5 @@ roleRef:
   name: cluster-admin
 subjects:
 - kind: ServiceAccount
-  name: maestro
+  name: '{{ .Values.serviceAccountName }}'
   namespace: '{{ .Release.Namespace }}'

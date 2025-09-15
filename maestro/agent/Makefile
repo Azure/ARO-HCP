@@ -1,10 +1,10 @@
 -include ../../setup-env.mk
 
 deploy:
-	@kubectl create namespace maestro --dry-run=client -o json | kubectl apply -f -
+	@kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f -
 	@TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${MGMT_RG}" -n maestro-consumer --query clientId -o tsv) && \
-	../../hack/helm.sh maestro-agent deploy maestro \
+	MAESTRO_MI_CLIENT_ID=$(shell az identity show -g "${MGMT_RG}" -n ${MAESTRO_MI_NAME} --query clientId -o tsv) && \
+	../../hack/helm.sh maestro-agent deploy ${NAMESPACE} \
 		--set consumerName=${CONSUMER_NAME} \
 		--set glog_v=${MAESTRO_LOG_LEVEL} \
 		--set broker.host=${EVENTGRID_HOSTNAME} \
@@ -12,6 +12,8 @@ deploy:
 		--set credsKeyVault.secret=${CONSUMER_NAME} \
 		--set azure.clientId=$${MAESTRO_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
+		--set replicas=${REPLICAS} \
+		--set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 		--set image.registry=${ACR_NAME}.azurecr.io \
 		--set image.repository=${IMAGE_REPO} \
 		--set image.digest=${IMAGE_DIGEST} \

@@ -4,10 +4,12 @@ broker:
 azure:
   clientId: ""
   tenantId: ""
+serviceAccountName: ""
 image:
   registry: ""
   repository: ""
   digest: ""
+replicas: 1
 credsKeyVault:
   name: ""
   secret: ""

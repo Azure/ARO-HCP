@@ -10,7 +10,7 @@ spec:
     scheme: http
   namespaceSelector:
     matchNames:
-    - aro-hcp
+    - '{{ .Release.namespace }}'
   selector:
     matchLabels:
       app: aro-hcp-backend

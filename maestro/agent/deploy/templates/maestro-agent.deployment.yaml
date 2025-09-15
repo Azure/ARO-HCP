@@ -6,6 +6,7 @@ metadata:
   name: maestro-agent
   namespace: '{{ .Release.Namespace }}'
 spec:
+  replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
       app: maestro-agent
@@ -65,7 +66,7 @@ spec:
         - mountPath: /secrets/mqtt-creds
           name: mqtt-creds
           readOnly: true
-      serviceAccountName: maestro
+      serviceAccountName: '{{ .Values.serviceAccountName }}'
       volumes:
       - name: nginx-config-tmp
         configMap:

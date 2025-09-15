@@ -5,8 +5,10 @@ configMap:
   databaseUrl: ""
   databaseName: ""
 deployment:
+  replicas: 2
   imageName: ""
 serviceAccount:
+  name: ""
   workloadIdentityClientId: ""
 clustersService:
   namespace: ""

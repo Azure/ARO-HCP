@@ -12,8 +12,10 @@ credsKeyVault:
   name: ""
   secret: ""
 deployment:
+  replicas: 2
   imageName: ""
 serviceAccount:
+  name: ""
   workloadIdentityClientId: ""
   workloadIdentityTenantId: ""
 pullBinding:
