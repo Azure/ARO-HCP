@@ -12,9 +12,10 @@
     "oav": "^3.3.4"
   },
   "scripts": {
-    "format-check": "tsp format --check \"**/*.tsp\"",
     "format": "tsp format \"**/*.tsp\"",
-    "generate": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error && autorest --verbose autorest-config.yaml"
+    "format-check": "tsp format --check \"**/*.tsp\"",
+    "compile": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error",
+    "autorest": "autorest readme.md --verbose"
   },
   "devDependencies": {
     "@typespec/compiler": "^1.2.1",

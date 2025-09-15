@@ -1,12 +1,20 @@
+include ../.bingo/Variables.mk
 SHELL = /bin/bash
 
+.DEFAULT_GOAL := generate
+
 .PHONY: generate
-generate:
+generate: swagger autorest
+
+.PHONY: swagger
+swagger:
 	npm run format-check
-	npm run generate
-	# autorest.go insists on writing a go.mod file
-	# when in azure-arm mode. Remove it.
-	rm --force ../internal/api/v*/generated/go.mod
+	npm run compile
+
+.PHONY: autorest
+autorest: $(GOIMPORTS)
+	npm run autorest
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
 
 .PHONY: fmt
 fmt:
