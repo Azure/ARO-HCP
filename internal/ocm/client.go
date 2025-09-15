@@ -31,9 +31,6 @@ import (
 const OpenShift419Patch = "7"
 
 type ClusterServiceClientSpec interface {
-	// AddProperties injects the some additional properties into the ClusterBuilder.
-	AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder
-
 	// GetCluster sends a GET request to fetch a cluster from Cluster Service.
 	GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error)
 
@@ -44,10 +41,10 @@ type ClusterServiceClientSpec interface {
 	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
-	PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+	PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
-	UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error)
+	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
 
 	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
 	DeleteCluster(ctx context.Context, internalID InternalID) error
@@ -64,10 +61,10 @@ type ClusterServiceClientSpec interface {
 	GetNodePoolStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePoolStatus, error)
 
 	// PostNodePool sends a POST request to create a node pool in Cluster Service.
-	PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error)
+	PostNodePool(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error)
 
 	// UpdateNodePool sends a PATCH request to update a node pool in Cluster Service.
-	UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error)
+	UpdateNodePool(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error)
 
 	// DeleteNodePool sends a DELETE request to delete a node pool from Cluster Service.
 	DeleteNodePool(ctx context.Context, internalID InternalID) error
@@ -81,10 +78,10 @@ type ClusterServiceClientSpec interface {
 	GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error)
 
 	// PostExternalAuth sends a POST request to create an external auth config in Cluster Service.
-	PostExternalAuth(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
+	PostExternalAuth(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error)
 
 	// UpdateExternalAuth sends a PATCH request to update an external auth config in Cluster Service.
-	UpdateExternalAuth(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error)
+	UpdateExternalAuth(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error)
 
 	// DeleteExternalAuth sends a DELETE request to delete an external auth config from Cluster Service.
 	DeleteExternalAuth(ctx context.Context, internalID InternalID) error
@@ -143,7 +140,7 @@ func NewClusterServiceClient(conn *sdk.Connection, provisionShardID string, prov
 	}
 }
 
-func (csc *clusterServiceClient) AddProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
+func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBuilder) *arohcpv1alpha1.ClusterBuilder {
 	additionalProperties := map[string]string{}
 	if csc.provisionShardID != "" {
 		additionalProperties["provision_shard_id"] = csc.provisionShardID
@@ -205,7 +202,11 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	return inflightChecks, nil
 }
 
-func (csc *clusterServiceClient) PostCluster(ctx context.Context, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClient) PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+	cluster, err := csc.addProperties(builder).Build()
+	if err != nil {
+		return nil, err
+	}
 	clustersAddResponse, err := csc.conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
 		return nil, err
@@ -217,7 +218,11 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, cluster *arohc
 	return cluster, nil
 }
 
-func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+	cluster, err := csc.addProperties(builder).Build()
+	if err != nil {
+		return nil, err
+	}
 	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
@@ -306,10 +311,14 @@ func (csc *clusterServiceClient) GetNodePoolStatus(ctx context.Context, internal
 	return status, nil
 }
 
-func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	nodePool, err := builder.Build()
+	if err != nil {
+		return nil, err
 	}
 	nodePoolsAddResponse, err := client.NodePools().Add().Body(nodePool).SendContext(ctx)
 	if err != nil {
@@ -322,10 +331,14 @@ func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	return nodePool, nil
 }
 
-func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 	client, ok := internalID.GetNodePoolClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
+	}
+	nodePool, err := builder.Build()
+	if err != nil {
+		return nil, err
 	}
 	nodePoolUpdateResponse, err := client.Update().Body(nodePool).SendContext(ctx)
 	if err != nil {
@@ -375,10 +388,14 @@ func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID
 	return externalAuth, nil
 }
 
-func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
+	}
+	externalAuth, err := builder.Build()
+	if err != nil {
+		return nil, err
 	}
 	externalAuthsAddResponse, err := client.ExternalAuthConfig().ExternalAuths().Add().Body(externalAuth).SendContext(ctx)
 	if err != nil {
@@ -392,10 +409,14 @@ func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterIn
 
 }
 
-func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, internalID InternalID, externalAuth *arohcpv1alpha1.ExternalAuth) (*arohcpv1alpha1.ExternalAuth, error) {
+func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 	client, ok := internalID.GetExternalAuthClient(csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not an external auth: %s", internalID)
+	}
+	externalAuth, err := builder.Build()
+	if err != nil {
+		return nil, err
 	}
 	externalAuthUpdateResponse, err := client.Update().Body(externalAuth).SendContext(ctx)
 	if err != nil {

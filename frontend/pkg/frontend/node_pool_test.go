@@ -77,7 +77,7 @@ func TestCreateNodePool(t *testing.T) {
 		},
 	}
 
-	expectedCSNodePool, _ := arohcpv1alpha1.NewNodePool().
+	expectedBuilder := arohcpv1alpha1.NewNodePool().
 		ID(strings.ToLower(api.TestNodePoolName)).
 		AvailabilityZone("").
 		AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
@@ -85,7 +85,7 @@ func TestCreateNodePool(t *testing.T) {
 			VMSize(dummyVMSize).
 			EncryptionAtHost(
 				arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
-					State(csEncryptionAtHostStateDisabled),
+					State("disabled"),
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
@@ -98,7 +98,7 @@ func TestCreateNodePool(t *testing.T) {
 			ChannelGroup("stable"),
 		).
 		Replicas(0).
-		AutoRepair(true).Build()
+		AutoRepair(true)
 
 	tests := []struct {
 		name               string
@@ -108,7 +108,7 @@ func TestCreateNodePool(t *testing.T) {
 		subDoc             *arm.Subscription
 		clusterDoc         *database.ResourceDocument
 		nodePoolDoc        *database.ResourceDocument
-		expectedCSNodePool *arohcpv1alpha1.NodePool
+		expectedBuilder    *arohcpv1alpha1.NodePoolBuilder
 		expectedStatusCode int
 	}{
 		{
@@ -121,7 +121,7 @@ func TestCreateNodePool(t *testing.T) {
 			},
 			clusterDoc:         clusterDoc,
 			nodePoolDoc:        nodePoolDoc,
-			expectedCSNodePool: expectedCSNodePool,
+			expectedBuilder:    expectedBuilder,
 			expectedStatusCode: http.StatusCreated,
 		},
 	}
@@ -162,21 +162,18 @@ func TestCreateNodePool(t *testing.T) {
 						Listening(arohcpv1alpha1.ListeningMethodExternal)).
 					Azure(arohcpv1alpha1.NewAzure().
 						NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
-							OutboundType(csOutboundType))).
+							OutboundType("load_balancer"))).
 					ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-						State(csImageRegistryStateEnabled)).
+						State("enabled")).
 					Version(arohcpv1alpha1.NewVersion().
 						ChannelGroup("stable")).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
-				PostNodePool(gomock.Any(), clusterDoc.InternalID, expectedCSNodePool).
+				PostNodePool(gomock.Any(), clusterDoc.InternalID, expectedBuilder).
 				DoAndReturn(
-					func(ctx context.Context, clusterInternalID ocm.InternalID, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
-						builder := arohcpv1alpha1.NewNodePool().
-							Copy(nodePool).
-							HREF(dummyNodePoolHREF)
-						return builder.Build()
+					func(ctx context.Context, clusterInternalID ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
+						return builder.HREF(dummyNodePoolHREF).Build()
 					},
 				)
 
