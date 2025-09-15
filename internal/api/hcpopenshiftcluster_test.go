@@ -350,13 +350,13 @@ func TestClusterValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
 					Version: VersionProfile{
-						ChannelGroup: "fast",
+						ChannelGroup: "stable",
 					},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Field 'id' is required when 'channelGroup' is not 'stable'",
+					Message: "Field 'id' is required when 'channelGroup' is not 'fast'",
 					Target:  "properties.version.id",
 				},
 			},
@@ -508,7 +508,7 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []arm.CloudErrorBody{
 				{
-					Message: "Channel group must be 'stable'",
+					Message: "Channel group must be 'fast'",
 					Target:  "properties.version.channelGroup",
 				},
 			},

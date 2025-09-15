@@ -149,7 +149,7 @@ model VersionProfile {
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  channelGroup?: string = "stable";
+  channelGroup?: string = "fast";
 }
 
 /** DNS contains the DNS settings of the cluster */
@@ -579,7 +579,7 @@ model NodePoolVersionProfile {
 
   /** ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set. */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
-  channelGroup?: string = "stable";
+  channelGroup?: string = "fast";
 }
 
 /** Azure node pool platform configuration */
