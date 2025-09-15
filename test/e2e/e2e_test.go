@@ -22,6 +22,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/klog/v2"
 )
 
 func TestE2E(t *testing.T) {
@@ -30,6 +31,7 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	klog.SetOutput(GinkgoWriter)
 	if err := setup(context.Background()); err != nil {
 		panic(err)
 	}
