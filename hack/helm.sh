@@ -47,7 +47,7 @@ else
   fi
 
   # run diagnostics
-  "${HACK_DIR}"/deployment-diagnostics.sh "${HELM_RELEASE_NAME}" "${NAMESPACE}"
+  "${HACK_DIR}"/deployment-diagnostics.sh "${HELM_RELEASE_NAME}" "${NAMESPACE}" || echo "Warning: deployment-diagnostics.sh failed, continuing..."
 
   # exit with the original exit code
   exit $HELM_EXIT_CODE
