@@ -749,7 +749,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
+          digest: sha256:e3c04c01e145d084405344bb5ab8f114a306caec7efa89c0ff25fe814d77d9f6
         # NOTE: The role names must not include commas(,) in the name as the roleNames field
         # here is a comma separated list of role definition names.
         azureOperatorsManagedIdentities:
