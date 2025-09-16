@@ -77,7 +77,6 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
     }
     dns: {}
     network: networkConfig
-    console: {}
     etcd: {
       dataEncryption: {
         keyManagementMode: 'CustomerManaged'

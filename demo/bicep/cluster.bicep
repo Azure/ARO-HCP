@@ -520,7 +520,6 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
       machineCidr: '10.0.0.0/16'
       hostPrefix: 23
     }
-    console: {}
     etcd: {
       dataEncryption: {
         keyManagementMode: 'CustomerManaged'
