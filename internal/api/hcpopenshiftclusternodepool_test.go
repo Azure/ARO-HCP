@@ -336,7 +336,7 @@ func TestNodePoolValidate(t *testing.T) {
 			tweaks: &HCPOpenShiftClusterNodePool{
 				Properties: HCPOpenShiftClusterNodePoolProperties{
 					Platform: NodePoolPlatformProfile{
-						OSDisk: OSDiskProfile{EncryptionSetId: "invalid_option"}},
+						OSDisk: OSDiskProfile{EncryptionSetID: "invalid_option"}},
 				},
 			},
 			expectErrors: []arm.CloudErrorBody{

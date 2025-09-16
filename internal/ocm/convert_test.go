@@ -287,7 +287,11 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Platform: api.NodePoolPlatformProfile{
+				OSDisk: api.OSDiskProfile{Persistence: "Persistent"},
+			},
+		},
 	}
 
 	for _, opt := range opts {
@@ -311,7 +315,8 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(0).
-				StorageAccountType(""),
+				StorageAccountType("").
+				Persistence("persistent"),
 			),
 		).
 		Subnet("").
