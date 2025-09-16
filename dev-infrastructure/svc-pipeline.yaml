@@ -249,7 +249,7 @@ resourceGroups:
         name: globalMSIId
         # Install ACRpull
   - name: acrpull
-    aksCluster: '{{ .mgmt.aks.name }}'
+    aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     releaseName: acrpull
     releaseNamespace: acrpull
