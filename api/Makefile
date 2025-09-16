@@ -3,7 +3,7 @@ SHELL = /bin/bash
 
 # VERSION determines which API version to generate with autorest.
 # The default value for VERSION should be the latest API version.
-VERSION ?= v20240610preview
+VERSION ?= v20251223preview
 
 AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
 
