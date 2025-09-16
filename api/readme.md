@@ -21,7 +21,7 @@ Pin the `@autorest/go` version so we control when to upgrade it.
 
 ``` yaml
 use:
-- "@autorest/go@4.0.0-preview.73"
+- "@autorest/go@4.0.0-preview.74"
 ```
 
 ### Default Version
