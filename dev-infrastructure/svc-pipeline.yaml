@@ -256,7 +256,7 @@ resourceGroups:
     chartDir: ./../acrpull/deploy
     valuesFile: ./../acrpull/deploy/values.yaml
     dependsOn:
-    - resourceGroup: management
+    - resourceGroup: service
       step: cluster
     identityFrom:
       resourceGroup: global
