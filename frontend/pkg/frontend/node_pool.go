@@ -105,7 +105,12 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		hcpNodePool := ocm.ConvertCStoNodePool(resourceID, csNodePool)
+		hcpNodePool, err := ocm.ConvertCStoNodePool(resourceID, csNodePool)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
 
 		// Do not set the TrackedResource.Tags field here. We need
 		// the Tags map to remain nil so we can see if the request
@@ -321,7 +326,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ocm.ConvertCStoNodePool(doc.ResourceID, csNodePool)
+	hcpNodePool, err := ocm.ConvertCStoNodePool(doc.ResourceID, csNodePool)
+	if err != nil {
+		return nil, err
+	}
+
 	hcpNodePool.SystemData = doc.SystemData
 	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState

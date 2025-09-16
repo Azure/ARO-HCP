@@ -53,6 +53,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+	csPersistenceTypePersistent         string = "persistent"
+	csPersistenceTypeEphemeral          string = "ephemeral"
 
 	serviceUnavailableRetryAfterInterval string = "60" // seconds
 )
@@ -207,6 +209,29 @@ func convertNodeDrainTimeoutCSToRP(in *arohcpv1alpha1.Cluster) int32 {
 		}
 	}
 	return 0
+}
+
+func convertPersistenceTypeRPtoCS(persistenceTypeRP api.PersistenceType) (string, error) {
+	switch persistenceTypeRP {
+	case api.PersistenceTypePersistent:
+		return csPersistenceTypePersistent, nil
+	case api.PersistenceTypeEphemeral:
+		return csPersistenceTypeEphemeral, nil
+	default:
+		return "", conversionError[string](persistenceTypeRP)
+	}
+}
+
+func convertPersistenceTypeCStoRP(persistenceTypeCS string) (api.PersistenceType, error) {
+	switch persistenceTypeCS {
+	case csPersistenceTypePersistent:
+		return api.PersistenceTypePersistent, nil
+	case csPersistenceTypeEphemeral:
+		return api.PersistenceTypeEphemeral, nil
+	default:
+		return "", conversionError[api.PersistenceType](persistenceTypeCS)
+	}
+
 }
 
 func convertKeyManagementModeTypeCSToRP(keyManagementModeCS string) (api.EtcdDataEncryptionKeyManagementModeType, error) {
@@ -643,7 +668,13 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 }
 
 // ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.NodePool) *api.HCPOpenShiftClusterNodePool {
+func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+
+	persistenceType, err := convertPersistenceTypeCStoRP(np.AzureNodePool().OsDisk().Persistence())
+	if err != nil {
+		return nil, err
+	}
+
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -665,12 +696,17 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
+					Persistence:            persistenceType,
 				},
 				AvailabilityZone: np.AvailabilityZone(),
 			},
 			AutoRepair: np.AutoRepair(),
 			Labels:     np.Labels(),
 		},
+	}
+
+	if encryptionSetID, ok := np.AzureNodePool().OsDisk().GetSseEncryptionSetResourceId(); ok {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = encryptionSetID
 	}
 
 	if replicas, ok := np.GetReplicas(); ok {
@@ -700,7 +736,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		}
 	}
 
-	return nodePool
+	return nodePool, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
@@ -709,6 +745,19 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
+		var osDisk *arohcpv1alpha1.AzureNodePoolOsDiskBuilder
+		persistenceType, err := convertPersistenceTypeRPtoCS((nodePool.Properties.Platform.OSDisk.Persistence))
+		if err != nil {
+			return nil, err
+		}
+		osDisk = arohcpv1alpha1.NewAzureNodePoolOsDisk().
+			SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
+			StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
+			Persistence(persistenceType)
+		if nodePool.Properties.Platform.OSDisk.EncryptionSetID != "" {
+			osDisk = osDisk.
+				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetID))
+		}
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
@@ -718,10 +767,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
-				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
-				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-					SizeGibibytes(int(nodePool.Properties.Platform.OSDisk.SizeGiB)).
-					StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)))).
+				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(osDisk)).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
