@@ -324,7 +324,7 @@ maestro:
     name: arohcp-swft-maestro-lnstest
     private: false
   image:
-    digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
+    digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
