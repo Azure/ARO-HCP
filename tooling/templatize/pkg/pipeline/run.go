@@ -89,8 +89,8 @@ type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionT
 type ExecutionState struct {
 	*sync.RWMutex
 
-	Executed sets.Set[graph.Dependency]
-	Queued   sets.Set[graph.Dependency]
+	Executed sets.Set[graph.Identifier]
+	Queued   sets.Set[graph.Identifier]
 	Outputs  Outputs
 }
 
@@ -108,12 +108,12 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 
 	state := &ExecutionState{
 		RWMutex:  &sync.RWMutex{},
-		Executed: sets.Set[graph.Dependency]{},
-		Queued:   sets.Set[graph.Dependency]{},
+		Executed: sets.Set[graph.Identifier]{},
+		Queued:   sets.Set[graph.Identifier]{},
 		Outputs:  make(Outputs),
 	}
 
-	queue := make(chan graph.Dependency, len(executionGraph.Nodes))
+	queue := make(chan graph.Identifier, len(executionGraph.Nodes))
 	checkForStepsToExecute := make(chan struct{}, len(executionGraph.Nodes))
 	errs := make(chan error, len(executionGraph.Nodes))
 	producerWg := &sync.WaitGroup{}
@@ -136,13 +136,13 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 				thisLogger.Info("Processing queue after step finished executing.")
 				state.RLock()
 				for _, node := range executionGraph.Nodes {
-					if state.Queued.Has(node.Dependency) {
+					if state.Queued.Has(node.Identifier) {
 						continue
 					}
 					if state.Executed.HasAll(node.Parents...) {
 						thisLogger.Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
-						state.Queued.Insert(node.Dependency)
-						queue <- node.Dependency
+						state.Queued.Insert(node.Identifier)
+						queue <- node.Identifier
 					}
 				}
 				thisLogger.Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
@@ -232,7 +232,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	return outputs, nil
 }
 
-func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Dependency, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
+func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
