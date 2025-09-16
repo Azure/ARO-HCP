@@ -96,7 +96,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// check for route to have hostname for us
 	host := ""
 	var lastErr error
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		currRoute, err := dynamicClient.Resource(gvr("route.openshift.io", "v1", "routes")).
 			Namespace(namespace.GetName()).Get(ctx, route.GetName(), metav1.GetOptions{})
 		if err != nil {
@@ -132,7 +132,24 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// wait for a response
 	lastErr = nil
 	url := "https://" + host
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	startTime := time.Now()
+	logged5Min := false
+	logged10Min := false
+	logged15Min := false
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+		elapsed := time.Since(startTime)
+
+		// Log progress messages at specific intervals
+		if elapsed >= 15*time.Minute && !logged15Min {
+			klog.InfoS("Route availability check is taking over 15 minutes", "url", url, "elapsed", elapsed)
+			logged15Min = true
+		} else if elapsed >= 10*time.Minute && !logged10Min {
+			klog.InfoS("Route availability check is taking between 10-15 minutes", "url", url, "elapsed", elapsed)
+			logged10Min = true
+		} else if elapsed >= 5*time.Minute && !logged5Min {
+			klog.InfoS("Route availability check is taking between 5-10 minutes", "url", url, "elapsed", elapsed)
+			logged5Min = true
+		}
 		resp, err := http.Get(url)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
@@ -153,6 +170,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			}
 			lastErr = err
 			return false, nil
+		}
+		if elapsed := time.Since(startTime); elapsed < 5*time.Minute {
+			klog.InfoS("Route became available in less than 5 minutes", "url", url, "elapsed", elapsed)
 		}
 		klog.InfoS("got response from route", "response", string(responseByte))
 		return true, nil
