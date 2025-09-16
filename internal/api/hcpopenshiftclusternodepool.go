@@ -67,7 +67,7 @@ type NodePoolPlatformProfile struct {
 type OSDiskProfile struct {
 	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
-	EncryptionSetId        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
+	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 	Persistence            PersistenceType        `json:"persistence,omitempty"            validate:"omitempty,enum_persistence"`
 }
 
