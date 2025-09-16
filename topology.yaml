@@ -3,6 +3,7 @@ entrypoints:
   metadata:
     name: Global
     scopeDoc: high-level-architecture.md
+    incremental: "true"
 - identifier: 'Microsoft.Azure.ARO.HCP.Region'
   metadata:
     name: Region
