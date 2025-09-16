@@ -1,4 +1,4 @@
 namespace: acrpull
-image: registry/image:tag
+image: "{{ .acrPull.image.registry }}/{{ .acrPull.image.repository }}@{{ .acrPull.image.digest }}"
 ttlRotationFraction: 0.5
 replicas: 2
