@@ -120,7 +120,25 @@ func hasTemplateResources(template any) bool {
 	if templateAsMap, isMap := template.(map[string]interface{}); isMap {
 		if val, hasResources := templateAsMap["resources"]; hasResources {
 			if res, isList := val.([]any); isList {
-				return len(res) > 0
+				if len(res) == 0 {
+					return false
+				}
+				return hasNonDeploymentResources(res)
+			}
+		}
+	}
+	return false
+}
+
+// Some of the resources in an arm template are just nested deployments that also just have existing resources
+func hasNonDeploymentResources(resources []any) bool {
+	for _, resource := range resources {
+		if resourceAsMap, isMap := resource.(map[string]interface{}); isMap {
+			if resourceAsMap["type"] != "Microsoft.Resources/deployments" {
+				return true
+			}
+			if propertiesAsMap, isMap := resourceAsMap["properties"].(map[string]interface{}); isMap {
+				return hasTemplateResources(propertiesAsMap["template"])
 			}
 		}
 	}
