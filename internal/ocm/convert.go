@@ -696,6 +696,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                int32(np.AzureNodePool().OsDisk().SizeGibibytes()),
 					DiskStorageAccountType: api.DiskStorageAccountType(np.AzureNodePool().OsDisk().StorageAccountType()),
+					EncryptionSetID:        np.AzureNodePool().OsDisk().SseEncryptionSetResourceId(),
 					Persistence:            persistenceType,
 				},
 				AvailabilityZone: np.AvailabilityZone(),
@@ -703,10 +704,6 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 			AutoRepair: np.AutoRepair(),
 			Labels:     np.Labels(),
 		},
-	}
-
-	if encryptionSetID, ok := np.AzureNodePool().OsDisk().GetSseEncryptionSetResourceId(); ok {
-		nodePool.Properties.Platform.OSDisk.EncryptionSetID = encryptionSetID
 	}
 
 	if replicas, ok := np.GetReplicas(); ok {
@@ -755,8 +752,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			StorageAccountType(string(nodePool.Properties.Platform.OSDisk.DiskStorageAccountType)).
 			Persistence(persistenceType)
 		if nodePool.Properties.Platform.OSDisk.EncryptionSetID != "" {
-			osDisk = osDisk.
-				SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetID))
+			osDisk.SseEncryptionSetResourceId(string(nodePool.Properties.Platform.OSDisk.EncryptionSetID))
 		}
 		nodePoolBuilder.
 			ID(strings.ToLower(nodePool.Name)).
@@ -767,7 +763,8 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
 				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
-				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).OsDisk(osDisk)).
+				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
+				OsDisk(osDisk)).
 			AvailabilityZone(nodePool.Properties.Platform.AvailabilityZone).
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
