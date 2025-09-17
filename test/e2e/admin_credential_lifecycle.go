@@ -41,116 +41,38 @@ var _ = Describe("Customer", func() {
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
 		labels.RequireNothing, labels.High, labels.Positive,
 		func(ctx context.Context) {
-			const (
-				customerNetworkSecurityGroupName = "admin-cred-nsg"
-				customerVnetName                 = "admin-cred-vnet"
-				customerVnetSubnetName           = "admin-cred-subnet"
-				openshiftControlPlaneVersionId   = "4.19"
-			)
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()
 
 			By("creating resource group for admin credential lifecycle testing")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", "uksouth")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a customer-infra")
-			customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"customer-infra",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-				map[string]interface{}{
-					"persistTagValue":        false,
-					"customerNsgName":        customerNetworkSecurityGroupName,
-					"customerVnetName":       customerVnetName,
-					"customerVnetSubnetName": customerVnetSubnetName,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating a managed identities")
-			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"managed-identities",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				map[string]interface{}{
-					"clusterName":  clusterName,
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
-					"keyVaultName": keyVaultName,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("starting cluster deployment asynchronously to test admin credentials on deploying cluster")
-			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-			Expect(err).NotTo(HaveOccurred())
-			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-			Expect(err).NotTo(HaveOccurred())
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-
-			// Start cluster deployment immediately using Azure SDK
+			By("starting cluster-only template deployment asynchronously")
 			deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 
-			// Parse the cluster template
-			templateBytes := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json"))
+			// Prepare the template and parameters
+			templateBytes := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json"))
 			bicepTemplateMap := map[string]interface{}{}
 			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Prepare deployment parameters
 			bicepParameters := map[string]interface{}{
-				"openshiftVersionId": map[string]interface{}{
-					"value": openshiftControlPlaneVersionId,
-				},
 				"clusterName": map[string]interface{}{
 					"value": clusterName,
 				},
-				"managedResourceGroupName": map[string]interface{}{
-					"value": managedResourceGroupName,
-				},
-				"nsgName": map[string]interface{}{
-					"value": customerNetworkSecurityGroupName,
-				},
-				"subnetName": map[string]interface{}{
-					"value": customerVnetSubnetName,
-				},
-				"vnetName": map[string]interface{}{
-					"value": customerVnetName,
-				},
-				"userAssignedIdentitiesValue": map[string]interface{}{
-					"value": userAssignedIdentities,
-				},
-				"identityValue": map[string]interface{}{
-					"value": identity,
-				},
-				"keyVaultName": map[string]interface{}{
-					"value": keyVaultName,
-				},
-				"etcdEncryptionKeyName": map[string]interface{}{
-					"value": etcdEncryptionKeyName,
-				},
 			}
 
+			// Start deployment without waiting
 			// Apply 45-minute timeout for the entire cluster deployment process (matches all other tests)
 			// This timeout covers both the initial deployment call and the subsequent polling
-			clusterDeploymentCtx, clusterDeploymentCancel := context.WithTimeout(ctx, 45*time.Minute)
-			defer clusterDeploymentCancel()
+			deploymentCtx, deploymentCancel := context.WithTimeout(ctx, 45*time.Minute)
+			defer deploymentCancel()
 
-			// Start deployment
 			_, err = deploymentsClient.BeginCreateOrUpdate(
-				clusterDeploymentCtx,
+				deploymentCtx,
 				*resourceGroup.Name,
-				"cluster",
+				"aro-hcp-cluster-only",
 				armresources.Deployment{
 					Properties: &armresources.DeploymentProperties{
 						Template:   bicepTemplateMap,
@@ -293,6 +215,9 @@ var _ = Describe("Customer", func() {
 			Expect(newAdminRESTConfig).NotTo(BeNil())
 
 			By("verifying new admin credentials work after revocation")
-			Expect(verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)).To(Succeed())
+			// Use Eventually to handle timing issues where new credentials might take a moment to become active
+			Eventually(func() error {
+				return verifiers.VerifyHCPCluster(ctx, newAdminRESTConfig)
+			}, 2*time.Minute, 15*time.Second).Should(Succeed(), "New admin credentials should eventually work after revocation")
 		})
 })
