@@ -638,7 +638,7 @@ model OsDiskProfile {
   encryptionSetId?: DiskEncryptionSetResourceId;
 
   /** Specifies the OS Disk persistence for the OS Disks of the Nodes in the Node Pool.
-   * Valid values are: persistent and ephemeral. If not specified, Persistent OS Disks are used. */
+   * Valid values are: Persistent and Ephemeral. If not specified, OS Disks are persistent. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   persistence?: PersistenceType = PersistenceType.Persistent;
 }
