@@ -22,6 +22,7 @@ import (
 	"net/http/httputil"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ func (v verifySimpleWebApp) Name() string {
 }
 
 func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	klog.SetOutput(ginkgo.GinkgoWriter)
 	defer func() {
 		if err := v.cleanup(ctx, adminRESTConfig); err != nil {
 			klog.ErrorS(err, "Error cleaning up resources")
@@ -136,18 +138,19 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	logged5Min := false
 	logged10Min := false
 	logged15Min := false
+	firstResponseReceived := false
 	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		elapsed := time.Since(startTime)
 
 		// Log progress messages at specific intervals
 		if elapsed >= 15*time.Minute && !logged15Min {
-			klog.InfoS("Route availability check is taking over 15 minutes", "url", url, "elapsed", elapsed)
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking over 15 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged15Min = true
 		} else if elapsed >= 10*time.Minute && !logged10Min {
-			klog.InfoS("Route availability check is taking between 10-15 minutes", "url", url, "elapsed", elapsed)
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 10-15 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged10Min = true
 		} else if elapsed >= 5*time.Minute && !logged5Min {
-			klog.InfoS("Route availability check is taking between 5-10 minutes", "url", url, "elapsed", elapsed)
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 5-10 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged5Min = true
 		}
 		resp, err := http.Get(url)
@@ -158,6 +161,52 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 				)
 			}
 			lastErr = err
+			return false, nil
+		}
+		defer resp.Body.Close()
+
+		// Check for successful HTTP status code (200-299)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			statusErr := fmt.Errorf("received non-success status code: %d %s", resp.StatusCode, resp.Status)
+			if lastErr == nil || statusErr.Error() != lastErr.Error() {
+				klog.Info(statusErr, "route returned non-success status code",
+					"url", url,
+					"statusCode", resp.StatusCode,
+				)
+			}
+			lastErr = statusErr
+
+			// If this is the first response we've received, start retrying for 3 minutes
+			if !firstResponseReceived {
+				firstResponseReceived = true
+				firstResponseTime := time.Now()
+				ginkgo.GinkgoWriter.Printf("Got first response with status %d, will retry for 3 minutes: url=%s\n", resp.StatusCode, url)
+
+				// Retry every 10 seconds for 3 minutes
+				retryErr := wait.PollUntilContextTimeout(ctx, 10*time.Second, 3*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+					retryResp, retryErr := http.Get(url)
+					if retryErr != nil {
+						return false, nil
+					}
+					defer retryResp.Body.Close()
+
+					if retryResp.StatusCode >= 200 && retryResp.StatusCode < 300 {
+						successTime := time.Since(firstResponseTime)
+						ginkgo.GinkgoWriter.Printf("Route became healthy after %v from first response: url=%s statusCode=%d\n", successTime, url, retryResp.StatusCode)
+
+						// Dump the successful response
+						responseByte, _ := httputil.DumpResponse(retryResp, true)
+						ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
+						return true, nil
+					}
+					return false, nil
+				})
+
+				if retryErr != nil {
+					return false, nil
+				}
+				return true, nil
+			}
 			return false, nil
 		}
 
@@ -172,9 +221,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			return false, nil
 		}
 		if elapsed := time.Since(startTime); elapsed < 5*time.Minute {
-			klog.InfoS("Route became available in less than 5 minutes", "url", url, "elapsed", elapsed)
+			ginkgo.GinkgoWriter.Printf("Route became available in less than 5 minutes: url=%s elapsed=%v\n", url, elapsed)
 		}
-		klog.InfoS("got response from route", "response", string(responseByte))
+		ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
 		return true, nil
 	})
 	switch {
