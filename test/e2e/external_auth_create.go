@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -224,10 +225,19 @@ var _ = Describe("Customer", func() {
 			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			accessToken, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
-			})
-			Expect(err).NotTo(HaveOccurred())
+			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
+			var accessToken azcore.AccessToken
+			Eventually(func() error {
+				var err error
+				accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
+					Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
+				})
+
+				if err != nil {
+					GinkgoWriter.Printf("GetToken failed: %v\n", err)
+				}
+				return err
+			}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
 			config := &rest.Config{
 				Host:        adminRESTConfig.Host,
