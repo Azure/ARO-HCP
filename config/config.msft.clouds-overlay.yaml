@@ -5,6 +5,10 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          # E2E
+          e2e:
+            regionalGatingTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
           # Cluster Service
           clustersService:
             image:
@@ -74,6 +78,10 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
+          # E2E
+          e2e:
+            regionalGatingTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel
           # Cluster Service
           clustersService:
             image:
@@ -141,6 +149,10 @@ clouds:
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
+          # E2E
+          e2e:
+            regionalGatingTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel
           # Cluster Service
           clustersService:
             image:

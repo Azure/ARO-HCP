@@ -2176,6 +2176,39 @@
         "releaseManagementGroupId"
       ]
     },
+    "keyVaultDNSSuffix": {
+      "type": "string"
+    },
+    "e2e": {
+      "type": "object",
+      "properties": {
+        "prow": {
+          "type": "object",
+          "properties": {
+            "globalKeyVaultTokenSecret": {
+              "type": "string",
+              "description": "The name of the KeyVault secret in the global AKV that stores the token used to authenticate with Prow."
+            }
+          }
+        },
+        "regionalGatingTest": {
+          "type": "object",
+          "properties": {
+            "prowJobName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "prowJobName"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "prow",
+        "regionalGatingTest"
+      ]
+    },
     "automationDryRun": {
       "type": "boolean",
       "description": "Whether automation account runs in dry-run mode"
@@ -2208,6 +2241,8 @@
     "serviceKeyVault",
     "svc",
     "msiRp",
-    "msiCredentialsRefresher"
+    "msiCredentialsRefresher",
+    "keyVaultDNSSuffix",
+    "e2e"
   ]
 }

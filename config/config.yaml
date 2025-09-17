@@ -26,6 +26,7 @@ defaults:
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
+  keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
   administration:
     readerGroupId: ""
     releaseManagementGroupId: ""
@@ -682,6 +683,11 @@ defaults:
     private: false
     tagKey: aroHCPPurpose
     tagValue: mgmt
+  e2e:
+    prow:
+      globalKeyVaultTokenSecret: "prow-token"
+    regionalGatingTest:
+      prowJobName: ""
 clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments

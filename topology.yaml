@@ -62,6 +62,10 @@ services:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
       pipelinePath: dev-infrastructure/monitoring-pipeline.yaml
       purpose: Deploy the Monitoring resources
+    # enable in followup PR when all pieces are in place
+    #- serviceGroup: Microsoft.Azure.ARO.HCP.E2E
+    #  pipelinePath: test/e2e-pipeline.yaml
+    #  purpose: Run the E2E tests towards a region and gate SDP progression.
     pipelinePath: dev-infrastructure/region-pipeline.yaml
     purpose: Deploy regional shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
