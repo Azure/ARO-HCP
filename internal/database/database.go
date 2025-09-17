@@ -319,7 +319,7 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	return nil
 }
 
-func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
+func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, *ResourceDocument, error) {
 	var responseItem []byte
 
 	pk := NewPartitionKey(resourceID.SubscriptionID)
@@ -475,7 +475,7 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, options 
 	}
 }
 
-func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*typedDocument, *OperationDocument, error) {
+func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*TypedDocument, *OperationDocument, error) {
 	// Make sure lookup keys are lowercase.
 	operationID = strings.ToLower(operationID)
 
@@ -575,7 +575,7 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, optio
 	return newQueryItemsIterator[OperationDocument](pager)
 }
 
-func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*typedDocument, *arm.Subscription, error) {
+func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
 	// Make sure lookup keys are lowercase.
 	subscriptionID = strings.ToLower(subscriptionID)
 
@@ -625,7 +625,7 @@ func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	options := &azcosmos.ItemOptions{}
 
 	for try := 0; try < 5; try++ {
-		var typedDoc *typedDocument
+		var typedDoc *TypedDocument
 		var innerDoc *arm.Subscription
 		var data []byte
 
