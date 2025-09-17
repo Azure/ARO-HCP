@@ -289,7 +289,9 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Platform: api.NodePoolPlatformProfile{
-				OSDisk: api.OSDiskProfile{Persistence: "Persistent"},
+				OSDisk: api.OSDiskProfile{
+					Persistence: "Persistent",
+				},
 			},
 		},
 	}
