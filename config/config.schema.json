@@ -2191,22 +2191,26 @@
             }
           }
         },
-        "regionalGatingTest": {
+        "regionTest": {
           "type": "object",
           "properties": {
             "prowJobName": {
               "type": "string"
+            },
+            "gatePromotion": {
+              "type": "boolean"
             }
           },
           "required": [
-            "prowJobName"
+            "prowJobName",
+            "gatePromotion"
           ]
         }
       },
       "additionalProperties": false,
       "required": [
         "prow",
-        "regionalGatingTest"
+        "regionTest"
       ]
     },
     "automationDryRun": {
