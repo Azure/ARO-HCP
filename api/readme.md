@@ -24,15 +24,6 @@ use:
 - "@autorest/go@4.0.0-preview.74"
 ```
 
-### Default Version
-
-This is the API version to be generated unless it is overridden on
-the command line.
-
-``` yaml
-tag: v20240610preview
-```
-
 ### Basic Information
 
 These are the global settings for generating server-side models.
