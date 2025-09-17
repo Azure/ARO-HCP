@@ -307,13 +307,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+          digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+          digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
         version: ""
         replicas: 2
         shards: 2
@@ -403,7 +403,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-        version: "v2.55.1-3"
+        version: "v2.55.1-4"
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -834,10 +834,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
           prometheusSpec:
             image:
-              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
             shards: 1
       mgmt:
         subscription:
@@ -867,10 +867,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+              digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
           prometheusSpec:
             image:
-              digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+              digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
             shards: 1
       # ACRs
       acr:
