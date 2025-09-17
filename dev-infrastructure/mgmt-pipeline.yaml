@@ -202,71 +202,70 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
-  # - name: prometheus
-  #   aksCluster: '{{ .mgmt.aks.name }}'
-  #   action: Shell
-  #   command: make -C ../observability/prometheus deploy
-  #   dryRun:
-  #     variables:
-  #     - name: DRY_RUN
-  #       value: "true"
-  #   variables:
-  #   - name: PROMETHEUS_OPERATOR_REGISTRY
-  #     configRef: mgmt.prometheus.prometheusOperator.image.registry
-  #   - name: PROMETHEUS_OPERATOR_REPOSITORY
-  #     configRef: mgmt.prometheus.prometheusOperator.image.repository
-  #   - name: PROMETHEUS_OPERATOR_DIGEST
-  #     configRef: mgmt.prometheus.prometheusOperator.image.digest
-  #   - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
-  #     configRef: mgmt.prometheus.prometheusConfigReloader.image.registry
-  #   - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
-  #     configRef: mgmt.prometheus.prometheusConfigReloader.image.repository
-  #   - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
-  #     configRef: mgmt.prometheus.prometheusConfigReloader.image.digest
-  #   - name: PROMETHEUS_SPEC_REGISTRY
-  #     configRef: mgmt.prometheus.prometheusSpec.image.registry
-  #   - name: PROMETHEUS_SPEC_REPOSITORY
-  #     configRef: mgmt.prometheus.prometheusSpec.image.repository
-  #   - name: PROMETHEUS_SPEC_DIGEST
-  #     configRef: mgmt.prometheus.prometheusSpec.image.digest
-  #   - name: PROMETHEUS_SPEC_REPLICAS
-  #     configRef: mgmt.prometheus.prometheusSpec.replicas
-  #   - name: PROMETHEUS_SPEC_SHARDS
-  #     configRef: mgmt.prometheus.prometheusSpec.shards
-  #   - name: PROMETHEUS_SPEC_VERSION
-  #     configRef: mgmt.prometheus.prometheusSpec.version
-  #   - name: PROMETHEUS_NAMESPACE_LABEL
-  #     configRef: mgmt.prometheus.namespaceLabel
-  #   - name: RESOURCE_GROUP
-  #     configRef: mgmt.rg
-  #   - name: CLUSTER_NAME
-  #     configRef: mgmt.aks.name
-  #   - name: CS_ENVIRONMENT
-  #     configRef: clustersService.environment
-  #   - name: DCR_REMOTE_WRITE_URL
-  #     input:
-  #       resourceGroup: management
-  #       step: cluster-output
-  #       name: dcrRemoteWriteUrl
-  #   - name: HCP_DCR_REMOTE_WRITE_URL
-  #     input:
-  #       resourceGroup: management
-  #       step: cluster-output
-  #       name: hcpDcrRemoteWriteUrl
-  #   - name: PROMETHEUS_UAMI_CLIENT_ID
-  #     input:
-  #       resourceGroup: management
-  #       step: cluster-output
-  #       name: prometheusUAMIClientId
-  #   dependsOn:
-  #   - resourceGroup: management
-  #     step: cluster
-  #   shellIdentity:
-  #     input:
-  #       resourceGroup: global
-  #       step: output
-  #       name: globalMSIId
-  #       # Install ACRpull
+  - name: prometheus
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make -C ../observability/prometheus deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: PROMETHEUS_OPERATOR_REGISTRY
+      configRef: mgmt.prometheus.prometheusOperator.image.registry
+    - name: PROMETHEUS_OPERATOR_REPOSITORY
+      configRef: mgmt.prometheus.prometheusOperator.image.repository
+    - name: PROMETHEUS_OPERATOR_DIGEST
+      configRef: mgmt.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.registry
+    - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.repository
+    - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
+      configRef: mgmt.prometheus.prometheusConfigReloader.image.digest
+    - name: PROMETHEUS_SPEC_REGISTRY
+      configRef: mgmt.prometheus.prometheusSpec.image.registry
+    - name: PROMETHEUS_SPEC_REPOSITORY
+      configRef: mgmt.prometheus.prometheusSpec.image.repository
+    - name: PROMETHEUS_SPEC_DIGEST
+      configRef: mgmt.prometheus.prometheusSpec.image.digest
+    - name: PROMETHEUS_SPEC_REPLICAS
+      configRef: mgmt.prometheus.prometheusSpec.replicas
+    - name: PROMETHEUS_SPEC_SHARDS
+      configRef: mgmt.prometheus.prometheusSpec.shards
+    - name: PROMETHEUS_SPEC_VERSION
+      configRef: mgmt.prometheus.prometheusSpec.version
+    - name: PROMETHEUS_NAMESPACE_LABEL
+      configRef: mgmt.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: CS_ENVIRONMENT
+      configRef: clustersService.environment
+    - name: DCR_REMOTE_WRITE_URL
+      input:
+        resourceGroup: management
+        step: cluster-output
+        name: dcrRemoteWriteUrl
+    - name: HCP_DCR_REMOTE_WRITE_URL
+      input:
+        resourceGroup: management
+        step: cluster-output
+        name: hcpDcrRemoteWriteUrl
+    - name: PROMETHEUS_UAMI_CLIENT_ID
+      input:
+        resourceGroup: management
+        step: cluster-output
+        name: prometheusUAMIClientId
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -276,13 +275,13 @@ resourceGroups:
     valuesFile: ./../acrpull/deploy/values.yaml
     dependsOn:
     - resourceGroup: management
-      step: cluster
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
       name: globalMSIId
-      # Install cluster patches
   - name: fixes
+    # Install cluster patches
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy

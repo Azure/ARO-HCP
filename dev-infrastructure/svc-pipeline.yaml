@@ -143,66 +143,66 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster
-  # Deploy prometheus first since istio depends on it's CRDs
-  # - name: prometheus
-  #   aksCluster: '{{ .svc.aks.name }}'
-  #   action: Shell
-  #   command: make -C ../observability/prometheus deploy
-  #   dryRun:
-  #     variables:
-  #     - name: DRY_RUN
-  #       value: "true"
-  #   variables:
-  #   - name: PROMETHEUS_OPERATOR_REGISTRY
-  #     configRef: svc.prometheus.prometheusOperator.image.registry
-  #   - name: PROMETHEUS_OPERATOR_REPOSITORY
-  #     configRef: svc.prometheus.prometheusOperator.image.repository
-  #   - name: PROMETHEUS_OPERATOR_DIGEST
-  #     configRef: svc.prometheus.prometheusOperator.image.digest
-  #   - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
-  #     configRef: svc.prometheus.prometheusConfigReloader.image.registry
-  #   - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
-  #     configRef: svc.prometheus.prometheusConfigReloader.image.repository
-  #   - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
-  #     configRef: svc.prometheus.prometheusConfigReloader.image.digest
-  #   - name: PROMETHEUS_SPEC_REGISTRY
-  #     configRef: svc.prometheus.prometheusSpec.image.registry
-  #   - name: PROMETHEUS_SPEC_REPOSITORY
-  #     configRef: svc.prometheus.prometheusSpec.image.repository
-  #   - name: PROMETHEUS_SPEC_DIGEST
-  #     configRef: svc.prometheus.prometheusSpec.image.digest
-  #   - name: PROMETHEUS_SPEC_REPLICAS
-  #     configRef: svc.prometheus.prometheusSpec.replicas
-  #   - name: PROMETHEUS_SPEC_SHARDS
-  #     configRef: svc.prometheus.prometheusSpec.shards
-  #   - name: PROMETHEUS_SPEC_VERSION
-  #     configRef: svc.prometheus.prometheusSpec.version
-  #   - name: PROMETHEUS_NAMESPACE_LABEL
-  #     configRef: svc.prometheus.namespaceLabel
-  #   - name: RESOURCE_GROUP
-  #     configRef: svc.rg
-  #   - name: CLUSTER_NAME
-  #     configRef: svc.aks.name
-  #   - name: DCR_REMOTE_WRITE_URL
-  #     input:
-  #       resourceGroup: service
-  #       step: cluster-output
-  #       name: dcrRemoteWriteUrl
-  #   - name: PROMETHEUS_UAMI_CLIENT_ID
-  #     input:
-  #       resourceGroup: service
-  #       step: cluster-output
-  #       name: prometheusUAMIClientId
-  #   dependsOn:
-  #   - resourceGroup: service
-  #     step: cluster
-  #   shellIdentity:
-  #     input:
-  #       resourceGroup: global
-  #       step: output
-  #       name: globalMSIId
-  #       # configure istio
+  - name: prometheus
+    # Deploy prometheus first since istio depends on it's CRDs
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make -C ../observability/prometheus deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: PROMETHEUS_OPERATOR_REGISTRY
+      configRef: svc.prometheus.prometheusOperator.image.registry
+    - name: PROMETHEUS_OPERATOR_REPOSITORY
+      configRef: svc.prometheus.prometheusOperator.image.repository
+    - name: PROMETHEUS_OPERATOR_DIGEST
+      configRef: svc.prometheus.prometheusOperator.image.digest
+    - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
+      configRef: svc.prometheus.prometheusConfigReloader.image.registry
+    - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
+      configRef: svc.prometheus.prometheusConfigReloader.image.repository
+    - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
+      configRef: svc.prometheus.prometheusConfigReloader.image.digest
+    - name: PROMETHEUS_SPEC_REGISTRY
+      configRef: svc.prometheus.prometheusSpec.image.registry
+    - name: PROMETHEUS_SPEC_REPOSITORY
+      configRef: svc.prometheus.prometheusSpec.image.repository
+    - name: PROMETHEUS_SPEC_DIGEST
+      configRef: svc.prometheus.prometheusSpec.image.digest
+    - name: PROMETHEUS_SPEC_REPLICAS
+      configRef: svc.prometheus.prometheusSpec.replicas
+    - name: PROMETHEUS_SPEC_SHARDS
+      configRef: svc.prometheus.prometheusSpec.shards
+    - name: PROMETHEUS_SPEC_VERSION
+      configRef: svc.prometheus.prometheusSpec.version
+    - name: PROMETHEUS_NAMESPACE_LABEL
+      configRef: svc.prometheus.namespaceLabel
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
+    - name: DCR_REMOTE_WRITE_URL
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: dcrRemoteWriteUrl
+    - name: PROMETHEUS_UAMI_CLIENT_ID
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: prometheusUAMIClientId
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: istio-config
+    # configure istio
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../istio deploy
@@ -215,16 +215,15 @@ resourceGroups:
       configRef: svc.istio.versions
     dependsOn:
     - resourceGroup: service
-      #step: prometheus
-      step: cluster
+      step: prometheus
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # - updates workload to use istio on version svc.istio.targetVersion
-        # - configures istio IP tag usage
   - name: istio-upgrade
+    # - updates workload to use istio on version svc.istio.targetVersion
+    # - configures istio IP tag usage
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: scripts/istio.sh
@@ -247,7 +246,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -257,7 +255,7 @@ resourceGroups:
     valuesFile: ./../acrpull/deploy/values.yaml
     dependsOn:
     - resourceGroup: service
-      step: cluster
+      step: prometheus
     identityFrom:
       resourceGroup: global
       step: output
