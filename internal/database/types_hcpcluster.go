@@ -101,6 +101,24 @@ func (r jsonRoundTripFilterer) RemoveUnknownFields(toMutate *ResourceDocument) e
 	return nil
 }
 
+// ToMap converts an object into a map.  It's not efficient.  It uses json marshalling and unmarshalling.
+// This is a stepwise refinement into different types.
+func ToMap(obj any) (map[string]any, error) {
+	if obj == nil {
+		return nil, nil
+	}
+	currBytes, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal original: %w", err)
+	}
+	retMap := map[string]any{}
+	if err := json.Unmarshal(currBytes, &retMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into filtered map: %w", err)
+	}
+
+	return retMap, nil
+}
+
 func superExpensiveButSimpleRoundFilterForUnknownFields(startingMap map[string]any, filterObj any) (map[string]any, error) {
 	if len(startingMap) == 0 {
 		return startingMap, nil

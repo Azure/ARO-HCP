@@ -136,6 +136,13 @@ type DBClient interface {
 	// the iterator in a ranged for loop.
 	ListResourceDocs(prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) DBClientIterator[ResourceDocument]
 
+	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
+	// matching resourceID.
+	GetHCPCluster(ctx context.Context, subscriptionID, resourceGroupID, hcpClusterID string) (*typedDocument, *ResourceDocument, error)
+
+	// UpdateHCPCluster does a conditional replace of the HCPCluster.  It has distinct serialization needs.
+	UpdateHCPCluster(ctx context.Context, typedDoc *typedDocument, resourceDocument *ResourceDocument, customerState CustomerDesiredHCPClusterState, serviceProviderState ServiceProviderHCPClusterState) error
+
 	// GetOperationDoc retrieves an asynchronous operation document from the "Resources" container.
 	GetOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*OperationDocument, error)
 
@@ -404,6 +411,72 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	innerDoc.ResourceID = resourceID
 
 	return typedDoc.ID, innerDoc, nil
+}
+
+func (d *cosmosDBClient) GetHCPClusterID(ctx context.Context, subscriptionID, resourceGroupID, hcpClusterID string) (*typedDocument, *ResourceDocument, error) {
+	typedDoc, innerDoc, err := d.getResourceDoc(ctx, resourceID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Replace the key field from Cosmos with the given resourceID,
+	// which typically comes from the URL. This helps preserve the
+	// casing of the resource group and resource name from the URL
+	// to meet RPC requirements:
+	//
+	// Put Resource | Arguments
+	//
+	// The resource group names and resource names should be matched
+	// case insensitively. ... Additionally, the Resource Provier must
+	// preserve the casing provided by the user. The service must return
+	// the most recently specified casing to the client and must not
+	// normalize or return a toupper or tolower form of the resource
+	// group or resource name. The resource group name and resource
+	// name must come from the URL and not the request body.
+	innerDoc.ResourceID = resourceID
+
+	return typedDoc.ID, innerDoc, nil
+}
+
+func (d *cosmosDBClient) UpdateHCPCluster(ctx context.Context, typedDoc *typedDocument, resourceDocument *ResourceDocument, customerState CustomerDesiredHCPClusterState, serviceProviderState ServiceProviderHCPClusterState) error {
+	guaranteedTypedDoc, _, err := d.getResourceDoc(ctx, resourceDocument.ResourceID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if typedDoc.ID != typedDoc
+
+	var err error
+
+	resourceDocument.CustomerDesiredState, err = ToMap(customerState)
+	if err != nil {
+		return fmt.Errorf("failed to convert CustomerDesiredState '%s': %w", resourceDocument.ResourceID, err)
+	}
+	resourceDocument.ServiceProviderState, err = ToMap(serviceProviderState)
+	if err != nil {
+		return fmt.Errorf("failed to convert ServiceProviderState '%s': %w", resourceDocument.ResourceID, err)
+	}
+
+	data, err := typedDocumentMarshal(typedDoc, resourceDocument)
+	if err != nil {
+		return fmt.Errorf("failed to marshal HCPCluster container item for '%s': %w", resourceDocument.ResourceID, err)
+	}
+
+	options := &azcosmos.ItemOptions{
+		IfMatchEtag: &typedDoc.CosmosETag,
+	}
+	_, err = d.resources.ReplaceItem(ctx, typedDoc.getPartitionKey(), typedDoc.ID, data, options)
+	if err == nil {
+		return nil
+	}
+
+	var responseError *azcore.ResponseError
+	err = fmt.Errorf("failed to replace HCPCluster container item for '%s': %w", resourceDocument.ResourceID, err)
+	if !errors.As(err, &responseError) || responseError.StatusCode != http.StatusPreconditionFailed {
+		return err
+	}
+
+	return err
 }
 
 func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {
