@@ -274,9 +274,7 @@ var _ = Describe("Customer", func() {
 			By("validating all admin credentials now fail after revocation")
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
-				Eventually(func() error {
-					return verifiers.VerifyHCPCluster(ctx, cred)
-				}, 2*time.Minute, 15*time.Second).Should(HaveOccurred(), fmt.Sprintf("Revoked admin credential %d should eventually fail", i+1))
+				Expect(verifiers.VerifyHCPCluster(ctx, cred)).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
