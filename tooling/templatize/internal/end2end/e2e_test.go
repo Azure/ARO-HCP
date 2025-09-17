@@ -410,3 +410,34 @@ param parameterA = 'Hello Bicep'`,
 	require.NoError(t, err)
 	require.Equal(t, string(io), "Hello Bicep\n")
 }
+
+func TestE2EOutputOnlyFailsIfContainsResources(t *testing.T) {
+	t.Parallel()
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eOutputOnly.yaml")
+	require.NoError(t, err)
+
+	bicepFile := `
+param zoneName string
+resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
+  location: 'global'
+  name: zoneName
+}`
+	paramFile := `
+using 'test.bicep'
+param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
+`
+	e2eImpl.AddBicepTemplate(bicepFile, "test.bicep", paramFile, "test.bicepparm")
+
+	e2eImpl.EnableDryRun()
+
+	opts, err := e2eImpl.Persist()
+	require.NoError(t, err)
+
+	require.Error(t, run.RunPipeline(logr.NewContext(t.Context(), testr.New(t)), opts))
+}
