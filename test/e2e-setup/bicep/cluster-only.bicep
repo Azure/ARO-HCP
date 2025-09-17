@@ -24,6 +24,9 @@ module managedIdentities 'modules/managed-identities.bicep' = {
 
 module AroHcpCluster 'modules/cluster.bicep' = {
   name: 'cluster'
+  dependsOn: [
+    managedIdentities
+  ]
   params: {
     clusterName: clusterName
     vnetName: customerInfra.outputs.vnetName
