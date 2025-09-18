@@ -59,11 +59,11 @@ func main() {
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
-		Properties: api.HCPOpenShiftClusterProperties{
+		CustomerProperties: api.CustomerClusterProperties{
 			Version: api.VersionProfile{
 				ChannelGroup: "stable",
 			},
-			DNS: api.DNSProfile{},
+			DNS: api.CustomerDNSProfile{},
 			Network: api.NetworkProfile{
 				NetworkType: api.NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",
@@ -71,8 +71,7 @@ func CreateJSONFile() error {
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			Console: api.ConsoleProfile{},
-			API: api.APIProfile{
+			API: api.CustomerAPIProfile{
 				Visibility: api.Visibility("Public"),
 			},
 			Platform: api.PlatformProfile{
@@ -82,6 +81,9 @@ func CreateJSONFile() error {
 				OutboundType:           api.OutboundType("LoadBalancer"),
 				IssuerURL:              "",
 			},
+		},
+		ServiceProviderProperties: api.ServiceProviderClusterProperties{
+			Console: api.ConsoleProfile{},
 		},
 	}
 
