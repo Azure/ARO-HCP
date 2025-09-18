@@ -155,7 +155,8 @@ dns:
 e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
-  regionalGatingTest:
+  regionTest:
+    gatePromotion: false
     prowJobName: ""
 ev2:
   assistedId:
