@@ -154,23 +154,19 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				innerDoc: &ResourceDocument{
 					CustomerDesiredState: map[string]any{
 						"alligator": "adept",
-						"hcpOpenShiftCluster": map[string]any{
+						"clusterProperties": map[string]any{
 							"bat": "black",
-							"properties": map[string]any{
-								"version": map[string]any{
-									"id": "1.2.3",
-								},
+							"version": map[string]any{
+								"id": "1.2.3",
 							},
 						},
 					},
 					ServiceProviderState: map[string]any{
 						"alligator": "adept",
-						"hcpOpenShiftCluster": map[string]any{
+						"clusterProperties": map[string]any{
 							"bat": "black",
-							"properties": map[string]any{
-								"dns": map[string]any{
-									"baseDomain": "example.com",
-								},
+							"dns": map[string]any{
+								"baseDomain": "example.com",
 							},
 						},
 					},
@@ -184,20 +180,16 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				},
 				&ResourceDocument{},
 				CustomerDesiredHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftCluster{
-						Properties: api.HCPOpenShiftClusterProperties{
-							Version: api.VersionProfile{
-								ID: "1.2.3",
-							},
+					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
+						Version: api.VersionProfile{
+							ID: "1.2.3",
 						},
 					},
 				},
 				ServiceProviderHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftCluster{
-						Properties: api.HCPOpenShiftClusterProperties{
-							DNS: api.DNSProfile{
-								BaseDomain: "example.com",
-							},
+					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
+						DNS: api.DNSProfile{
+							BaseDomain: "example.com",
 						},
 					},
 				},

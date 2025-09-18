@@ -16,7 +16,6 @@ package database
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -42,14 +41,13 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 func TestHCPClusterJSONRoundTripThroughResourceDocument(t *testing.T) {
 	seed := rand.Int63()
 	fuzzer := fuzzerFor([]interface{}{
-		func(j *HCPCluster, c randfill.Continue) {
+		func(j *TypedDocument, c randfill.Continue) {
 			c.FillNoCustom(j)
 			j.ResourceType = api.ClusterResourceType.String()
 		},
 		func(j *map[string]any, c randfill.Continue) {
 		},
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			fmt.Println("resourceID")
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
 		func(j *ocm.InternalID, c randfill.Continue) {
@@ -62,11 +60,11 @@ func TestHCPClusterJSONRoundTripThroughResourceDocument(t *testing.T) {
 		original := &HCPCluster{}
 		roundTrippedObj := &HCPCluster{}
 		fuzzer.Fill(original)
-		roundTrip(t, original, roundTrippedObj)
+		roundTrip(t, original, roundTrippedObj, FilterHCPClusterState)
 	}
 }
 
-func roundTrip(t *testing.T, original, roundTrippedObj any) {
+func roundTrip(t *testing.T, original, roundTrippedObj any, documentFilter ResourceDocumentStateFilter) {
 	originalJSON, err := json.MarshalIndent(original, "", "    ")
 	if err != nil {
 		t.Fatalf("failed to marshal original: %v", err)
@@ -79,7 +77,7 @@ func roundTrip(t *testing.T, original, roundTrippedObj any) {
 		t.Fatalf("failed to unmarshal into typedDocument: %v", err)
 	}
 
-	resourceDocumentJSON, err := resourceDocumentMarshal(typedDocument, resourceDocument, FilterHCPClusterState)
+	resourceDocumentJSON, err := resourceDocumentMarshal(typedDocument, resourceDocument, documentFilter)
 	if err != nil {
 		t.Fatalf("failed to marshal ResourceDocument: %v", err)
 	}
@@ -96,6 +94,9 @@ func roundTrip(t *testing.T, original, roundTrippedObj any) {
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !reflect.DeepEqual(originalJSON, roundTrippedJSON) {
+		t.Logf("originalJSON\n%s", string(originalJSON))
+		t.Logf("resourceDocumentJSON\n%s", string(resourceDocumentJSON))
+		t.Logf("roundTrippedJSON\n%s", string(roundTrippedJSON))
 		t.Errorf("Round trip failed: %v", cmp.Diff(originalJSON, roundTrippedJSON))
 	}
 }
