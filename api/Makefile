@@ -4,16 +4,16 @@ SHELL = /bin/bash
 .DEFAULT_GOAL := generate
 
 .PHONY: generate
-generate: swagger autorest
+generate: swagger models
 
 .PHONY: swagger
 swagger:
 	npm run format-check
 	npm run compile
 
-.PHONY: autorest
-autorest: $(GOIMPORTS)
-	npm run autorest
+.PHONY: models
+models: $(GOIMPORTS)
+	npm run models
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
 
 .PHONY: fmt
