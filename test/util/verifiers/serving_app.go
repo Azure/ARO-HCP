@@ -220,7 +220,10 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			lastErr = err
 			return false, nil
 		}
-		if elapsed := time.Since(startTime); elapsed < 5*time.Minute {
+
+		// Log timing information for successful response
+		elapsed = time.Since(startTime)
+		if elapsed < 5*time.Minute {
 			ginkgo.GinkgoWriter.Printf("Route became available in less than 5 minutes: url=%s elapsed=%v\n", url, elapsed)
 		}
 		ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
