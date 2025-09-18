@@ -7,7 +7,7 @@ clouds:
         defaults:
           # E2E
           e2e:
-            regionalGatingTest:
+            regionTest:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
           # Cluster Service
           clustersService:
@@ -80,7 +80,7 @@ clouds:
         defaults:
           # E2E
           e2e:
-            regionalGatingTest:
+            regionTest:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel
           # Cluster Service
           clustersService:
@@ -151,7 +151,7 @@ clouds:
         defaults:
           # E2E
           e2e:
-            regionalGatingTest:
+            regionTest:
               prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel
           # Cluster Service
           clustersService:

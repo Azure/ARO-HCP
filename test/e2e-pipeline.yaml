@@ -39,7 +39,9 @@ resourceGroups:
     - name: PROW_TOKEN_SECRET
       configRef: e2e.prow.globalKeyVaultTokenSecret
     - name: PROW_JOB_NAME
-      configRef: e2e.regionalGatingTest.prowJobName
+      configRef: e2e.regionTest.prowJobName
+    - name: GATE_PROMOTION
+      configRef: e2e.regionTest.gatePromotion
     - name: REGION
       configRef: region
     - name: KEY_VAULT_DNSSUFFIX
