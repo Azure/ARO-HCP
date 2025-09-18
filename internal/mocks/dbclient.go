@@ -22,19 +22,19 @@ import (
 )
 
 // MockDBClientIterator is a mock of DBClientIterator interface.
-type MockDBClientIterator[T database.DocumentProperties] struct {
+type MockDBClientIterator[T any] struct {
 	ctrl     *gomock.Controller
 	recorder *MockDBClientIteratorMockRecorder[T]
 	isgomock struct{}
 }
 
 // MockDBClientIteratorMockRecorder is the mock recorder for MockDBClientIterator.
-type MockDBClientIteratorMockRecorder[T database.DocumentProperties] struct {
+type MockDBClientIteratorMockRecorder[T any] struct {
 	mock *MockDBClientIterator[T]
 }
 
 // NewMockDBClientIterator creates a new mock instance.
-func NewMockDBClientIterator[T database.DocumentProperties](ctrl *gomock.Controller) *MockDBClientIterator[T] {
+func NewMockDBClientIterator[T any](ctrl *gomock.Controller) *MockDBClientIterator[T] {
 	mock := &MockDBClientIterator[T]{ctrl: ctrl}
 	mock.recorder = &MockDBClientIteratorMockRecorder[T]{mock}
 	return mock
@@ -61,7 +61,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) GetContinuationToken() *MockDBCli
 }
 
 // MockDBClientIteratorGetContinuationTokenCall wrap *gomock.Call
-type MockDBClientIteratorGetContinuationTokenCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorGetContinuationTokenCall[T any] struct {
 	*gomock.Call
 }
 
@@ -99,7 +99,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) GetError() *MockDBClientIteratorG
 }
 
 // MockDBClientIteratorGetErrorCall wrap *gomock.Call
-type MockDBClientIteratorGetErrorCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorGetErrorCall[T any] struct {
 	*gomock.Call
 }
 
@@ -137,7 +137,7 @@ func (mr *MockDBClientIteratorMockRecorder[T]) Items(ctx any) *MockDBClientItera
 }
 
 // MockDBClientIteratorItemsCall wrap *gomock.Call
-type MockDBClientIteratorItemsCall[T database.DocumentProperties] struct {
+type MockDBClientIteratorItemsCall[T any] struct {
 	*gomock.Call
 }
 
@@ -332,6 +332,44 @@ func (c *MockDBClientDeleteResourceDocCall) Do(f func(context.Context, *arm0.Res
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, *arm0.ResourceID) error) *MockDBClientDeleteResourceDocCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetHCPClusterCRUD mocks base method.
+func (m *MockDBClient) GetHCPClusterCRUD() database.HCPClusterCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHCPClusterCRUD")
+	ret0, _ := ret[0].(database.HCPClusterCRUD)
+	return ret0
+}
+
+// GetHCPClusterCRUD indicates an expected call of GetHCPClusterCRUD.
+func (mr *MockDBClientMockRecorder) GetHCPClusterCRUD() *MockDBClientGetHCPClusterCRUDCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHCPClusterCRUD", reflect.TypeOf((*MockDBClient)(nil).GetHCPClusterCRUD))
+	return &MockDBClientGetHCPClusterCRUDCall{Call: call}
+}
+
+// MockDBClientGetHCPClusterCRUDCall wrap *gomock.Call
+type MockDBClientGetHCPClusterCRUDCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientGetHCPClusterCRUDCall) Return(arg0 database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientGetHCPClusterCRUDCall) Do(f func() database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientGetHCPClusterCRUDCall) DoAndReturn(f func() database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

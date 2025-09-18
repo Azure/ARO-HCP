@@ -27,6 +27,8 @@ type HCPCluster struct {
 	HCPClusterProperties `json:"properties"`
 }
 
+var _ ResourceProperties = &HCPCluster{}
+
 type HCPClusterProperties struct {
 	ResourceDocument `json:",inline"`
 
@@ -49,6 +51,21 @@ type ServiceProviderHCPClusterState struct {
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
 	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+}
+
+func (o *HCPCluster) ValidateResourceType() error {
+	if o.ResourceType != api.ClusterResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *HCPCluster) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *HCPCluster) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
