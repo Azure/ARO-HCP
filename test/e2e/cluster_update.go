@@ -25,16 +25,16 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 // Helper to convert ManagedServiceIdentity to AzureResourceManagerCommonTypesManagedServiceIdentityUpdate
-func toIdentityUpdate(identity *api.ManagedServiceIdentity) *api.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
+func toIdentityUpdate(identity *hcpsdk.ManagedServiceIdentity) *hcpsdk.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate {
 	if identity == nil {
 		return nil
 	}
-	return &api.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
+	return &hcpsdk.AzureResourceManagerCommonTypesManagedServiceIdentityUpdate{
 		Type:                   identity.Type,
 		UserAssignedIdentities: identity.UserAssignedIdentities,
 	}
@@ -82,7 +82,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request attempting to change the resource name")
 				newName := clusterName + "-renamed"
-				update := api.HcpOpenShiftClusterUpdate{
+				update := hcpsdk.HcpOpenShiftClusterUpdate{
 					Name: &newName,
 				}
 				_, err = framework.UpdateHCPCluster(
@@ -150,7 +150,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				update := api.HcpOpenShiftClusterUpdate{
+				update := hcpsdk.HcpOpenShiftClusterUpdate{
 					Identity: toIdentityUpdate(got.Identity),
 					Tags: map[string]*string{
 						"test": &val,
