@@ -126,6 +126,7 @@ forwarder:
             Kube_Tag_Prefix     kubernetes.var.log.containers.
             Annotations         Off
             K8S-Logging.Exclude On
+            Buffer_Size         64k
 
         [FILTER]
             Name          nest
