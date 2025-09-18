@@ -27,9 +27,9 @@ See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a re
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 
 **Minimal example:**
-TODO: Minimal version 
+TODO: Minimal version
 
-#### Running per-run test cases with per-test cluster in OpenShift CI
+#### Running per-test cluster test cases in OpenShift CI
 
 There is a [`aro-hcp-tests-run-aro-hcp-tests` step](https://steps.ci.openshift.org/reference/aro-hcp-tests-run-aro-hcp-tests)
 in OpenShift CI step registry which can run a test suite of per-run test cases.
@@ -37,7 +37,7 @@ in OpenShift CI step registry which can run a test suite of per-run test cases.
 This is used in jobs such as
 `periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`.
 
-#### Running per-run test cases with per-test cluster locally
+#### Running per-test cluster test cases locally
 
 First of all, you need to build the `aro-hcp-tests` binary. This tool is used
 to run individual test cases as well as test suites.
@@ -82,69 +82,50 @@ $ ./test/aro-hcp-tests run-suite "integration/parallel" --junit-path="junit.xml"
 ```
 
 ### Test cases with per-run cluster
-> **Important**
-> - You can use the `FALLBACK_TO_BICEP` environment variable to populate the e2esetup models and run tests that require e2esetup to be present.
-> - Currently, per-run test cases can only be executed locally. Running these tests in CI is not yet supported.
+> **Important:** Currently, per-run test cases can only be executed locally via the `aro-hcp-tests` binary. Running these tests in CI is not yet supported.
 
 When writing E2E test cases that use a **per-run cluster** (i.e., the cluster is created once for the test run and shared across multiple test cases), follow these guidelines:
 
-- **Setup Requirement (Test Case Structure):** These tests require the e2esetup models to be populated. This can be achieved by either:
-  - Setting the `FALLBACK_TO_BICEP` environment variable to the name of a Bicep file to be used for populating e2esetup models, **or**
-  - Setting the `SETUP_FILEPATH` environment variable to the path of a valid `e2e-setup.json` file describing your cluster and environment.
-- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPath`, or other labels that indicate the test's requirements (e.g. `Create-Cluster`, `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
+- **Setup Requirement (Test Case Structure):** These tests require the e2esetup models to be populated. This can be achieved by setting the `SETUP_FILEPATH` environment variable to the path of a valid `e2e-setup.json` file describing your cluster and customer environment.
+- **Label Recommendation:** You **SHOULD NOT** add the `RequireNothing` label to these test cases; instead of `RequireNothing` use `RequireHappyPath`, or other labels that indicate the test's requirements (e.g. `Setup-Validation`, `Teardown Validation`, etc.) so the test runner can select appropriate tests based on the environment and setup.
 
-For more details on the setup file and fallback logic, see the [Setup File](#setup-file) and [Fallback to Bicep Setup](#fallback-to-bicep-setup) sections below.
+For more details on the setup file see the [Setup File](#setup-file) section below.
 
-> **Note:**
-> - The cluster and its resource group will be deleted after running the tests.
-> - Fallback to Bicep setup is only supported when running against the integration or higher environment.
-> - Test case files should be named with the `_test.go` suffix. For example, see [`test/e2e/cluster_list_test.go`](cluster_list_test.go) for a reference.
-> - When using `FALLBACK_TO_BICEP`, you must run the `bicep-build` Makefile rule before running the E2E Test Suite to ensure the Bicep file is properly built and available.
-> - If `FALLBACK_TO_BICEP` is set, the `SETUP_FILEPATH` variable must either be unset or set to a non-existent `e2e-setup.json` file. This ensures the test suite will trigger the fallback logic and use the Bicep file for setup.
+> **Note:** See [`test/e2e/cluster_list.go`](cluster_list.go) for a reference implementation.
 
 **Minimal example:**
 TODO: Minimal version
 
-#### Build Tag (per-run only)
+#### Running happy path test cases
+Build the `aro-hcp-tests` binary from the repository root directory:
+
+```bash
+make -C test
+```
+
+Export necessary environment variables:
+
+```bash
+export CUSTOMER_SUBSCRIPTION=<subscriptionName>
+export LOCATION=uksouth
+export SETUP_FILEPATH=test/e2e/test-artifacts/e2e-setup.json
+```
+
+Run the tests with:
+```bash
+./test/aro-hcp-tests run-happypath-with-validations --junit-path=junit.xml
+```
+
+#### Build Tag (running or building with ginkgo cli)
 To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
 
 #### Setup File
-To run the E2E Test Suite against a pre-created cluster, set the environment variable **SETUP_FILEPATH** to the path of the `setup.json` file that describes your cluster and environment. This allows the test suite to use the provided configuration instead of provisioning new resources.
+To run the E2E test suite against a pre-created cluster, set the environment variable **SETUP_FILEPATH** to the path of the `e2e-setup.json` file that describes your cluster and customer environment. When using the `aro-hcp-tests` binary with the argument `run-happypath-with-validations`, the run will install a new cluster to execute tests against it and clean it up afterward.
 
 The structure and models for the `setup.json` file are defined in */test/util/integration/setup_models.go*. These models consist of:
 - Test profile name and tags
 - Customer environment
 - Cluster and its nodepools
-
-#### Fallback to Bicep Setup
-
-If you want the E2E Test Suite to use a Bicep file as a fallback for setup, set the environment variable **FALLBACK_TO_BICEP** to the name of the Bicep file (without the `.bicep` extension) you wish to use (e.g., `demo` for `demo.bicep`).
-
-#### Running per-run test cases locally against integration environment using Bicep fallback
-
-1. Login with AZ CLI
-2. Export environment variables CUSTOMER_SUBSCRIPTION, and FALLBACK_TO_BICEP (do not set SETUP_FILEPATH, or set it to a non-existent file):
-
-```bash
-export CUSTOMER_SUBSCRIPTION=<subscriptionName>
-export LOCATION=uksouth
-export FALLBACK_TO_BICEP=demo  # for demo.bicep
-unset SETUP_FILEPATH  # or: export SETUP_FILEPATH=nonexistent-e2e-setup.json
-```
-
-3. Build the Bicep file before running tests:
-
-```bash
-make bicep-build
-```
-
-4. Run test suite with the `RequireHappyPath` label:
-
-Run all test cases: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' ./`
-
-Run specific test case: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' --focus "<regex>" ./`
-
-Run in debug mode: `ginkgo --tags E2Etests --label-filter='PreLaunchSetup:HappyPathInfra' --vv ./`
 
 ## E2E Test Suite Configuration
 To run the test suite, you must configure the following environment variables.
@@ -215,13 +196,11 @@ Positivity labels:
 ### Files structure
 Test code is organized by grouping test cases into specs within files.
 
-Basic test cases for HTTP methods of clusters and nodepools are separated into individual files, like 'cluster_get_test', 'nodepool_create_test' or 'nodepool_update_test'.
+Basic test cases for HTTP methods of clusters and nodepools are separated into individual files, like 'cluster_get', 'nodepool_create' or 'nodepool_update'.
 
-Features requiring higher visibility or a large number of test cases have their own dedicated file, e.g. 'cluster_upgrade_test' or 'nodepool_upgrade_test'.
+Features requiring higher visibility or a large number of test cases have their own dedicated file, e.g. 'cluster_upgrade' or 'nodepool_upgrade'.
 
-Validation test cases go into the 'validation_test' file.
-
-Admin test cases have files with the prefix 'adminapi' followed by the name of specific group of actions or tool, such as 'adminapi_breakglass_kubeconfig_test'.
+Admin test cases have files with the prefix 'adminapi' followed by the name of specific group of actions or tool, such as 'adminapi_breakglass_kubeconfig'.
 
 ### Assertions
 
