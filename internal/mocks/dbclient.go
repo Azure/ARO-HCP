@@ -298,44 +298,6 @@ func (c *MockDBClientCreateSubscriptionDocCall) DoAndReturn(f func(context.Conte
 	return c
 }
 
-// DBConnectionTest mocks base method.
-func (m *MockDBClient) DBConnectionTest(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DBConnectionTest", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DBConnectionTest indicates an expected call of DBConnectionTest.
-func (mr *MockDBClientMockRecorder) DBConnectionTest(ctx any) *MockDBClientDBConnectionTestCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DBConnectionTest", reflect.TypeOf((*MockDBClient)(nil).DBConnectionTest), ctx)
-	return &MockDBClientDBConnectionTestCall{Call: call}
-}
-
-// MockDBClientDBConnectionTestCall wrap *gomock.Call
-type MockDBClientDBConnectionTestCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientDBConnectionTestCall) Return(arg0 error) *MockDBClientDBConnectionTestCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientDBConnectionTestCall) Do(f func(context.Context) error) *MockDBClientDBConnectionTestCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientDBConnectionTestCall) DoAndReturn(f func(context.Context) error) *MockDBClientDBConnectionTestCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // DeleteResourceDoc mocks base method.
 func (m *MockDBClient) DeleteResourceDoc(ctx context.Context, resourceID *arm0.ResourceID) error {
 	m.ctrl.T.Helper()

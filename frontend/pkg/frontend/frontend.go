@@ -27,7 +27,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -53,7 +52,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	auditClient          audit.Client
-	ready                atomic.Value
 	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -111,7 +109,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	if stop != nil {
 		go func() {
 			<-stop
-			f.ready.Store(false)
 			_ = f.server.Shutdown(ctx)
 			_ = f.metricsServer.Shutdown(ctx)
 			close(f.done)
@@ -120,7 +117,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
-	f.ready.Store(true)
 
 	errs, ctx := errgroup.WithContext(ctx)
 	errs.Go(func() error {
@@ -144,19 +140,6 @@ func (f *Frontend) Join() {
 	<-f.done
 }
 
-func (f *Frontend) CheckReady(ctx context.Context) bool {
-	logger := LoggerFromContext(ctx)
-
-	// Verify the DB is available and accessible
-	if err := f.dbClient.DBConnectionTest(ctx); err != nil {
-		logger.Error(fmt.Sprintf("Database test failed: %v", err))
-		return false
-	}
-	logger.Debug("Database check completed")
-
-	return f.ready.Load().(bool)
-}
-
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 	arm.WriteError(
 		writer, http.StatusNotFound,
@@ -165,14 +148,8 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
-	if f.CheckReady(request.Context()) {
-		writer.WriteHeader(http.StatusOK)
-		f.healthGauge.Set(1.0)
-		return
-	}
-
-	arm.WriteInternalServerError(writer)
-	f.healthGauge.Set(0.0)
+	writer.WriteHeader(http.StatusOK)
+	f.healthGauge.Set(1.0)
 }
 
 func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
