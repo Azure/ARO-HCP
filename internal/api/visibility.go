@@ -276,7 +276,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 		if newValIsNil != curValIsNil {
-			if !vv.checkFlags(flags, namespace, fieldname, newValIsNil) {
+			if !vv.checkFlags(flags, namespace, fieldname, newVal.IsNil()) {
 				return
 			}
 		}
