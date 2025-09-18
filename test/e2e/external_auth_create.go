@@ -187,25 +187,24 @@ var _ = Describe("Customer", func() {
 							},
 						},
 					},
-					// TODO: ARO-20830 needs to be rolled out before this bit will pass
-					// Clients: []*generated.ExternalAuthClientProfile{
-					// 	{
-					// 		ClientID: to.Ptr(app.ID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("console"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
-					// 	},
-					// 	{
-					// 		ClientID: to.Ptr(app.AppID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("cli"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypePublic),
-					// 	},
-					// },
+					Clients: []*generated.ExternalAuthClientProfile{
+						{
+							ClientID: to.Ptr(app.AppID),
+							Component: &generated.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("console"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
+						},
+						{
+							ClientID: to.Ptr(app.AppID),
+							Component: &generated.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("cli"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(generated.ExternalAuthClientTypePublic),
+						},
+					},
 				},
 			}
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
@@ -246,6 +245,7 @@ var _ = Describe("Customer", func() {
 			client, err := kubernetes.NewForConfig(config)
 			Expect(err).NotTo(HaveOccurred())
 
+			// TODO (bvesel): XCMSTRAT-1292
 			// The kube-apiserver restarts on external auth config creation, so we need to wait
 			// for it to completely restart. There doesn't appear to be a way to track this in the data plane
 			By("confirming we can list namespaces using entra OIDC token")
