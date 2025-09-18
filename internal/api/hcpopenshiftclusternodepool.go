@@ -84,7 +84,7 @@ type NodePoolAutoScaling struct {
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required,enum_effect"`
 	Key    string `json:"key,omitempty"    validate:"required,k8s_qualified_name"`
-	Value  string `json:"value,omitempty"  validate:"required,k8s_label_value"`
+	Value  string `json:"value,omitempty"  validate:"k8s_label_value"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {

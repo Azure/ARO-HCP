@@ -866,7 +866,7 @@ type Taint struct {
 	// REQUIRED; The key of the taint
 	Key *string
 
-	// REQUIRED; The value of the taint
+	// The value of the taint
 	Value *string
 }
 

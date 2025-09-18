@@ -3328,7 +3328,6 @@
         "value": {
           "type": "string",
           "description": "The value of the taint",
-          "minLength": 1,
           "maxLength": 63
         },
         "effect": {
@@ -3338,7 +3337,6 @@
       },
       "required": [
         "key",
-        "value",
         "effect"
       ]
     },
