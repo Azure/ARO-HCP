@@ -17,7 +17,6 @@ package api
 import (
 	"crypto/x509"
 	"fmt"
-	"net/http"
 	"reflect"
 	"strings"
 
@@ -267,7 +266,7 @@ func fieldErrorToTarget(fe validator.FieldError) string {
 	return fe.Namespace()
 }
 
-func ValidateRequest[T any](validate *validator.Validate, request *http.Request, resource T) []arm.CloudErrorBody {
+func ValidateRequest[T any](validate *validator.Validate, resource T) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	err := validate.Struct(resource)
@@ -406,8 +405,8 @@ func ValidateRequest[T any](validate *validator.Validate, request *http.Request,
 }
 
 // ValidateSubscription validates a subscription request payload.
-func ValidateSubscription(subscription *arm.Subscription, request *http.Request) *arm.CloudError {
-	errorDetails := ValidateRequest(NewValidator(), request, subscription)
+func ValidateSubscription(subscription *arm.Subscription) *arm.CloudError {
+	errorDetails := ValidateRequest(NewValidator(), subscription)
 
 	// Returns nil if errorDetails is empty.
 	return arm.NewContentValidationError(errorDetails)

@@ -15,8 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -24,6 +22,10 @@ import (
 
 type ExternalAuth struct {
 	generated.ExternalAuth
+}
+
+func (h *ExternalAuth) GetVersion() api.Version {
+	return versionedInterface
 }
 
 func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
@@ -87,27 +89,6 @@ func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
 func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
 	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
 	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
-}
-
-func (c *ExternalAuth) ValidateStatic(current api.VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = c.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized api.HCPOpenShiftClusterExternalAuth
-
-		c.Normalize(&normalized)
-
-		// Run additional validation on the "normalized" cluster model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request)...)
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
 }
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
@@ -324,8 +305,4 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 		})
 	}
 	return out
-}
-
-func (v version) MarshalHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) ([]byte, error) {
-	return arm.MarshalJSON(v.NewHCPOpenShiftClusterExternalAuth(from))
 }

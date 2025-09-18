@@ -566,7 +566,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return
 	}
 
-	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request)
+	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -994,7 +994,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	cloudError := api.ValidateSubscription(&subscription, request)
+	cloudError := api.ValidateSubscription(&subscription)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -1106,7 +1106,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1127,12 +1127,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a cluster creation request.
-			cloudError = versionedCluster.ValidateStatic(versionedCluster, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedCluster, versionedCluster, false)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1153,12 +1153,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedNodePool, versionedNodePool, nil, false)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1179,7 +1179,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			cloudError = versionedExternalAuth.ValidateStatic(versionedExternalAuth, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedExternalAuth, versionedExternalAuth, nil, false)
 
 		default:
 			// Disregard foreign resource types.
@@ -1294,7 +1294,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 		hcpCluster.Identity.Type = doc.Identity.Type
 	}
 
-	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)
+	return arm.MarshalJSON(hcpCluster.NewVersioned(versionedInterface))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1475,6 +1475,6 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
-	hcpClusterVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
-	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
+	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
+	return arm.MarshalJSON(hcpVersion.NewVersioned(versionedInterface))
 }

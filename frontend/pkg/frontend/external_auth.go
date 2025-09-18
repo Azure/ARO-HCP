@@ -162,7 +162,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	cloudError = versionedRequestExternalAuth.ValidateStatic(versionedCurrentExternalAuth, updating, request)
+	cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedRequestExternalAuth, versionedCurrentExternalAuth, nil, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -277,5 +277,5 @@ func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *data
 	hcpExternalAuth.SystemData = doc.SystemData
 	hcpExternalAuth.Properties.ProvisioningState = doc.ProvisioningState
 
-	return versionedInterface.MarshalHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+	return arm.MarshalJSON(hcpExternalAuth.NewVersioned(versionedInterface))
 }

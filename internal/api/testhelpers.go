@@ -209,6 +209,11 @@ type InternalTestResource struct {
 var _ VersionedCreatableResource[InternalTestResource] = &ExternalTestResource{}
 var testResourceVisibilityMap = NewVisibilityMap[InternalTestResource]()
 
+func (m *ExternalTestResource) GetVersion() Version {
+	// FIXME Implement if there's a need for it in tests.
+	return nil
+}
+
 func (m *ExternalTestResource) Normalize(v *InternalTestResource) {
 	// FIXME Implement if there's a need for it in tests.
 }

@@ -200,7 +200,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, hcpCluster, updating, request)
+	cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedRequestNodePool, versionedCurrentNodePool, hcpCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -321,5 +321,5 @@ func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.Resour
 	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return versionedInterface.MarshalHCPOpenShiftClusterNodePool(hcpNodePool)
+	return arm.MarshalJSON(hcpNodePool.NewVersioned(versionedInterface))
 }
