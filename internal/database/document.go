@@ -19,3 +19,11 @@ package database
 type DocumentProperties interface {
 	GetValidTypes() []string
 }
+
+// ResourceProperties is an interface for types that can serve as
+// TypedDocument.Properties.
+type ResourceProperties interface {
+	ValidateResourceType() error
+	GetTypedDocument() *TypedDocument
+	GetResourceDocument() *ResourceDocument
+}
