@@ -29,7 +29,7 @@ type DBTransaction interface {
 
 	// CreateResourceDoc adds a create request to the transaction
 	// and returns the tentative item ID.
-	CreateResourceDoc(doc *ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string
+	CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
@@ -104,7 +104,7 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 	})
 }
 
-func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string {
+func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
 	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
@@ -112,7 +112,7 @@ func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, o *azcosm
 		var err error
 
 		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = typedDocumentMarshal(typedDoc, doc)
+			data, err = resourceDocumentMarshal(typedDoc, doc, documentFilter)
 		} else {
 			err = ErrWrongPartition
 		}

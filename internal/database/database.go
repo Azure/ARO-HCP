@@ -113,9 +113,6 @@ type DBClient interface {
 	// matching resourceID.
 	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)
 
-	// CreateResourceDoc creates a new cluster or node pool document in the "Resources" container.
-	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
-
 	// PatchResourceDoc patches a cluster or node pool document in the "Resources" container by
 	// applying a sequence of patch operations. The patch operations may include a precondition
 	// which, if not satisfied, will cause the function to return an azcore.ResponseError with
@@ -407,22 +404,6 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	innerDoc.ResourceID = resourceID
 
 	return typedDoc.ID, innerDoc, nil
-}
-
-func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
-	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
-
-	data, err := typedDocumentMarshal(typedDoc, doc)
-	if err != nil {
-		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceID, err)
-	}
-
-	return nil
 }
 
 func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {

@@ -27,7 +27,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -526,4 +526,13 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 			}
 		})
 	}
+}
+
+// Must is a helper function that takes a value and error, returns the value if no error occurred,
+// or panics if an error occurred. This is useful for test setup where we don't expect errors.
+func Must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

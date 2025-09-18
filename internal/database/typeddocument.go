@@ -86,6 +86,30 @@ func (td *typedDocument) validateType(properties DocumentProperties) error {
 	}
 }
 
+// resourceDocumentMarshal returns the JSON encoding of typedDoc with innerDoc
+// as the properties value. First, however, typedDocumentMarshal validates
+// the type field in typeDoc against innerDoc to ensure compatibility. If
+// validation fails, typedDocumentMarshal returns a typedDocumentError.
+func resourceDocumentMarshal(typedDoc *typedDocument, innerDoc *ResourceDocument, documentFilter ResourceDocumentStateFilter) ([]byte, error) {
+	err := typedDoc.validateType(*innerDoc)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := documentFilter.RemoveUnknownFields(innerDoc); err != nil {
+		return nil, fmt.Errorf("failed to remove unknown fields from ResourceDocument: %w", err)
+	}
+
+	data, err := json.Marshal(innerDoc)
+	if err != nil {
+		return nil, err
+	}
+
+	typedDoc.Properties = data
+
+	return json.Marshal(typedDoc)
+}
+
 // typedDocumentMarshal returns the JSON encoding of typedDoc with innerDoc
 // as the properties value. First, however, typedDocumentMarshal validates
 // the type field in typeDoc against innerDoc to ensure compatibility. If

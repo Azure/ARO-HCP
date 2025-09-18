@@ -260,7 +260,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.RemoveAllState, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations

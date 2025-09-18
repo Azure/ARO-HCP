@@ -135,10 +135,10 @@ func (f *Frontend) routes(r prometheus.Registerer) *MiddlewareMux {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	mux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodPatch, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceCreateOrUpdate))
+		postMuxMiddleware.HandlerFunc(f.CreateOrUpdateHCPCluster))
 	mux.Handle(
 		MuxPattern(http.MethodDelete, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceDelete))

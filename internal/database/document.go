@@ -104,6 +104,9 @@ type ResourceDocument struct {
 	Identity          *arm.ManagedServiceIdentity `json:"identity,omitempty"`
 	SystemData        *arm.SystemData             `json:"systemData,omitempty"`
 	Tags              map[string]string           `json:"tags,omitempty"`
+
+	CustomerDesiredState map[string]any `json:"customerDesiredState"`
+	ServiceProviderState map[string]any `json:"serviceProviderState"`
 }
 
 func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {
@@ -119,6 +122,16 @@ func (doc ResourceDocument) GetValidTypes() []string {
 		api.NodePoolResourceType.String(),
 		api.ExternalAuthResourceType.String(),
 	}
+}
+
+// ResourceDocumentStateFilter is used to remove unknown fields from ResourceDocumentProperties.
+// Long-term, we want to reach a point where we store different types so we have full type-safety
+// throughout the stack.
+// Short-term, we want a low-touch modification that makes it safe to store new fields.
+type ResourceDocumentStateFilter interface {
+	// RemoveUnknownFields checks the customerDesiredState and serviceProviderState and removes unknown fields.
+	// The simplest implementation is "remove everything" and the next simplest is round-tripping through JSON.
+	RemoveUnknownFields(*ResourceDocument) error
 }
 
 const (
