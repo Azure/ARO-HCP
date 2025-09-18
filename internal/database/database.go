@@ -109,7 +109,7 @@ type DBClient interface {
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
 	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
-	GetHCPClusterCRUD() HCPClusterCRUD
+	HCPClusters() HCPClusterCRUD
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -687,7 +687,7 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 	return newQueryItemsIterator[arm.Subscription](pager)
 }
 
-func (d *cosmosDBClient) GetHCPClusterCRUD() HCPClusterCRUD {
+func (d *cosmosDBClient) HCPClusters() HCPClusterCRUD {
 	return d.hcpClusterCRUD
 }
 
