@@ -39,12 +39,12 @@ func (e typedDocumentError) Error() string {
 	return fmt.Sprintf("invalid type '%s' for %s", e.invalidType, e.propertiesType)
 }
 
-// typedDocument is a baseDocument with a ResourceType field to
+// TypedDocument is a BaseDocument with a ResourceType field to
 // help distinguish heterogeneous items in a Cosmos DB container.
 // The Properties field can be unmarshalled to any type that
 // implements the DocumentProperties interface.
-type typedDocument struct {
-	baseDocument
+type TypedDocument struct {
+	BaseDocument
 	PartitionKey string          `json:"partitionKey"`
 	ResourceType string          `json:"resourceType"`
 	Properties   json.RawMessage `json:"properties"`
@@ -53,22 +53,22 @@ type typedDocument struct {
 const typedDocumentJSONPathProperties = "/properties"
 
 // newTypedDocument returns a TypedDocument from a ResourceType.
-func newTypedDocument(partitionKey string, resourceType azcorearm.ResourceType) *typedDocument {
-	return &typedDocument{
-		baseDocument: newBaseDocument(),
+func newTypedDocument(partitionKey string, resourceType azcorearm.ResourceType) *TypedDocument {
+	return &TypedDocument{
+		BaseDocument: newBaseDocument(),
 		PartitionKey: strings.ToLower(partitionKey),
 		ResourceType: strings.ToLower(resourceType.String()),
 	}
 }
 
 // getPartitionKey returns an azcosmos.PartitionKey.
-func (td *typedDocument) getPartitionKey() azcosmos.PartitionKey {
+func (td *TypedDocument) getPartitionKey() azcosmos.PartitionKey {
 	return azcosmos.NewPartitionKeyString(td.PartitionKey)
 }
 
 // validateType validates the type field against the given properties type.
 // If type validation fails, validateType returns a typedDocumentError.
-func (td *typedDocument) validateType(properties DocumentProperties) error {
+func (td *TypedDocument) validateType(properties DocumentProperties) error {
 	for _, t := range properties.GetValidTypes() {
 		if strings.EqualFold(td.ResourceType, t) {
 			return nil
@@ -86,35 +86,11 @@ func (td *typedDocument) validateType(properties DocumentProperties) error {
 	}
 }
 
-// resourceDocumentMarshal returns the JSON encoding of typedDoc with innerDoc
-// as the properties value. First, however, typedDocumentMarshal validates
-// the type field in typeDoc against innerDoc to ensure compatibility. If
-// validation fails, typedDocumentMarshal returns a typedDocumentError.
-func resourceDocumentMarshal(typedDoc *typedDocument, innerDoc *ResourceDocument, documentFilter ResourceDocumentStateFilter) ([]byte, error) {
-	err := typedDoc.validateType(*innerDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := documentFilter.RemoveUnknownFields(innerDoc); err != nil {
-		return nil, fmt.Errorf("failed to remove unknown fields from ResourceDocument: %w", err)
-	}
-
-	data, err := json.Marshal(innerDoc)
-	if err != nil {
-		return nil, err
-	}
-
-	typedDoc.Properties = data
-
-	return json.Marshal(typedDoc)
-}
-
 // typedDocumentMarshal returns the JSON encoding of typedDoc with innerDoc
 // as the properties value. First, however, typedDocumentMarshal validates
 // the type field in typeDoc against innerDoc to ensure compatibility. If
 // validation fails, typedDocumentMarshal returns a typedDocumentError.
-func typedDocumentMarshal[T DocumentProperties](typedDoc *typedDocument, innerDoc *T) ([]byte, error) {
+func typedDocumentMarshal[T DocumentProperties](typedDoc *TypedDocument, innerDoc *T) ([]byte, error) {
 	err := typedDoc.validateType(*innerDoc)
 	if err != nil {
 		return nil, err
@@ -130,12 +106,12 @@ func typedDocumentMarshal[T DocumentProperties](typedDoc *typedDocument, innerDo
 	return json.Marshal(typedDoc)
 }
 
-// typedDocumentUnmarshal parses JSON-encoded data into a typedDocument,
+// typedDocumentUnmarshal parses JSON-encoded data into a TypedDocument,
 // validates the type field against the type parameter T, and then parses
 // the JSON-encoded properties data into an instance of type parameter T.
 // If validation fails, typedDocumentUnmarshal returns a typedDocumentError.
-func typedDocumentUnmarshal[T DocumentProperties](data []byte) (*typedDocument, *T, error) {
-	var typedDoc typedDocument
+func typedDocumentUnmarshal[T DocumentProperties](data []byte) (*TypedDocument, *T, error) {
+	var typedDoc TypedDocument
 	var innerDoc T
 
 	err := json.Unmarshal(data, &typedDoc)

@@ -38,24 +38,24 @@ func (p testProperties) GetValidTypes() []string {
 func TestTypedDocumentMarshal(t *testing.T) {
 	tests := []struct {
 		name     string
-		typedDoc *typedDocument
+		typedDoc *TypedDocument
 		err      string
 	}{
 		{
 			name: "sucessful marshal",
-			typedDoc: &typedDocument{
+			typedDoc: &TypedDocument{
 				ResourceType: testResourceType,
 			},
 			err: "",
 		},
 		{
 			name:     "missing resource type",
-			typedDoc: &typedDocument{},
+			typedDoc: &TypedDocument{},
 			err:      "missing type",
 		},
 		{
 			name: "invalid resource type",
-			typedDoc: &typedDocument{
+			typedDoc: &TypedDocument{
 				ResourceType: "invalid",
 			},
 			err: "invalid type 'invalid' for testProperties",
@@ -115,7 +115,7 @@ func TestTypedDocumentUnmarshal(t *testing.T) {
 
 func Test_resourceDocumentMarshal(t *testing.T) {
 	type args struct {
-		typedDoc       *typedDocument
+		typedDoc       *TypedDocument
 		innerDoc       *ResourceDocument
 		documentFilter ResourceDocumentStateFilter
 	}
@@ -128,7 +128,7 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 		{
 			name: "clear everything",
 			args: args{
-				typedDoc: &typedDocument{
+				typedDoc: &TypedDocument{
 					ResourceType: api.ClusterResourceType.String(),
 				},
 				innerDoc: &ResourceDocument{
@@ -147,7 +147,7 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 		{
 			name: "clear hcp",
 			args: args{
-				typedDoc: &typedDocument{
+				typedDoc: &TypedDocument{
 					ResourceType: api.ClusterResourceType.String(),
 				},
 				// cannot unmarshal string into Go struct field HCPOpenShiftClusterProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
@@ -179,7 +179,7 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 			},
 			// verifying that we filter out all unknown fields and serialize equivalently
 			want: jsonFor(
-				&typedDocument{
+				&TypedDocument{
 					ResourceType: api.ClusterResourceType.String(),
 				},
 				&ResourceDocument{},
@@ -217,9 +217,9 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 	}
 }
 
-func jsonFor(typedDocument *typedDocument, doc *ResourceDocument, customer, serviceProvider any) string {
+func jsonFor(TypedDocument *TypedDocument, doc *ResourceDocument, customer, serviceProvider any) string {
 	doc = toResourceDocument(doc, customer, serviceProvider)
-	return string(api.Must(typedDocumentMarshal(typedDocument, doc)))
+	return string(api.Must(typedDocumentMarshal(TypedDocument, doc)))
 }
 
 func toResourceDocument(doc *ResourceDocument, customer, serviceProvider any) *ResourceDocument {
