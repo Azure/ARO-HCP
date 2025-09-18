@@ -191,8 +191,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 					defer retryResp.Body.Close()
 
 					if retryResp.StatusCode >= 200 && retryResp.StatusCode < 300 {
-						successTime := time.Since(firstResponseTime)
-						ginkgo.GinkgoWriter.Printf("Route became healthy after %v from first response: url=%s statusCode=%d\n", successTime, url, retryResp.StatusCode)
+						totalElapsed := time.Since(startTime)
+						retryElapsed := time.Since(firstResponseTime)
+						ginkgo.GinkgoWriter.Printf("Route became healthy after %v total (%v from first response): url=%s statusCode=%d\n", totalElapsed, retryElapsed, url, retryResp.StatusCode)
 
 						// Dump the successful response
 						responseByte, _ := httputil.DumpResponse(retryResp, true)
