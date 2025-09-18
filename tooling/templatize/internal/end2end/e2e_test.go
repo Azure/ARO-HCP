@@ -410,3 +410,77 @@ param parameterA = 'Hello Bicep'`,
 	require.NoError(t, err)
 	require.Equal(t, string(io), "Hello Bicep\n")
 }
+
+func TestE2EOutputOnlyFailsIfContainsResources(t *testing.T) {
+	t.Parallel()
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eOutputOnly.yaml")
+	require.NoError(t, err)
+
+	bicepFile := `
+param parameterA string
+resource symbolicname 'Microsoft.Network/dnsZones@2018-05-01' = {
+  location: 'global'
+  name: parameterA
+}
+output parameterA string = parameterA`
+	paramFile := `
+using 'testa.bicep'
+param parameterA = 'e2etestarmdeploy.foo.bar.example.com'
+`
+	e2eImpl.AddBicepTemplate(bicepFile, "testa.bicep", paramFile, "testa.bicepparm")
+
+	e2eImpl.EnableDryRun()
+
+	opts, err := e2eImpl.Persist()
+	require.NoError(t, err)
+
+	require.Error(t, run.RunPipeline(logr.NewContext(t.Context(), testr.New(t)), opts))
+}
+
+func TestE2EOutputOnlyWithModules(t *testing.T) {
+	t.Parallel()
+	if !shouldRunE2E() {
+		t.Skip("Skipping end-to-end tests")
+	}
+
+	tmpDir := t.TempDir()
+
+	e2eImpl, err := newE2E(tmpDir, "../../testdata/e2eOutputOnly.yaml")
+	require.NoError(t, err)
+
+	e2eImpl.AddBicepTemplate(`
+param parameterA string
+module parameterModule './module.bicep' = {
+  name: 'parameterA-module'
+  params: {
+    parameterA: parameterA
+  }
+}
+output parameterA string = parameterModule.outputs.parameterA`,
+		"testa.bicep",
+		`
+using 'testa.bicep'
+param parameterA = 'Hello Bicep'`,
+		"testa.bicepparm")
+
+	e2eImpl.AddBicepTemplate(`
+param parameterA string
+output parameterA string = parameterA`,
+		"module.bicep",
+		"",
+		"")
+
+	e2eImpl.EnableDryRun()
+
+	persistAndRun(t, e2eImpl)
+
+	io, err := os.ReadFile(tmpDir + "/env.txt")
+	require.NoError(t, err)
+	require.Equal(t, string(io), "Hello Bicep\n")
+}
