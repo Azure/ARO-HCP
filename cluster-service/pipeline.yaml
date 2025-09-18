@@ -142,6 +142,10 @@ resourceGroups:
       configRef: clustersService.denyAssignments
     - name: MI_DATAPLANE_AUDIENCE_RESOURCE
       configRef: msiRp.dataPlaneAudienceResource
+    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE
+      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge
+    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE
+      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable
     - name: OCP_ACR_RESOURCE_ID
       input:
         resourceGroup: global

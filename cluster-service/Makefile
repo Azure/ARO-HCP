@@ -85,6 +85,8 @@ deploy:
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
 	  --set managedIdentitiesDataPlaneAudienceResource=${MI_DATAPLANE_AUDIENCE_RESOURCE} \
 	  --set tracing.address=${TRACING_ADDRESS} \
+	  --set csDeploymentStrategy.rollingUpdate.maxSurge=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE} \
+	  --set csDeploymentStrategy.rollingUpdate.maxUnavailable=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE} \
 	  "$${OP_HELM_SET_FLAGS[@]}"
 
 deploy-pr-env-deps:

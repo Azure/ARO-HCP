@@ -10,6 +10,8 @@ spec:
     matchLabels:
       app: clusters-service
   replicas: {{ .Values.replicas }}
+  strategy:
+    {{- .Values.csDeploymentStrategy | toYaml | nindent 4 }}
   template:
     metadata:
       labels:
