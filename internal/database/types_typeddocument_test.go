@@ -180,15 +180,15 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				},
 				&ResourceDocument{},
 				CustomerDesiredHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
+					HCPOpenShiftCluster: api.CustomerClusterProperties{
 						Version: api.VersionProfile{
 							ID: "1.2.3",
 						},
 					},
 				},
 				ServiceProviderHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
-						DNS: api.DNSProfile{
+					HCPOpenShiftCluster: api.ServiceProviderClusterProperties{
+						DNS: api.ServiceProviderDNSProfile{
 							BaseDomain: "example.com",
 						},
 					},

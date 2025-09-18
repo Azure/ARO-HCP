@@ -81,7 +81,7 @@ func TestClusterRequired(t *testing.T) {
 		{
 			name: "Cluster with identity",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -103,7 +103,7 @@ func TestClusterRequired(t *testing.T) {
 		{
 			name: "Cluster with broken identity",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -169,7 +169,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad cidrv4",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						PodCIDR: "Mmm... apple cider",
 					},
@@ -185,8 +185,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad dns_rfc1035_label",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
-					DNS: DNSProfile{
+				CustomerProperties: CustomerClusterProperties{
+					DNS: CustomerDNSProfile{
 						BaseDomainPrefix: "0badlabel",
 					},
 				},
@@ -201,7 +201,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad openshift_version",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Version: VersionProfile{
 						ID: "bad.version",
 					},
@@ -217,7 +217,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Version cannot be MAJOR.MINOR.PATCH",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Version: VersionProfile{
 						ID: "4.18.1",
 					},
@@ -233,7 +233,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad enum_outboundtype",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OutboundType: "loadJuggler",
 					},
@@ -249,8 +249,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad enum_visibility",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
-					API: APIProfile{
+				CustomerProperties: CustomerClusterProperties{
+					API: CustomerAPIProfile{
 						Visibility: "it's a secret to everybody",
 					},
 				},
@@ -279,7 +279,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad enum_clusterimageregistryprofilestate",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					ClusterImageRegistry: ClusterImageRegistryProfile{
 						State: ClusterImageRegistryProfileState("not enabled"),
 					},
@@ -295,8 +295,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Base domain prefix is too long",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
-					DNS: DNSProfile{
+				CustomerProperties: CustomerClusterProperties{
+					DNS: CustomerDNSProfile{
 						BaseDomainPrefix: "this-domain-is-too-long",
 					},
 				},
@@ -311,7 +311,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Host prefix is too small",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						HostPrefix: 22,
 					},
@@ -327,7 +327,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Host prefix is too large",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						HostPrefix: 27,
 					},
@@ -343,7 +343,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad required_unless",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Version: VersionProfile{
 						ChannelGroup: "fast",
 					},
@@ -359,7 +359,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Control plane operator name cannot be empty",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -382,7 +382,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Data plane operator name cannot be empty",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -404,7 +404,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Etcd: EtcdProfile{
 						DataEncryption: EtcdDataEncryptionProfile{
 							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -422,7 +422,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Etcd: EtcdProfile{
 						DataEncryption: EtcdDataEncryptionProfile{
 							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -441,7 +441,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Etcd: EtcdProfile{
 						DataEncryption: EtcdDataEncryptionProfile{
 							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -463,7 +463,7 @@ func TestClusterValidate(t *testing.T) {
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Etcd: EtcdProfile{
 						DataEncryption: EtcdDataEncryptionProfile{
 							KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -494,7 +494,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid channel group",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Version: VersionProfile{
 						ID:           "4.99",
 						ChannelGroup: "freshmeat",
@@ -511,7 +511,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						ServiceCIDR: "10.0.0.0/23",
 						MachineCIDR: "10.0.0.0/16",
@@ -528,7 +528,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with overlapping machine and pod CIDRs",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						PodCIDR:     "10.1.0.0/18",
 						MachineCIDR: "10.1.0.0/23",
@@ -545,7 +545,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with overlapping service and pod CIDRs",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Network: NetworkProfile{
 						PodCIDR:     "10.2.0.0/18",
 						ServiceCIDR: "10.2.0.0/24",
@@ -562,7 +562,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid managed resource group",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						ManagedResourceGroup: TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
@@ -580,7 +580,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid subnet ID",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						ManagedResourceGroup: "MRG",
 						SubnetID:             "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet",
@@ -601,7 +601,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with differently-cased identities",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -625,7 +625,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with broken identities",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -662,7 +662,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with multiple identities",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{
@@ -692,7 +692,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid data plane operator identities",
 			tweaks: &HCPOpenShiftCluster{
-				Properties: HCPOpenShiftClusterProperties{
+				CustomerProperties: CustomerClusterProperties{
 					Platform: PlatformProfile{
 						OperatorsAuthentication: OperatorsAuthenticationProfile{
 							UserAssignedIdentities: UserAssignedIdentitiesProfile{

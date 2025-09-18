@@ -112,13 +112,13 @@ func (nodePool *HCPOpenShiftClusterNodePool) NewVersioned(versionedInterface Ver
 func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if nodePool.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
+	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
 				nodePool.Properties.Version.ChannelGroup,
-				cluster.Properties.Version.ChannelGroup),
+				cluster.CustomerProperties.Version.ChannelGroup),
 			Target: "properties.version.channelGroup",
 		})
 	}
@@ -136,7 +136,7 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	// Cluster and node pool subnet IDs have already passed syntax validation so
 	// parsing should not fail. If parsing does somehow fail then skip the validation.
 
-	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	clusterSubnetResourceID, err := azcorearm.ParseResourceID(cluster.CustomerProperties.Platform.SubnetID)
 	if err != nil {
 		return nil
 	}

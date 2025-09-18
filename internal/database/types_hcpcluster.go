@@ -40,7 +40,7 @@ type CustomerDesiredHCPClusterState struct {
 	// We will eventually select specific fields which customers own and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+	HCPOpenShiftCluster api.CustomerClusterProperties `json:"clusterProperties"`
 }
 
 type ServiceProviderHCPClusterState struct {
@@ -48,7 +48,7 @@ type ServiceProviderHCPClusterState struct {
 	// We will eventually select specific fields which the service provider owns and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+	HCPOpenShiftCluster api.ServiceProviderClusterProperties `json:"clusterProperties"`
 }
 
 var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
