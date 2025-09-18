@@ -28,6 +28,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -53,9 +55,9 @@ func NewPartitionKey(subscriptionID string) azcosmos.PartitionKey {
 	return azcosmos.NewPartitionKeyString(strings.ToLower(subscriptionID))
 }
 
-type DBClientIteratorItem[T DocumentProperties] iter.Seq2[string, *T]
+type DBClientIteratorItem[T any] iter.Seq2[string, *T]
 
-type DBClientIterator[T DocumentProperties] interface {
+type DBClientIterator[T any] interface {
 	Items(ctx context.Context) DBClientIteratorItem[T]
 	GetContinuationToken() string
 	GetError() error
@@ -105,6 +107,9 @@ type DBClient interface {
 	// satisfied, will cause the function to return an azcore.ResponseError with a StatusCode
 	// of http.StatusPreconditionFailed.
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
+
+	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
+	GetHCPClusterCRUD() HCPClusterCRUD
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -189,6 +194,8 @@ type cosmosDBClient struct {
 	billing    *azcosmos.ContainerClient
 	resources  *azcosmos.ContainerClient
 	lockClient *LockClient
+
+	hcpClusterCRUD HCPClusterCRUD
 }
 
 // NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
@@ -219,6 +226,10 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 		billing:    billing,
 		resources:  resources,
 		lockClient: lockClient,
+
+		hcpClusterCRUD: &hcpClusterCRUD{
+			topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[HCPCluster](resources, api.ClusterResourceType),
+		},
 	}, nil
 }
 
@@ -674,6 +685,10 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 	pager := d.resources.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &opt)
 
 	return newQueryItemsIterator[arm.Subscription](pager)
+}
+
+func (d *cosmosDBClient) GetHCPClusterCRUD() HCPClusterCRUD {
+	return d.hcpClusterCRUD
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

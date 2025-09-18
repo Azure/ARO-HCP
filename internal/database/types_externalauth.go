@@ -15,6 +15,8 @@
 package database
 
 import (
+	"fmt"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -23,6 +25,8 @@ type ExternalAuth struct {
 
 	ExternalAuthProperties `json:"properties"`
 }
+
+var _ ResourceProperties = &ExternalAuth{}
 
 type ExternalAuthProperties struct {
 	ResourceDocument `json:",inline"`
@@ -46,6 +50,21 @@ type ServiceProviderExternalAuthState struct {
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
 	ExternalAuth api.HCPOpenShiftClusterExternalAuthProperties `json:"externalAuthProperties"`
+}
+
+func (o *ExternalAuth) ValidateResourceType() error {
+	if o.ResourceType != api.ExternalAuthResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *ExternalAuth) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterExternalAuthState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
