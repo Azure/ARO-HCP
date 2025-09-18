@@ -337,9 +337,9 @@ func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, 
 }
 
 // GetHCPClusterCRUD mocks base method.
-func (m *MockDBClient) GetHCPClusterCRUD() database.HCPClusterCRUD {
+func (m *MockDBClient) HCPClusters() database.HCPClusterCRUD {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHCPClusterCRUD")
+	ret := m.ctrl.Call(m, "HCPClusters")
 	ret0, _ := ret[0].(database.HCPClusterCRUD)
 	return ret0
 }
@@ -347,7 +347,7 @@ func (m *MockDBClient) GetHCPClusterCRUD() database.HCPClusterCRUD {
 // GetHCPClusterCRUD indicates an expected call of GetHCPClusterCRUD.
 func (mr *MockDBClientMockRecorder) GetHCPClusterCRUD() *MockDBClientGetHCPClusterCRUDCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHCPClusterCRUD", reflect.TypeOf((*MockDBClient)(nil).GetHCPClusterCRUD))
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HCPClusters", reflect.TypeOf((*MockDBClient)(nil).HCPClusters))
 	return &MockDBClientGetHCPClusterCRUDCall{Call: call}
 }
 
