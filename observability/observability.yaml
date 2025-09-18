@@ -37,3 +37,5 @@ grafana-dashboards:
     path: ../cluster-service/grafana-dashboards
   - name: Maestro
     path: ../maestro/grafana-dashboards
+  - name: Performance & Scale
+    path: perfscale-dashboards
