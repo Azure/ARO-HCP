@@ -225,7 +225,7 @@ var _ = Describe("Customer", func() {
 			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
+			// MSGraph is eventually consistent, wait up to 5 minutes for the token to be valid
 			var accessToken azcore.AccessToken
 			Eventually(func() error {
 				var err error
@@ -237,7 +237,7 @@ var _ = Describe("Customer", func() {
 					GinkgoWriter.Printf("GetToken failed: %v\n", err)
 				}
 				return err
-			}, 2*time.Minute, 10*time.Second).Should(Succeed())
+			}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 			config := &rest.Config{
 				Host:        adminRESTConfig.Host,
