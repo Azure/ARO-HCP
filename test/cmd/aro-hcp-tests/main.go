@@ -71,7 +71,7 @@ func main() {
 	})
 
 	ext.AddSuite(e.Suite{
-		Name: "per-run-cluster-tests/parallel",
+		Name: "happypath/parallel",
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.RequireHappyPathInfra[0]),
@@ -80,7 +80,7 @@ func main() {
 	})
 
 	ext.AddSuite(e.Suite{
-		Name: "per-run-cluster-validation/parallel",
+		Name: "teardown-validation/parallel",
 		Qualifiers: []string{
 			// Remember that the label constants are (currently) slices, not items.
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.TeardownValidation[0]),
