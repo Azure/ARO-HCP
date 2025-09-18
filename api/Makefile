@@ -27,6 +27,11 @@ models: $(GOIMPORTS)
 	rm --force ${AUTOREST_OUTPUT_DIR}/options.go
 	rm --force ${AUTOREST_OUTPUT_DIR}/responses.go
 
+.PHONY: testsdk
+testsdk: $(GOIMPORTS)
+	VERSION=${VERSION} npm run testsdk
+	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../test/sdk
+
 .PHONY: fmt
 fmt:
 	npm run format

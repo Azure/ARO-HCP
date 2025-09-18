@@ -15,7 +15,8 @@
     "format": "tsp format \"**/*.tsp\"",
     "format-check": "tsp format --check \"**/*.tsp\"",
     "compile": "tsp compile redhatopenshift/HcpCluster.Management --warn-as-error",
-    "models": "autorest readme.md --verbose --tag=${VERSION}"
+    "models": "autorest readme.md --verbose --tag=${VERSION}",
+    "testsdk": "autorest testsdk.md --verbose --tag=${VERSION}"
   },
   "devDependencies": {
     "@typespec/compiler": "^1.2.1",
