@@ -272,6 +272,11 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 						variable: specificStep.ShellIdentity,
 						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].shellIdentity", i, j),
 					})
+					if specificStep.WorkingDir != "" {
+						if !filepath.IsLocal(specificStep.WorkingDir) {
+							return fmt.Errorf("%s: resourceGroups[%d].steps[%d].workingDir: the working directory must be a sub-directory under the pipeline directory, found %s", service.ServiceGroup, i, j, specificStep.WorkingDir)
+						}
+					}
 				case "ARM":
 					specificStep, ok := step.(*types.ARMStep)
 					if !ok {

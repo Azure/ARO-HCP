@@ -236,7 +236,8 @@ resourceGroups:
   - name: istio-upgrade
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: scripts/istio.sh
+    command: ./istio.sh
+    workingDir: ./scripts
     variables:
     - name: TARGET_VERSION
       configRef: svc.istio.targetVersion
