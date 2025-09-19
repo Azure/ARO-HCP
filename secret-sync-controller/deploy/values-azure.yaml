@@ -1,6 +1,7 @@
+image: '{{ .acr.svc.name }}.azurecr.io/{{ .secretSyncController.image.repository }}@{{ .secretSyncController.image.digest }}'
 providerContainer:
 - name: provider-azure-installer
-  image: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+  image: '{{ .secretSyncController.providerImage }}'
   imagePullPolicy: IfNotPresent
   args:
   - --endpoint=unix:///provider/azure.sock
