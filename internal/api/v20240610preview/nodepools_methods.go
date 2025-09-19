@@ -95,8 +95,14 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 		}
 		out.Properties.Labels = make(map[string]string)
 		for _, v := range h.Properties.Labels {
-			if v != nil {
-				out.Properties.Labels[*v.Key] = *v.Value
+			if v != nil && v.Key != nil {
+				var value string
+
+				if v.Value != nil {
+					value = *v.Value
+				}
+
+				out.Properties.Labels[*v.Key] = value
 			}
 		}
 		out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))

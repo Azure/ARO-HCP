@@ -550,9 +550,8 @@ model Taint {
   /** The value of the taint
    * @example true
    */
-  @minLength(1)
   @maxLength(63)
-  value: string;
+  value?: string;
 
   /** The effect of the taint
    * @example NoSchedule

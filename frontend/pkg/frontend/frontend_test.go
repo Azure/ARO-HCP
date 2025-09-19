@@ -412,14 +412,14 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 					"taints": []map[string]any{
 						{
-							// 1 invalid + 2 missing required fields
+							// 1 invalid + 1 missing required fields
 							"effect": "NoTouchy",
 						},
 					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 5,
+			expectErrors: 4,
 		},
 	}
 
