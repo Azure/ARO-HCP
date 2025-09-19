@@ -214,7 +214,7 @@ func TestCreateNodePool(t *testing.T) {
 			// CreateOrUpdateNodePool
 			nodePoolItemID := uuid.New().String()
 			mockDBTransaction.EXPECT().
-				CreateResourceDoc(test.nodePoolDoc, database.RemoveAllState, nil).
+				CreateResourceDoc(test.nodePoolDoc, gomock.Any() /*functions aren't self-comparable*/, nil).
 				Return(nodePoolItemID)
 			// CreateOrUpdateNodePool
 			mockDBTransaction.EXPECT().
