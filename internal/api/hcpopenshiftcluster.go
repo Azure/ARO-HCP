@@ -35,7 +35,7 @@ type HCPOpenShiftCluster struct {
 type HCPOpenShiftClusterProperties struct {
 	ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
 	Version                 VersionProfile              `json:"version,omitempty"`
-	DNS                     DNSProfile                  `json:"dns,omitempty"`
+	NewDNS                  DNSProfile                  `json:"newDNS,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
 	Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
 	API                     APIProfile                  `json:"api,omitempty"`

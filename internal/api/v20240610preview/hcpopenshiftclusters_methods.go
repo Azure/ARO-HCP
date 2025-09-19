@@ -221,7 +221,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
 				Version:                 api.PtrOrNil(newVersionProfile(&from.Properties.Version)),
-				DNS:                     api.PtrOrNil(newDNSProfile(&from.Properties.DNS)),
+				DNS:                     api.PtrOrNil(newDNSProfile(&from.Properties.NewDNS)),
 				Network:                 api.PtrOrNil(newNetworkProfile(&from.Properties.Network)),
 				Console:                 api.PtrOrNil(newConsoleProfile(&from.Properties.Console)),
 				API:                     api.PtrOrNil(newAPIProfile(&from.Properties.API)),
@@ -304,7 +304,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 				normalizeVersion(c.Properties.Version, &out.Properties.Version)
 			}
 			if c.Properties.DNS != nil {
-				normailzeDNS(c.Properties.DNS, &out.Properties.DNS)
+				normailzeDNS(c.Properties.DNS, &out.Properties.NewDNS)
 			}
 			if c.Properties.Network != nil {
 				normalizeNetwork(c.Properties.Network, &out.Properties.Network)
