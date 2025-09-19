@@ -520,7 +520,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 			// values that are determined downstream of this phase of
 			// request processing. To ensure idempotency, add these
 			// values to the target struct for the incoming request.
-			reqCluster.Properties.Version.ID = hcpCluster.Properties.Version.ID
+			reqCluster.Properties.NewVersion.ID = hcpCluster.Properties.NewVersion.ID
 			reqCluster.Properties.DNS.BaseDomainPrefix = hcpCluster.Properties.DNS.BaseDomainPrefix
 			reqCluster.Properties.Platform.ManagedResourceGroup = hcpCluster.Properties.Platform.ManagedResourceGroup
 

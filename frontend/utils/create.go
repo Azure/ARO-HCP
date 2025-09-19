@@ -60,8 +60,8 @@ func main() {
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
 		Properties: api.HCPOpenShiftClusterProperties{
-			Version: api.VersionProfile{
-				ChannelGroup: "stable",
+			NewVersion: api.VersionProfile{
+				OtherChannelGroup: "stable",
 			},
 			DNS: api.DNSProfile{},
 			Network: api.NetworkProfile{

@@ -112,13 +112,13 @@ func (nodePool *HCPOpenShiftClusterNodePool) NewVersioned(versionedInterface Ver
 func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if nodePool.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
+	if nodePool.Properties.Version.ChannelGroup != cluster.Properties.NewVersion.OtherChannelGroup {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
 				nodePool.Properties.Version.ChannelGroup,
-				cluster.Properties.Version.ChannelGroup),
+				cluster.Properties.NewVersion.OtherChannelGroup),
 			Target: "properties.version.channelGroup",
 		})
 	}

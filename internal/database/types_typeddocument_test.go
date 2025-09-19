@@ -181,7 +181,7 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				&ResourceDocument{},
 				CustomerDesiredHCPClusterState{
 					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
-						Version: api.VersionProfile{
+						NewVersion: api.VersionProfile{
 							ID: "1.2.3",
 						},
 					},

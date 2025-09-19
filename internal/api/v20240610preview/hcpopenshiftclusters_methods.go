@@ -32,7 +32,7 @@ func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
 	}
 	return generated.VersionProfile{
 		ID:           api.PtrOrNil(from.ID),
-		ChannelGroup: api.PtrOrNil(from.ChannelGroup),
+		ChannelGroup: api.PtrOrNil(from.OtherChannelGroup),
 	}
 }
 
@@ -220,7 +220,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
 				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Version:                 api.PtrOrNil(newVersionProfile(&from.Properties.Version)),
+				Version:                 api.PtrOrNil(newVersionProfile(&from.Properties.NewVersion)),
 				DNS:                     api.PtrOrNil(newDNSProfile(&from.Properties.DNS)),
 				Network:                 api.PtrOrNil(newNetworkProfile(&from.Properties.Network)),
 				Console:                 api.PtrOrNil(newConsoleProfile(&from.Properties.Console)),
@@ -301,7 +301,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 		}
 		if c.Properties != nil {
 			if c.Properties.Version != nil {
-				normalizeVersion(c.Properties.Version, &out.Properties.Version)
+				normalizeVersion(c.Properties.Version, &out.Properties.NewVersion)
 			}
 			if c.Properties.DNS != nil {
 				normailzeDNS(c.Properties.DNS, &out.Properties.DNS)
@@ -349,7 +349,7 @@ func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 		out.ID = *p.ID
 	}
 	if p.ChannelGroup != nil {
-		out.ChannelGroup = *p.ChannelGroup
+		out.OtherChannelGroup = *p.ChannelGroup
 	}
 }
 

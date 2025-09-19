@@ -34,7 +34,7 @@ type HCPOpenShiftCluster struct {
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterProperties struct {
 	ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
-	Version                 VersionProfile              `json:"version,omitempty"`
+	NewVersion              VersionProfile              `json:"newversion,omitempty"`
 	DNS                     DNSProfile                  `json:"dns,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
 	Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
@@ -48,8 +48,8 @@ type HCPOpenShiftClusterProperties struct {
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
-	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	ID                string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	OtherChannelGroup string `json:"otherChannelGroup,omitempty" visibility:"read create update"`
 }
 
 // DNSProfile represents the DNS configuration of the cluster.
@@ -77,7 +77,7 @@ type ConsoleProfile struct {
 // APIProfile represents a cluster API server configuration.
 type APIProfile struct {
 	URL             string     `json:"url,omitempty"             visibility:"read"`
-	Visibility      Visibility `json:"visibility,omitempty"      visibility:"read create"        validate:"enum_visibility"`
+	Visibility      Visibility `json:"visibility,omitempty" visibility:"read create" validate:"enum_visibility"`
 	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty" visibility:"read create update" validate:"max=500,dive,ipv4|cidrv4"`
 }
 
@@ -170,8 +170,8 @@ func NewDefaultHCPOpenShiftCluster() *HCPOpenShiftCluster {
 			Location: arm.GetAzureLocation(),
 		},
 		Properties: HCPOpenShiftClusterProperties{
-			Version: VersionProfile{
-				ChannelGroup: "stable",
+			NewVersion: VersionProfile{
+				OtherChannelGroup: "stable",
 			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
@@ -211,13 +211,13 @@ func (cluster *HCPOpenShiftCluster) NewVersioned(versionedInterface Version) Ver
 func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if cluster.Properties.Version.ID != "" {
+	if cluster.Properties.NewVersion.ID != "" {
 		// The version ID has already passed syntax validation so we know
 		// it's a valid semantic version.
-		if len(strings.SplitN(cluster.Properties.Version.ID, ".", 3)) > 2 {
+		if len(strings.SplitN(cluster.Properties.NewVersion.ID, ".", 3)) > 2 {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: fmt.Sprintf("Invalid value '%s' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)", cluster.Properties.Version.ID),
+				Message: fmt.Sprintf("Invalid value '%s' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)", cluster.Properties.NewVersion.ID),
 				Target:  "properties.version.id",
 			})
 		}
@@ -226,7 +226,7 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	// XXX For now, "stable" is the only accepted value. In the future, we may
 	//     allow unlocking other channel groups through Azure Feature Exposure
 	//     Control (AFEC) flags or some other mechanism.
-	if cluster.Properties.Version.ChannelGroup != "stable" {
+	if cluster.Properties.NewVersion.OtherChannelGroup != "stable" {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
 			Message: "Channel group must be 'stable'",

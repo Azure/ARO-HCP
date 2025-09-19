@@ -18,6 +18,10 @@ import (
 	"testing"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/ptr"
 )
 
 func TestClusterVisibilityMap(t *testing.T) {
@@ -220,4 +224,67 @@ func TestExternalAuthNullPatch(t *testing.T) {
 	api.TestVersionedNullPatch(t, func() api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] {
 		return versionedInterface.NewHCPOpenShiftClusterExternalAuth(api.MinimumValidExternalAuthTestCase())
 	})
+}
+
+func TestValidateVersionedHCPOpenShiftCluster(t *testing.T) {
+	//versionedInterface := version{}
+
+	type args struct {
+		oldCluster func() api.VersionedHCPOpenShiftCluster
+		newCluster func() api.VersionedHCPOpenShiftCluster
+		updating   bool
+	}
+	tests := []struct {
+		name string
+		args args
+		want *arm.CloudError
+	}{
+		{
+			name: "BUG nullable accidentally allowed",
+			args: args{
+				oldCluster: func() api.VersionedHCPOpenShiftCluster {
+					ret := versionedInterface.NewHCPOpenShiftCluster(nil).(*HcpOpenShiftCluster)
+					ret.Properties = &generated.HcpOpenShiftClusterProperties{
+						Version: &generated.VersionProfile{ChannelGroup: ptr.To("old-value")},
+					}
+					return ret
+				},
+				newCluster: func() api.VersionedHCPOpenShiftCluster {
+					ret := versionedInterface.NewHCPOpenShiftCluster(nil).(*HcpOpenShiftCluster)
+					ret.Properties = &generated.HcpOpenShiftClusterProperties{
+						Version: &generated.VersionProfile{ChannelGroup: nil},
+					}
+					return ret
+				},
+				updating: true,
+			},
+			want: nil,
+		},
+		{
+			name: "BUG valid update rejected, but only by accident: debug into `else if vv.updating && !flags.CanUpdate()` hitting default case",
+			args: args{
+				oldCluster: func() api.VersionedHCPOpenShiftCluster {
+					ret := versionedInterface.NewHCPOpenShiftCluster(nil).(*HcpOpenShiftCluster)
+					ret.Properties = &generated.HcpOpenShiftClusterProperties{
+						Version: &generated.VersionProfile{ChannelGroup: ptr.To("old-value")},
+					}
+					return ret
+				},
+				newCluster: func() api.VersionedHCPOpenShiftCluster {
+					ret := versionedInterface.NewHCPOpenShiftCluster(nil).(*HcpOpenShiftCluster)
+					ret.Properties = &generated.HcpOpenShiftClusterProperties{
+						Version: &generated.VersionProfile{ChannelGroup: ptr.To("new-value")},
+					}
+					return ret
+				},
+				updating: true,
+			},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, api.ValidateVersionedHCPOpenShiftCluster(tt.args.newCluster(), tt.args.oldCluster(), tt.args.updating), "ValidateVersionedHCPOpenShiftCluster(%v, %v, %v)", tt.args.newCluster, tt.args.oldCluster, tt.args.updating)
+		})
+	}
 }
