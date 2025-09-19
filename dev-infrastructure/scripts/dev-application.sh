@@ -2,6 +2,9 @@
 
 # This script can be used to spin up a standalone dev application which will be used as a 'mock first party application'.
 # This is required due to the lack of the ability to have a first party app be used in the dev tenant
+#
+# This script uses a dedicated Azure CLI config directory (mock-fpa-azure-config) to avoid interfering
+# with the user's existing Azure CLI configuration.
 
 LOCATION=${LOCATION:-"westus3"}
 UNIQUE_PREFIX=${UNIQUE_PREFIX:-"HCP-$USER-$LOCATION"}
@@ -30,28 +33,27 @@ AH_CERTIFICATE_NAME=${ARO_HCP_DEV_AH_CERTIFICATE_NAME:-"$UNIQUE_PREFIX-ah-cert"}
 
 # See https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
 AZURE_BUILTIN_ROLE_OWNER="8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+AZURE_BUILTIN_ROLE_CONTRIBUTOR="b24988ac-6180-42a0-ab88-20f7382dd24c"
+
+# Get script directory and source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/mock-fpa-common.sh"
+
+# Set up Azure config directory and file paths for mock FPA operations
+initialAzureConfigSetup "$SCRIPT_DIR"
 
 printEnv() {
-    echo "LOCATION: $LOCATION"
-    echo "RESOURCE_GROUP: $RESOURCE_GROUP"
-    echo "SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
-    echo "KEY_VAULT_NAME: $KEY_VAULT_NAME"
-    echo "FP_APPLICATION_NAME: $FP_APPLICATION_NAME"
-    echo "FP_CERTIFICATE_NAME: $FP_CERTIFICATE_NAME"
-    echo "AH_APPLICATION_NAME: $AH_APPLICATION_NAME"
-    echo "AH_CERTIFICATE_NAME: $AH_CERTIFICATE_NAME"
+    printMockFpaEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
+        "$FP_APPLICATION_NAME" "$FP_CERTIFICATE_NAME" "$AH_APPLICATION_NAME" "$AH_CERTIFICATE_NAME"
 }
 
 shellEnv() {
     # Calling shell can "eval" this output.
-    echo "LOCATION=\"$LOCATION\"; export LOCATION"
-    echo "RESOURCE_GROUP=\"$RESOURCE_GROUP\"; export RESOURCE_GROUP"
-    echo "SUBSCRIPTION_ID=\"$SUBSCRIPTION_ID\"; export SUBSCRIPTION_ID"
-    echo "ARO_HCP_DEV_KEY_VAULT_NAME=\"$KEY_VAULT_NAME\"; export ARO_HCP_DEV_KEY_VAULT_NAME"
-    echo "ARO_HCP_DEV_FP_APPLICATION_NAME=\"$FP_APPLICATION_NAME\"; export ARO_HCP_DEV_FP_APPLICATION_NAME"
-    echo "ARO_HCP_DEV_FP_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_FP_CERTIFICATE_NAME"
-    echo "ARO_HCP_DEV_AH_APPLICATION_NAME=\"$AH_APPLICATION_NAME\"; export ARO_HCP_DEV_AH_APPLICATION_NAME"
-    echo "ARO_HCP_DEV_AH_CERTIFICATE_NAME=\"$FP_CERTIFICATE_NAME\"; export ARO_HCP_DEV_AH_CERTIFICATE_NAME"
+    exportMockFpaShellEnv "$LOCATION" "$RESOURCE_GROUP" "$SUBSCRIPTION_ID" "$KEY_VAULT_NAME" \
+        "$FP_APPLICATION_NAME" "$FP_CERTIFICATE_NAME" "$AH_APPLICATION_NAME" "$AH_CERTIFICATE_NAME"
+
+    # Export the original Azure config directory for test scripts
+    echo "ORIGINAL_AZURE_CONFIG_DIR=\"$ORIGINAL_AZURE_CONFIG_DIR\"; export ORIGINAL_AZURE_CONFIG_DIR"
 }
 
 createServicePrincipal() {
@@ -59,10 +61,44 @@ createServicePrincipal() {
     CERTIFICATE_NAME=$2
     ROLE_DEFINITION_NAME=$3
 
+    # Check if application already exists
+    appExists=$(az ad app list --display-name "$APPLICATION_NAME" --query "[0].appId" -o tsv)
+    if [ -n "$appExists" ]; then
+        echo "Application $APPLICATION_NAME already exists (App ID: $appExists)"
+
+        # Check if service principal exists
+        spExists=$(az ad sp list --display-name "$APPLICATION_NAME" --query "[0].id" -o tsv)
+        if [ -n "$spExists" ]; then
+            echo "Service principal for $APPLICATION_NAME already exists"
+        else
+            echo "Creating service principal for existing application $APPLICATION_NAME"
+            az ad sp create --id "$appExists"
+        fi
+
+        # Check role assignment
+        roleAssignmentExists=$(az role assignment list \
+            --assignee "$appExists" \
+            --role "$ROLE_DEFINITION_NAME" \
+            --scope "/subscriptions/$SUBSCRIPTION_ID" \
+            --query "[0].id" -o tsv)
+
+        if [ -n "$roleAssignmentExists" ]; then
+            echo "Role assignment for $APPLICATION_NAME already exists"
+        else
+            echo "Creating role assignment for $APPLICATION_NAME"
+            az role assignment create \
+                --assignee "$appExists" \
+                --role "$ROLE_DEFINITION_NAME" \
+                --scope "/subscriptions/$SUBSCRIPTION_ID"
+        fi
+
+        return
+    fi
+
+    # Check if certificate exists
     certExists=$(az keyvault certificate list --vault-name $KEY_VAULT_NAME --query "[?name=='$CERTIFICATE_NAME'].name" -o tsv)
     if [ -n "$certExists" ]; then
         echo "Certificate $CERTIFICATE_NAME already exists"
-        exit 1
     else
         echo "Creating certificate $CERTIFICATE_NAME"
         az keyvault certificate create \
@@ -80,51 +116,117 @@ createServicePrincipal() {
     --scopes "/subscriptions/$SUBSCRIPTION_ID"
 }
 
+deployMockFpaPolicies() {
+    echo "Deploying mock FPA restriction policies"
+
+    # Get the application ID of the mock FPA
+    mockFpaAppId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
+
+    if [ -z "$mockFpaAppId" ]; then
+        echo "Error: Could not find application ID for $FP_APPLICATION_NAME"
+        exit 1
+    fi
+
+    echo "Checking policies for mock FPA with app ID: $mockFpaAppId"
+
+    # Check if policy definitions already exist
+    denyPolicyExists=$(az policy definition show --name "deny-mock-fpa-dangerous-ops-$USER" --query "name" -o tsv 2>/dev/null)
+    allowPolicyExists=$(az policy definition show --name "allow-mock-fpa-required-network-ops-$USER" --query "name" -o tsv 2>/dev/null)
+
+    # Check if policy assignments already exist
+    denyAssignmentExists=$(az policy assignment show --name "deny-mock-fpa-dangerous-ops-$USER" --query "name" -o tsv 2>/dev/null)
+    allowAssignmentExists=$(az policy assignment show --name "allow-mock-fpa-network-ops-$USER" --query "name" -o tsv 2>/dev/null)
+
+    if [ -n "$denyPolicyExists" ] && [ -n "$allowPolicyExists" ] && [ -n "$denyAssignmentExists" ] && [ -n "$allowAssignmentExists" ]; then
+        echo "Mock FPA restriction policies already exist and are assigned"
+        return
+    fi
+
+    echo "Deploying/updating policies for mock FPA"
+
+    # Deploy the Bicep template at subscription scope
+    az deployment sub create \
+        --location "$LOCATION" \
+        --template-file "$(dirname "$0")/../modules/policy/mock-fpa-restrictions.bicep" \
+        --parameters \
+            mockFpaAppId="$mockFpaAppId" \
+            environment="$USER" \
+            enforcementEnabled=true
+}
+
+deleteMockFpaPolicies() {
+    echo "Deleting mock FPA restriction policies"
+
+    # Delete policy assignments first
+    az policy assignment delete --name "deny-mock-fpa-dangerous-ops-$USER" 2>/dev/null || echo "Policy assignment deny-mock-fpa-dangerous-ops-$USER not found or already deleted"
+    az policy assignment delete --name "allow-mock-fpa-network-ops-$USER" 2>/dev/null || echo "Policy assignment allow-mock-fpa-network-ops-$USER not found or already deleted"
+
+    # Delete policy definitions
+    az policy definition delete --name "deny-mock-fpa-dangerous-ops-$USER" 2>/dev/null || echo "Policy definition deny-mock-fpa-dangerous-ops-$USER not found or already deleted"
+    az policy definition delete --name "allow-mock-fpa-required-network-ops-$USER" 2>/dev/null || echo "Policy definition allow-mock-fpa-required-network-ops-$USER not found or already deleted"
+}
+
 createApps() {
-    echo "Creating standalone dev applications with the following ENV:"
+    echo "Creating standalone dev applications with the following ENV (idempotent):"
     printEnv
     if ! [ -x "$(command -v jq)" ]; then
         echo "jq is required to run this script"
         exit 1
     fi
 
-    echo "Creating resource group $RESOURCE_GROUP"
-    az group create \
-    --name "$RESOURCE_GROUP" \
-    --location "$LOCATION"
-
-    echo "Creating keyvault $KEY_VAULT_NAME"
-    az keyvault create \
-    --location "$LOCATION" \
-    --name "$KEY_VAULT_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --enable-rbac-authorization false
-
-    # Create a custom role defintion if it doesn't exist already
-    echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
-    roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
-
-    if [ -n "$roleExists" ]; then
-        echo "Role definition $FP_ROLE_DEFINITION_NAME already exists"
+    # Check if resource group exists
+    if az group show --name "$RESOURCE_GROUP" &>/dev/null; then
+        echo "Resource group $RESOURCE_GROUP already exists"
     else
-        # add assignable scope to the custom role with the current subscription
-        roleDef=$(jq ".AssignableScopes = [\"/subscriptions/$SUBSCRIPTION_ID\"]" mock-dev-role-definition.json)
-        echo $roleDef >> temp.json
-        roleDef=$(jq ".Name = \"$FP_ROLE_DEFINITION_NAME\"" temp.json)
-        rm temp.json
-
-        echo "Creating role definition $FP_ROLE_DEFINITION_NAME"
-        echo "$roleDef"
-        az role definition create --role-definition "$roleDef"
-        while [ -z "$roleExists" ]; do
-            roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
-            echo "Waiting for role definition to be created..."
-            sleep 5
-        done
+        echo "Creating resource group $RESOURCE_GROUP"
+        az group create \
+        --name "$RESOURCE_GROUP" \
+        --location "$LOCATION"
     fi
 
-    createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $FP_ROLE_DEFINITION_NAME
+    # Check if key vault exists
+    if az keyvault show --name "$KEY_VAULT_NAME" &>/dev/null; then
+        echo "Key vault $KEY_VAULT_NAME already exists"
+    else
+        echo "Creating keyvault $KEY_VAULT_NAME"
+        az keyvault create \
+        --location "$LOCATION" \
+        --name "$KEY_VAULT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --enable-rbac-authorization false
+    fi
+
+    # NOTE: Using built-in Contributor role instead of custom role to support check access APIs
+    # Custom role creation is commented out as we now use AZURE_BUILTIN_ROLE_CONTRIBUTOR
+    #
+    # # Create a custom role defintion if it doesn't exist already
+    # echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
+    # roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+    #
+    # if [ -n "$roleExists" ]; then
+    #     echo "Role definition $FP_ROLE_DEFINITION_NAME already exists"
+    # else
+    #     # add assignable scope to the custom role with the current subscription
+    #     roleDef=$(jq ".AssignableScopes = [\"/subscriptions/$SUBSCRIPTION_ID\"]" mock-dev-role-definition.json)
+    #     echo $roleDef >> temp.json
+    #     roleDef=$(jq ".Name = \"$FP_ROLE_DEFINITION_NAME\"" temp.json)
+    #     rm temp.json
+    #
+    #     echo "Creating role definition $FP_ROLE_DEFINITION_NAME"
+    #     echo "$roleDef"
+    #     az role definition create --role-definition "$roleDef"
+    #     while [ -z "$roleExists" ]; do
+    #         roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
+    #         echo "Waiting for role definition to be created..."
+    #         sleep 5
+    #     done
+    # fi
+
+    createServicePrincipal $FP_APPLICATION_NAME $FP_CERTIFICATE_NAME $AZURE_BUILTIN_ROLE_CONTRIBUTOR
     createServicePrincipal $AH_APPLICATION_NAME $AH_CERTIFICATE_NAME $AZURE_BUILTIN_ROLE_OWNER
+
+    # Deploy restriction policies for the mock FPA
+    deployMockFpaPolicies
 }
 
 deleteServicePrincipalAndApp() {
@@ -147,14 +249,17 @@ deleteApps() {
     echo "Deleting standalone dev applications with the following ENV:"
     printEnv
 
+    # Delete mock FPA restriction policies first
+    deleteMockFpaPolicies
+
     echo "Deleting all role assignments with role $FP_ROLE_DEFINITION_NAME"
-    az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {}
+    az role assignment list --role "$FP_ROLE_DEFINITION_NAME" --query "[].id" -o tsv | xargs -I {} az role assignment delete --ids {} 2>/dev/null || echo "No role assignments found for $FP_ROLE_DEFINITION_NAME"
 
     deleteServicePrincipalAndApp $FP_APPLICATION_NAME
     deleteServicePrincipalAndApp $AH_APPLICATION_NAME
 
     echo "Deleting role definition $FP_ROLE_DEFINITION_NAME"
-    az role definition delete --name "$FP_ROLE_DEFINITION_NAME"
+    az role definition delete --name "$FP_ROLE_DEFINITION_NAME" 2>/dev/null || echo "Role definition $FP_ROLE_DEFINITION_NAME not found or already deleted"
 
     echo "Deleting keyvault $KEY_VAULT_NAME in resource group $RESOURCE_GROUP"
     az keyvault delete --name "$KEY_VAULT_NAME" --resource-group "$RESOURCE_GROUP"
@@ -166,42 +271,43 @@ deleteApps() {
     az group delete --name "$RESOURCE_GROUP" --yes
 }
 
-loginWithMockServicePrincipal() {
-    az keyvault secret download \
-    --name "$FP_CERTIFICATE_NAME" \
-    --vault-name "$KEY_VAULT_NAME" \
-    --encoding base64 \
-    --file app.pfx
-
-    openssl pkcs12 \
-    -in app.pfx \
-    -passin pass: \
-    -out app.pem \
-    -nodes
-
-    appId=$(az ad app list --display-name "$FP_APPLICATION_NAME" --query "[0].appId" -o tsv)
-    tenantId=$(az account show --query tenantId -o tsv)
-
-    az login --service-principal -u "$appId" -p app.pem --tenant "$tenantId"
-
-    rm app.pfx app.pem
-}
+# Use shared functions for service principal operations
 
 case "$1" in
     "create")
+        # Ensure we're using developer config for administrative operations
+        useDeveloperConfig
         createApps
     ;;
     "delete")
+        # Ensure we're using developer config for administrative operations
+        useDeveloperConfig
         deleteApps
     ;;
     "login")
-        loginWithMockServicePrincipal
+        # Login function handles its own context switching
+        loginWithMockServicePrincipal "$FP_CERTIFICATE_NAME" "$KEY_VAULT_NAME" "$FP_APPLICATION_NAME"
     ;;
     "shell")
         shellEnv
     ;;
+    "deploy-policies")
+        # Ensure we're using developer config for policy operations
+        useDeveloperConfig
+        deployMockFpaPolicies
+    ;;
+    "delete-policies")
+        # Ensure we're using developer config for policy operations
+        useDeveloperConfig
+        deleteMockFpaPolicies
+    ;;
+    "cleanup")
+        # Cleanup operates on mock FPA certificate files
+        useMockFpaConfig
+        cleanupMockFpaCertificateFiles
+    ;;
     *)
-        echo "Usage: $0 {create|delete|login|shell}"
+        echo "Usage: $0 {create|delete|login|shell|deploy-policies|delete-policies|cleanup}"
         exit 1
     ;;
 esac
