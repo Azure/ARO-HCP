@@ -40,6 +40,7 @@ type HCPOpenShiftClusterProperties struct {
 	Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
 	API                     APIProfile                  `json:"api,omitempty"`
 	Platform                PlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+	Proxy                   ProxyProfile                `json:"proxy,omitempty"                   visibility:"read create update"`
 	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
@@ -152,6 +153,15 @@ type UserAssignedIdentitiesProfile struct {
 	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+}
+
+// ProxyProfile represents the cluster-wide proxy configuration.
+// Visibility for the entire struct is "read create update".
+type ProxyProfile struct {
+	HTTPProxy  string   `json:"httpProxy,omitempty"  validate:"omitempty,url,startswith=http:"`
+	HTTPSProxy string   `json:"httpsProxy,omitempty" validate:"omitempty,url"`
+	NoProxy    []string `json:"noProxy,omitempty"    validate:"omitempty,excluded_without_all=HTTPProxy HTTPSProxy,dive,notblank"`
+	TrustedCA  string   `json:"trustedCa,omitempty"  validate:"omitempty,pem_certificates"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
