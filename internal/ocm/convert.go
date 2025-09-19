@@ -322,9 +322,9 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			Location: arm.GetAzureLocation(),
 		},
 		Properties: api.HCPOpenShiftClusterProperties{
-			Version: api.VersionProfile{
-				ID:           NewOpenShiftVersionXY(cluster.Version().ID()),
-				ChannelGroup: cluster.Version().ChannelGroup(),
+			NewVersion: api.VersionProfile{
+				ID:                NewOpenShiftVersionXY(cluster.Version().ID()),
+				OtherChannelGroup: cluster.Version().ChannelGroup(),
 			},
 			DNS: api.DNSProfile{
 				BaseDomain:       cluster.DNS().BaseDomain(),
@@ -492,8 +492,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)).
-			ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
+			ID(NewOpenShiftVersionXYZ(hcpCluster.Properties.NewVersion.ID)).
+			ChannelGroup(hcpCluster.Properties.NewVersion.OtherChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.Properties.Network.NetworkType)).
 			PodCIDR(hcpCluster.Properties.Network.PodCIDR).

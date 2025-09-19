@@ -202,7 +202,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Bad openshift_version",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
-					Version: VersionProfile{
+					NewVersion: VersionProfile{
 						ID: "bad.version",
 					},
 				},
@@ -218,7 +218,7 @@ func TestClusterValidate(t *testing.T) {
 			name: "Version cannot be MAJOR.MINOR.PATCH",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
-					Version: VersionProfile{
+					NewVersion: VersionProfile{
 						ID: "4.18.1",
 					},
 				},
@@ -344,8 +344,8 @@ func TestClusterValidate(t *testing.T) {
 			name: "Bad required_unless",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
-					Version: VersionProfile{
-						ChannelGroup: "fast",
+					NewVersion: VersionProfile{
+						OtherChannelGroup: "fast",
 					},
 				},
 			},
@@ -495,9 +495,9 @@ func TestClusterValidate(t *testing.T) {
 			name: "Cluster with invalid channel group",
 			tweaks: &HCPOpenShiftCluster{
 				Properties: HCPOpenShiftClusterProperties{
-					Version: VersionProfile{
-						ID:           "4.99",
-						ChannelGroup: "freshmeat",
+					NewVersion: VersionProfile{
+						ID:                "4.99",
+						OtherChannelGroup: "freshmeat",
 					},
 				},
 			},
