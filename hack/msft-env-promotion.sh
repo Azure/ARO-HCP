@@ -265,7 +265,7 @@ else
         pr_approvers="${PR_APPROVERS[i]}"
         
         echo "### $((i+1)). \`${component_name}\`"
-        echo "[ ] **Validated and ready for promotion by:**  \`<put your name here>\`"
+        echo "- [ ] **Validated and ready for promotion by**  \`<put your handle here>\`"
         echo ""
         
         # Show digest change information
