@@ -34,8 +34,8 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			// Use uksouth as the test location for version listing
-			location := "uksouth"
+			// Use configured location for version listing
+			location := tc.Location()
 
 			By("listing HCP OpenShift versions via ARM API")
 			versionsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
