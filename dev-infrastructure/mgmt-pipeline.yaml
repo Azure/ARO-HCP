@@ -80,6 +80,15 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
+  - name: infra-output
+    action: ARM
+    template: templates/mgmt-infra-lookup.bicep
+    parameters: configurations/mgmt-infra-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: management
+      step: infra
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
@@ -92,7 +101,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: cxKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
@@ -107,7 +116,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
@@ -122,7 +131,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA

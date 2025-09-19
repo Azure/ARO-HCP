@@ -59,6 +59,15 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: logAnalyticsWorkspaceId
+  - name: infra-output
+    action: ARM
+    template: templates/svc-infra-lookup.bicep
+    parameters: configurations/svc-infra-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: service
+      step: infra
   # Configure certificate issuers for the SVC KV
   - name: oncert-private-kv-issuer
     action: SetCertificateIssuer
@@ -71,7 +80,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: service
-        step: infra
+        step: infra-output
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
@@ -86,7 +95,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: service
-        step: infra
+        step: infra-output
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
