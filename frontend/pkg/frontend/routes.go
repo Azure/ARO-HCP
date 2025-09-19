@@ -112,7 +112,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.GetHCPCluster))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))

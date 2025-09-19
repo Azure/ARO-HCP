@@ -21,13 +21,28 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+type HCPCluster struct {
+	TypedDocument `json:",inline"`
+
+	HCPClusterProperties `json:"properties"`
+}
+
+var _ ResourceProperties = &HCPCluster{}
+
+type HCPClusterProperties struct {
+	ResourceDocument `json:",inline"`
+
+	CustomerDesiredState CustomerDesiredHCPClusterState `json:"customerDesiredState"`
+	ServiceProviderState ServiceProviderHCPClusterState `json:"serviceProviderState"`
+}
+
 type CustomerDesiredHCPClusterState struct {
 	// HCPOpenShiftCluster contains the desired state from a customer.  It is filtered to only those fields that customers
 	// are able to set.
 	// We will eventually select specific fields which customers own and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftCluster `json:"hcpOpenShiftCluster"`
+	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
 }
 
 type ServiceProviderHCPClusterState struct {
@@ -35,7 +50,22 @@ type ServiceProviderHCPClusterState struct {
 	// We will eventually select specific fields which the service provider owns and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftCluster `json:"hcpOpenShiftCluster"`
+	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+}
+
+func (o *HCPCluster) ValidateResourceType() error {
+	if o.ResourceType != api.ClusterResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *HCPCluster) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *HCPCluster) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
