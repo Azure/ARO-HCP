@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -169,42 +169,43 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating an external auth config with a prefix")
-			extAuth := generated.ExternalAuth{
-				Properties: &generated.ExternalAuthProperties{
-					Issuer: &generated.TokenIssuerProfile{
+			extAuth := hcpsdk.ExternalAuth{
+				Properties: &hcpsdk.ExternalAuthProperties{
+					Issuer: &hcpsdk.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &generated.ExternalAuthClaimProfile{
-						Mappings: &generated.TokenClaimMappingsProfile{
-							Username: &generated.UsernameClaimProfile{
-								Claim:        to.Ptr("sub"),                                     // objectID of SP
-								PrefixPolicy: to.Ptr(generated.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
+					Claim: &hcpsdk.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk.TokenClaimMappingsProfile{
+							Username: &hcpsdk.UsernameClaimProfile{
+								Claim:        to.Ptr("sub"),                                  // objectID of SP
+								PrefixPolicy: to.Ptr(hcpsdk.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &generated.GroupClaimProfile{
+							Groups: &hcpsdk.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					Clients: []*generated.ExternalAuthClientProfile{
-						{
-							ClientID: to.Ptr(app.AppID),
-							Component: &generated.ExternalAuthClientComponentProfile{
-								Name:                to.Ptr("console"),
-								AuthClientNamespace: to.Ptr("openshift-console"),
-							},
-							Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
-						},
-						{
-							ClientID: to.Ptr(app.AppID),
-							Component: &generated.ExternalAuthClientComponentProfile{
-								Name:                to.Ptr("cli"),
-								AuthClientNamespace: to.Ptr("openshift-console"),
-							},
-							Type: to.Ptr(generated.ExternalAuthClientTypePublic),
-						},
-					},
+					// TODO: ARO-20830 needs to be rolled out before this bit will pass
+					// Clients: []*hcpsdk.ExternalAuthClientProfile{
+					// 	{
+					// 		ClientID: to.Ptr(app.ID),
+					// 		Component: &hcpsdk.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("console"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(hcpsdk.ExternalAuthClientTypeConfidential),
+					// 	},
+					// 	{
+					// 		ClientID: to.Ptr(app.AppID),
+					// 		Component: &hcpsdk.ExternalAuthClientComponentProfile{
+					// 			Name:                to.Ptr("cli"),
+					// 			AuthClientNamespace: to.Ptr("openshift-console"),
+					// 		},
+					// 		Type: to.Ptr(hcpsdk.ExternalAuthClientTypePublic),
+					// 	},
+					// },
 				},
 			}
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
@@ -213,7 +214,7 @@ var _ = Describe("Customer", func() {
 			By("verifying ExternalAuth is in a Succeeded state")
 			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*eaResult.Properties.ProvisioningState).To(Equal(generated.ExternalAuthProvisioningStateSucceeded))
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
