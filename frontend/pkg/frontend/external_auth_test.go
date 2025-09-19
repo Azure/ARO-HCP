@@ -210,7 +210,7 @@ func TestCreateExternalAuth(t *testing.T) {
 			// CreateOrUpdateExternalAuth
 			externalAuthItemID := uuid.New().String()
 			mockDBTransaction.EXPECT().
-				CreateResourceDoc(test.externalAuthDoc, database.RemoveAllState, nil).
+				CreateResourceDoc(test.externalAuthDoc, gomock.Any() /*functions aren't self-comparable*/, nil).
 				Return(externalAuthItemID)
 			// CreateOrUpdateExternalAuth
 			mockDBTransaction.EXPECT().

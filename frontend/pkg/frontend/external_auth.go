@@ -222,7 +222,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.RemoveAllState, nil)
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterExternalAuthState, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations

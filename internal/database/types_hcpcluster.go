@@ -21,13 +21,26 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+type HCPCluster struct {
+	TypedDocument `json:",inline"`
+
+	HCPClusterProperties `json:"properties"`
+}
+
+type HCPClusterProperties struct {
+	ResourceDocument `json:",inline"`
+
+	CustomerDesiredState CustomerDesiredHCPClusterState `json:"customerDesiredState"`
+	ServiceProviderState ServiceProviderHCPClusterState `json:"serviceProviderState"`
+}
+
 type CustomerDesiredHCPClusterState struct {
 	// HCPOpenShiftCluster contains the desired state from a customer.  It is filtered to only those fields that customers
 	// are able to set.
 	// We will eventually select specific fields which customers own and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftCluster `json:"hcpOpenShiftCluster"`
+	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
 }
 
 type ServiceProviderHCPClusterState struct {
@@ -35,7 +48,7 @@ type ServiceProviderHCPClusterState struct {
 	// We will eventually select specific fields which the service provider owns and blank out everything else.
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftCluster `json:"hcpOpenShiftCluster"`
+	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
 }
 
 var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
