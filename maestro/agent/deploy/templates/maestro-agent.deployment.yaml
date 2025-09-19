@@ -56,6 +56,7 @@ spec:
         - --workload-source-driver=mqtt
         - --workload-source-config=/secrets/maestro/config.yaml
         - --cloudevents-client-id={{ .Values.consumerName }}-work-agent
+        - --disable-leader-election={{ if eq .Values.replicas 1 }}true{{ else }}false{{ end }}
         - -v={{ .Values.glog_v }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         imagePullPolicy: IfNotPresent
