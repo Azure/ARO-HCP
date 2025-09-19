@@ -16,6 +16,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"iter"
 	"net/http"
 	"reflect"
@@ -309,6 +310,7 @@ func ApplyRequestBody(request *http.Request, body []byte, v any) *arm.CloudError
 
 	switch request.Method {
 	case http.MethodPatch:
+		fmt.Printf("PATCH: %v\n", string(body))
 		originalData, err := json.Marshal(v)
 		if err != nil {
 			return arm.NewInternalServerError()

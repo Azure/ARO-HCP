@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"path"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
@@ -275,10 +274,33 @@ const SkipVisibilityTest = VisibilityFlags(0)
 // which may include version-specific overrides.
 func TestVersionedVisibilityMap[T any](t *testing.T, actualVisibility VisibilityMap, expectedVisibility VisibilityMap) {
 	// Ensure the VisibilityMap keys are in agreement with generated field names.
-	assert.Equal(t,
-		slices.Sorted(maps.Keys(GetStructTagMap[T]())),
-		slices.Sorted(maps.Keys(actualVisibility)),
-		"Discrepancies exist between the generated model and its VisibilityMap")
+	externalStructTagMap := GetStructTagMap[T]()
+	externalStructKeys := maps.Keys(externalStructTagMap)
+
+	// TODO, as we develop new versions, there's no reason to expect the external keys to match one to one with internal keys.
+	// we need to find a match for every external struct.  It may be either in CustomerProperties or ServiceProviderProperties or Properties
+	for currStructKey := range externalStructKeys {
+		if currStructKey == "Properties" {
+			// this was split into two parts
+			continue
+		}
+		if _, ok := actualVisibility[currStructKey]; ok {
+			// exact match
+			continue
+		}
+		asCustomerKey := strings.Replace(currStructKey, "Properties.", "CustomerProperties.", 1)
+		if _, ok := actualVisibility[asCustomerKey]; ok {
+			// in CustomerProperties
+			continue
+		}
+		asServiceProviderKey := strings.Replace(currStructKey, "Properties.", "ServiceProviderProperties.", 1)
+		if _, ok := actualVisibility[asServiceProviderKey]; ok {
+			// in CustomerProperties
+			continue
+		}
+
+		t.Errorf("Missing key %s in internal struct", currStructKey)
+	}
 
 	checklist := maps.Clone(actualVisibility)
 
@@ -306,7 +328,7 @@ func TestVersionedVisibilityMap[T any](t *testing.T, actualVisibility Visibility
 func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCreatableResource[T]) {
 	var buildJSONMergePatch func(reflect.Type, []string, string) string
 
-	structTagMap := GetStructTagMap[T]()
+	internalTypeStructTagMap := GetStructTagMap[T]()
 
 	// Helper function unique to this test.
 	getJSONSegments := func(path string) []string {
@@ -316,8 +338,14 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 
 		for i := range pathSegments {
 			mapKey := strings.Join(pathSegments[:i+1], ".")
+			coercedMapKey := mapKey
+			if _, ok := internalTypeStructTagMap["Customer"+mapKey]; ok {
+				coercedMapKey = "Customer" + mapKey
+			} else if _, ok := internalTypeStructTagMap["ServiceProvider"+mapKey]; ok {
+				coercedMapKey = "ServiceProvider" + mapKey
+			}
 
-			structTag := structTagMap[mapKey]
+			structTag := internalTypeStructTagMap[coercedMapKey]
 			jsonTagName := GetJSONTagName(structTag)
 			// Embedded structs will not have a json tag.
 			if jsonTagName != "" {
@@ -360,11 +388,25 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 					}
 				} else {
 					subpath := join(path, field.Name)
-					jsonTagName := GetJSONTagName(structTagMap[subpath])
-					require.NotEmptyf(t, jsonTagName, "No JSON tag for %q", subpath)
+					// json tags don't exist on external.  The rt is always external.
+					// The internal types do have tags.  Long term they are not guaranteed to match in terms of structure.
+					// For the short term, they match, but under different top level tags.  Try all the current options for a hit
+					jsonTagName := ""
+					if internalStructTags, ok := internalTypeStructTagMap[subpath]; ok {
+						jsonTagName = GetJSONTagName(internalStructTags)
+					} else if internalStructTags, ok := internalTypeStructTagMap["Customer"+subpath]; ok {
+						jsonTagName = GetJSONTagName(internalStructTags)
+					} else if internalStructTags, ok := internalTypeStructTagMap["ServiceProvider"+subpath]; ok {
+						jsonTagName = GetJSONTagName(internalStructTags)
+					}
+					require.NotEmptyf(t, jsonTagName, "No JSON tag for %q in %v", subpath, rt)
 					if jsonTagName == jsonSegments[0] {
+						externalJSONTag := jsonTagName
+						if externalJSONTag == "customerProperties" || externalJSONTag == "serviceProviderProperties" {
+							externalJSONTag = "properties"
+						}
 						mergePatch := buildJSONMergePatch(field.Type, jsonSegments[1:], subpath)
-						return fmt.Sprintf("{ %q: %s }", jsonTagName, mergePatch)
+						return fmt.Sprintf("{ %q: %s }", externalJSONTag, mergePatch)
 					}
 				}
 			}
@@ -378,7 +420,7 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 		return "" // just to make the compiler happy
 	}
 
-	for path := range structTagMap {
+	for path := range internalTypeStructTagMap {
 		var omitZero func(reflect.Value, string)
 		var errorPath = path
 
@@ -511,6 +553,7 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 			omitZero(rv, "")
 			newVal, _ = rv.Interface().(VersionedCreatableResource[T])
 
+			fmt.Printf("curVal type=%T\n", curVal)
 			actualErrors := newVal.ValidateVisibility(curVal, true)
 
 			flags, ok := newVal.GetVisibility(path)
@@ -518,6 +561,7 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 
 			if !reflect.DeepEqual(newVal, curVal) && !flags.IsNullable() {
 				jsonSegments := getJSONSegments(errorPath)
+				fmt.Printf("jsonSegments=%v\n", jsonSegments)
 				expectErrors = append(expectErrors, arm.CloudErrorBody{
 					Code:    arm.CloudErrorCodeInvalidRequestContent,
 					Message: fmt.Sprintf("Field '%s' cannot be removed", jsonSegments[len(jsonSegments)-1]),
