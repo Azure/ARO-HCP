@@ -54,7 +54,8 @@ resourceGroups:
       step: onecert-private-kv-issuer
   - name: housekeeping
     action: Shell
-    command: scripts/global-housekeeping.sh
+    command: ./global-housekeeping.sh
+    workingDir: ./scripts
     dryRun:
       variables:
       - name: DRY_RUN
