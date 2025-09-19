@@ -31,9 +31,6 @@ Microsoft.Azure.ARO.HCP.RP.HypershiftOperator:
 Microsoft.Azure.ARO.HCP.RouteMonitorOperator:
   management:
     deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.SecretSyncController:
-  management:
-    deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Service.Infra:
   service:
     arobit: helm step needing migration
