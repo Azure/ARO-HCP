@@ -321,13 +321,12 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 			Location: arm.GetAzureLocation(),
 		},
-		Properties: api.HCPOpenShiftClusterProperties{
+		CustomerProperties: api.CustomerClusterProperties{
 			Version: api.VersionProfile{
 				ID:           NewOpenShiftVersionXY(cluster.Version().ID()),
 				ChannelGroup: cluster.Version().ChannelGroup(),
 			},
-			DNS: api.DNSProfile{
-				BaseDomain:       cluster.DNS().BaseDomain(),
+			DNS: api.CustomerDNSProfile{
 				BaseDomainPrefix: cluster.DomainPrefix(),
 			},
 			Network: api.NetworkProfile{
@@ -337,11 +336,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				MachineCIDR: cluster.Network().MachineCIDR(),
 				HostPrefix:  int32(cluster.Network().HostPrefix()),
 			},
-			Console: api.ConsoleProfile{
-				URL: cluster.Console().URL(),
-			},
-			API: api.APIProfile{
-				URL:        cluster.API().URL(),
+			API: api.CustomerAPIProfile{
 				Visibility: apiVisibility,
 			},
 			Platform: api.PlatformProfile{
@@ -354,6 +349,17 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
 				State: clusterImageRegistryState,
+			},
+		},
+		ServiceProviderProperties: api.ServiceProviderClusterProperties{
+			DNS: api.ServiceProviderDNSProfile{
+				BaseDomain: cluster.DNS().BaseDomain(),
+			},
+			Console: api.ConsoleProfile{
+				URL: cluster.Console().URL(),
+			},
+			API: api.ServiceProviderAPIProfile{
+				URL: cluster.API().URL(),
 			},
 		},
 	}
@@ -371,7 +377,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				return nil, err
 			}
 
-			hcpcluster.Properties.Etcd = api.EtcdProfile{
+			hcpcluster.CustomerProperties.Etcd = api.EtcdProfile{
 				DataEncryption: api.EtcdDataEncryptionProfile{
 					CustomerManaged:   customerManaged,
 					KeyManagementMode: keyManagementMode,
@@ -391,24 +397,24 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			UserAssignedIdentities: make(map[string]*arm.UserAssignedIdentity),
 		}
 		if mi, ok := cluster.Azure().OperatorsAuthentication().GetManagedIdentities(); ok {
-			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
-			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
+			hcpcluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = make(map[string]string)
+			hcpcluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = make(map[string]string)
 			for operatorName, operatorIdentity := range mi.ControlPlaneOperatorsManagedIdentities() {
 				clientID, _ := operatorIdentity.GetClientID()
 				principalID, _ := operatorIdentity.GetPrincipalID()
 				hcpcluster.Identity.UserAssignedIdentities[operatorIdentity.ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
 					PrincipalID: &principalID}
-				hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+				hcpcluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
 			for operatorName, operatorIdentity := range mi.DataPlaneOperatorsManagedIdentities() {
 				// Skip adding to hcpcluster.Identity.UserAssignedIdentities map as it is not needed for the dataplane operator MIs.
-				hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
+				hcpcluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators[operatorName] = operatorIdentity.ResourceID()
 			}
 			clientID, _ := mi.ServiceManagedIdentity().GetClientID()
 			principalID, _ := mi.ServiceManagedIdentity().GetPrincipalID()
 			hcpcluster.Identity.UserAssignedIdentities[mi.ServiceManagedIdentity().ResourceID()] = &arm.UserAssignedIdentity{ClientID: &clientID,
 				PrincipalID: &principalID}
-			hcpcluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
+			hcpcluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = mi.ServiceManagedIdentity().ResourceID()
 		}
 	}
 
@@ -418,8 +424,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 // ensureManagedResourceGroupName makes sure the ManagedResourceGroupName field is set.
 // If the field is empty a default is generated.
 func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string {
-	if hcpCluster.Properties.Platform.ManagedResourceGroup != "" {
-		return hcpCluster.Properties.Platform.ManagedResourceGroup
+	if hcpCluster.CustomerProperties.Platform.ManagedResourceGroup != "" {
+		return hcpCluster.CustomerProperties.Platform.ManagedResourceGroup
 	}
 	var clusterName string
 	if len(hcpCluster.Name) >= 45 {
@@ -459,21 +465,21 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
+		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
 
 	return clusterBuilder, nil
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
-	apiListening, err := convertVisibilityToListening(hcpCluster.Properties.API.Visibility)
+	apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 	if err != nil {
 		return nil, err
 	}
-	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.Properties.ClusterImageRegistry)
+	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
 	}
-	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.Properties.Platform.OutboundType)
+	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
 		return nil, err
 	}
@@ -492,14 +498,14 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.Properties.Version.ID)).
-			ChannelGroup(hcpCluster.Properties.Version.ChannelGroup)).
+			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID)).
+			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
-			Type(string(hcpCluster.Properties.Network.NetworkType)).
-			PodCIDR(hcpCluster.Properties.Network.PodCIDR).
-			ServiceCIDR(hcpCluster.Properties.Network.ServiceCIDR).
-			MachineCIDR(hcpCluster.Properties.Network.MachineCIDR).
-			HostPrefix(int(hcpCluster.Properties.Network.HostPrefix))).
+			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
+			PodCIDR(hcpCluster.CustomerProperties.Network.PodCIDR).
+			ServiceCIDR(hcpCluster.CustomerProperties.Network.ServiceCIDR).
+			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
+			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		API(arohcpv1alpha1.NewClusterAPI().
 			Listening(apiListening)).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
@@ -510,13 +516,13 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		ResourceGroupName(resourceGroupName).
 		ResourceName(hcpCluster.Name).
 		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
-		SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
+		SubnetResourceID(hcpCluster.CustomerProperties.Platform.SubnetID).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
 
 	// Only add etcd encryption if it's actually configured
-	if hcpCluster.Properties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.Properties.Etcd.DataEncryption.CustomerManaged != nil {
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.Properties.Etcd)
+	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
 		if err != nil {
 			return nil, err
 		}
@@ -524,19 +530,19 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
-	if hcpCluster.Properties.Platform.NetworkSecurityGroupID != "" {
-		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.Properties.Platform.NetworkSecurityGroupID)
+	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != "" {
+		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID)
 	}
 
 	// Only pass managed identity information if the x-ms-identity-url header is present.
 	if identityURL != "" {
 		controlPlaneOperators := make(map[string]*arohcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)
-		for operatorName, identityResourceID := range hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		for operatorName, identityResourceID := range hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 			controlPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureControlPlaneManagedIdentity().ResourceID(identityResourceID)
 		}
 
 		dataPlaneOperators := make(map[string]*arohcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)
-		for operatorName, identityResourceID := range hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		for operatorName, identityResourceID := range hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 			dataPlaneOperators[operatorName] = arohcpv1alpha1.NewAzureDataPlaneManagedIdentity().ResourceID(identityResourceID)
 		}
 
@@ -545,9 +551,9 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ControlPlaneOperatorsManagedIdentities(controlPlaneOperators).
 			DataPlaneOperatorsManagedIdentities(dataPlaneOperators)
 
-		if hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
+		if hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity != "" {
 			managedIdentitiesBuilder.ServiceManagedIdentity(arohcpv1alpha1.NewAzureServiceManagedIdentity().
-				ResourceID(hcpCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
+				ResourceID(hcpCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity))
 		}
 
 		azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
@@ -556,8 +562,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	clusterBuilder.Azure(azureBuilder)
 
 	// Cluster Service rejects an empty DomainPrefix string.
-	if hcpCluster.Properties.DNS.BaseDomainPrefix != "" {
-		clusterBuilder.DomainPrefix(hcpCluster.Properties.DNS.BaseDomainPrefix)
+	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
+		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
 	return clusterBuilder, nil

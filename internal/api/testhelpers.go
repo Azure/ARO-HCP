@@ -147,9 +147,9 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource.ID = TestClusterResourceID
 	resource.Name = TestClusterName
 	resource.Type = ClusterResourceType.String()
-	resource.Properties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
-	resource.Properties.Platform.SubnetID = TestSubnetResourceID
-	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
+	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
+	resource.CustomerProperties.Platform.SubnetID = TestSubnetResourceID
+	resource.CustomerProperties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
 	return resource
 }
 
