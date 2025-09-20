@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools v0.0.0-20250919125111-bee26075968f h1:ZwqDJegav12FlgSgZx/IHm259o29jm5TCF53tL4F2B4=
-github.com/Azure/ARO-Tools v0.0.0-20250919125111-bee26075968f/go.mod h1:qGeybEd8g96o/gUqOCkHDCOMA2Fr9tJLCo5FgniHfCw=
+github.com/Azure/ARO-Tools v0.0.0-20250920181726-edd1b3e0ec1d h1:Di2CunYm58cZJ3fCMAJPO4upJozfXow8HXR8LFKHiMM=
+github.com/Azure/ARO-Tools v0.0.0-20250920181726-edd1b3e0ec1d/go.mod h1:qGeybEd8g96o/gUqOCkHDCOMA2Fr9tJLCo5FgniHfCw=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
