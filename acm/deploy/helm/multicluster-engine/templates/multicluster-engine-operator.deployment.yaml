@@ -8,7 +8,6 @@ metadata:
     description: Foundational components for central management of multiple OpenShift Container Platform and Kubernetes clusters
     repository: https://github.com/open-cluster-management/backplane-operator
     support: Red Hat
-  creationTimestamp: null
   labels:
     control-plane: backplane-operator
   name: multicluster-engine-operator
@@ -21,7 +20,6 @@ spec:
   strategy: {}
   template:
     metadata:
-      creationTimestamp: null
       labels:
         control-plane: backplane-operator
         ocm-antiaffinity-selector: backplane-operator
@@ -102,7 +100,7 @@ spec:
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/kube-rbac-proxy-mce-rhel9@sha256:1b218f0aa0ea1f494094e3bc783ef40968cbff780e22de186d578a1d64c33bf8'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:1bbd134d44839258172e013fe84bfd174d36d6b7232e2cc8a3d8556998181d9d'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managedcluster-import-controller-rhel9@sha256:0753ef817861975779bc99fd3aaefc0ea66be3b6ee051ea43b88e073eee8e354'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/managed-serviceaccount-rhel9@sha256:ea57247cf11f6ab966893ce4e6d2948232a4314588af2ca33c1d9689da7482dd'
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
@@ -114,9 +112,9 @@ spec:
         - name: OPERAND_IMAGE_REGISTRATION
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:6a75df76fb0d9516b13fa6b079bc6c4d49dc6774f0d4f31343abfb8d70edcc23'
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:d068d73f41d8f8ecbec36752d0a432913bfbe2580f489abefe513c06233e80c9'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:1d0b4ce95990267bf2cc002bf156b0e71911ce5255948b80db2894b914be0f16'
         - name: OPERAND_IMAGE_WORK
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:edbb174cb69dd31339a53542d24c4fd00552e41fa09d7e2553baa7a1ad8dd810'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/work-rhel9@sha256:91c02475a47b312f2699770280438944b93b7337ea3127064c443365501f0486'
         - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/assisted-image-service-rhel9@sha256:6b95560a6a6dc1ddd41c76f275f83baec52ec9d79de04bfe54feaed02db123a3'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER
