@@ -15,9 +15,9 @@ This guide describes how to access the Postgres database of ARO HCP service, spe
 1. Exec into the pod of the deployment
 
    ```/bin/sh
-   kubeclt exec -ti (kubeclt get pods -n  clusters-service -l app=postgres-breakglass -o name) -n clusters-service -- /bin/bash
+   kubectl exec -ti (kubectl get pods -n  clusters-service -l app=postgres-breakglass -o name) -n clusters-service -- /bin/bash
    or
-   kubeclt exec -ti (kubeclt get pods -n  clusters-service -l app=postgres-breakglass -o name) -n clusters-service -- /bin/bash
+   kubectl exec -ti (kubectl get pods -n  maestro -l app=postgres-breakglass -o name) -n maestro -- /bin/bash
    ```
 
 2. Run `connect` within the container to start a `psql` session
