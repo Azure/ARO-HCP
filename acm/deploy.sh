@@ -42,11 +42,12 @@ HELM_ADOPT=true ../hack/helm.sh mce-crds "./${MCE_CRD_CHART_DIR}" "${MCE_NS}"
 echo "Deploying MCE (${MCE_CHART_DIR}) into ${MCE_NS} namespace"
 # we can get rid of the HELM_DRY_RUN_MODE override once pausing is disabled
 HELM_DRY_RUN_MODE=client ../hack/helm.sh mce "./${MCE_CHART_DIR}" "${MCE_NS}" \
-    --set imageRegistry="${REGISTRY}"
+    --set imageRegistry="${REGISTRY}" \
+    --set imageRootRepository="acm-d-cache"
 
 echo "Deploying MCE Config (${MCE_CONFIG_DIR}) into ${MCE_NS} namespace"
 HELM_TIMEOUT=1200s ../hack/helm.sh mce-config "./${MCE_CONFIG_DIR}" "${MCE_NS}" \
-    --set global.registryOverride="${REGISTRY}/rhacm2"
+    --set global.registryOverride="${REGISTRY}/acm-d-cache"
 
 if [ "${DRY_RUN}" != "true" ]; then
     kubectl annotate mce multiclusterengine installer.multicluster.openshift.io/pause="${MCE_PAUSE_RECONCILIATION}" --overwrite

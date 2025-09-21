@@ -2,16 +2,16 @@ acm:
   mce:
     bundle:
       digest: sha256:4d9d003842e3ffc386f4e07ce7a81cfa85e676031fb6fdc96aefa9654244974a
-      registry: registry.redhat.io
-      repository: multicluster-engine/mce-operator-bundle
+      registry: quay.io
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     mirrorAdditionalVersions: 2.8.1,2.8.2
     pauseReconciliation: false
     version: 2.9.0
   operator:
     bundle:
       digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157
-      registry: registry.redhat.io
-      repository: rhacm2/acm-operator-bundle
+      registry: quay.io
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1
     version: 2.14.0
 acr:
