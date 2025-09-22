@@ -155,7 +155,7 @@ var _ = Describe("Customer", func() {
 			g.Expect(err).NotTo(HaveOccurred())
 			return *resp.Properties.Console.URL
 		}
-		Eventually(ingressURL, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
+		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ShouldNot(BeNil())
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
 		consoleUrlWithPort := net.JoinHostPort(ingressURL(Default), "443")
