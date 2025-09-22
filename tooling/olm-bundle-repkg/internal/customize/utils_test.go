@@ -91,9 +91,9 @@ func TestParameterizeImageComponents(t *testing.T) {
 			config: &BundleConfig{
 				ImageDigestParam: "imageDigest",
 			},
-			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigest }}",
+			expectedImg: "registry.io/repo/image@{{ .Values.imageDigest }}",
 			expectedParams: map[string]string{
-				"imageDigest": "abc123def456",
+				"imageDigest": "sha256:abc123def456",
 			},
 		},
 		{
@@ -117,7 +117,7 @@ func TestParameterizeImageComponents(t *testing.T) {
 			config: &BundleConfig{
 				ImageDigestParam: "imageDigest",
 			},
-			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigest }}",
+			expectedImg: "registry.io/repo/image@{{ .Values.imageDigest }}",
 			expectedParams: map[string]string{
 				"imageDigest": "",
 			},
@@ -192,9 +192,9 @@ func TestParameterizeImageComponents(t *testing.T) {
 				ImageDigestParam: "imageDigest",
 			},
 			suffix:      "Worker",
-			expectedImg: "registry.io/repo/image@sha256:{{ .Values.imageDigestWorker }}",
+			expectedImg: "registry.io/repo/image@{{ .Values.imageDigestWorker }}",
 			expectedParams: map[string]string{
-				"imageDigestWorker": "abc123def456",
+				"imageDigestWorker": "sha256:abc123def456",
 			},
 		},
 		{

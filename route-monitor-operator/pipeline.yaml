@@ -55,30 +55,12 @@ resourceGroups:
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: deploy
-    aksCluster: '{{ .mgmt.aks.name  }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    # Bundle version is not used in runtime, it's used to generate
-    # the Helm chart for the route-monitor-operator
-    # WARNING: Keep this in sync with the image digests
-    - name: BUNDLE_VERSION
-      configRef: routeMonitorOperator.bundleVersion
-    # Image refs
-    - name: ACR_NAME
-      configRef: acr.svc.name
-    - name: OPERATOR_IMAGE_REPOSITORY
-      configRef: routeMonitorOperator.operatorImage.repository
-    - name: OPERATOR_IMAGE_DIGEST
-      configRef: routeMonitorOperator.operatorImage.digest
-    - name: BLACKBOX_IMAGE_REPOSITORY
-      configRef: routeMonitorOperator.blackboxExporterImage.repository
-    - name: BLACKBOX_IMAGE_DIGEST
-      configRef: routeMonitorOperator.blackboxExporterImage.digest
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: route-monitor-operator
+    releaseNamespace: openshift-route-monitor-operator
+    chartDir: ./../route-monitor-operator/deploy/helm/route-monitor-operator
+    valuesFile: ./../route-monitor-operator/deploy/helm/values.yaml
     dependsOn:
     - resourceGroup: global
       step: mirror-operator-image
@@ -88,8 +70,7 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management
       step: deploy
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

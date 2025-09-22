@@ -2070,16 +2070,12 @@
         },
         "blackboxExporterImage": {
           "$ref": "#/definitions/containerImage"
-        },
-        "bundleVersion": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "operatorImage",
-        "blackboxExporterImage",
-        "bundleVersion"
+        "blackboxExporterImage"
       ]
     },
     "logs": {
