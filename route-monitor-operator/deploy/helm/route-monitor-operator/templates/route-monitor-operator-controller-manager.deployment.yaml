@@ -50,7 +50,7 @@ spec:
         - name: LOG_LEVEL
           value: "1"
         - name: BLACKBOX_IMAGE
-          value: '{{ .Values.imageRegistryBlackbox }}/{{ .Values.imageRepositoryBlackbox }}@sha256:{{ .Values.imageDigestBlackbox }}'
+          value: '{{ .Values.imageRegistryBlackbox }}/{{ .Values.imageRepositoryBlackbox }}@{{ .Values.imageDigestBlackbox }}'
         - name: BLACKBOX_NAMESPACE
           valueFrom:
             fieldRef:
@@ -62,8 +62,8 @@ spec:
         - name: ONLY_PUBLIC_CLUSTERS
           value: "false"
         - name: OPERATOR_IMAGE
-          value: '{{ .Values.imageRegistryOperator }}/{{ .Values.imageRepositoryOperator }}@sha256:{{ .Values.imageDigestOperator }}'
-        image: '{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}@sha256:{{ .Values.imageDigestManager }}'
+          value: '{{ .Values.imageRegistryOperator }}/{{ .Values.imageRepositoryOperator }}@{{ .Values.imageDigestOperator }}'
+        image: '{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}@{{ .Values.imageDigestManager }}'
         livenessProbe:
           httpGet:
             path: /healthz
