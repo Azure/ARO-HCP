@@ -21,6 +21,7 @@ Ensure you have access to the RH Azure tenant:
 The following additional tools are also required:
 
 - `jq`
+- `yq`
 - `make`
 - `kubelogin` - download from <https://azure.github.io/kubelogin/install.html>
 - `kubectl` version >= 1.30
