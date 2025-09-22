@@ -73,7 +73,8 @@ resourceGroups:
       step: infra
   - name: grafana-dashboards
     action: Shell
-    command: cd ../observability/grafana && ./deploy.sh
+    command: ./deploy.sh
+    workingDir: ./../observability/grafana
     dependsOn:
     - resourceGroup: global
       step: housekeeping

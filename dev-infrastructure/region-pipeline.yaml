@@ -24,7 +24,8 @@ resourceGroups:
     outputOnly: true
   - name: ocp-acr-replication
     action: Shell
-    command: scripts/manage-acr-replication.sh
+    command: ./manage-acr-replication.sh
+    workingDir: ./scripts
     dryRun:
       variables:
       - name: DRY_RUN

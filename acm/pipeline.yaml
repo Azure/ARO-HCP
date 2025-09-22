@@ -71,6 +71,7 @@ resourceGroups:
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make scale
+    workingDir: ./
     dryRun:
       variables:
       - name: DRY_RUN
