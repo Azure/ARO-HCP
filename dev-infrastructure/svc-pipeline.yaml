@@ -325,26 +325,15 @@ resourceGroups:
         name: globalMSIId
   - name: kube-events
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../observability/kube-events deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: IMAGE_REGISTRY
-      configRef: kubeEvents.image.registry
-    - name: IMAGE_REPOSITORY
-      configRef: kubeEvents.image.repository
-    - name: IMAGE_DIGEST
-      configRef: kubeEvents.image.digest
-    - name: ENABLED
-      configRef: kubeEvents.enabled
+    action: Helm
+    releaseName: kube-events
+    releaseNamespace: monitoring
+    chartDir: ./../observability/kube-events/deploy
+    valuesFile: ./../observability/kube-events/values.yaml
     dependsOn:
     - resourceGroup: service
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
