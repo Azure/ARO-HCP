@@ -121,15 +121,15 @@ type imageComponents struct {
 }
 
 // imageRefRegex parses container image references
-// Pattern: [registry/]repository[:tag|@sha256:digest]
+// Pattern: [registry/]repository[:tag|@digest]
 // Examples:
 //   - registry.io/repo/image:tag -> registry="registry.io", repository="repo/image", tag="tag", digest=""
 //   - registry.io/org/team/image:tag -> registry="registry.io", repository="org/team/image", tag="tag", digest=""
 //   - registry.io/image:tag -> registry="registry.io", repository="image", tag="tag", digest=""
 //   - localhost:5000/repo/image:tag -> registry="localhost:5000", repository="repo/image", tag="tag", digest=""
 //   - myimage:tag -> registry="", repository="myimage", tag="tag", digest=""
-//   - registry.io/repo/image@sha256:abc123 -> registry="registry.io", repository="repo/image", tag="", digest="abc123"
-var imageRefRegex = regexp.MustCompile(`^(?:([^/]+)/)?([^:@]+)(?::(.+)|@sha256:([a-f0-9]+))?$`)
+//   - registry.io/repo/image@sha256:abc123 -> registry="registry.io", repository="repo/image", tag="", digest="sha256:abc123"
+var imageRefRegex = regexp.MustCompile(`^(?:([^/]+)/)?([^:@]+)(?::(.+)|@(sha256:[a-f0-9]+))?$`)
 
 // parseImageReference parses a container image reference into its components
 func parseImageReference(imageRef string) (*imageComponents, error) {
@@ -160,7 +160,7 @@ func (ic *imageComponents) buildImageReference() string {
 	if ic.tag != "" {
 		result += ":" + ic.tag
 	} else if ic.digest != "" {
-		result += "@sha256:" + ic.digest
+		result += "@" + ic.digest
 	}
 
 	return result
