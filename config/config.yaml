@@ -608,6 +608,10 @@ defaults:
       replicas: 3
       namespace: clusters-service
       serviceAccountName: clusters-service
+      deploymentStrategy:
+        rollingUpdate:
+          maxUnavailable: 25%
+          maxSurge: 25%
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
   # Image Sync
@@ -777,6 +781,11 @@ clouds:
             roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        k8s:
+          deploymentStrategy:
+            rollingUpdate:
+              maxUnavailable: 0
+              maxSurge: 1
       # Hypershift Operator
       hypershift:
         image:
