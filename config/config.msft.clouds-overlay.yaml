@@ -183,27 +183,27 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # MC cluster settings
           mgmt:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:84efda0d58201cfe0b7e38587b9b1e1ce581b11a062ca4d3ea23d473ca3e8ca8"
+              digest: "sha256:2d40f3eb66bf0fb8c696641b39aba2ed8105807df61c53778f6fb151567266c5"
           # RP Backend
           backend:
             image:
-              digest: "sha256:ad30dffd2a1e325f4c58895a16cf2d29d8f1e9c881447a7a863cfa2f2a3f9218"
+              digest: "sha256:bad87c9fac8a83de86c05c9094296068d62d849df364c2927491a1ec9abf17aa"
           # Hypershift
           hypershift:
             image:
@@ -211,7 +211,7 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
+              digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
           # OCP image sync
           imageSync:
             ocMirror:
