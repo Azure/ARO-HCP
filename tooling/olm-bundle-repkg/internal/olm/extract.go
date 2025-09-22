@@ -119,6 +119,15 @@ func ExtractOLMManifestsDirectory(_ context.Context, manifestsDir string) (
 			return nil
 		}
 
+		// Skip known metadata files that are not Kubernetes manifests
+		filename := d.Name()
+		if strings.HasSuffix(filename, ".package.yaml") ||
+			strings.HasSuffix(filename, ".package.yml") ||
+			filename == "annotations.yaml" ||
+			filename == "annotations.yml" {
+			return nil
+		}
+
 		// Read file content
 		data, err := os.ReadFile(path)
 		if err != nil {
