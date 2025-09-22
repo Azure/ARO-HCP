@@ -1,0 +1,5 @@
+image:
+  registry: '{{ .kubeEvents.image.registry }}'
+  repository: '{{ .kubeEvents.image.repository }}'
+  digest: '{{ .kubeEvents.image.digest }}'
+enabled: {{ .kubeEvents.enabled }}

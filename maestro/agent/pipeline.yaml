@@ -105,22 +105,15 @@ resourceGroups:
   steps:
   - name: register-agent-with-server
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../registration deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: CONSUMER_NAME
-      configRef: maestro.agent.consumerName
-    - name: NAMESPACE
-      configRef: maestro.server.k8s.namespace
+    action: Helm
+    releaseName: '{{ .maestro.agent.consumerName }}'
+    releaseNamespace: '{{ .maestro.server.k8s.namespace }}'
+    chartDir: ./../registration/deploy
+    valuesFile: ./../registration/values.yaml
     dependsOn:
     - resourceGroup: management
       step: deploy
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

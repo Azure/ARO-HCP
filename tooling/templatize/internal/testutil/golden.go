@@ -89,6 +89,8 @@ type options struct {
 	Extension string
 
 	SubDir string
+
+	SkipDirectoryMangling bool
 }
 
 type option func(*options)
@@ -111,12 +113,22 @@ func WithSubDir(subDir string) option {
 	}
 }
 
+func WithoutDirMangling() option {
+	return func(opts *options) {
+		opts.SkipDirectoryMangling = true
+	}
+}
+
 // golden determines the golden file to use
 func golden(t *testing.T, opts *options) (string, error) {
 	if opts.Extension == "" {
 		opts.Extension = ".yaml"
 	}
-	return filepath.Abs(filepath.Join("../../testdata", opts.SubDir, sanitizeFilename(opts.Prefix+t.Name()+opts.Suffix)) + opts.Extension)
+	path := filepath.Join("testdata", opts.SubDir, sanitizeFilename(opts.Prefix+t.Name()+opts.Suffix)) + opts.Extension
+	if !opts.SkipDirectoryMangling {
+		path = filepath.Join("..", "..", path)
+	}
+	return filepath.Abs(path)
 }
 
 func sanitizeFilename(s string) string {
