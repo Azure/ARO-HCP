@@ -14,6 +14,10 @@
 
 package api
 
+import (
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
 // DiskStorageAccountType represents supported Azure storage account types.
 type DiskStorageAccountType string
 
@@ -29,6 +33,13 @@ type NetworkType string
 const (
 	NetworkTypeOVNKubernetes NetworkType = "OVNKubernetes"
 	NetworkTypeOther         NetworkType = "Other"
+)
+
+var (
+	ValidNetworkTypes = sets.New[NetworkType](
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther,
+	)
 )
 
 // OutboundType represents a routing strategy to provide egress to the Internet.
