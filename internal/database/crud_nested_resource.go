@@ -23,11 +23,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type NestedResourceCRUD[T any] interface {
-	Get(ctx context.Context, resourceID string) (*T, error)
-	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error)
-}
-
 type nestedCosmosResourceCRUD[T any] struct {
 	containerClient   *azcosmos.ContainerClient
 	providerNamespace string
@@ -45,7 +40,7 @@ type intermediateResource struct {
 	resourceID   string
 }
 
-var _ NestedResourceCRUD[NodePool] = &nestedCosmosResourceCRUD[NodePool]{}
+var _ ResourceCRUD[NodePool] = &nestedCosmosResourceCRUD[NodePool]{}
 
 func newNestedCosmosResourceCRUD[T any, V any](parent *topLevelCosmosResourceCRUD[V], subscriptionID, resourceGroupID, parentResourceID string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[T] {
 	ret := &nestedCosmosResourceCRUD[T]{

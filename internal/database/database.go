@@ -109,7 +109,7 @@ type DBClient interface {
 	PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops BillingDocumentPatchOperations) error
 
 	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
-	HCPClusters() HCPClusterCRUD
+	HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD
 
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
@@ -194,8 +194,6 @@ type cosmosDBClient struct {
 	billing    *azcosmos.ContainerClient
 	resources  *azcosmos.ContainerClient
 	lockClient *LockClient
-
-	hcpClusterCRUD HCPClusterCRUD
 }
 
 // NewDBClient instantiates a DBClient from a Cosmos DatabaseClient instance
@@ -226,10 +224,6 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 		billing:    billing,
 		resources:  resources,
 		lockClient: lockClient,
-
-		hcpClusterCRUD: &hcpClusterCRUD{
-			topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[HCPCluster](resources, api.ClusterResourceType),
-		},
 	}, nil
 }
 
@@ -687,8 +681,10 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 	return newQueryItemsIterator[arm.Subscription](pager)
 }
 
-func (d *cosmosDBClient) HCPClusters() HCPClusterCRUD {
-	return d.hcpClusterCRUD
+func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
+	return &hcpClusterCRUD{
+		topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[HCPCluster](d.resources, api.ClusterResourceType, subscriptionID, resourceGroupName),
+	}
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

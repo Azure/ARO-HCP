@@ -336,44 +336,6 @@ func (c *MockDBClientDeleteResourceDocCall) DoAndReturn(f func(context.Context, 
 	return c
 }
 
-// GetHCPClusterCRUD mocks base method.
-func (m *MockDBClient) HCPClusters() database.HCPClusterCRUD {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HCPClusters")
-	ret0, _ := ret[0].(database.HCPClusterCRUD)
-	return ret0
-}
-
-// GetHCPClusterCRUD indicates an expected call of GetHCPClusterCRUD.
-func (mr *MockDBClientMockRecorder) GetHCPClusterCRUD() *MockDBClientGetHCPClusterCRUDCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HCPClusters", reflect.TypeOf((*MockDBClient)(nil).HCPClusters))
-	return &MockDBClientGetHCPClusterCRUDCall{Call: call}
-}
-
-// MockDBClientGetHCPClusterCRUDCall wrap *gomock.Call
-type MockDBClientGetHCPClusterCRUDCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientGetHCPClusterCRUDCall) Return(arg0 database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientGetHCPClusterCRUDCall) Do(f func() database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientGetHCPClusterCRUDCall) DoAndReturn(f func() database.HCPClusterCRUD) *MockDBClientGetHCPClusterCRUDCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetLockClient mocks base method.
 func (m *MockDBClient) GetLockClient() database.LockClientInterface {
 	m.ctrl.T.Helper()
@@ -526,6 +488,44 @@ func (c *MockDBClientGetSubscriptionDocCall) Do(f func(context.Context, string) 
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockDBClientGetSubscriptionDocCall) DoAndReturn(f func(context.Context, string) (*arm.Subscription, error)) *MockDBClientGetSubscriptionDocCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// HCPClusters mocks base method.
+func (m *MockDBClient) HCPClusters(subscriptionID, resourceGroupName string) database.HCPClusterCRUD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HCPClusters", subscriptionID, resourceGroupName)
+	ret0, _ := ret[0].(database.HCPClusterCRUD)
+	return ret0
+}
+
+// HCPClusters indicates an expected call of HCPClusters.
+func (mr *MockDBClientMockRecorder) HCPClusters(subscriptionID, resourceGroupName any) *MockDBClientHCPClustersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HCPClusters", reflect.TypeOf((*MockDBClient)(nil).HCPClusters), subscriptionID, resourceGroupName)
+	return &MockDBClientHCPClustersCall{Call: call}
+}
+
+// MockDBClientHCPClustersCall wrap *gomock.Call
+type MockDBClientHCPClustersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBClientHCPClustersCall) Return(arg0 database.HCPClusterCRUD) *MockDBClientHCPClustersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBClientHCPClustersCall) Do(f func(string, string) database.HCPClusterCRUD) *MockDBClientHCPClustersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBClientHCPClustersCall) DoAndReturn(f func(string, string) database.HCPClusterCRUD) *MockDBClientHCPClustersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
