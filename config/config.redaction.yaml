@@ -1,0 +1,27 @@
+keys:
+  - administration.readerGroupId
+  - administration.releaseManagementGroupId
+  - armHelperClientId
+  - armHelperFPAPrincipalId
+  - firstPartyAppClientId
+  - geneva.principalId
+  - geneva.resourceContributor
+  - global.safeDnsIntAppObjectId
+  - global.subscription.airsRegisteredUserPrincipalId
+  - kvCertAccessPrincipalId
+  - kvCertAccessRoleId
+  - kvCertOfficerPrincipalId
+  - miMockClientId
+  - miMockPrincipalId
+  - tenantId
+  - mise.tenantId
+  - ev2.assistedId.applicationId
+  - mise.armAppId
+  - mise.firstPartyAppId
+  - billing.eventHub.subscriptionId
+  - billing.kusto.clusterPrincipals[].tenantid
+  - billing.kusto.clusterPrincipals[].id
+  - logs.mdsd.subscriptions[]
+  - monitoring.icm.connectionId
+  - mgmt.subscription.airsRegisteredUserPrincipalId
+  - svc.subscription.airsRegisteredUserPrincipalId
