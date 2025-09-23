@@ -20,6 +20,7 @@ import (
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // Resource represents a basic ARM resource
@@ -78,6 +79,14 @@ const (
 	CreatedByTypeKey             CreatedByType = "Key"
 	CreatedByTypeManagedIdentity CreatedByType = "ManagedIdentity"
 	CreatedByTypeUser            CreatedByType = "User"
+)
+
+var (
+	ValidCreatedByTypes = sets.New[CreatedByType](
+		CreatedByTypeApplication,
+		CreatedByTypeKey,
+		CreatedByTypeManagedIdentity,
+		CreatedByTypeUser)
 )
 
 // SystemData includes creation and modification metadata for resources

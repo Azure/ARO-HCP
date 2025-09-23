@@ -37,6 +37,7 @@ func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPO
 }
 
 var (
+	toTrackedResource   = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
 	toClusterProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterProperties { return &oldObj.Properties }
 	toClusterIdentity   = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
@@ -44,11 +45,75 @@ var (
 func validateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
+	//arm.TrackedResource
+	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, toTrackedResource))...)
+
 	// Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
 	errs = append(errs, validateClusterProperties(ctx, op, field.NewPath("properties"), &newCluster.Properties, safe.Field(oldCluster, toClusterProperties))...)
 
 	// Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 	errs = append(errs, validateManagedServiceIdentity(ctx, op, field.NewPath("identity"), newCluster.Identity, safe.Field(oldCluster, toClusterIdentity))...)
+
+	return errs
+}
+
+var (
+	toTrackedResourceResource = func(oldObj *arm.TrackedResource) *arm.Resource { return &oldObj.Resource }
+	toTrackedResourceLocation = func(oldObj *arm.TrackedResource) *string { return &oldObj.Location }
+)
+
+func validateTrackedResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.TrackedResource) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//Resource
+	errs = append(errs, validateResource(ctx, op, fldPath.Child("resource"), &newObj.Resource, safe.Field(oldObj, toTrackedResourceResource))...)
+
+	//Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("location"), &newObj.Location, nil)...)
+
+	//Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
+
+	return errs
+}
+
+var (
+	toResourceID         = func(oldObj *arm.Resource) *string { return &oldObj.ID }
+	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
+	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
+	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
+)
+
+// Version                 VersionProfile              `json:"version,omitempty"`
+func validateResource(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.Resource) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//ID         string      `json:"id,omitempty"         visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toResourceID))...)
+
+	//Name       string      `json:"name,omitempty"       visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
+
+	//Type       string      `json:"type,omitempty"       visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
+
+	//SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
+	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
+
+	return errs
+}
+
+// Version                 VersionProfile              `json:"version,omitempty"`
+func validateSystemData(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SystemData) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//CreatedBy string `json:"createdBy,omitempty"`
+	//CreatedByType CreatedByType `json:"createdByType,omitempty"`
+	//CreatedAt *time.Time `json:"createdAt,omitempty"`
+	//LastModifiedBy string `json:"lastModifiedBy,omitempty"`
+	//LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
+	//LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
 
 	return errs
 }
