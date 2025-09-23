@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -283,6 +284,23 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 	return nil
 }
 
+func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (*api.ClusterAutoscalingProfile, error) {
+
+	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
+	MaxNodeProvisionTime, err := time.ParseDuration(in.MaxNodeProvisionTime())
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.ClusterAutoscalingProfile{
+		MaxNodesTotal: int32(in.ResourceLimits().MaxNodesTotal()),
+		// MaxPodGracePeriod (int) - seconds e.g - 300
+		MaxPodGracePeriodSeconds:    int32(in.MaxPodGracePeriod()),
+		MaxNodeProvisionTimeSeconds: int32(MaxNodeProvisionTime.Seconds()),
+		PodPriorityThreshold:        int32(in.PodPriorityThreshold()),
+	}, nil
+}
+
 func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
 	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
 	if err != nil {
@@ -332,6 +350,10 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	if err != nil {
 		return nil, err
 	}
+	clusterAutoscaler, err := convertAutoscalarCSToRP(cluster.Autoscaler())
+	if err != nil {
+		return nil, err
+	}
 
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
@@ -372,6 +394,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
+			Autoscaling:             *clusterAutoscaler,
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
 				State: clusterImageRegistryState,

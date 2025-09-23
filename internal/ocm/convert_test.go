@@ -164,11 +164,6 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			csCluster := ocmCluster(t, ocmClusterDefaults(), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
-			// FIXME Temporary hack until we pass cluster autoscaling values to CS.
-			expectHcpCluster.Properties.Autoscaling.MaxPodGracePeriodSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.PodPriorityThreshold = 0
-
 			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 			require.NoError(t, err)
 
@@ -275,6 +270,10 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			PodCIDR("10.128.0.0/14").
 			ServiceCIDR("172.30.0.0/16").
 			Type("OVNKubernetes")).
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+			PodPriorityThreshold(-10).
+			MaxNodeProvisionTime("15m").
+			MaxPodGracePeriod(600)).
 		Product(cmv1.NewProduct().
 			ID("aro")).
 		Region(cmv1.NewCloudRegion().
