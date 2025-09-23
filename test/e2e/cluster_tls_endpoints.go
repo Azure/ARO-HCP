@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 		Expect(err).NotTo(HaveOccurred())
 		etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 		Expect(err).NotTo(HaveOccurred())
-		managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+		managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 		_, err = framework.CreateBicepTemplateAndWait(ctx,
 			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 			*resourceGroup.Name,
@@ -154,16 +154,19 @@ var _ = Describe("Customer", func() {
 		ingressURL := func(g Gomega) *string {
 			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			g.Expect(err).NotTo(HaveOccurred())
+			if resp.Properties.Console.URL == nil {
+				fmt.Printf("Waiting for ingress URL retrying in 10 seconds..")
+				return nil
+			}
+			fmt.Printf("Ingress URL found")
 			return resp.Properties.Console.URL
 		}
-		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ShouldNot(BeNil())
-
+		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(HaveExistingField("Issuer"))
 		By("examining the server certificate returned by the default ingress when routing the console URL")
 		sslPort := 443
 		consoleUrlWithPort := fmt.Sprintf("%s:%s", *ingressURL(Default), strconv.Itoa(sslPort))
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
-		Eventually(actualCert, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
-		Expect(err).ToNot(BeNil())
+		Expect(err).To(BeNil())
 		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
 		Expect(actualCert.Issuer).NotTo(SatisfyAll(
 			HaveField("CommonName", "root-ca"),
