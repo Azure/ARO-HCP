@@ -13,6 +13,11 @@ clouds:
           clustersService:
             image:
               digest: sha256:e3c04c01e145d084405344bb5ab8f114a306caec7efa89c0ff25fe814d77d9f6
+            k8s:
+              deploymentStrategy:
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
           # ACR Pull
           acrPull:
             image:
