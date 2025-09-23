@@ -2045,6 +2045,7 @@ func (o OsDiskProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
 	populate(objectMap, "diskStorageAccountType", o.DiskStorageAccountType)
 	populate(objectMap, "encryptionSetId", o.EncryptionSetID)
+	populate(objectMap, "persistence", o.Persistence)
 	populate(objectMap, "sizeGiB", o.SizeGiB)
 	return json.Marshal(objectMap)
 }
@@ -2063,6 +2064,9 @@ func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 			delete(rawMsg, key)
 		case "encryptionSetId":
 			err = unpopulate(val, "EncryptionSetID", &o.EncryptionSetID)
+			delete(rawMsg, key)
+		case "persistence":
+			err = unpopulate(val, "Persistence", &o.Persistence)
 			delete(rawMsg, key)
 		case "sizeGiB":
 			err = unpopulate(val, "SizeGiB", &o.SizeGiB)
