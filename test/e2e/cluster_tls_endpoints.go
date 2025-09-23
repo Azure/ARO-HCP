@@ -156,7 +156,7 @@ var _ = Describe("Customer", func() {
 			g.Expect(err).NotTo(HaveOccurred())
 			return resp.Properties.Console.URL
 		}
-		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ShouldNot(BeNil())
+		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).To(HaveExistingField("Issuer"))
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
 		sslPort := 443
