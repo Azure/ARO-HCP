@@ -110,7 +110,7 @@ func CreateNodePool() error {
 				OSDisk: api.OSDiskProfile{
 					SizeGiB:                30,
 					DiskStorageAccountType: "StandardSSD_LRS",
-					Persistence:            "persistent",
+					Persistence:            "Persistent",
 				},
 
 				// VMSize should match configs/cloud-resources/instance-types.yaml
