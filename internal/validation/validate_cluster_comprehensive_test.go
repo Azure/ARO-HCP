@@ -43,6 +43,20 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
+			name: "valid cluster with identity - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "invalid version - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -279,6 +293,64 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "missing location - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Location = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "trackedResource.location"},
+			},
+		},
+		{
+			name: "missing identity type - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "identity.type"},
+			},
+		},
+		{
+			name: "invalid identity type - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: "InvalidType",
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Unsupported value", fieldPath: "identity.state"},
+			},
+		},
+		{
+			name: "invalid user assigned identity resource type - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "resource ID must reference an instance of type", fieldPath: "identity.userAssignedIdentities"},
+			},
+		},
+		{
 			name: "multiple validation errors - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -400,6 +472,31 @@ func TestValidateClusterUpdate(t *testing.T) {
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.Properties.NodeDrainTimeoutMinutes = 30
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster update - allow identity changes",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity":  {},
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2": {},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -593,6 +690,138 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable location - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Location = "westus2"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Location = "eastus"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "trackedResource.location"},
+			},
+		},
+		{
+			name: "immutable identity principal ID - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type:        arm.ManagedServiceIdentityTypeUserAssigned,
+					PrincipalID: "new-principal-id",
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type:        arm.ManagedServiceIdentityTypeUserAssigned,
+					PrincipalID: "old-principal-id",
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "identity.principalId"},
+			},
+		},
+		{
+			name: "immutable identity tenant ID - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type:     arm.ManagedServiceIdentityTypeUserAssigned,
+					TenantID: "new-tenant-id",
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type:     arm.ManagedServiceIdentityTypeUserAssigned,
+					TenantID: "old-tenant-id",
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "identity.tenantId"},
+			},
+		},
+		{
+			name: "immutable user assigned identity client ID - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
+							ClientID: api.Ptr("new-client-id"),
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
+							ClientID: api.Ptr("old-client-id"),
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
+			},
+		},
+		{
+			name: "immutable user assigned identity principal ID - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
+							PrincipalID: api.Ptr("new-principal-id"),
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {
+							PrincipalID: api.Ptr("old-principal-id"),
+						},
+					},
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
+			},
+		},
+		{
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -651,6 +880,7 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	cluster := api.NewDefaultHCPOpenShiftCluster()
 
 	// Set required fields that are not in the default
+	cluster.Location = "eastus" // Required for TrackedResource validation
 	cluster.Properties.Version.ID = "4.15.1"
 	cluster.Properties.DNS.BaseDomainPrefix = "test-cluster"
 	cluster.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
