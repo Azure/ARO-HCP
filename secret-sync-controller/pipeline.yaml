@@ -37,15 +37,26 @@ resourceGroups:
   steps:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Helm
-    releaseName: secret-sync-controller
-    releaseNamespace: secret-sync-controller
-    chartDir: ./deploy
-    valuesFile: ./deploy/values-azure.yaml
+    action: Shell
+    command: make deploy
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     dependsOn:
     - resourceGroup: global
       step: mirror-image
-    identityFrom:
-      resourceGroup: global
-      step: output
-      name: globalMSIId
+    variables:
+    - name: ACR_NAME
+      configRef: acr.svc.name
+    - name: IMAGE_DIGEST
+      configRef: secretSyncController.image.digest
+    - name: IMAGE_REPOSITORY
+      configRef: secretSyncController.image.repository
+    - name: PROVIDER_IMAGE
+      configRef: secretSyncController.providerImage
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
