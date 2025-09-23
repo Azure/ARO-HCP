@@ -150,15 +150,15 @@ var _ = Describe("Customer", func() {
 		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 		By("waiting for the console URL to become available")
-		ingressURL := func(g Gomega) string {
+		ingressURL := func(g Gomega) *string {
 			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			g.Expect(err).NotTo(HaveOccurred())
-			return *resp.Properties.Console.URL
+			return resp.Properties.Console.URL
 		}
 		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ShouldNot(BeNil())
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
-		consoleUrlWithPort := net.JoinHostPort(ingressURL(Default), "443")
+		consoleUrlWithPort := net.JoinHostPort(*ingressURL(Default), "443")
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
 		Expect(err).NotTo(HaveOccurred())
 		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
