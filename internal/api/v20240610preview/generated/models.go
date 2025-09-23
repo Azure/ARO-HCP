@@ -812,7 +812,11 @@ type PlatformProfile struct {
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
-	// Resource group to put cluster resources
+	// Resource group name to put cluster resources
+	// If not specified then a unique name is generated from the following pattern
+	// "aro-hcp-" + clusterName + "-" + UUID
+	// where clusterName means the hcpOpenShiftClusters resource name (up to 45 characters) followed by a 16-byte universally
+	// unique identifier per RFC 4122.
 	ManagedResourceGroup *string
 
 	// The core outgoing configuration

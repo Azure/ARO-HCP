@@ -3102,7 +3102,7 @@
       "properties": {
         "managedResourceGroup": {
           "type": "string",
-          "description": "Resource group to put cluster resources",
+          "description": "Resource group name to put cluster resources\n\nIf not specified then a unique name is generated from the\nfollowing pattern\n\n\"aro-hcp-\" + clusterName + \"-\" + UUID\n\nwhere clusterName means the hcpOpenShiftClusters resource name\n(up to 45 characters) followed by a 16-byte universally unique\nidentifier per RFC 4122.",
           "x-ms-mutability": [
             "read",
             "create"
