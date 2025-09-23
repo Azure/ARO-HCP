@@ -37,14 +37,18 @@ func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPO
 }
 
 var (
-	toProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterProperties { return &oldObj.Properties }
+	toClusterProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterProperties { return &oldObj.Properties }
+	toClusterIdentity   = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
 
 func validateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
-	errs = append(errs, validateClusterProperties(ctx, op, field.NewPath("properties"), &newCluster.Properties, safe.Field(oldCluster, toProperties))...)
+	errs = append(errs, validateClusterProperties(ctx, op, field.NewPath("properties"), &newCluster.Properties, safe.Field(oldCluster, toClusterProperties))...)
+
+	// Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
+	errs = append(errs, validateManagedServiceIdentity(ctx, op, field.NewPath("identity"), newCluster.Identity, safe.Field(oldCluster, toClusterIdentity))...)
 
 	return errs
 }
@@ -453,9 +457,7 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 }
 
 var (
-	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryProfileState {
-		return &oldObj.State
-	}
+	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryProfileState { return &oldObj.State }
 )
 
 func validateClusterImageRegistryProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterImageRegistryProfile) field.ErrorList {
@@ -463,6 +465,75 @@ func validateClusterImageRegistryProfile(ctx context.Context, op operation.Opera
 
 	//State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"enum_clusterimageregistryprofilestate"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates)...)
+
+	return errs
+}
+
+var (
+	toManagedServiceIdentityPrincipalID            = func(oldObj *arm.ManagedServiceIdentity) *string { return &oldObj.PrincipalID }
+	toManagedServiceIdentityTenantID               = func(oldObj *arm.ManagedServiceIdentity) *string { return &oldObj.TenantID }
+	toManagedServiceIdentityType                   = func(oldObj *arm.ManagedServiceIdentity) *arm.ManagedServiceIdentityType { return &oldObj.Type }
+	toManagedServiceIdentityUserAssignedIdentities = func(oldObj *arm.ManagedServiceIdentity) map[string]*arm.UserAssignedIdentity { return oldObj.UserAssignedIdentities }
+)
+
+func validateManagedServiceIdentity(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.ManagedServiceIdentity) field.ErrorList {
+	if newObj == nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	//PrincipalID            string                           `json:"principalId,omitempty"            visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("principalId"), &newObj.PrincipalID, safe.Field(oldObj, toManagedServiceIdentityPrincipalID))...)
+
+	//TenantID               string                           `json:"tenantId,omitempty"               visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("tenantId"), &newObj.TenantID, safe.Field(oldObj, toManagedServiceIdentityTenantID))...)
+
+	//Type                   ManagedServiceIdentityType       `json:"type"                                               validate:"required,enum_managedserviceidentitytype"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), arm.ValidManagedServiceIdentityTypes)...)
+
+	//UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"                   validate:"dive,keys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities,endkeys"`
+	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
+		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),
+		newRestrictedResourceID("Microsoft.ManagedIdentity/userAssignedIdentities"),
+	)...)
+	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("userAssignedIdentities"),
+		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),
+		nil,
+		validateUserAssignedIdentity,
+	)...)
+
+	return errs
+}
+
+var (
+	toUserAssignedIdentityClientID = func(oldObj **arm.UserAssignedIdentity) *string {
+		if oldObj == nil || *oldObj == nil {
+			return nil
+		}
+		return (*oldObj).ClientID
+	}
+	toUserAssignedIdentityPrincipalID = func(oldObj **arm.UserAssignedIdentity) *string {
+		if oldObj == nil || *oldObj == nil {
+			return nil
+		}
+		return (*oldObj).PrincipalID
+	}
+)
+
+func validateUserAssignedIdentity(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj **arm.UserAssignedIdentity) field.ErrorList {
+	if newObj == nil || *newObj == nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	//ClientID    *string `json:"clientId,omitempty"    visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("clientId"), (*newObj).ClientID, safe.Field(oldObj, toUserAssignedIdentityClientID))...)
+
+	//PrincipalID *string `json:"principalId,omitempty" visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("principalId"), (*newObj).PrincipalID, safe.Field(oldObj, toUserAssignedIdentityPrincipalID))...)
 
 	return errs
 }
