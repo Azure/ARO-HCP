@@ -285,7 +285,6 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 }
 
 func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (*api.ClusterAutoscalingProfile, error) {
-
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
 	MaxNodeProvisionTime, err := time.ParseDuration(in.MaxNodeProvisionTime())
 	if err != nil {
@@ -475,6 +474,24 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 	return "arohcp-" + clusterName + "-" + uuid.New().String()
 }
 
+func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+
+	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
+	MaxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
+	if err != nil {
+		return nil, err
+	}
+
+	return arohcpv1alpha1.NewClusterAutoscaler().
+		MaxNodeProvisionTime(fmt.Sprint(MaxNodeProvisionDuration.Minutes(), "m")).
+		MaxPodGracePeriod(int(in.MaxPodGracePeriodSeconds)).
+		PodPriorityThreshold(int(in.PodPriorityThreshold)).
+		ResourceLimits(
+			arohcpv1alpha1.NewAutoscalerResourceLimits().
+				MaxNodesTotal(int(in.MaxNodesTotal)),
+		), nil
+}
+
 // BuildCSCluster creates a CS ClusterBuilder object from an HCPOpenShiftCluster object.
 func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header, hcpCluster *api.HCPOpenShiftCluster, updating bool) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
@@ -504,6 +521,13 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 		Unit(csNodeDrainGracePeriodUnit).
 		Value(float64(hcpCluster.Properties.NodeDrainTimeoutMinutes)))
+
+	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.Properties.Autoscaling)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterBuilder.Autoscaler(clusterAutoscalerBuilder)
 
 	return clusterBuilder, nil
 }
