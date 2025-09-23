@@ -73,7 +73,7 @@ resourceGroups:
       step: infra
   - name: grafana-dashboards
     action: Shell
-    command: ./grafana/deploy.sh
+    command: make grafana
     workingDir: ./../observability/
     dependsOn:
     - resourceGroup: global
