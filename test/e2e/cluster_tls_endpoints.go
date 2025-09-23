@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -158,9 +159,11 @@ var _ = Describe("Customer", func() {
 		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ShouldNot(BeNil())
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
-		consoleUrlWithPort := net.JoinHostPort(*ingressURL(Default), "443")
+		sslPort := 443
+		consoleUrlWithPort := fmt.Sprintf("%s:%s", *ingressURL(Default), strconv.Itoa(sslPort))
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
-		Expect(err).NotTo(HaveOccurred())
+		Eventually(actualCert, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
+		Expect(err).ToNot(BeNil())
 		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
 		Expect(actualCert.Issuer).NotTo(SatisfyAll(
 			HaveField("CommonName", "root-ca"),
