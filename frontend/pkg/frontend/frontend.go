@@ -434,7 +434,7 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
 	resourceName := request.PathValue(PathSegmentResourceName)
 
-	hcpCluster, err := f.dbClient.HCPClusters().Get(ctx, subscriptionID, resourceGroupName, resourceName)
+	hcpCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		reportingErr := arm.NewResourceNotFoundError(resourceID)
 		logger.Error(reportingErr.Error())
