@@ -11,7 +11,7 @@ export OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
 export OP_KMS_ROLE_NAME
 export TLS_CERTIFICATES_ISSUER
 
-ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
+#ZONE_NAME ?= "${REGIONAL_DNS_SUBDOMAIN}.${CX_PARENT_DNS_ZONE_NAME}"
 AFD_OIDC_BASE_ENDPOINT ?= "https://${REGIONAL_DNS_SUBDOMAIN}.${OIDC_SUBDOMAIN}.${SVC_PARENT_DNS_ZONE_NAME}/"
 TLS_CERTIFICATES_ENABLED ?= true
 
@@ -31,29 +31,17 @@ PROVISION_SHARD_ID=$$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${PRO
 deploy:
 	@source ./generate_helm_set_flags.sh && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
-	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
-	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n ${MI_NAME} --query clientId -o tsv) && \
-	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	OIDC_BLOB_SERVICE_ENDPOINT=$(shell az storage account show -n ${OIDC_STORAGE_ACCOUNT} -g ${REGIONAL_RESOURCEGROUP} --query primaryEndpoints.blob -o tsv) && \
-	OIDC_ISSUER_BASE_ENDPOINT=$(shell ./oidc-base-endpoint.sh ${OIDC_STORAGE_ACCOUNT} ${REGIONAL_RESOURCEGROUP} ${AFD_OIDC_BASE_ENDPOINT}) && \
-	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${REGIONAL_RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
-	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
-	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
 	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
-	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
-	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
-	  --set oidcIssuerBlobServiceUrl=$${OIDC_BLOB_SERVICE_ENDPOINT} \
-	  --set oidcIssuerBaseUrl=$${OIDC_ISSUER_BASE_ENDPOINT} \
-	  --set tlsCertificatesIssuer=$${TLS_CERTIFICATES_ISSUER} \
-	  --set tlsCertificatesEnabled=$(TLS_CERTIFICATES_ENABLED) \
+	  --set azureCsMiClientId=${AZURE_CS_MI_CLIENT_ID} \
+	  --set oidcIssuerBlobServiceUrl=${OIDC_BLOB_SERVICE_ENDPOINT} \
+	  --set oidcIssuerBaseUrl=${OIDC_ISSUER_BASE_ENDPOINT} \
+	  --set tlsCertificatesIssuer=${TLS_CERTIFICATES_ISSUER} \
+	  --set tlsCertificatesEnabled=true \
 	  --set denyAssignments=$(DENYASSIGNMENTS) \
-	  --set tenantId=$${TENANT_ID} \
+	  --set tenantId=${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
 	  --set replicas=${REPLICAS} \
@@ -65,22 +53,26 @@ deploy:
 	  --set ocpAcrResourceId=${OCP_ACR_RESOURCE_ID} \
 	  --set ocpAcrUrl=${OCP_ACR_URL} \
 	  --set shard.consumerName="${CONSUMER_NAME}" \
-	  --set shard.zoneResourceId="$${ZONE_RESOURCE_ID}" \
-	  --set shard.cxSecretsKeyVaultUrl="$${CX_SECRETS_KV_URL}" \
-	  --set shard.cxMiKeyVaultUrl="$${CX_MI_KV_URL}" \
+	  --set shard.zoneResourceId="${ZONE_RESOURCE_ID}" \
+	  --set shard.cxSecretsKeyVaultUrl="${CX_SECRETS_KV_URL}" \
+	  --set shard.cxMiKeyVaultUrl="${CX_MI_KV_URL}" \
 	  --set shard.cxSecretsKeyVaultMiClientId="${CX_SECRETS_KV_MI_CLIENT_ID}" \
 	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
 	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
 	  --set shard.Id=$(PROVISION_SHARD_ID) \
-	  --set databaseHost=$${DB_HOST} \
+	  --set database.host=${DB_HOST} \
+	  --set database.name=${DB_NAME} \
+	  --set database.user=${DB_USER} \
+	  --set database.postgresqlVersion=${POSTGRES_VERSION} \
+	  --set database.localDb=${LOCAL_DB} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 	  --set azureMiMockServicePrincipalCertName=${MI_MOCK_SERVICE_PRINCIPAL_CERT_NAME} \
 	  --set azureArmHelperIdentityCertName=${ARM_HELPER_CERT_NAME} \
 	  --set azureArmHelperIdentityClientId=${AZURE_ARM_HELPER_IDENTITY_CLIENT_ID} \
 	  --set azureArmHelperMockFpaPrincipalId=${AZURE_ARM_HELPER_MOCK_FPA_PRINCIPAL_ID} \
-	  --set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
-	  --set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
+	  --set pullBinding.workloadIdentityClientId="${IMAGE_PULLER_MI_CLIENT_ID}" \
+	  --set pullBinding.workloadIdentityTenantId="${TENANT_ID}" \
 	  --set pullBinding.registry=${ACR_NAME}.azurecr.io \
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
 	  --set managedIdentitiesDataPlaneAudienceResource=${MI_DATAPLANE_AUDIENCE_RESOURCE} \

@@ -10,6 +10,14 @@ param maestroEventGridNamespacesName string
 @description('Enable Log Analytics')
 param enableLogAnalytics bool
 
+@description('The resource ID of the CX parent DNS zone')
+param cxParentZoneResourceId string
+
+@description('The regional DNS subdomain')
+param regionalDNSSubdomain string
+
+import * as res from '../modules/resource.bicep'
+
 //
 //   A Z U R E   M O N I T O R
 //
@@ -48,3 +56,16 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09
 }
 
 output logAnalyticsWorkspaceId string = enableLogAnalytics ? logAnalyticsWorkspace.id : ''
+
+//
+//   D N S
+//
+
+var cxParentZoneRef = res.dnsZoneRefFromId(cxParentZoneResourceId)
+
+resource regionalCxZone 'Microsoft.Network/dnsZones@2018-05-01' existing = {
+  name: '${regionalDNSSubdomain}.${cxParentZoneRef.name}'
+}
+
+output regionalCxZoneId string = regionalCxZone.id
+output regionalCxZoneName string = regionalCxZone.name

@@ -94,13 +94,13 @@ spec:
           sleep infinity
         env:
         - name: PGUSER
-          value: "{{ .Values.databaseUser }}"
+          value: "{{ .Values.database.user }}"
         - name: PGDATABASE
-          value: "{{ .Values.databaseName }}"
+          value: "{{ .Values.database.name }}"
         - name: PGHOST
-          value: "{{ .Values.databaseHost }}"
+          value: "{{ .Values.database.host }}"
         - name: PGPORT
-          value: "5432"
+          value: "{{ .Values.database.port }}"
         volumeMounts:
         - name: breakglass
           mountPath: /breakglass

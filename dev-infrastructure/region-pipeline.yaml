@@ -181,6 +181,12 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    variables:
+    - name: cxParentZoneResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: cxParentZoneResourceId
     dependsOn:
     - resourceGroup: regional
       step: housekeeping
