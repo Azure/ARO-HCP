@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"dario.cat/mergo"
@@ -254,10 +255,10 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 				OutboundType(csOutboundType)).
-			ResourceGroupName(api.TestResourceGroupName).
-			ResourceName(api.TestClusterName).
+			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
+			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
-			SubscriptionID(api.TestSubscriptionID).
+			SubscriptionID(strings.ToLower(api.TestSubscriptionID)).
 			TenantID(api.TestTenantID),
 		).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
@@ -267,7 +268,7 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
-		Name(api.TestClusterName).
+		Name(strings.ToLower(api.TestClusterName)).
 		Network(arohcpv1alpha1.NewNetwork().
 			HostPrefix(23).
 			MachineCIDR("10.0.0.0/16").
