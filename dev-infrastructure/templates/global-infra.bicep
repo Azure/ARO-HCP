@@ -24,6 +24,12 @@ param genevaKeyVaultPrivate bool
 @description('Defines if the geneva keyvault should have soft delete enabled')
 param genevaKeyVaultSoftDelete bool
 
+@description('Service Principal ID of geneva actions')
+param genevaActionsServicePrincipalId string
+
+@description('Name of geneva action extensions')
+param allowedAcisExtensions string
+
 @description('The cxParentZone Domain')
 param cxParentZoneName string
 
@@ -144,6 +150,26 @@ module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (geneva
       genevaCertificateSNI
     ]
     issuerName: genevaCertificateIssuer
+  }
+  dependsOn: [
+    genevaKv
+  ]
+}
+
+resource genevaKvAccess 'Microsoft.Authorization/roleAssignments' = {
+  name: guid(genevaKeyVaultName, 'KeyVaultAccess', genevaActionsServicePrincipalId)
+  scope: genevaKv
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+    principalId: genevaActionsServicePrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource allowedExtensionsSecret 'Microsoft.KeyVault/vaults/secrets@2021-04-01-preview' = {
+  name: '${genevaKeyVaultName}/AllowedAcisExtensions'
+  properties: {
+    value: allowedAcisExtensions
   }
   dependsOn: [
     genevaKv
