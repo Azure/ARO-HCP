@@ -16,7 +16,6 @@ package arm
 
 import (
 	"iter"
-	"maps"
 	"slices"
 	"time"
 )
@@ -29,18 +28,6 @@ type Resource struct {
 	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
 }
 
-func (src *Resource) Copy(dst *Resource) {
-	dst.ID = src.ID
-	dst.Name = src.Name
-	dst.Type = src.Type
-	if src.SystemData == nil {
-		dst.SystemData = nil
-	} else {
-		dst.SystemData = &SystemData{}
-		src.SystemData.Copy(dst.SystemData)
-	}
-}
-
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
@@ -48,19 +35,9 @@ type TrackedResource struct {
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
-func (src *TrackedResource) Copy(dst *TrackedResource) {
-	src.Resource.Copy(&dst.Resource)
-	dst.Location = src.Location
-	dst.Tags = maps.Clone(src.Tags)
-}
-
 // ProxyResource represents an ARM resource without location/tags
 type ProxyResource struct {
 	Resource
-}
-
-func (src *ProxyResource) Copy(dst *ProxyResource) {
-	src.Resource.Copy(&dst.Resource)
 }
 
 // CreatedByType is the type of identity that created (or modified) the resource
@@ -88,25 +65,6 @@ type SystemData struct {
 	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
 	// LastModifiedAt is the timestamp of resource last modification (UTC)
 	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
-}
-
-func (src *SystemData) Copy(dst *SystemData) {
-	dst.CreatedBy = src.CreatedBy
-	dst.CreatedByType = src.CreatedByType
-	if src.CreatedAt == nil {
-		dst.CreatedAt = nil
-	} else {
-		t := time.Unix(src.CreatedAt.Unix(), 0)
-		dst.CreatedAt = &t
-	}
-	dst.LastModifiedBy = src.LastModifiedBy
-	dst.LastModifiedByType = src.LastModifiedByType
-	if dst.LastModifiedAt == nil {
-		dst.LastModifiedAt = nil
-	} else {
-		t := time.Unix(src.LastModifiedAt.Unix(), 0)
-		dst.LastModifiedAt = &t
-	}
 }
 
 // ProvisioningState represents the asynchronous provisioning state of an ARM resource
