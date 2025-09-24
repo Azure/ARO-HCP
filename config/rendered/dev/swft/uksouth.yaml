@@ -335,7 +335,7 @@ maestro:
     name: arohcp-swft-maestro-lnstest
     private: false
   image:
-    digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
+    digest: sha256:e4e07bc19d2f2cf924339860c4ef23909b20645f71b4ae8d546067772e194a18
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -552,15 +552,15 @@ oidc:
     zoneRedundantMode: Auto
 pko:
   imageManager:
-    digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+    digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638
     registry: quay.io
     repository: package-operator/package-operator-manager
   imagePackage:
-    digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+    digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e
     registry: quay.io
     repository: package-operator/package-operator-package
   remotePhaseManager:
-    digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+    digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: uksouth
