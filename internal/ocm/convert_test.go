@@ -373,7 +373,7 @@ func TestBuildCSNodePool(t *testing.T) {
 }
 
 func externalAuthResource(opts ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
-	externalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
+	externalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
 
 	for _, opt := range opts {
 		opt(externalAuth)

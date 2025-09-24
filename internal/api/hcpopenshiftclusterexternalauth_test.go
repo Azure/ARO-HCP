@@ -40,7 +40,7 @@ func TestExternalAuthRequired(t *testing.T) {
 		},
 		{
 			name:     "Default external auth",
-			resource: NewDefaultHCPOpenShiftClusterExternalAuth(),
+			resource: NewDefaultHCPOpenShiftClusterExternalAuth(nil),
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Missing required field 'claim'",

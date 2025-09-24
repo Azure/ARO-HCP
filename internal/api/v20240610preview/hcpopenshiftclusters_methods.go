@@ -207,7 +207,7 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) generated.Manag
 
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftCluster()
+		from = api.NewDefaultHCPOpenShiftCluster(nil)
 	}
 
 	out := &HcpOpenShiftCluster{

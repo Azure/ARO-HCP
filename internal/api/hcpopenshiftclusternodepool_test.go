@@ -49,7 +49,7 @@ func TestNodePoolRequired(t *testing.T) {
 		},
 		{
 			name:     "Default node pool",
-			resource: NewDefaultHCPOpenShiftClusterNodePool(),
+			resource: NewDefaultHCPOpenShiftClusterNodePool(nil),
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Missing required field 'vmSize'",

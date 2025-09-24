@@ -169,10 +169,9 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth()
+	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
 
-	hcpExternalAuth.Name = request.PathValue(PathSegmentExternalAuthName)
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
 		logger.Error(err.Error())

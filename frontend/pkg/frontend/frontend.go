@@ -514,7 +514,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		case http.MethodPut:
 			// Initialize versionedRequestCluster to include both
 			// non-zero default values and current read-only values.
-			reqCluster := api.NewDefaultHCPOpenShiftCluster()
+			reqCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
 
 			// Some optional create-only fields have dynamic default
 			// values that are determined downstream of this phase of
@@ -573,10 +573,9 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return
 	}
 
-	hcpCluster := api.NewDefaultHCPOpenShiftCluster()
+	hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
 	versionedRequestCluster.Normalize(hcpCluster)
 
-	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
 	csClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		logger.Error(err.Error())
