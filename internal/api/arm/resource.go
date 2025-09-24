@@ -22,16 +22,16 @@ import (
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         string      `json:"id,omitempty"         visibility:"read"`
-	Name       string      `json:"name,omitempty"       visibility:"read"`
-	Type       string      `json:"type,omitempty"       visibility:"read"`
+	ID         string      `json:"id,omitempty"         visibility:"read nocase"`
+	Name       string      `json:"name,omitempty"       visibility:"read nocase"`
+	Type       string      `json:"type,omitempty"       visibility:"read nocase"`
 	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
 }
 
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
+	Location string            `json:"location,omitempty" visibility:"read create nocase" validate:"required"`
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
