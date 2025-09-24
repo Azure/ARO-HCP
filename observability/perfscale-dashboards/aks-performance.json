@@ -5618,7 +5618,7 @@
         "multi": true,
         "name": "_worker_node",
         "options": [],
-        "query": "label_values(kube_node_role{cluster=\"$cluster\"}, node)",
+        "query": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
