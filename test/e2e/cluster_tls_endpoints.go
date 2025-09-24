@@ -164,7 +164,7 @@ var _ = Describe("Customer", func() {
 		consoleUrlWithPort := fmt.Sprintf("%s:%s", *ingressURL(Default), strconv.Itoa(sslPort))
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
 		Eventually(actualCert, ctx).WithTimeout(10 * time.Minute).ShouldNot(BeNil())
-		Expect(err).ToNot(BeNil())
+		Expect(err).To(BeNil())
 		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
 		Expect(actualCert.Issuer).NotTo(SatisfyAll(
 			HaveField("CommonName", "root-ca"),
