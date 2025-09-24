@@ -302,11 +302,7 @@ func GetExternalAuth(
 	resourceGroupName string,
 	hcpClusterName string,
 	externalAuthName string,
-	timeout time.Duration,
 ) (hcpapi20240610.ExternalAuthsClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	return externalAuthClient.Get(
 		ctx,
 		resourceGroupName,
