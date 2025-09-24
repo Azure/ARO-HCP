@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -30,7 +30,7 @@ import (
 var _ = Describe("Get HCPOpenShiftCluster nodepool", func() {
 	var (
 		clusterEnv      *integration.Cluster
-		nodePoolOptions *api.NodePoolsClientGetOptions
+		nodePoolOptions *hcpsdk.NodePoolsClientGetOptions
 		customerEnv     *integration.CustomerEnv
 		nodePools       *[]integration.Nodepool
 	)
