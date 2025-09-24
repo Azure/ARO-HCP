@@ -538,8 +538,14 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
+
+			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.

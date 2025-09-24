@@ -134,8 +134,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+
+			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.

@@ -144,8 +144,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
+
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
