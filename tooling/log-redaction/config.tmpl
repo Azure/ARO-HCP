@@ -1,0 +1,41 @@
+config:
+  obfuscate:
+    - type: IP
+      replacementType: Consistent
+      target: All
+    - type: MAC
+      replacementType: Consistent
+      target: All
+    - type: Domain
+      replacementType: Consistent
+      target: All
+      domainNames:
+        - "rhcloud.com"
+        - "dev.rhcloud.com"
+    - type: AzureResources
+      replacementType: Consistent
+      target: All
+{{- range .redactionKeys }}
+    - type: AzureResources
+      replacementType: Consistent
+      target: {{ . }}
+{{- end }}
+  omit:
+    - type: Kubernetes
+      kubernetesResource:
+        kind: "Secret"
+    - type: Kubernetes
+      kubernetesResource:
+        kind: "ConfigMap"
+    - type: Kubernetes
+      kubernetesResource:
+        kind: CertificateSigningRequest
+        apiVersion: certificates.k8s.io/v1
+    - type: Kubernetes
+      kubernetesResource:
+        kind: CertificateSigningRequestList
+        apiVersion: certificates.k8s.io/v1
+    - type: Kubernetes
+      kubernetesResource:
+        kind: MachineConfig
+        apiVersion: machineconfiguration.openshift.io/v1

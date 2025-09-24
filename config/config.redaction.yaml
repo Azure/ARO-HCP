@@ -7,7 +7,7 @@ keys:
   - geneva.principalId
   - geneva.resourceContributor
   - global.safeDnsIntAppObjectId
-  - global.subscription.airsRegisteredUserPrincipalId
+  # - global.subscription.airsRegisteredUserPrincipalId
   - kvCertAccessPrincipalId
   - kvCertAccessRoleId
   - kvCertOfficerPrincipalId
@@ -19,9 +19,10 @@ keys:
   - mise.armAppId
   - mise.firstPartyAppId
   - billing.eventHub.subscriptionId
-  - billing.kusto.clusterPrincipals[].tenantid
-  - billing.kusto.clusterPrincipals[].id
-  - logs.mdsd.subscriptions[]
+  - billing.kusto.clusterPrincipals:
+    - id:
+      tenantId:
+  - logs.mdsd.subscriptions
   - monitoring.icm.connectionId
-  - mgmt.subscription.airsRegisteredUserPrincipalId
-  - svc.subscription.airsRegisteredUserPrincipalId
+  # - mgmt.subscription.airsRegisteredUserPrincipalId
+  # - svc.subscription.airsRegisteredUserPrincipalId
