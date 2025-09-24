@@ -3,10 +3,6 @@
 name: mega-linter
 on:
   pull_request:
-    paths:
-    - '!**/CLAUDE.md'
-    - '!**/GEMINI.md'
-    - '!**/AGENTS.md'
 permissions:
   contents: read
 jobs:
