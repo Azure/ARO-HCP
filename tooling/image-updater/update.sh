@@ -28,7 +28,7 @@ else
 fi
 
 log() {
-    echo "[$(date +'%H:%M:%S')] $1"
+    echo "[$(date +'%H:%M:%S')] $1" >&2
 }
 
 usage() {
