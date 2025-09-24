@@ -30,6 +30,10 @@ on:
     - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
+    paths-ignore:
+    - '**/CLAUDE.md'
+    - '**/GEMINI.md'
+    - '**/AGENTS.md'
     types:
     - opened
     - synchronize
