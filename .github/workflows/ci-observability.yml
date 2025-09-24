@@ -3,10 +3,6 @@ on:
   pull_request:
     branches:
     - main
-    paths:
-    - '!**/CLAUDE.md'
-    - '!**/GEMINI.md'
-    - '!**/AGENTS.md'
 jobs:
   paths-filter:
     runs-on: ubuntu-latest
