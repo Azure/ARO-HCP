@@ -18,6 +18,8 @@ import (
 	"iter"
 	"slices"
 	"time"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // Resource represents a basic ARM resource
@@ -28,6 +30,19 @@ type Resource struct {
 	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
 }
 
+// NewResource returns a Resource initialized from resourceID.
+func NewResource(resourceID *azcorearm.ResourceID) Resource {
+	var resource Resource
+
+	if resourceID != nil {
+		resource.ID = resourceID.String()
+		resource.Name = resourceID.Name
+		resource.Type = resourceID.ResourceType.String()
+	}
+
+	return resource
+}
+
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
@@ -35,9 +50,24 @@ type TrackedResource struct {
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
+// NewTrackedResource returns a TrackedResource initialized from resourceID.
+func NewTrackedResource(resourceID *azcorearm.ResourceID) TrackedResource {
+	return TrackedResource{
+		Resource: NewResource(resourceID),
+		Location: GetAzureLocation(),
+	}
+}
+
 // ProxyResource represents an ARM resource without location/tags
 type ProxyResource struct {
 	Resource
+}
+
+// NewProxyResource returns a ProxyResource initialized from resourceID.
+func NewProxyResource(resourceID *azcorearm.ResourceID) ProxyResource {
+	return ProxyResource{
+		Resource: NewResource(resourceID),
+	}
 }
 
 // CreatedByType is the type of identity that created (or modified) the resource
