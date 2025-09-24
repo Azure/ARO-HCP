@@ -60,10 +60,12 @@ spec:
             description: MultiClusterEngineSpec defines the desired state of MultiClusterEngine
             properties:
               availabilityConfig:
-                description: 'Specifies deployment replication for improved availability. Options are: Basic and High (default)'
+                description: 'Specifies deployment replication for improved availability.
+                  Options are: Basic and High (default)'
                 type: string
               imagePullSecret:
-                description: Override pull secret for accessing MultiClusterEngine operand and endpoint images
+                description: Override pull secret for accessing MultiClusterEngine
+                  operand and endpoint images
                 type: string
               localClusterName:
                 default: local-cluster
@@ -78,38 +80,52 @@ spec:
                 description: Developer Overrides
                 properties:
                   components:
-                    description: 'Provides optional configuration for components, the list of which can be found here: https://github.com/stolostron/backplane-operator/tree/main/docs/available-components.md'
+                    description: 'Provides optional configuration for components,
+                      the list of which can be found here: https://github.com/stolostron/backplane-operator/tree/main/docs/available-components.md'
                     items:
-                      description: ComponentConfig provides optional configuration items for individual components
+                      description: ComponentConfig provides optional configuration
+                        items for individual components
                       properties:
                         configOverrides:
-                          description: ConfigOverrides contains optional configuration overrides for deployments and containers.
+                          description: ConfigOverrides contains optional configuration
+                            overrides for deployments and containers.
                           properties:
                             deployments:
-                              description: Deployments is a list of deployment specific configuration overrides.
+                              description: Deployments is a list of deployment specific
+                                configuration overrides.
                               items:
-                                description: DeploymentConfig provides configuration details for a specific deployment.
+                                description: DeploymentConfig provides configuration
+                                  details for a specific deployment.
                                 properties:
                                   containers:
-                                    description: Containers is a list of container specific configurations within the deployment.
+                                    description: Containers is a list of container
+                                      specific configurations within the deployment.
                                     items:
-                                      description: ContainerConfig holds configuration details for a specific container within a deployment.
+                                      description: ContainerConfig holds configuration
+                                        details for a specific container within a
+                                        deployment.
                                       properties:
                                         env:
-                                          description: Env is a list of environment variable overrides for the container.
+                                          description: Env is a list of environment
+                                            variable overrides for the container.
                                           items:
-                                            description: EnvConfig represents an override for an environment variable within a container.
+                                            description: EnvConfig represents an override
+                                              for an environment variable within a
+                                              container.
                                             properties:
                                               name:
-                                                description: Name specifies the name of the environment variable.
+                                                description: Name specifies the name
+                                                  of the environment variable.
                                                 type: string
                                               value:
-                                                description: Value specifies the value of the environment variable.
+                                                description: Value specifies the value
+                                                  of the environment variable.
                                                 type: string
                                             type: object
                                           type: array
                                         name:
-                                          description: Name specifies the name of the container being configured.
+                                          description: Name specifies the name of
+                                            the container being configured.
                                           type: string
                                       required:
                                       - env
@@ -117,7 +133,8 @@ spec:
                                       type: object
                                     type: array
                                   name:
-                                    description: Name specifies the name of the deployment being configured.
+                                    description: Name specifies the name of the deployment
+                                      being configured.
                                     type: string
                                 required:
                                 - containers
@@ -126,10 +143,12 @@ spec:
                               type: array
                           type: object
                         enabled:
-                          description: Enabled specifies whether the component is enabled or disabled.
+                          description: Enabled specifies whether the component is
+                            enabled or disabled.
                           type: boolean
                         name:
-                          description: Name denotes the name of the component being configured.
+                          description: Name denotes the name of the component being
+                            configured.
                           type: string
                       required:
                       - enabled
@@ -191,26 +210,31 @@ spec:
             properties:
               components:
                 items:
-                  description: ComponentCondition contains condition information for tracked components
+                  description: ComponentCondition contains condition information for
+                    tracked components
                   properties:
                     kind:
                       description: The resource kind this condition represents
                       type: string
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time the condition changed from one status to another.
+                      description: LastTransitionTime is the last time the condition
+                        changed from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: Message is a human-readable message indicating details about the last status change.
+                      description: Message is a human-readable message indicating
+                        details about the last status change.
                       type: string
                     name:
                       description: The component name
                       type: string
                     reason:
-                      description: Reason is a (brief) reason for the condition's last status change.
+                      description: Reason is a (brief) reason for the condition's
+                        last status change.
                       type: string
                     status:
-                      description: Status is the status of the condition. One of True, False, Unknown.
+                      description: Status is the status of the condition. One of True,
+                        False, Unknown.
                       type: string
                     type:
                       description: Type is the type of the cluster condition.
@@ -221,7 +245,8 @@ spec:
                 items:
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time the condition changed from one status to another.
+                      description: LastTransitionTime is the last time the condition
+                        changed from one status to another.
                       format: date-time
                       type: string
                     lastUpdateTime:
@@ -229,13 +254,16 @@ spec:
                       format: date-time
                       type: string
                     message:
-                      description: Message is a human-readable message indicating details about the last status change.
+                      description: Message is a human-readable message indicating
+                        details about the last status change.
                       type: string
                     reason:
-                      description: Reason is a (brief) reason for the condition's last status change.
+                      description: Reason is a (brief) reason for the condition's
+                        last status change.
                       type: string
                     status:
-                      description: Status is the status of the condition. One of True, False, Unknown.
+                      description: Status is the status of the condition. One of True,
+                        False, Unknown.
                       type: string
                     type:
                       description: Type is the type of the cluster condition.
@@ -243,10 +271,12 @@ spec:
                   type: object
                 type: array
               currentVersion:
-                description: CurrentVersion is the most recent version successfully installed
+                description: CurrentVersion is the most recent version successfully
+                  installed
                 type: string
               desiredVersion:
-                description: DesiredVersion is the version the operator is reconciling towards
+                description: DesiredVersion is the version the operator is reconciling
+                  towards
                 type: string
               phase:
                 description: Latest observed overall state

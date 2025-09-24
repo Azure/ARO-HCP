@@ -568,20 +568,20 @@ defaults:
   # ACM
   acm:
     operator:
-      version: "2.14.0"
-      mirrorAdditionalVersions: "2.12.0,2.13.0,2.13.1"
+      version: "2.14.1"
+      mirrorAdditionalVersions: "2.12.0,2.13.0,2.13.1,2.14.0"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157 # v2.14.0-1
+        digest: sha256:674f4ead765beb788d2a64dd124d831e5a6a49e8d615eb7ac860b8a425fd0c96 # v2.14.1-213
     mce:
-      version: "2.9.0"
-      mirrorAdditionalVersions: "2.8.1,2.8.2"
+      version: "2.9.1"
+      mirrorAdditionalVersions: "2.8.1,2.8.2,2.9.0"
       pauseReconciliation: false
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:82118a2b3c036a9c8e666636d5cac1ea0998553727cfc5da0d2bad8eed916e6b # v2.9.1-pre-release
+        digest: sha256:99538e71208ea509f14c7f8cb2b4e6657935da592cc14cbbcc290a4ccb2cc716 # v2.9.1-34
   # Cluster Service
   clustersService:
     image:
