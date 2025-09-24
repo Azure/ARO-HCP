@@ -151,13 +151,14 @@ var _ = Describe("Customer", func() {
 		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 		By("waiting for the console URL to become available")
+		var consoleURL *string
 		ingressURL := func(g Gomega) *string {
 			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			g.Expect(err).NotTo(HaveOccurred())
-			return resp.Properties.Console.URL
+			consoleURL = resp.Properties.Console.URL
+			return consoleURL
 		}
-		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).To(HaveExistingField("Issuer"))
-
+		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).ToNot(BeNil())
 		By("examining the server certificate returned by the default ingress when routing the console URL")
 		sslPort := 443
 		consoleUrlWithPort := fmt.Sprintf("%s:%s", *ingressURL(Default), strconv.Itoa(sslPort))
