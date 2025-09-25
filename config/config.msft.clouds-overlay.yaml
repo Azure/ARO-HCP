@@ -75,6 +75,14 @@ clouds:
           maestro:
             image:
               digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
+          # ACM
+          acm:
+            operator:
+              bundle:
+                digest: sha256:674f4ead765beb788d2a64dd124d831e5a6a49e8d615eb7ac860b8a425fd0c96 # v2.14.1-213
+            mce:
+              bundle:
+                digest: sha256:99538e71208ea509f14c7f8cb2b4e6657935da592cc14cbbcc290a4ccb2cc716 # v2.9.1-34
           # OCP image sync
           imageSync:
             ocMirror:
@@ -146,6 +154,14 @@ clouds:
           maestro:
             image:
               digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
+          # ACM
+          acm:
+            operator:
+              bundle:
+                digest: sha256:437a786a175e50d808d93c8f0b3c79484e6f965e164fddf80cbbe4458ca610b0 # v2.14.0-old
+            mce:
+              bundle:
+                digest: sha256:82118a2b59970cf8ce9e64204e963f0b4b72ed6eb25cee1fe43a3f0c963ec89a # v2.9.0-old
           # OCP image sync
           imageSync:
             ocMirror:
@@ -217,6 +233,14 @@ clouds:
           maestro:
             image:
               digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
+          # ACM
+          acm:
+            operator:
+              bundle:
+                digest: sha256:437a786a175e50d808d93c8f0b3c79484e6f965e164fddf80cbbe4458ca610b0 # v2.14.0-old
+            mce:
+              bundle:
+                digest: sha256:82118a2b59970cf8ce9e64204e963f0b4b72ed6eb25cee1fe43a3f0c963ec89a # v2.9.0-old
           # OCP image sync
           imageSync:
             ocMirror:
