@@ -25,6 +25,7 @@ import (
 // CloudError codes
 const (
 	CloudErrorCodeInternalServerError      = "InternalServerError"
+	CloudErrorCodeServiceUnavailable       = "ServiceUnavailable"
 	CloudErrorCodeInvalidParameter         = "InvalidParameter"
 	CloudErrorCodeInvalidRequestContent    = "InvalidRequestContent"
 	CloudErrorCodeInvalidResource          = "InvalidResource"

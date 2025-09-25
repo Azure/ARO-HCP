@@ -99,7 +99,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
@@ -192,7 +192,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 	} else {
@@ -207,7 +207,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 

@@ -52,6 +52,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+
+	serviceUnavailableRetryAfterInterval string = "60" // seconds
 )
 
 // Sentinel error for use with errors.Is
@@ -865,7 +867,7 @@ func ConvertCStoHCPOpenShiftVersion(resourceID azcorearm.ResourceID, version *ar
 // CSErrorToCloudError attempts to convert various 4xx status codes from
 // Cluster Service to an ARM-compliant error structure, with 500 Internal
 // Server Error as a last-ditch fallback.
-func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.CloudError {
+func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID, header http.Header) *arm.CloudError {
 	var ocmError *ocmerrors.Error
 
 	if errors.As(err, &ocmError) {
@@ -908,6 +910,22 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 				statusCode,
 				arm.CloudErrorCodeConflict,
 				target, "%s", ocmError.Reason())
+		case http.StatusServiceUnavailable:
+			// ServiceUnavailable can be returned immediately on a cluster
+			// creation request if cluster capacity would breach the value
+			// of the --provision-shard-cluster-limit option.
+			//
+			// ocm-sdk-go already retries on this response status (see its
+			// retry/transport_wrapper.go) so there is no point in the RP
+			// retrying as well. Instead we add a Retry-After header to the
+			// response.
+			if header != nil {
+				header.Set("Retry-After", serviceUnavailableRetryAfterInterval)
+			}
+			return arm.NewCloudError(
+				statusCode,
+				arm.CloudErrorCodeServiceUnavailable,
+				"", "%s", ocmError.Reason())
 		}
 	}
 
