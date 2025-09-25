@@ -14,6 +14,10 @@
 
 package api
 
+import (
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
 // DiskStorageAccountType represents supported Azure storage account types.
 type DiskStorageAccountType string
 
@@ -31,11 +35,24 @@ const (
 	NetworkTypeOther         NetworkType = "Other"
 )
 
+var (
+	ValidNetworkTypes = sets.New[NetworkType](
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther,
+	)
+)
+
 // OutboundType represents a routing strategy to provide egress to the Internet.
 type OutboundType string
 
 const (
 	OutboundTypeLoadBalancer OutboundType = "LoadBalancer"
+)
+
+var (
+	ValidOutboundTypes = sets.New[OutboundType](
+		OutboundTypeLoadBalancer,
+	)
 )
 
 // Visibility represents the visibility of an API endpoint.
@@ -44,6 +61,13 @@ type Visibility string
 const (
 	VisibilityPublic  Visibility = "Public"
 	VisibilityPrivate Visibility = "Private"
+)
+
+var (
+	ValidVisibility = sets.New[Visibility](
+		VisibilityPublic,
+		VisibilityPrivate,
+	)
 )
 
 type Effect string
@@ -64,6 +88,12 @@ const (
 	CustomerManagedEncryptionTypeKMS CustomerManagedEncryptionType = "KMS"
 )
 
+var (
+	ValidCustomerManagedEncryptionType = sets.New[CustomerManagedEncryptionType](
+		CustomerManagedEncryptionTypeKMS,
+	)
+)
+
 type EtcdDataEncryptionKeyManagementModeType string
 
 const (
@@ -71,6 +101,13 @@ const (
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
+)
+
+var (
+	ValidEtcdDataEncryptionKeyManagementModeType = sets.New[EtcdDataEncryptionKeyManagementModeType](
+		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+	)
 )
 
 // ClusterImageRegistryProfileState - state indicates the desired ImageStream-backed cluster image registry installation mode.
@@ -82,6 +119,13 @@ type ClusterImageRegistryProfileState string
 const (
 	ClusterImageRegistryProfileStateDisabled ClusterImageRegistryProfileState = "Disabled"
 	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
+)
+
+var (
+	ValidClusterImageRegistryProfileStates = sets.New[ClusterImageRegistryProfileState](
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
+	)
 )
 
 type TokenValidationRuleType string
