@@ -56,11 +56,12 @@ func (iter *queryResourcesIterator[T]) Items(ctx context.Context) DBClientIterat
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, itemJSON := range response.Items {
-				var decodedItem *T
-				if err := json.Unmarshal(itemJSON, decodedItem); err != nil {
+				var obj T
+				if err := json.Unmarshal(itemJSON, &obj); err != nil {
 					iter.err = err
 					return
 				}
+				decodedItem := &obj
 
 				decodedItemAsResourceProperties, ok := any(decodedItem).(ResourceProperties)
 				if !ok {

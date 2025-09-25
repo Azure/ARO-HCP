@@ -19,8 +19,8 @@ import "github.com/Azure/ARO-HCP/internal/api"
 type HCPClusterCRUD interface {
 	ResourceCRUD[HCPCluster]
 
-	ExternalAuthCRUD(hcpClusterID string) ResourceCRUD[ExternalAuth]
-	NodePoolCRUD(hcpClusterID string) ResourceCRUD[NodePool]
+	ExternalAuth(hcpClusterID string) ResourceCRUD[ExternalAuth]
+	NodePools(hcpClusterID string) ResourceCRUD[NodePool]
 }
 
 type hcpClusterCRUD struct {
@@ -29,10 +29,10 @@ type hcpClusterCRUD struct {
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
 
-func (h *hcpClusterCRUD) ExternalAuthCRUD(hcpClusterID string) ResourceCRUD[ExternalAuth] {
+func (h *hcpClusterCRUD) ExternalAuth(hcpClusterID string) ResourceCRUD[ExternalAuth] {
 	return newNestedCosmosResourceCRUD[ExternalAuth](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ExternalAuthResourceType)
 }
 
-func (h *hcpClusterCRUD) NodePoolCRUD(hcpClusterID string) ResourceCRUD[NodePool] {
+func (h *hcpClusterCRUD) NodePools(hcpClusterID string) ResourceCRUD[NodePool] {
 	return newNestedCosmosResourceCRUD[NodePool](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.NodePoolResourceType)
 }
