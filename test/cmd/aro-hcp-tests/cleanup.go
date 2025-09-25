@@ -16,92 +16,89 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
-	"syscall"
-	"time"
 
+	"github.com/dusted-go/logging/prettylog"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/cleanup"
+	"github.com/Azure/ARO-HCP/test/util/cleanup/resourcegroups"
 )
 
-func NewDeleteExpiredResourceGroupsCommand() *cobra.Command {
-	nowString := time.Now().Format(time.RFC3339)
-	dryRun := false
+func newCleanupCommand() *cobra.Command {
+
+	opt := cleanup.NewBaseOptions()
 
 	cmd := &cobra.Command{
-		Use:          "delete-expired-resource-groups",
-		Short:        "Look for all resource groups from e2e runs that need to be deleted.",
+		Use:          "cleanup",
+		Short:        "Cleanup resources",
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancelCause := context.WithCancelCause(context.Background())
-			defer cancelCause(errors.New("exiting"))
-
-			abortCh := make(chan os.Signal, 2)
-			go func() {
-				<-abortCh
-				fmt.Fprintf(os.Stderr, "Interrupted, terminating tests")
-				cancelCause(errors.New("interrupt received"))
-
-				select {
-				case sig := <-abortCh:
-					fmt.Fprintf(os.Stderr, "Interrupted twice, exiting (%s)", sig)
-					switch sig {
-					case syscall.SIGINT:
-						os.Exit(130)
-					default:
-						os.Exit(130) // if we were interrupted, never return zero.
-					}
-
-				case <-time.After(30 * time.Minute): // allow time for cleanup.  If we finish before this, we'll exit
-					fmt.Fprintf(os.Stderr, "Timed out during cleanup, exiting")
-					os.Exit(130) // if we were interrupted, never return zero.
-				}
-			}()
-			signal.Notify(abortCh, syscall.SIGINT, syscall.SIGTERM)
-
-			now, err := time.Parse(time.RFC3339, nowString)
-			if err != nil {
-				return err
-			}
-
-			// convenient way to get clients
-			tc := framework.NewTestContext()
-			expiredResourceGroups, err := framework.ListAllExpiredResourceGroups(
-				ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(),
-				now,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to list expired resource groups: %w", err)
-			}
-
-			expiredResourceGroupsNames := []string{}
-			for _, resourceGroup := range expiredResourceGroups {
-				fmt.Printf("Deleting resource group %s\n", *resourceGroup.Name)
-				expiredResourceGroupsNames = append(expiredResourceGroupsNames, *resourceGroup.Name)
-			}
-			if dryRun {
-				return nil
-			}
-
-			err = framework.CleanupResourceGroups(ctx,
-				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient(),
-				expiredResourceGroupsNames)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error during cleanup: %v", err)
-			}
-
-			return err
-		},
 	}
 
-	cmd.Flags().StringVar(&nowString, "now", nowString, "The current time")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", dryRun, "Print what would be deleted, but don't actually delete anything")
+	cmd.PersistentFlags().IntVarP(&opt.Verbosity, "verbosity", "v", opt.Verbosity, "Log verbosity level")
+
+	cmd.AddCommand(newCleanupResourceGroupsCommand())
+
+	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		ctx := logr.NewContext(cmd.Context(), createLogger(opt.Verbosity))
+		cmd.SetContext(ctx)
+	}
+	return cmd
+}
+
+func newCleanupResourceGroupsCommand() *cobra.Command {
+
+	cmd := &cobra.Command{
+		Use:          "resource-groups",
+		Short:        "Delete resource groups (explicit list or expired resource groups)",
+		SilenceUsage: true,
+	}
+
+	opt := resourcegroups.NewOptions()
+	cmd.Flags().StringArrayVar(&opt.ResourceGroups, "resource-group", opt.ResourceGroups, "Resource group to clean (repeat)")
+	cmd.Flags().BoolVar(&opt.DeleteExpired, "expired", opt.DeleteExpired, "Delete all expired e2e resource groups")
+	cmd.Flags().StringVar(&opt.EvaluationTime, "evaluation-time", opt.EvaluationTime, "Time at which to evaluate resource group expiration (RFC3339,defaults to current time)")
+	cmd.Flags().BoolVar(&opt.DryRun, "dry-run", opt.DryRun, "Print which resource groups would be deleted without deleting")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+		defer cancel()
+		return opt.Run(ctx)
+	}
 
 	return cmd
+}
+
+// TODO: delete when scripts have been migrated to use the new command
+func newDeleteExpiredResourceGroupsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "delete-expired-resource-groups",
+		Short:        "Delete expired e2e resource groups",
+		SilenceUsage: true,
+	}
+
+	opt := resourcegroups.NewOptions()
+	opt.DeleteExpired = true
+	cmd.Flags().StringVar(&opt.EvaluationTime, "now", opt.EvaluationTime, "Current time when evaluating expiration (RFC3339)")
+	cmd.Flags().BoolVar(&opt.DryRun, "dry-run", opt.DryRun, "Print which resource groups would be deleted without deleting")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer cancel()
+		return opt.Run(logr.NewContext(ctx, createLogger(0)))
+	}
+
+	return cmd
+}
+
+func createLogger(verbosity int) logr.Logger {
+	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+		Level:       slog.Level(verbosity * -1),
+		AddSource:   false,
+		ReplaceAttr: nil,
+	})
+	return logr.FromSlogHandler(prettyHandler)
 }
