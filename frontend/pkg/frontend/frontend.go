@@ -367,7 +367,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	// Check for iteration error.
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
 		return
 	}
 
@@ -483,7 +483,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
@@ -591,7 +591,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 	} else {
@@ -599,7 +599,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 

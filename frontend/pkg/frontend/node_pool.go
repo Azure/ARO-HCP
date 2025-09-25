@@ -101,7 +101,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
@@ -182,7 +182,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterResourceDoc.InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID.Parent))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID.Parent, writer.Header()))
 		return
 	}
 
@@ -225,7 +225,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 	} else {
@@ -240,7 +240,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 

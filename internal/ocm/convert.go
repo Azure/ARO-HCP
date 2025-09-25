@@ -864,7 +864,7 @@ func ConvertCStoHCPOpenShiftVersion(resourceID azcorearm.ResourceID, version *ar
 // CSErrorToCloudError attempts to convert various 4xx status codes from
 // Cluster Service to an ARM-compliant error structure, with 500 Internal
 // Server Error as a last-ditch fallback.
-func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.CloudError {
+func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID, header http.Header) *arm.CloudError {
 	var ocmError *ocmerrors.Error
 
 	if errors.As(err, &ocmError) {
