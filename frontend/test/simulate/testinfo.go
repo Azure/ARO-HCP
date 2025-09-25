@@ -21,6 +21,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -38,6 +41,8 @@ import (
 )
 
 type SimulationTestInfo struct {
+	ArtifactsDir string
+
 	CosmosDatabaseClient     *azcosmos.DatabaseClient
 	DBClient                 database.DBClient
 	MockClusterServiceClient *mocks.MockClusterServiceClientSpec
@@ -55,24 +60,38 @@ func (s *SimulationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClien
 	return resources
 }
 
-func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) (*hcpapi20240610.ClientFactory, error) {
-	return hcpapi20240610.NewClientFactory(subscriptionID, nil, &azcorearm.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: -1, // no retries
-			},
-			Cloud: cloud.Configuration{
-				//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-				Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-					cloud.ResourceManager: {
-						Audience: "https://management.core.windows.net/",
-						Endpoint: s.FrontendURL,
+func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) *hcpapi20240610.ClientFactory {
+	return api.Must(
+		hcpapi20240610.NewClientFactory(subscriptionID, nil, &azcorearm.ClientOptions{
+			ClientOptions: azcore.ClientOptions{
+				Retry: policy.RetryOptions{
+					MaxRetries: -1, // no retries
+				},
+				Cloud: cloud.Configuration{
+					//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+						cloud.ResourceManager: {
+							Audience: "https://management.core.windows.net/",
+							Endpoint: s.FrontendURL,
+						},
 					},
 				},
+				InsecureAllowCredentialWithHTTP: true,
+				PerCallPolicies: []policy.Policy{
+					emptySystemData{},
+				},
 			},
-			InsecureAllowCredentialWithHTTP: true,
-		},
-	})
+		}),
+	)
+}
+
+// emptySystemData provides enough systemdata (normally supplied somewhere in ARM) to enable the server tow ork.
+type emptySystemData struct{}
+
+func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
+	req.Raw().Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
+	req.Raw().Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+	return req.Next()
 }
 
 func (s *SimulationTestInfo) CreateNewSubscription(ctx context.Context) (string, *arm.Subscription, error) {
@@ -99,10 +118,16 @@ func (s *SimulationTestInfo) Cleanup(ctx context.Context) {
 	}
 }
 
-// CleanupDatabase deletes the randomly created database
+// CleanupDatabase reads all records from all containers and saves them to artifacts, then deletes the database
 func (s *SimulationTestInfo) CleanupDatabase(ctx context.Context) error {
 	if s.CosmosDatabaseClient == nil || s.DatabaseName == "" {
 		return nil // Nothing to cleanup
+	}
+
+	// Save all database content before deleting
+	if err := s.saveAllDatabaseContent(ctx); err != nil {
+		fmt.Printf("Failed to save database content: %v\n", err)
+		// Continue with deletion even if saving fails
 	}
 
 	_, err := s.CosmosDatabaseClient.Delete(ctx, nil)
@@ -116,6 +141,172 @@ func (s *SimulationTestInfo) CleanupDatabase(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// saveAllDatabaseContent reads all records from all containers and saves them to files
+func (s *SimulationTestInfo) saveAllDatabaseContent(ctx context.Context) error {
+	// Create timestamped subdirectory for this database
+	cosmosDir := filepath.Join(s.ArtifactsDir, "cosmos-content")
+	if err := os.MkdirAll(cosmosDir, 0755); err != nil {
+		return fmt.Errorf("failed to create artifact directory %s: %w", cosmosDir, err)
+	}
+	fmt.Printf("Saving Cosmos DB content to: %s\n", cosmosDir)
+
+	// List all containers in the database
+	containers := []string{"Resources", "Billing", "Locks"}
+	for _, containerName := range containers {
+		if err := s.saveContainerContent(ctx, containerName, cosmosDir); err != nil {
+			fmt.Printf("Failed to save container %s: %v\n", containerName, err)
+			// Continue with other containers
+		}
+	}
+
+	return nil
+}
+
+// saveContainerContent saves all documents from a specific container
+func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, containerName, outputDir string) error {
+	containerClient, err := s.CosmosDatabaseClient.NewContainer(containerName)
+	if err != nil {
+		return fmt.Errorf("failed to get container client for %s: %w", containerName, err)
+	}
+
+	// Create subdirectory for this container
+	containerDir := filepath.Join(outputDir, containerName)
+	if err := os.MkdirAll(containerDir, 0755); err != nil {
+		return fmt.Errorf("failed to create container directory %s: %w", containerDir, err)
+	}
+
+	// Query all documents in the container
+	querySQL := "SELECT * FROM c"
+	queryOptions := &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{},
+	}
+
+	queryPager := containerClient.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+
+	docCount := 0
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to query container %s: %w", containerName, err)
+		}
+
+		for _, item := range queryResponse.Items {
+			// Parse the document to get its ID for filename
+			var docMap map[string]interface{}
+			if err := json.Unmarshal(item, &docMap); err != nil {
+				fmt.Printf("Failed to parse document in %s: %v\n", containerName, err)
+				continue
+			}
+
+			filename := ""
+			resourceType := docMap["resourceType"]
+			var armResourceID *azcorearm.ResourceID
+			var properties map[string]any
+			obj, hasProperties := docMap["properties"]
+			if hasProperties {
+				properties = obj.(map[string]any)
+				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID {
+					armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
+				}
+			}
+			switch {
+			case armResourceID != nil:
+				filename = filepath.Join(
+					resourceIDToDir(armResourceID),
+					armResourceID.Name+".json",
+				)
+
+			case strings.EqualFold(resourceType.(string), azcorearm.SubscriptionResourceType.String()):
+				filename = filepath.Join(
+					"subscriptions",
+					fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
+
+			case strings.EqualFold(resourceType.(string), database.OperationResourceType.String()):
+				externalID := properties["externalId"].(string)
+				if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
+					clusterDir := resourceIDToDir(clusterResourceID)
+					filename = filepath.Join(
+						clusterDir,
+						fmt.Sprintf("hcpoperationstatuses_%v_%v_%v.json", properties["startTime"], properties["request"], docMap["id"]),
+					)
+				}
+			}
+
+			if len(filename) == 0 {
+				if id, ok := docMap["id"].(string); ok {
+					// Sanitize filename
+					basename := strings.ReplaceAll("unknown-type-"+id+".json", "/", "_")
+					basename = strings.ReplaceAll(filename, "\\", "_")
+					basename = strings.ReplaceAll(filename, ":", "_")
+					filename = filepath.Join("unknown", basename)
+				} else {
+					filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
+				}
+			}
+			filename = filepath.Join(containerDir, filename)
+			fmt.Printf("Saving document %s\n", filename)
+
+			dirName := filepath.Dir(filename)
+			if err := os.MkdirAll(dirName, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dirName, err)
+			}
+			prettyPrint, err := json.MarshalIndent(docMap, "", "    ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal document: %w", err)
+			}
+			// Write document to file
+			if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
+				fmt.Printf("Failed to write document to %s: %v\n", filename, err)
+				continue
+			}
+
+			docCount++
+		}
+	}
+
+	fmt.Printf("Saved %d documents from container %s\n", docCount, containerName)
+	return nil
+}
+
+func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
+	if resourceID.Parent == nil {
+		return ""
+	}
+	startingDir := resourceIDToDir(resourceID.Parent)
+
+	switch resourceID.ResourceType.String() {
+	case "Microsoft.Resources/tenants":
+		return ""
+	case "Microsoft.Resources/subscriptions":
+		return filepath.Join(
+			startingDir,
+			"subscriptions",
+			resourceID.Name,
+		)
+	case "Microsoft.Resources/resourceGroups":
+		return filepath.Join(
+			startingDir,
+			"resourceGroups",
+			resourceID.Name,
+		)
+
+	default:
+		if resourceID.Parent.ResourceType.String() == "Microsoft.Resources/resourceGroups" {
+			return filepath.Join(
+				startingDir,
+				resourceID.ResourceType.String(),
+				resourceID.Name,
+			)
+		}
+
+		return filepath.Join(
+			startingDir,
+			resourceID.ResourceType.Type,
+			resourceID.Name,
+		)
+	}
 }
 
 func (s *SimulationTestInfo) CreateInitialCosmosContent(ctx context.Context, createDir fs.FS) error {
