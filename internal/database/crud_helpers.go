@@ -69,10 +69,11 @@ func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, 
 		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
 	}
 
-	var ret T
-	if err := json.Unmarshal(responseItem, &ret); err != nil {
+	var obj T
+	if err := json.Unmarshal(responseItem, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
 	}
+	ret := &obj
 
 	// Replace the key field from Cosmos with the given resourceID,
 	// which typically comes from the URL. This helps preserve the
@@ -90,11 +91,11 @@ func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, 
 	// name must come from the URL and not the request body.
 	retAsResourceProperties, ok := any(ret).(ResourceProperties)
 	if !ok {
-		return nil, fmt.Errorf("type %T does not implement DocumentProperties interface", ret)
+		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", ret)
 	}
 	retAsResourceProperties.GetResourceDocument().ResourceID = completeResourceID
 
-	return &ret, nil
+	return ret, nil
 }
 
 func list[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
