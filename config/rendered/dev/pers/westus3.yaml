@@ -141,6 +141,7 @@ clustersService:
     serverStorageSizeGB: 128
     serverVersion: "17"
     zoneRedundantMode: Auto
+  provisionShardClusterLimit: 100
   tracing:
     address: http://ingest.observability:4318
     exporter: otlp

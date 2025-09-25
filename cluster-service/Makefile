@@ -87,6 +87,7 @@ deploy:
 	  --set tracing.address=${TRACING_ADDRESS} \
 	  --set csDeploymentStrategy.rollingUpdate.maxSurge=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE} \
 	  --set csDeploymentStrategy.rollingUpdate.maxUnavailable=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE} \
+	  --set provisionShardClusterLimit=${PROVISION_SHARD_CLUSTER_LIMIT} \
 	  "$${OP_HELM_SET_FLAGS[@]}"
 
 deploy-pr-env-deps:

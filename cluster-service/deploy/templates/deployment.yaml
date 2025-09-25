@@ -161,6 +161,7 @@ spec:
         - --runtime-mode={{ .Values.runtimeMode }}
         - --default-expiration={{ .Values.defaultExpiration }}
         - --maximum-expiration={{ .Values.maximumExpiration }}
+        - --provision-shard-cluster-limit={{ .Values.provisionShardClusterLimit }}
         - --db-host=@/secrets/rds/db.host
         - --db-port=@/secrets/rds/db.port
         - --db-name=@/secrets/rds/db.name

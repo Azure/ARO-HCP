@@ -48,7 +48,7 @@ environment: ""
 # thus making the Backplane CLI failover to check if the backplane user has an environment variable BACKPLANE_URL set and use it instead.
 backplaneURL: ""
 # Provision shard limit of managed clusters.
-provisionShardClusterLimit: "500"
+provisionShardClusterLimit: "100"
 # If not empty clears the dirty flag and forces the given migration version.
 forceMigration: ""
 # If set to true, a cluster error will trigger a report.
