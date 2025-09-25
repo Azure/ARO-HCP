@@ -143,7 +143,7 @@ func (u *Updater) getACRDigest(source config.Source) (string, error) {
 		return "", fmt.Errorf("failed to parse repository from image reference: %w", err)
 	}
 
-	return u.acrClient.GetLatestDigest(repository)
+	return u.acrClient.GetLatestDigest(repository, source.TagPattern)
 }
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry

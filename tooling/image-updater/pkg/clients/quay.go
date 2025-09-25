@@ -109,24 +109,11 @@ func (c *QuayClient) getDigestByTagPattern(repository string, tagPattern string)
 		return "", fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
-	// Filter tags by pattern and exclude metadata tags
 	var matchingTags []QuayTag
 	for _, tag := range tags {
-		// Check if tag matches the pattern
-		if !regex.MatchString(tag.Name) {
-			continue
+		if regex.MatchString(tag.Name) {
+			matchingTags = append(matchingTags, tag)
 		}
-
-		// Skip signature and attestation tags
-		if isMetadataTag(tag.Name) {
-			continue
-		}
-
-		if tag.ManifestDigest == "" {
-			continue
-		}
-
-		matchingTags = append(matchingTags, tag)
 	}
 
 	if len(matchingTags) == 0 {
@@ -135,7 +122,6 @@ func (c *QuayClient) getDigestByTagPattern(repository string, tagPattern string)
 
 	// Sort tags by last modified date (newest first)
 	sort.Slice(matchingTags, func(i, j int) bool {
-		// For descending sort (newest first), we want i > j in terms of time
 		return c.compareTimestamps(matchingTags[i].LastModified, matchingTags[j].LastModified)
 	})
 

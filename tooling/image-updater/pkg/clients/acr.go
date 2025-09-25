@@ -17,6 +17,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
@@ -55,9 +56,8 @@ type ACRTag struct {
 	LastModified time.Time
 }
 
-// GetLatestDigest gets the most recent tag's digest from ACR by fetching all tags and sorting by timestamp
-func (c *ACRClient) GetLatestDigest(repository string) (string, error) {
-
+// GetLatestDigest gets the most recent tag's digest from ACR, optionally filtering by tag pattern
+func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
 	ctx := context.Background()
 
 	// Fetch all tags with pagination
@@ -79,7 +79,26 @@ func (c *ACRClient) GetLatestDigest(repository string) (string, error) {
 		validTags = append(validTags, tag)
 	}
 
+	// Apply tag pattern filter if provided
+	if tagPattern != "" {
+		regex, err := regexp.Compile(tagPattern)
+		if err != nil {
+			return "", fmt.Errorf("invalid tag pattern %s: %w", tagPattern, err)
+		}
+
+		var matchingTags []ACRTag
+		for _, tag := range validTags {
+			if regex.MatchString(tag.Name) {
+				matchingTags = append(matchingTags, tag)
+			}
+		}
+		validTags = matchingTags
+	}
+
 	if len(validTags) == 0 {
+		if tagPattern != "" {
+			return "", fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
+		}
 		return "", fmt.Errorf("no valid tags found for repository %s", repository)
 	}
 
