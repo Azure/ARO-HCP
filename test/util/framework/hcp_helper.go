@@ -38,7 +38,7 @@ func GetAdminRESTConfigForHCPCluster(
 	hcpClient *hcpsdk.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	timeout time.Duration,
+	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
 ) (*rest.Config, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -148,17 +148,13 @@ func UpdateHCPCluster(
 	}
 }
 
-// GetHCPCluster fetches an HCP cluster with a timeout
+// GetHCPCluster fetches an HCP cluster
 func GetHCPCluster(
 	ctx context.Context,
 	hcpClient *hcpsdk.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	timeout time.Duration,
 ) (hcpsdk.HcpOpenShiftClustersClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
@@ -245,11 +241,7 @@ func GetNodePool(
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
-	timeout time.Duration,
 ) (hcpsdk.NodePoolsClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
@@ -302,11 +294,7 @@ func GetExternalAuth(
 	resourceGroupName string,
 	hcpClusterName string,
 	externalAuthName string,
-	timeout time.Duration,
 ) (hcpsdk.ExternalAuthsClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	return externalAuthClient.Get(
 		ctx,
 		resourceGroupName,
