@@ -24,10 +24,6 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
   name: nodePoolName
   location: resourceGroup().location
   properties: {
-    version: {
-      id: openshiftVersionId
-      channelGroup: 'stable'
-    }
     platform: {
       subnetId: hcp.properties.platform.subnetId
       vmSize: vmSize
