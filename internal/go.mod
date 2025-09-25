@@ -28,7 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/mock v0.5.2
 	gotest.tools v2.2.0+incompatible
-	k8s.io/apimachinery v0.34.0
+	k8s.io/apimachinery v0.34.1
 	sigs.k8s.io/randfill v1.0.0
 )
 
