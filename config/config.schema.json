@@ -847,6 +847,10 @@
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
+        "provisionShardClusterLimit": {
+          "type": "integer",
+          "description": "The maximum number of HCPs that can be placed on an MC, sadly not configurable per MC"
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },

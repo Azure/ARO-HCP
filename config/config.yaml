@@ -587,6 +587,8 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/uhc-clusters-service
+    # controls how many HCPs can be placed on an MC, sadly not configurable per MC
+    provisionShardClusterLimit: 100
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
