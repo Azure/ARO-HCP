@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -44,21 +43,13 @@ func TestClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
-	subscriptionID := "00000000-0000-0000-0000-000000000001"
-
-	subscription := &arm.Subscription{
-		State: arm.SubscriptionStateRegistered,
-	}
-	err = testInfo.DBClient.CreateSubscriptionDoc(ctx, subscriptionID, subscription)
+	subscriptionID, _, err := testInfo.CreateNewSubscription(ctx)
 	require.NoError(t, err)
 
 	resourceGroup := "fuzzy"
 	hcpClusterID := "00000000-0000-0000-0000-000000000010"
-	resourceID, err := azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.HCP/hcpOpenShiftClusters/%s", subscriptionID, resourceGroup, hcpClusterID))
+	resourceID, err := azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s", subscriptionID, resourceGroup, hcpClusterID))
 	require.NoError(t, err)
-	// solving '/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/fuzzy/providers/Microsoft.HCP/hcpOpenShiftClusters/00000000-0000-0000-0000-000000000010': invalid type 'microsoft.hcp/hcpopenshiftclusters' for ResourceDocument
-	// TODO makes no sense.
-	resourceID.ResourceType = api.ClusterResourceType
 
 	systemData := &arm.SystemData{
 		CreatedAt: ptr.To(time.Now()),
