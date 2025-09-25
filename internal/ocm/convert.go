@@ -285,8 +285,9 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 }
 
 func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (*api.ClusterAutoscalingProfile, error) {
-	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
-	MaxNodeProvisionTime, err := time.ParseDuration(in.MaxNodeProvisionTime())
+	// maxNodeProvisionTime (string) - minutes e.g - “15m”
+	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
+	maxNodeProvisionTime, err := time.ParseDuration(in.MaxNodeProvisionTime())
 	if err != nil {
 		return nil, err
 	}
@@ -294,8 +295,9 @@ func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (*api.Cluster
 	return &api.ClusterAutoscalingProfile{
 		MaxNodesTotal: int32(in.ResourceLimits().MaxNodesTotal()),
 		// MaxPodGracePeriod (int) - seconds e.g - 300
+		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
 		MaxPodGracePeriodSeconds:    int32(in.MaxPodGracePeriod()),
-		MaxNodeProvisionTimeSeconds: int32(MaxNodeProvisionTime.Seconds()),
+		MaxNodeProvisionTimeSeconds: int32(maxNodeProvisionTime.Seconds()),
 		PodPriorityThreshold:        int32(in.PodPriorityThreshold()),
 	}, nil
 }
@@ -477,13 +479,14 @@ func ensureManagedResourceGroupName(hcpCluster *api.HCPOpenShiftCluster) string 
 func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
-	MaxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
+	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
+	maxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
 	if err != nil {
 		return nil, err
 	}
 
 	return arohcpv1alpha1.NewClusterAutoscaler().
-		MaxNodeProvisionTime(fmt.Sprint(MaxNodeProvisionDuration.Minutes(), "m")).
+		MaxNodeProvisionTime(fmt.Sprint(maxNodeProvisionDuration.Minutes(), "m")).
 		MaxPodGracePeriod(int(in.MaxPodGracePeriodSeconds)).
 		PodPriorityThreshold(int(in.PodPriorityThreshold)).
 		ResourceLimits(
