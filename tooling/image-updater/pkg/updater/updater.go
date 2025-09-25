@@ -31,24 +31,14 @@ type ImageUpdate struct {
 
 // Updater handles the image update process
 type Updater struct {
-	dryRun     bool
-	quayClient *clients.QuayClient
-	acrClient  *clients.ACRClient
-	updates    []ImageUpdate
+	dryRun  bool
+	updates []ImageUpdate
 }
 
 // New creates a new image updater
 func New(dryRun bool) *Updater {
-	acrClient, err := clients.NewACRClient("arohcpsvcdev.azurecr.io")
-	if err != nil {
-		// For now, we'll handle this gracefully - ACR client creation might fail if not authenticated
-		acrClient = nil
-	}
-
 	return &Updater{
-		dryRun:     dryRun,
-		quayClient: clients.NewQuayClient(),
-		acrClient:  acrClient,
+		dryRun: dryRun,
 	}
 }
 
@@ -132,20 +122,6 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 	return nil
 }
 
-// getACRDigest handles ACR registry digest retrieval
-func (u *Updater) getACRDigest(source config.Source) (string, error) {
-	if u.acrClient == nil {
-		return "", fmt.Errorf("ACR client not initialized - authentication may have failed")
-	}
-
-	repository, err := source.Repository()
-	if err != nil {
-		return "", fmt.Errorf("failed to parse repository from image reference: %w", err)
-	}
-
-	return u.acrClient.GetLatestDigest(repository, source.TagPattern)
-}
-
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
 func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 	registry, err := source.Registry()
@@ -158,14 +134,13 @@ func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 		return "", fmt.Errorf("failed to parse repository from image reference: %w", err)
 	}
 
-	switch {
-	case strings.Contains(registry, "quay.io"):
-		return u.quayClient.GetLatestDigest(repository, source.TagPattern)
-	case strings.Contains(registry, "azurecr.io"):
-		return u.getACRDigest(source)
-	default:
-		return "", fmt.Errorf("unsupported registry: %s", registry)
+	// Create registry client based on the registry URL
+	client, err := clients.NewRegistryClient(registry)
+	if err != nil {
+		return "", fmt.Errorf("failed to create registry client for %s: %w", registry, err)
 	}
+
+	return client.GetLatestDigest(repository, source.TagPattern)
 }
 
 // GenerateCommitMessage creates a commit message for the updated images

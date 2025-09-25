@@ -14,11 +14,18 @@
 
 package clients
 
-import "strings"
+import (
+	"time"
+)
 
-// isMetadataTag checks if a tag is for signatures, attestations, or SBOMs
-func isMetadataTag(name string) bool {
-	return strings.HasSuffix(name, ".sig") ||
-		strings.HasSuffix(name, ".att") ||
-		strings.HasSuffix(name, ".sbom")
+// RegistryClient defines the interface for container registry clients
+type RegistryClient interface {
+	GetLatestDigest(repository string, tagPattern string) (string, error)
+}
+
+// Tag represents a container image tag with metadata
+type Tag struct {
+	Name         string
+	Digest       string
+	LastModified time.Time
 }

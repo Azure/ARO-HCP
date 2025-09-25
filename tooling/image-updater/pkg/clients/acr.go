@@ -17,8 +17,6 @@ package clients
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"sort"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -49,13 +47,6 @@ func NewACRClient(registryURL string) (*ACRClient, error) {
 	}, nil
 }
 
-// ACRTag represents a tag from ACR with metadata
-type ACRTag struct {
-	Name         string
-	Digest       string
-	LastModified time.Time
-}
-
 // GetLatestDigest gets the most recent tag's digest from ACR, optionally filtering by tag pattern
 func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
 	ctx := context.Background()
@@ -70,50 +61,13 @@ func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (strin
 		return "", fmt.Errorf("no tags found for repository %s", repository)
 	}
 
-	// Filter out metadata tags and empty digests
-	var validTags []ACRTag
-	for _, tag := range tags {
-		if isMetadataTag(tag.Name) || tag.Digest == "" {
-			continue
-		}
-		validTags = append(validTags, tag)
-	}
-
-	// Apply tag pattern filter if provided
-	if tagPattern != "" {
-		regex, err := regexp.Compile(tagPattern)
-		if err != nil {
-			return "", fmt.Errorf("invalid tag pattern %s: %w", tagPattern, err)
-		}
-
-		var matchingTags []ACRTag
-		for _, tag := range validTags {
-			if regex.MatchString(tag.Name) {
-				matchingTags = append(matchingTags, tag)
-			}
-		}
-		validTags = matchingTags
-	}
-
-	if len(validTags) == 0 {
-		if tagPattern != "" {
-			return "", fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
-		}
-		return "", fmt.Errorf("no valid tags found for repository %s", repository)
-	}
-
-	// Sort by actual timestamp (newest first)
-	sort.Slice(validTags, func(i, j int) bool {
-		return validTags[i].LastModified.After(validTags[j].LastModified)
-	})
-
-	mostRecent := validTags[0]
-	return mostRecent.Digest, nil
+	// Use common tag processing logic
+	return ProcessTags(tags, repository, tagPattern)
 }
 
 // getAllTags fetches all tags from all pages for the specified repository
-func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]ACRTag, error) {
-	var allTags []ACRTag
+func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
+	var allTags []Tag
 
 	// Create a pager to list all tags with pagination
 	pager := c.client.NewListTagsPager(repository, nil)
@@ -133,7 +87,7 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]ACRTag
 				continue
 			}
 
-			tag := ACRTag{
+			tag := Tag{
 				Name: *tagAttributes.Name,
 			}
 
