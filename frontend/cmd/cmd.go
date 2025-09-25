@@ -104,18 +104,18 @@ func NewRootCmd() *cobra.Command {
 	return rootCmd
 }
 
-type policyFunc func(*policy.Request) (*http.Response, error)
+type PolicyFunc func(*policy.Request) (*http.Response, error)
 
-func (pf policyFunc) Do(req *policy.Request) (*http.Response, error) {
+func (pf PolicyFunc) Do(req *policy.Request) (*http.Response, error) {
 	return pf(req)
 }
 
-// Verify that policyFunc implements the policy.Policy interface.
-var _ policy.Policy = policyFunc(nil)
+// Verify that PolicyFunc implements the policy.Policy interface.
+var _ policy.Policy = PolicyFunc(nil)
 
-// correlationIDPolicy adds the ARM correlation request ID to the request's
+// CorrelationIDPolicy adds the ARM correlation request ID to the request's
 // HTTP headers if the ID is found in the context.
-func correlationIDPolicy(req *policy.Request) (*http.Response, error) {
+func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 	cd, err := frontend.CorrelationDataFromContext(req.Raw().Context())
 	// The incoming request may not contain a correlation request ID (e.g.
 	// requests to /healthz).
@@ -175,7 +175,7 @@ func (opts *FrontendOpts) Run() error {
 		azcore.ClientOptions{
 			// FIXME Cloud should be determined by other means.
 			Cloud:           cloud.AzurePublic,
-			PerCallPolicies: []policy.Policy{policyFunc(correlationIDPolicy)},
+			PerCallPolicies: []policy.Policy{PolicyFunc(CorrelationIDPolicy)},
 			TracingProvider: azotel.NewTracingProvider(otel.GetTracerProvider(), nil),
 		},
 	)

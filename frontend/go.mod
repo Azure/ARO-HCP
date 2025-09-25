@@ -18,6 +18,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/sync v0.16.0
+	k8s.io/apimachinery v0.34.0
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
 )
 
@@ -73,7 +74,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
-	k8s.io/apimachinery v0.34.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 )
 
