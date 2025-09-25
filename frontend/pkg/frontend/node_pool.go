@@ -121,7 +121,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		case http.MethodPut:
 			// Initialize versionedRequestNodePool to include both
 			// non-zero default values and current read-only values.
-			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
 
 			// Some optional create-only fields have dynamic default
 			// values that are determined downstream of this phase of
@@ -144,8 +144,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
+
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
@@ -207,10 +213,9 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
 	versionedRequestNodePool.Normalize(hcpNodePool)
 
-	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
 		logger.Error(err.Error())

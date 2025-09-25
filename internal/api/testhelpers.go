@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -143,10 +144,7 @@ func NewTestUserAssignedIdentity(name string) string {
 }
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
-	resource := NewDefaultHCPOpenShiftCluster()
-	resource.ID = TestClusterResourceID
-	resource.Name = TestClusterName
-	resource.Type = ClusterResourceType.String()
+	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)))
 	resource.Properties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.Properties.Platform.SubnetID = TestSubnetResourceID
 	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
@@ -160,10 +158,7 @@ func ClusterTestCase(t *testing.T, tweaks *HCPOpenShiftCluster) *HCPOpenShiftClu
 }
 
 func MinimumValidNodePoolTestCase() *HCPOpenShiftClusterNodePool {
-	resource := NewDefaultHCPOpenShiftClusterNodePool()
-	resource.ID = TestNodePoolResourceID
-	resource.Name = TestNodePoolName
-	resource.Type = NodePoolResourceType.String()
+	resource := NewDefaultHCPOpenShiftClusterNodePool(Must(azcorearm.ParseResourceID(TestNodePoolResourceID)))
 	resource.Properties.Platform.VMSize = "Standard_D8s_v3"
 	return resource
 }
@@ -175,10 +170,7 @@ func NodePoolTestCase(t *testing.T, tweaks *HCPOpenShiftClusterNodePool) *HCPOpe
 }
 
 func MinimumValidExternalAuthTestCase() *HCPOpenShiftClusterExternalAuth {
-	resource := NewDefaultHCPOpenShiftClusterExternalAuth()
-	resource.ID = TestExternalAuthResourceID
-	resource.Name = TestExternalAuthName
-	resource.Type = ExternalAuthResourceType.String()
+	resource := NewDefaultHCPOpenShiftClusterExternalAuth(Must(azcorearm.ParseResourceID(TestExternalAuthResourceID)))
 	resource.Properties.Issuer.URL = "https://www.redhat.com"
 	resource.Properties.Issuer.Audiences = []string{"audience1"}
 	resource.Properties.Claim.Mappings.Username.Claim = "my-cool-claim"

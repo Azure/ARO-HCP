@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -129,8 +131,9 @@ type TokenRequiredClaim struct {
 	RequiredValue string `json:"requiredValue" validate:"required"`
 }
 
-func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAuth {
+func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
 	return &HCPOpenShiftClusterExternalAuth{
+		ProxyResource: arm.NewProxyResource(resourceID),
 		Properties: HCPOpenShiftClusterExternalAuthProperties{
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{

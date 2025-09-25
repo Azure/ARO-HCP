@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -479,7 +480,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	clusterBuilder.
-		Name(hcpCluster.Name).
+		Name(strings.ToLower(hcpCluster.Name)).
 		Flavour(cmv1.NewFlavour().
 			ID(csFlavourId)).
 		Region(cmv1.NewCloudRegion().
@@ -506,9 +507,9 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
-		SubscriptionID(subscriptionID).
-		ResourceGroupName(resourceGroupName).
-		ResourceName(hcpCluster.Name).
+		SubscriptionID(strings.ToLower(subscriptionID)).
+		ResourceGroupName(strings.ToLower(resourceGroupName)).
+		ResourceName(strings.ToLower(hcpCluster.Name)).
 		ManagedResourceGroupName(ensureManagedResourceGroupName(hcpCluster)).
 		SubnetResourceID(hcpCluster.Properties.Platform.SubnetID).
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
@@ -631,13 +632,13 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
 		nodePoolBuilder.
-			ID(nodePool.Name).
+			ID(strings.ToLower(nodePool.Name)).
 			Version(arohcpv1alpha1.NewVersion().
 				ID(ConvertOpenShiftVersionAddPrefix(nodePool.Properties.Version.ID)).
 				ChannelGroup(nodePool.Properties.Version.ChannelGroup)).
 			Subnet(nodePool.Properties.Platform.SubnetID).
 			AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
-				ResourceName(nodePool.Name).
+				ResourceName(strings.ToLower(nodePool.Name)).
 				VMSize(nodePool.Properties.Platform.VMSize).
 				EncryptionAtHost(convertEnableEncryptionAtHostToCSBuilder(nodePool.Properties.Platform)).
 				OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
@@ -763,7 +764,7 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 
 	// These attributes cannot be updated after node pool creation.
 	if !updating {
-		externalAuthBuilder.ID(externalAuth.Name)
+		externalAuthBuilder.ID(strings.ToLower(externalAuth.Name))
 	}
 
 	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().

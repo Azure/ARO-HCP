@@ -62,7 +62,7 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name:     "Default cluster",
-			resource: NewDefaultHCPOpenShiftCluster(),
+			resource: NewDefaultHCPOpenShiftCluster(nil),
 			expectErrors: []arm.CloudErrorBody{
 				{
 					Message: "Missing required field 'subnetId'",

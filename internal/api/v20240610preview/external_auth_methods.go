@@ -278,7 +278,7 @@ func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequired
 
 func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterExternalAuth()
+		from = api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
 	}
 
 	out := &ExternalAuth{
