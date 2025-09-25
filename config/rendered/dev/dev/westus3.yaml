@@ -321,7 +321,7 @@ maestro:
       namespace: maestro
       replicas: 3
       serviceAccountName: maestro
-    loglevel: 4
+    loglevel: 1
     managedIdentityName: maestro-consumer
     sidecar:
       image:
@@ -355,7 +355,7 @@ maestro:
       namespace: maestro
       replicas: 3
       serviceAccountName: maestro
-    loglevel: 4
+    loglevel: 1
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-usw3-dev
     tracing:

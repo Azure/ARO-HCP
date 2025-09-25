@@ -512,7 +512,7 @@ defaults:
         address: ""
         exporter: ""
       mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
-      loglevel: 4
+      loglevel: 1
       managedIdentityName: maestro-server
       k8s:
         replicas: 3
@@ -520,7 +520,7 @@ defaults:
         serviceAccountName: maestro
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
-      loglevel: 4
+      loglevel: 1
       managedIdentityName: maestro-consumer
       k8s:
         replicas: 3
