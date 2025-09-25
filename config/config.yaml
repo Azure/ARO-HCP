@@ -530,7 +530,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:f203d7e49ce778f8464f403d2558c5d7162b1b9189657c6b32d4f70a99e0fe83
+          digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -743,7 +743,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:90daeea3b4191e3f02d9900a1e7d9e296329b3ca99ea785907c55c39cde95f04
+          digest: sha256:bc06d51c6df4b21fbbd5881a90b42931d254a836e270f723579718702cfdf48f
       # ACR Pull
       acrPull:
         image:
