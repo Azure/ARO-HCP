@@ -117,6 +117,12 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Emulator endpoint and key
 	emulatorEndpoint := os.Getenv("FRONTEND_COSMOS_ENDPOINT")
 	emulatorKey := os.Getenv("FRONTEND_COSMOS_KEY")
+	if len(emulatorEndpoint) == 0 {
+		emulatorEndpoint = "https://localhost:8081" // emulator default
+	}
+	if len(emulatorKey) == 0 {
+		emulatorKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==" // emulator default
+	}
 
 	// Configure HTTP client to skip certificate verification for the emulator
 	httpClient := &http.Client{

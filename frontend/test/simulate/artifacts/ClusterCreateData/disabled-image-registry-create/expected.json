@@ -43,8 +43,7 @@
     },
     "provisioningState": "Accepted",
     "version": {
-      "channelGroup": "stable",
-      "id": "4.19"
+      "channelGroup": "stable"
     }
   },
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

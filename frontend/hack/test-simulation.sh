@@ -66,7 +66,6 @@ echo "✅ Cosmos DB emulator is running at ${DEFAULT_COSMOS_ENDPOINT}"
 echo "Downloading emulator certificate..."
 curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" > "${ARTIFACT_DIR}/cosmos_emulator.crt"
 
-export FRONTEND_SIMULATION_TESTING="true"
 export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
 #TODO these are sent over HTTP, so it's only safe because the emulator is personal and well-known.  Fix the trust before sending real creds
 export FRONTEND_COSMOS_KEY="${DEFAULT_COSMOS_KEY}"

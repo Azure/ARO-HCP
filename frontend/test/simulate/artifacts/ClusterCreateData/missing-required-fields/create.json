@@ -1,8 +1,9 @@
 {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-  "name": "valid-disable-image-registry",
+  "name": "missing-required-fields",
   "properties": {
     "version": {
+      "id": "",
       "channelGroup": "stable"
     },
     "dns": {},
@@ -21,9 +22,9 @@
           "encryptionType": "KMS",
           "kms": {
             "activeKey": {
-              "vaultName": "keyVaultName",
-              "name": "encryptionKeyName",
-              "version": "2024-12-01-preview"
+              "vaultName": "",
+              "name": "",
+              "version": ""
             }
           }
         }
@@ -37,20 +38,24 @@
     },
     "platform": {
       "managedResourceGroup": "managed-resource-group-name",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "subnetId": "",
       "outboundType": "LoadBalancer",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "networkSecurityGroupId": "",
       "operatorsAuthentication": {
         "userAssignedIdentities": {
-          "controlPlaneOperators": null,
-          "dataPlaneOperators": null,
+          "controlPlaneOperators": {
+            "": ""
+          },
+          "dataPlaneOperators": {
+            "": ""
+          },
           "serviceManagedIdentity": null
         }
       }
     }
   },
   "identity": {
-    "type": "UserAssigned",
+    "type": "",
     "userAssignedIdentities": {}
   }
 }

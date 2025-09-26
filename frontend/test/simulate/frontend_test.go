@@ -18,12 +18,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -34,9 +37,6 @@ import (
 )
 
 func TestFrontendClusterRead(t *testing.T) {
-	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
-	}
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -72,9 +72,6 @@ func TestFrontendClusterRead(t *testing.T) {
 }
 
 func TestFrontendClusterCreate(t *testing.T) {
-	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
-	}
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -141,22 +138,56 @@ func newClusterCreateTest(ctx context.Context, testDir fs.FS, testInfo *Simulati
 	}
 }
 
+type expectedFieldError struct {
+	code    string
+	field   string
+	message string
+}
+
+func (e expectedFieldError) matches(actualError arm.CloudErrorBody) bool {
+	if actualError.Code != e.code {
+		return false
+	}
+	if actualError.Target != e.field {
+		return false
+	}
+	if !strings.Contains(actualError.Message, e.message) {
+		return false
+	}
+	return true
+}
+
 func (tt *clusterCreateTest) runTest(t *testing.T) {
 	ctx := tt.ctx
 
 	var err error
-	expectedErrors := []string{}
+	expectedErrors := []expectedFieldError{}
 	expectedJSON := []byte{}
 
 	expectedJSON, err = fs.ReadFile(tt.testDir, "expected.json")
 	switch {
 	case os.IsNotExist(err):
-		expectedErrorBytes, err := fs.ReadFile(tt.testDir, "expected-error.txt")
+		expectedErrorBytes, err := fs.ReadFile(tt.testDir, "expected-errors.txt")
 		require.NoError(t, err)
-		expectedErrors = strings.Split(string(expectedErrorBytes), "\n")
+		expectedErrorLines := strings.Split(string(expectedErrorBytes), "\n")
+		for _, currLine := range expectedErrorLines {
+			if len(strings.TrimSpace(currLine)) == 0 {
+				continue
+			}
+			tokens := strings.SplitN(currLine, ":", 3)
+			currExpected := expectedFieldError{
+				code:    strings.TrimSpace(tokens[0]),
+				field:   strings.TrimSpace(tokens[1]),
+				message: strings.TrimSpace(tokens[2]),
+			}
+			expectedErrors = append(expectedErrors, currExpected)
+		}
 
 	case err != nil:
 		t.Fatal(err)
+
+	default:
+
 	}
 
 	toCreate := &hcpapi20240610.HcpOpenShiftCluster{}
@@ -166,9 +197,39 @@ func (tt *clusterCreateTest) runTest(t *testing.T) {
 	_, err = hcpClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, *toCreate.Name, *toCreate, nil)
 	if len(expectedErrors) > 0 {
 		require.Error(t, err)
-		for _, expectedError := range expectedErrors {
-			require.Contains(t, err.Error(), expectedError)
+
+		azureErr := err.(*azcore.ResponseError)
+		actualErrors := &arm.CloudError{}
+		body, err := io.ReadAll(azureErr.RawResponse.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, actualErrors))
+
+		for _, actualError := range actualErrors.Details {
+			found := false
+			for _, expectedErr := range expectedErrors {
+				if expectedErr.matches(actualError) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("unexpected error: %v", actualError)
+			}
 		}
+
+		for _, expectedErr := range expectedErrors {
+			found := false
+			for _, actualError := range actualErrors.Details {
+				if expectedErr.matches(actualError) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("missing expected error: %#v", expectedErr)
+			}
+		}
+
 		return
 	}
 	require.NoError(t, err)
