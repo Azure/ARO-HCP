@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
@@ -52,6 +54,8 @@ func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.Reg
 
 // UpdateImages processes all images in the configuration using pre-created resources
 func (u *Updater) UpdateImages(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	for name, imageConfig := range u.Config.Images {
 		digest, err := u.fetchLatestDigest(imageConfig.Source)
 		if err != nil {
@@ -59,7 +63,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		}
 
 		for _, target := range imageConfig.Targets {
-			if err := u.updateImage(name, digest, target); err != nil {
+			if err := u.updateImage(ctx, name, digest, target); err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
 			}
 		}
@@ -69,7 +73,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	if !u.DryRun && len(u.Updates) > 0 {
 		commitMsg := u.GenerateCommitMessage()
 		if commitMsg != "" {
-			fmt.Printf("=== COMMIT MESSAGE ===\n%s\n", commitMsg)
+			logger.Info("Generated commit message", "message", commitMsg)
 		}
 	}
 
@@ -92,9 +96,10 @@ func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 }
 
 // updateImage processes a single image update
-func (u *Updater) updateImage(name string, latestDigest string, target config.Target) error {
-	fmt.Printf("Processing image: %s\n", name)
-	fmt.Printf("  Latest digest: %s\n", latestDigest)
+func (u *Updater) updateImage(ctx context.Context, name string, latestDigest string, target config.Target) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	logger.Info("Processing image", "name", name, "latestDigest", latestDigest)
 
 	// Get the pre-created YAML editor
 	editor, exists := u.YAMLEditors[target.FilePath]
@@ -108,20 +113,23 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 		return fmt.Errorf("failed to get current digest at path %s: %w", target.JsonPath, err)
 	}
 
-	fmt.Printf("  Current digest: %s\n", currentDigest)
+	logger.Info("Current digest", "name", name, "currentDigest", currentDigest)
 
 	// Check if update is needed
 	if currentDigest == latestDigest {
-		fmt.Printf("  ✅ No update needed - digests match\n\n\n")
+		logger.Info("No update needed - digests match", "name", name)
 		return nil
 	}
 
-	fmt.Printf("  📝 Update needed\n")
+	logger.Info("Update needed", "name", name)
 
 	if u.DryRun {
-		fmt.Printf("  🔍 DRY RUN: Would update %s in %s\n", target.JsonPath, target.FilePath)
-		fmt.Printf("    From: %s\n", currentDigest)
-		fmt.Printf("    To:   %s\n", latestDigest)
+		logger.Info("DRY RUN: Would update image",
+			"name", name,
+			"jsonPath", target.JsonPath,
+			"filePath", target.FilePath,
+			"from", currentDigest,
+			"to", latestDigest)
 		return nil
 	}
 
@@ -141,7 +149,7 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 		NewDigest: latestDigest,
 	})
 
-	fmt.Printf("  ✅ Updated %s successfully\n\n\n", target.FilePath)
+	logger.Info("Updated file successfully", "name", name, "filePath", target.FilePath)
 	return nil
 }
 

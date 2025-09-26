@@ -15,15 +15,26 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/dusted-go/logging/prettylog"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/cmd"
 )
 
 func main() {
+	logger := createLogger()
+
+	// Create a root context with the logger and signal handling
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	rootCmd := &cobra.Command{
 		Use:   "image-updater",
 		Short: "Updates container image digests in ARO-HCP configuration files",
@@ -32,14 +43,28 @@ and updates the corresponding digests in ARO-HCP configuration files.
 
 This tool helps maintain up-to-date container images by automating the process of
 checking for new image versions and updating configuration files accordingly.`,
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		SilenceUsage:     true,
+		SilenceErrors:    true,
+		TraverseChildren: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			ctx = logr.NewContext(ctx, logger)
+			cmd.SetContext(ctx)
+		},
 	}
 
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		logger.Error(err, "command failed")
 		os.Exit(1)
 	}
+}
+
+func createLogger() logr.Logger {
+	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+		Level:       slog.LevelInfo,
+		AddSource:   false,
+		ReplaceAttr: nil,
+	})
+	return logr.FromSlogHandler(prettyHandler)
 }
