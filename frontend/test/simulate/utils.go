@@ -22,14 +22,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
@@ -45,7 +50,21 @@ import (
 //go:embed artifacts/*
 var artifacts embed.FS
 
+var FastPollOptions = &runtime.PollUntilDoneOptions{Frequency: 5 * time.Millisecond}
+
 func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *SimulationTestInfo, error) {
+	arm.SetAzureLocation("globals-are-evil")
+
+	artifactDir := os.Getenv("ARTIFACT_DIR")
+	if artifactDir == "" {
+		// Default to temp directory if ARTIFACT_DIR not set
+		artifactDir = filepath.Join(os.TempDir(), "cosmos-artifacts")
+	}
+	artifactDir = filepath.Join(artifactDir, t.Name())
+	if err := os.MkdirAll(artifactDir, 0755); err != nil {
+		return nil, nil, fmt.Errorf("failed to create artifact directory %s: %w", artifactDir, err)
+	}
+
 	logger := util.DefaultLogger()
 
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -84,6 +103,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 
 	frontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, dbClient, clusterServiceClient, noOpAuditClient)
 	testInfo := &SimulationTestInfo{
+		ArtifactsDir:             artifactDir,
 		CosmosDatabaseClient:     cosmosDatabaseClient,
 		DBClient:                 dbClient,
 		MockClusterServiceClient: clusterServiceClient,
@@ -98,6 +118,12 @@ func createCosmosClientFromEnv() (*azcosmos.Client, error) {
 	// Emulator endpoint and key
 	emulatorEndpoint := os.Getenv("FRONTEND_COSMOS_ENDPOINT")
 	emulatorKey := os.Getenv("FRONTEND_COSMOS_KEY")
+	if len(emulatorEndpoint) == 0 {
+		emulatorEndpoint = "https://localhost:8081" // emulator default
+	}
+	if len(emulatorKey) == 0 {
+		emulatorKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==" // emulator default
+	}
 
 	// Configure HTTP client to skip certificate verification for the emulator
 	httpClient := &http.Client{
