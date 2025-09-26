@@ -1,21 +1,18 @@
 #!/bin/bash
 
 
-TMP_DATA_DIR="${ARTIFACT_DIR}"
-
 # these are the default values of the emulator container.
 DEFAULT_COSMOS_ENDPOINT="https://localhost:8081"
 DEFAULT_COSMOS_KEY="C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
 DEFAULT_COSMOS_CONN_STRING="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 
 if [ -n "${ARTIFACT_DIR}" ]; then
-    TMP_DATA_DIR="${ARTIFACT_DIR}/tmp"
-    mkdir -p "${TMP_DATA_DIR}"
+  echo "artifact dir found"
 else
-    TMP_DATA_DIR="$(mktemp -d)"
+    export ARTIFACT_DIR="$(mktemp -d)"
 fi
 
-echo "simulation temp dir=${TMP_DATA_DIR}"
+echo "simulation temp dir=${ARTIFACT_DIR}"
 
 # Choose container runtime (prefer podman, fallback to docker)
 CONTAINER_RUNTIME=""
@@ -39,9 +36,9 @@ cleanup() {
         for container in $CONTAINERS; do
             container_name=$(${CONTAINER_RUNTIME} inspect --format='{{.Name}}' "$container" | sed 's|^/||')
             echo "Saving logs for container: $container_name"
-            ${CONTAINER_RUNTIME} logs "$container" > "${TMP_DATA_DIR}/${container_name}.log" 2>&1 || true
+            ${CONTAINER_RUNTIME} logs "$container" > "${ARTIFACT_DIR}/${container_name}.log" 2>&1 || true
         done
-        echo "Cosmos container logs saved to: $TMP_DATA_DIR"
+        echo "Cosmos container logs saved to: $ARTIFACT_DIR"
     else
         echo "No running Cosmos emulator containers found to collect logs from"
     fi
@@ -67,11 +64,10 @@ echo "✅ Cosmos DB emulator is running at ${DEFAULT_COSMOS_ENDPOINT}"
 
 # Download the emulator certificate
 echo "Downloading emulator certificate..."
-curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" > "${TMP_DATA_DIR}/cosmos_emulator.crt"
+curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" > "${ARTIFACT_DIR}/cosmos_emulator.crt"
 
-export FRONTEND_SIMULATION_TESTING="true"
 export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
 #TODO these are sent over HTTP, so it's only safe because the emulator is personal and well-known.  Fix the trust before sending real creds
 export FRONTEND_COSMOS_KEY="${DEFAULT_COSMOS_KEY}"
 
-go test github.com/Azure/ARO-HCP/frontend/test/simulate/...
+go test -v github.com/Azure/ARO-HCP/frontend/test/simulate/...
