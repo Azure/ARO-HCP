@@ -56,6 +56,8 @@ done
 # Wait for HTTPS endpoint to be available
 echo "Waiting for HTTPS endpoint to be available..."
 for i in {1..30}; do
+    curl --insecure -v "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem"
+
     if curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/dev/null 2>&1; then
         echo "HTTPS endpoint is ready!"
         break
