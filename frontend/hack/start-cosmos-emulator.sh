@@ -53,6 +53,8 @@ for i in {1..60}; do
     sleep 5
 done
 
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
 echo "CONTAINER LOGS"
 ${CONTAINER_RUNTIME} logs "${CONTAINER_NAME}"
 echo "END"
@@ -74,6 +76,8 @@ for i in {1..30}; do
     sleep 2
 done
 
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
 echo "CONTAINER LOGS"
 ${CONTAINER_RUNTIME} logs "${CONTAINER_NAME}"
 echo "END"

@@ -50,6 +50,11 @@ cleanup() {
 # Set trap to collect logs on exit
 trap cleanup EXIT
 
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
+echo "END"
+
+
 # Check if Cosmos emulator is already running
 echo "Checking for running Cosmos DB emulator..."
 if ! curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/dev/null 2>&1; then
