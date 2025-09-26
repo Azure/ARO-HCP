@@ -516,6 +516,7 @@ msiCredentialsRefresher:
     manage: false
     name: msi-refresher
     sanDnsNames: []
+  earlyRefreshFrequency: "0"
   firstPartyAppClientId: ""
   image:
     digest: ""

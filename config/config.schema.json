@@ -1397,6 +1397,10 @@
           "type": "string",
           "description": "The client ID of the first party application that will be used by the refresher"
         },
+        "earlyRefreshFrequency": {
+          "type": "string",
+          "description": "Early refresh interval before credential is eligible for refresh. For testing. 0 means no early refresh. Example: 24h"
+        },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
@@ -1440,7 +1444,8 @@
         "managedIdentityName",
         "k8s",
         "image",
-        "certificate"
+        "certificate",
+        "earlyRefreshFrequency"
       ]
     },
     "global": {

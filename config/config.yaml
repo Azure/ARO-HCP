@@ -505,6 +505,7 @@ defaults:
       issuer: OneCertV2-PrivateCA
       commonName: ""
       sanDnsNames: []
+    earlyRefreshFrequency: "0"
   # Maestro
   maestro:
     server:
