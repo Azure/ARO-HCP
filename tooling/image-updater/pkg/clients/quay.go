@@ -52,14 +52,12 @@ type quayTagsResponse struct {
 }
 
 func (c *QuayClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
-	// First try to find a "latest" tag efficiently
 	if tagPattern == "" {
 		if digest, err := c.tryGetLatestTag(repository); err == nil && digest != "" {
 			return digest, nil
 		}
 	}
 
-	// Fall back to full tag processing
 	tags, err := c.getAllTags(repository)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch all tags: %w", err)
@@ -69,7 +67,6 @@ func (c *QuayClient) GetLatestDigest(repository string, tagPattern string) (stri
 		return "", fmt.Errorf("no tags found for repository %s", repository)
 	}
 
-	// Use common tag processing logic
 	return ProcessTags(tags, repository, tagPattern)
 }
 
@@ -92,7 +89,6 @@ func (c *QuayClient) tryGetLatestTag(repository string) (string, error) {
 		return "", fmt.Errorf("failed to decode Quay.io API response: %w", err)
 	}
 
-	// Look for the "latest" tag in the first page
 	for _, tag := range tagsResp.Tags {
 		if tag.Name == "latest" {
 			if tag.ManifestDigest == "" {
@@ -102,7 +98,7 @@ func (c *QuayClient) tryGetLatestTag(repository string) (string, error) {
 		}
 	}
 
-	return "", nil // "latest" tag not found
+	return "", nil
 }
 
 // getAllTags fetches all tags from all pages for the specified repository
@@ -130,11 +126,9 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 		}
 		resp.Body.Close()
 
-		// Convert Quay tags to common Tag format and add to collection
 		for _, quayTag := range tagsResp.Tags {
 			timestamp, err := ParseTimestamp(quayTag.LastModified)
 			if err != nil {
-				// Fall back to zero time if parsing fails
 				timestamp = time.Time{}
 			}
 
@@ -146,7 +140,6 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 			allTags = append(allTags, tag)
 		}
 
-		// Check if there are more pages
 		if !tagsResp.HasAdditional {
 			break
 		}

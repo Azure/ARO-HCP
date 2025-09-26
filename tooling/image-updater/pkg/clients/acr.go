@@ -30,13 +30,11 @@ type ACRClient struct {
 
 // NewACRClient creates a new Azure Container Registry client
 func NewACRClient(registryURL string) (*ACRClient, error) {
-	// Use DefaultAzureCredential which will try various authentication methods
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	// Create the ACR client
 	client, err := azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ACR client: %w", err)
@@ -51,7 +49,6 @@ func NewACRClient(registryURL string) (*ACRClient, error) {
 func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
 	ctx := context.Background()
 
-	// Fetch all tags with pagination
 	tags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch all tags: %w", err)
@@ -61,7 +58,6 @@ func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (strin
 		return "", fmt.Errorf("no tags found for repository %s", repository)
 	}
 
-	// Use common tag processing logic
 	return ProcessTags(tags, repository, tagPattern)
 }
 
@@ -69,7 +65,6 @@ func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (strin
 func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
 	var allTags []Tag
 
-	// Create a pager to list all tags with pagination
 	pager := c.client.NewListTagsPager(repository, nil)
 
 	pageCount := 0
@@ -81,7 +76,6 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 			return nil, fmt.Errorf("failed to get ACR tags page %d: %w", pageCount, err)
 		}
 
-		// Process each tag in the page
 		for _, tagAttributes := range pageResp.Tags {
 			if tagAttributes.Name == nil {
 				continue
@@ -91,18 +85,15 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 				Name: *tagAttributes.Name,
 			}
 
-			// Get the manifest digest for this tag
 			if tagAttributes.Digest != nil {
 				tag.Digest = *tagAttributes.Digest
 			}
 
-			// Get timestamp from tag properties
 			tagProps, err := c.client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
 			if err != nil {
 				fmt.Printf("  Warning: Could not get tag properties for %s: %v\n", *tagAttributes.Name, err)
 				tag.LastModified = time.Time{}
 			} else {
-				// Use CreatedOn timestamp from the tag properties
 				if tagProps.Tag.CreatedOn != nil {
 					tag.LastModified = *tagProps.Tag.CreatedOn
 				} else {

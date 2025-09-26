@@ -43,13 +43,6 @@ func FilterTagsByPattern(tags []Tag, tagPattern string) ([]Tag, error) {
 	return matchingTags, nil
 }
 
-// SortTagsByTimestamp sorts tags by last modified timestamp (newest first)
-func SortTagsByTimestamp(tags []Tag) {
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].LastModified.After(tags[j].LastModified)
-	})
-}
-
 // FindLatestTag returns the latest tag from a sorted list of tags
 func FindLatestTag(tags []Tag) (*Tag, error) {
 	if len(tags) == 0 {
@@ -60,7 +53,6 @@ func FindLatestTag(tags []Tag) (*Tag, error) {
 
 // ParseTimestamp attempts to parse a timestamp string using the Quay.io format
 func ParseTimestamp(timestampStr string) (time.Time, error) {
-	// Quay.io uses RFC1123Z format: "Wed, 25 Dec 2024 14:43:12 -0000"
 	if t, err := time.Parse(time.RFC1123Z, timestampStr); err == nil {
 		return t, nil
 	}
@@ -69,9 +61,6 @@ func ParseTimestamp(timestampStr string) (time.Time, error) {
 }
 
 // ProcessTags applies the complete tag processing pipeline:
-// 1. Apply tag pattern filter if provided
-// 2. Sort by timestamp (newest first)
-// 3. Return the latest tag's digest
 func ProcessTags(tags []Tag, repository string, tagPattern string) (string, error) {
 	// Apply tag pattern filter if provided
 	if tagPattern != "" {
@@ -89,7 +78,9 @@ func ProcessTags(tags []Tag, repository string, tagPattern string) (string, erro
 		return "", fmt.Errorf("no valid tags found for repository %s", repository)
 	}
 
-	SortTagsByTimestamp(tags)
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i].LastModified.After(tags[j].LastModified)
+	})
 
 	latestTag, err := FindLatestTag(tags)
 	if err != nil {
