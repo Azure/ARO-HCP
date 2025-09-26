@@ -158,6 +158,26 @@ resourceGroups:
         name: ocpAcrLoginServer
     - name: PROVISION_SHARD_CLUSTER_LIMIT
       configRef: clustersService.provisionShardClusterLimit
+    - name: OCP_VERSIONS_DEFAULT_VERSION_CHANNEL_GROUP_NAME
+      configRef: clustersService.ocpVersions.defaultVersion.channelGroupName
+    - name: OCP_VERSIONS_DEFAULT_VERSION_VERSION
+      configRef: clustersService.ocpVersions.defaultVersion.version
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_ENABLED
+      configRef: clustersService.ocpVersions.channelGroups.stable.enabled
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_URL
+      configRef: clustersService.ocpVersions.channelGroups.stable.url
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_FAST_ENABLED
+      configRef: clustersService.ocpVersions.channelGroups.fast.enabled
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_FAST_URL
+      configRef: clustersService.ocpVersions.channelGroups.fast.url
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_FAST_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.fast.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_FAST_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.fast.maxVersion
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME
