@@ -12,7 +12,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:d5400c605d9a5b05e5f961bf0dc2f3e663a40603faf108c9dc40cf7cadc4e205
+              digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
             k8s:
               deploymentStrategy:
                 rollingUpdate:
