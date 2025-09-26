@@ -3,6 +3,7 @@ module github.com/Azure/ARO-HCP/frontend
 go 1.24.3
 
 require (
+	dario.cat/mergo v1.0.1
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel v0.4.0
@@ -25,7 +26,6 @@ require (
 )
 
 require (
-	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/Azure/retry v0.0.0-20250221010952-92c9290cea0f // indirect
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect

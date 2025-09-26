@@ -1,0 +1,10 @@
+InvalidRequestContent: properties.platform.subnetId: Missing required field 'subnetId'
+InvalidRequestContent: properties.platform.networkSecurityGroupId: Missing required field 'networkSecurityGroupId'
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Missing required field 'controlPlaneOperators[]'
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Invalid value '' for field 'controlPlaneOperators[]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Missing required field 'dataPlaneOperators[]'
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Invalid value '' for field 'dataPlaneOperators[]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Missing required field 'name'
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Missing required field 'vaultName'
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Missing required field 'version'
+InvalidRequestContent: identity.type: Missing required field 'type'
