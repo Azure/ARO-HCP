@@ -695,6 +695,29 @@
         "key",
         "displayName"
       ]
+    },
+    "ocpVersionChannelGroupSpec": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        },
+        "minVersion": {
+          "type": "string"
+        },
+        "maxVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "url",
+        "minVersion"
+      ]
     }
   },
   "properties": {
@@ -930,26 +953,17 @@
               "additionalProperties": false
             },
             "channelGroups": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "url": {
-                    "type": "string"
-                  },
-                  "channelGroupName": {
-                    "type": "string"
-                  },
-                  "minVersion": {
-                    "type": "string"
-                  },
-                  "maxVersion": {
-                    "type": "string"
-                  }
+              "type": "object",
+              "properties": {
+                "stable": {
+                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
                 },
-                "required": ["url", "channelGroupName", "minVersion"],
-                "additionalProperties": false
-              }
+                "fast": {
+                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
+                }
+              },
+              "required": ["stable", "fast"],
+              "additionalProperties": false
             }
           },
           "required": ["defaultVersion", "channelGroups"],

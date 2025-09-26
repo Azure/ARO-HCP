@@ -252,7 +252,13 @@ ocpVersions:
     channelGroupName: ""
     version: ""
   channelGroups:
-  - url: ""
-    channelGroupName: ""
-    minVersion: ""
-    maxVersion: ""
+    stable:
+      enabled: false
+      url: ""
+      minVersion: ""
+      maxVersion: ""
+    fast:
+      enabled: false
+      url: ""
+      minVersion: ""
+      maxVersion: ""
