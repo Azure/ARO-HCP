@@ -54,8 +54,6 @@ func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.Reg
 
 // UpdateImages processes all images in the configuration using pre-created resources
 func (u *Updater) UpdateImages(ctx context.Context) error {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	for name, imageConfig := range u.Config.Images {
 		digest, err := u.fetchLatestDigest(imageConfig.Source)
 		if err != nil {
@@ -73,7 +71,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	if !u.DryRun && len(u.Updates) > 0 {
 		commitMsg := u.GenerateCommitMessage()
 		if commitMsg != "" {
-			logger.Info("Generated commit message", "message", commitMsg)
+			fmt.Printf("=== COMMIT MESSAGE ===\n%s\n", commitMsg)
 		}
 	}
 
