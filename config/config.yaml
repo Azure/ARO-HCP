@@ -157,6 +157,7 @@ defaults:
         san: ""
         configVersion: "1"
     actions:
+      enabled: true
       serviceTag: GenevaActions
       keyVault:
         name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
@@ -936,11 +937,7 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
-          keyVault:
-            name: arohcpdev-geneva-kv # we just want one for entire DEV
-          serviceTag: GenevaActionsNonProd
-          certificate:
-            manage: false
+          enabled: false
     environments:
       dev:
         # this is the integrated DEV environment
