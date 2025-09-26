@@ -105,6 +105,9 @@ param allowedAcisExtensions string
 @description('App ID for Geneva Actions')
 param genevaActionsAppId string
 
+@description('Should geneva actions be enabled')
+param genevaActionsEnabled bool
+
 //
 //  G L O B A L   M S I
 //
@@ -403,65 +406,23 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = {
 
 output globalKeyVaultUrl string = globalKV.outputs.kvUrl
 
-//   G E N E V A    K V
+// G E N E V A   A C T I O N S
 
-module genevaKv '../modules/keyvault/keyvault.bicep' = {
-  name: 'geneva-kv'
+module genevaActions '../modules/genevaactions.bicep' = if (genevaActionsEnabled) {
+  name: 'geneva-actions'
   params: {
     location: location
-    keyVaultName: genevaKeyVaultName
-    private: genevaKeyVaultPrivate
-    enableSoftDelete: genevaKeyVaultSoftDelete
-    tagKey: genevaKeyVaultTagKey
-    tagValue: genevaKeyVaultTagValue
+    genevaKeyVaultName: genevaKeyVaultName
+    genevaKeyVaultPrivate: genevaKeyVaultPrivate
+    genevaKeyVaultSoftDelete: genevaKeyVaultSoftDelete
+    genevaKeyVaultTagKey: genevaKeyVaultTagKey
+    genevaKeyVaultTagValue: genevaKeyVaultTagValue
+    genevaCertificateName: genevaCertificateName
+    genevaCertificateIssuer: genevaCertificateIssuer
+    genevaCertificateManage: genevaCertificateManage
+    svcDNSZoneName: svcDNSZoneName
+    allowedAcisExtensions: allowedAcisExtensions
+    genevaActionsAppId: genevaActionsAppId
+    globalMSIId: globalMSI.id
   }
-}
-
-output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
-
-var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
-
-module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
-  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
-  params: {
-    keyVaultName: genevaKeyVaultName
-    subjectName: 'CN=${genevaCertificateSNI}'
-    certName: genevaCertificateName
-    keyVaultManagedIdentityId: globalMSI.id
-    dnsNames: [
-      genevaCertificateSNI
-    ]
-    issuerName: genevaCertificateIssuer
-  }
-  dependsOn: [
-    genevaKv
-  ]
-}
-
-module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Secrets User', genevaActionsAppId)
-  params: {
-    keyVaultName: genevaKv.outputs.kvName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: genevaActionsAppId
-  }
-}
-
-module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Reader', genevaActionsAppId)
-  params: {
-    keyVaultName: genevaKv.outputs.kvName
-    roleName: 'Key Vault Reader'
-    managedIdentityPrincipalId: genevaActionsAppId
-  }
-}
-
-resource allowedExtensionsSecret 'Microsoft.KeyVault/vaults/secrets@2021-04-01-preview' = {
-  name: '${genevaKeyVaultName}/AllowedAcisExtensions'
-  properties: {
-    value: allowedAcisExtensions
-  }
-  dependsOn: [
-    genevaKv
-  ]
 }
