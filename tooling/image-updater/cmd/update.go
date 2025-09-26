@@ -15,22 +15,13 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/image-updater/pkg/config"
-	"github.com/Azure/ARO-HCP/tooling/image-updater/pkg/updater"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/options"
 )
 
-type updateOptions struct {
-	configPath string
-	dryRun     bool
-	component  string
-}
-
 func NewUpdateCommand() *cobra.Command {
-	opts := &updateOptions{}
+	opts := options.DefaultUpdateOptions()
 
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -41,35 +32,29 @@ with the new digests.
 
 Use --dry-run to see what changes would be made without actually updating files.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpdate(opts)
+			return runUpdate(cmd, opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.configPath, "config", "", "Path to image-updater configuration file")
-	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be updated without making changes")
-	cmd.Flags().StringVar(&opts.component, "component", "", "Update only the specified component (e.g., maestro). If not specified, all components will be updated")
-
-	if err := cmd.MarkFlagRequired("config"); err != nil {
+	if err := options.BindUpdateOptions(opts, cmd); err != nil {
 		return nil
 	}
 
 	return cmd
 }
 
-func runUpdate(opts *updateOptions) error {
-	cfg, err := config.Load(opts.configPath)
+func runUpdate(cmd *cobra.Command, opts *options.RawUpdateOptions) error {
+	ctx := cmd.Context()
+
+	validated, err := opts.Validate(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
-	if opts.component != "" {
-		cfg, err = cfg.FilterByComponent(opts.component)
-		if err != nil {
-			return fmt.Errorf("failed to filter config by component: %w", err)
-		}
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
 	}
 
-	imageUpdater := updater.New(opts.dryRun)
-
-	return imageUpdater.UpdateImages(cfg)
+	return completed.UpdateImages(ctx)
 }

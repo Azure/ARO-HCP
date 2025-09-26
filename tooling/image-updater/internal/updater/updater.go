@@ -15,12 +15,13 @@
 package updater
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/tooling/image-updater/pkg/clients"
-	"github.com/Azure/ARO-HCP/tooling/image-updater/pkg/config"
-	"github.com/Azure/ARO-HCP/tooling/image-updater/pkg/yaml"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
 // ImageUpdate represents a successful image update
@@ -29,26 +30,34 @@ type ImageUpdate struct {
 	NewDigest string
 }
 
-// Updater handles the image update process
+// Updater contains all pre-created resources needed for execution
 type Updater struct {
-	dryRun  bool
-	updates []ImageUpdate
+	Config          *config.Config
+	DryRun          bool
+	RegistryClients map[string]clients.RegistryClient
+	YAMLEditors     map[string]*yaml.Editor
+	Updates         []ImageUpdate
 }
 
-// New creates a new image updater
-func New(dryRun bool) *Updater {
+// New creates a new Updater with all necessary resources pre-initialized
+func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor) *Updater {
 	return &Updater{
-		dryRun: dryRun,
+		Config:          cfg,
+		DryRun:          dryRun,
+		RegistryClients: registryClients,
+		YAMLEditors:     yamlEditors,
+		Updates:         []ImageUpdate{},
 	}
 }
 
-// UpdateImages processes all images in the configuration
-func (u *Updater) UpdateImages(cfg *config.Config) error {
-	for name, imageConfig := range cfg.Images {
+// UpdateImages processes all images in the configuration using pre-created resources
+func (u *Updater) UpdateImages(ctx context.Context) error {
+	for name, imageConfig := range u.Config.Images {
 		digest, err := u.fetchLatestDigest(imageConfig.Source)
 		if err != nil {
-			return fmt.Errorf("failed to fetch latest digest: %w", err)
+			return fmt.Errorf("failed to fetch latest digest for %s: %w", name, err)
 		}
+
 		for _, target := range imageConfig.Targets {
 			if err := u.updateImage(name, digest, target); err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
@@ -57,7 +66,7 @@ func (u *Updater) UpdateImages(cfg *config.Config) error {
 	}
 
 	// Output commit message if there were updates and not in dry-run mode
-	if !u.dryRun && len(u.updates) > 0 {
+	if !u.DryRun && len(u.Updates) > 0 {
 		commitMsg := u.GenerateCommitMessage()
 		if commitMsg != "" {
 			fmt.Printf("=== COMMIT MESSAGE ===\n%s\n", commitMsg)
@@ -67,16 +76,30 @@ func (u *Updater) UpdateImages(cfg *config.Config) error {
 	return nil
 }
 
+// fetchLatestDigest retrieves the latest digest from the appropriate registry
+func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
+	registry, repository, err := source.ParseImageReference()
+	if err != nil {
+		return "", fmt.Errorf("failed to parse registry from image reference: %w", err)
+	}
+
+	client, exists := u.RegistryClients[registry]
+	if !exists {
+		return "", fmt.Errorf("no registry client available for %s", registry)
+	}
+
+	return client.GetLatestDigest(repository, source.TagPattern)
+}
+
 // updateImage processes a single image update
 func (u *Updater) updateImage(name string, latestDigest string, target config.Target) error {
 	fmt.Printf("Processing image: %s\n", name)
-
 	fmt.Printf("  Latest digest: %s\n", latestDigest)
 
-	// Load the target file
-	editor, err := yaml.NewEditor(target.FilePath)
-	if err != nil {
-		return fmt.Errorf("failed to load target file %s: %w", target.FilePath, err)
+	// Get the pre-created YAML editor
+	editor, exists := u.YAMLEditors[target.FilePath]
+	if !exists {
+		return fmt.Errorf("no YAML editor available for %s", target.FilePath)
 	}
 
 	// Get current digest
@@ -95,7 +118,7 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 
 	fmt.Printf("  📝 Update needed\n")
 
-	if u.dryRun {
+	if u.DryRun {
 		fmt.Printf("  🔍 DRY RUN: Would update %s in %s\n", target.JsonPath, target.FilePath)
 		fmt.Printf("    From: %s\n", currentDigest)
 		fmt.Printf("    To:   %s\n", latestDigest)
@@ -113,7 +136,7 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 	}
 
 	// Record the successful update
-	u.updates = append(u.updates, ImageUpdate{
+	u.Updates = append(u.Updates, ImageUpdate{
 		Name:      name,
 		NewDigest: latestDigest,
 	})
@@ -122,30 +145,9 @@ func (u *Updater) updateImage(name string, latestDigest string, target config.Ta
 	return nil
 }
 
-// fetchLatestDigest retrieves the latest digest from the appropriate registry
-func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
-	registry, err := source.Registry()
-	if err != nil {
-		return "", fmt.Errorf("failed to parse registry from image reference: %w", err)
-	}
-
-	repository, err := source.Repository()
-	if err != nil {
-		return "", fmt.Errorf("failed to parse repository from image reference: %w", err)
-	}
-
-	// Create registry client based on the registry URL
-	client, err := clients.NewRegistryClient(registry)
-	if err != nil {
-		return "", fmt.Errorf("failed to create registry client for %s: %w", registry, err)
-	}
-
-	return client.GetLatestDigest(repository, source.TagPattern)
-}
-
 // GenerateCommitMessage creates a commit message for the updated images
 func (u *Updater) GenerateCommitMessage() string {
-	if len(u.updates) == 0 {
+	if len(u.Updates) == 0 {
 		return ""
 	}
 
@@ -153,7 +155,7 @@ func (u *Updater) GenerateCommitMessage() string {
 
 	// Track unique updates (in case same image was updated multiple times)
 	seen := make(map[string]string)
-	for _, update := range u.updates {
+	for _, update := range u.Updates {
 		seen[update.Name] = update.NewDigest
 	}
 

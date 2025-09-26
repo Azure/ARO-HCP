@@ -70,18 +70,6 @@ func (s *Source) ParseImageReference() (registry, repository string, err error) 
 	return registry, repository, nil
 }
 
-// Registry returns the registry part of the image reference
-func (s *Source) Registry() (string, error) {
-	registry, _, err := s.ParseImageReference()
-	return registry, err
-}
-
-// Repository returns the repository part of the image reference
-func (s *Source) Repository() (string, error) {
-	_, repository, err := s.ParseImageReference()
-	return repository, err
-}
-
 // Load reads and parses the configuration file
 func Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
@@ -94,39 +82,7 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 	}
 
-	// Validate configuration
-	if err := cfg.validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
 	return &cfg, nil
-}
-
-// validate ensures the configuration is complete and valid
-func (c *Config) validate() error {
-	if len(c.Images) == 0 {
-		return fmt.Errorf("no images configured")
-	}
-
-	for name, img := range c.Images {
-		if img.Source.Image == "" {
-			return fmt.Errorf("image %s: source image is required", name)
-		}
-		// Validate that the image reference can be parsed
-		if _, _, err := img.Source.ParseImageReference(); err != nil {
-			return fmt.Errorf("image %s: %w", name, err)
-		}
-		for _, target := range img.Targets {
-			if target.JsonPath == "" {
-				return fmt.Errorf("image %s: target jsonPath is required", name)
-			}
-			if target.FilePath == "" {
-				return fmt.Errorf("image %s: target filePath is required", name)
-			}
-		}
-	}
-
-	return nil
 }
 
 // FilterByComponent returns a new Config containing only the specified component
