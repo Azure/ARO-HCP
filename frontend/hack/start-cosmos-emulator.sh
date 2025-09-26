@@ -56,15 +56,15 @@ done
 # Wait for HTTPS endpoint to be available
 echo "Waiting for HTTPS endpoint to be available..."
 for i in {1..30}; do
-    curl --insecure -v "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem"
+    curl --insecure -v "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" || true
 
     if curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/dev/null 2>&1; then
         echo "HTTPS endpoint is ready!"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        echo "Timeout waiting for HTTPS endpoint to be available"
-        exit 1
+        echo "Timeout waiting for HTTPS endpoint to be available, but try anyway"
+        break
     fi
     echo "Attempt $i/30: Waiting for HTTPS endpoint..."
     sleep 2
