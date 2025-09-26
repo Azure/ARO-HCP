@@ -5,6 +5,9 @@ set -euo pipefail
 # these are the default values of the emulator container.
 DEFAULT_COSMOS_ENDPOINT="https://127.0.0.1:8081"
 
+echo "check for tls 1.2"
+curl -v --tlsv1.2 https://www.google.com
+
 echo "Starting Cosmos DB emulator..."
 
 # Generate random container name
