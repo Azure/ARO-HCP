@@ -156,6 +156,20 @@ defaults:
         namespace: ""
         san: ""
         configVersion: "1"
+    actions:
+      serviceTag: GenevaActions
+      keyVault:
+        name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
+        private: false
+        softDelete: true
+        tagKey: aroHCPPurpose
+        tagValue: geneva-actions
+      certificate:
+        name: genevaAction
+        issuer: OneCertV2-PrivateCA
+        manage: true
+      allowedAcisExtensions: "AzureRedHatHypershiftExtension"
+      genevaActionsAppId: "tbd"
   kusto:
     resourceGroup: ""
     cluster: ""
@@ -757,9 +771,6 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
-      # Geneva Actions
-      genevaActions:
-        serviceTag: GenevaActionsNonProd
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com
@@ -923,6 +934,13 @@ clouds:
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessRoleId: ""
+      geneva:
+        actions:
+          keyVault:
+            name: arohcpdev-geneva-kv # we just want one for entire DEV
+          serviceTag: GenevaActionsNonProd
+          certificate:
+            manage: false
     environments:
       dev:
         # this is the integrated DEV environment
