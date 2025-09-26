@@ -1399,7 +1399,7 @@
         },
         "earlyRefreshFrequency": {
           "type": "string",
-          "description": "Early refresh interval before credential is eligible for refresh. For testing. 0 means no early refresh. Example: 24h"
+          "description": "Early refresh interval before credential is eligible for refresh. For testing, 0 means no early refresh. Example: 24h"
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
