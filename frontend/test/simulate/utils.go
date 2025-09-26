@@ -17,7 +17,7 @@ package simulate
 import (
 	"context"
 	"crypto/tls"
-	"errors"
+	"embed"
 	"fmt"
 	"net"
 	"net/http"
@@ -37,40 +37,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+
+	// register the APIs.
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 )
 
-type SimulationTestInfo struct {
-	CosmosDatabaseClient     *azcosmos.DatabaseClient
-	DBClient                 database.DBClient
-	MockClusterServiceClient *mocks.MockClusterServiceClientSpec
-	CosmosClient             *azcosmos.Client
-	DatabaseName             string
-}
-
-func (s *SimulationTestInfo) Cleanup(ctx context.Context) {
-	if err := s.CleanupDatabase(ctx); err != nil {
-		fmt.Printf("Failed to cleanup database: %v\n", err)
-	}
-}
-
-// CleanupDatabase deletes the randomly created database
-func (s *SimulationTestInfo) CleanupDatabase(ctx context.Context) error {
-	if s.CosmosDatabaseClient == nil || s.DatabaseName == "" {
-		return nil // Nothing to cleanup
-	}
-
-	_, err := s.CosmosDatabaseClient.Delete(ctx, nil)
-	if err != nil {
-		// Ignore 404 errors - database already doesn't exist
-		var responseErr *azcore.ResponseError
-		if errors.As(err, &responseErr) && responseErr.StatusCode == 404 {
-			return nil
-		}
-		return fmt.Errorf("failed to delete database %s: %w", s.DatabaseName, err)
-	}
-
-	return nil
-}
+//go:embed artifacts/*
+var artifacts embed.FS
 
 func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Frontend, *SimulationTestInfo, error) {
 	logger := util.DefaultLogger()
@@ -116,6 +89,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		MockClusterServiceClient: clusterServiceClient,
 		CosmosClient:             cosmosClient,
 		DatabaseName:             cosmosDatabaseName,
+		FrontendURL:              fmt.Sprintf("http://%s", listener.Addr().String()),
 	}
 	return frontend, testInfo, nil
 }

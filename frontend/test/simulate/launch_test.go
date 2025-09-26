@@ -17,8 +17,6 @@ package simulate
 import (
 	"context"
 	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -37,10 +35,7 @@ func TestLaunch(t *testing.T) {
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
-	stop := make(chan struct{})
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
-	go frontend.Run(ctx, stop)
+	go frontend.Run(ctx, ctx.Done())
 
 	// run for a little bit and don't crash
 	time.Sleep(10 * time.Second)
