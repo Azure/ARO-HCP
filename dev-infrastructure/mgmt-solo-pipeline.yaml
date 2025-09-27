@@ -27,10 +27,11 @@ resourceGroups:
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
   - name: infra
-    action: ARM
+    action: ARMStack
     template: templates/mgmt-infra.bicep
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: clusterServiceMIResourceId
       # we don't need to grant KV permissions to CS as there is no CS in the MC solo deployment
@@ -42,10 +43,11 @@ resourceGroups:
         name: logAnalyticsWorkspaceId
   # Build the MC
   - name: cluster
-    action: ARM
+    action: ARMStack
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: ocpAcrResourceId
       input:
