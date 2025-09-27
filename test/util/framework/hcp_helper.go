@@ -162,7 +162,7 @@ func GetHCPCluster(
 	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
 }
 
-// DeleteResourceGroup deletes a resource group and waits for the operation to complete
+// DeleteAllHCPClusters deletes all HCPOpenShiftClusters within a resource group and waits
 func DeleteAllHCPClusters(
 	ctx context.Context,
 	hcpClient *hcpsdk.HcpOpenShiftClustersClient,
