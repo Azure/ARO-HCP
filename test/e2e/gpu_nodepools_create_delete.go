@@ -117,7 +117,6 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					*resourceGroup.Name,
 					customerClusterName,
 					npName,
-					5*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(created.Properties).ToNot(BeNil())
@@ -144,7 +143,6 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 					*resourceGroup.Name,
 					customerClusterName,
 					npName,
-					2*time.Minute,
 				)
 				Expect(getErr).To(HaveOccurred())
 			},
