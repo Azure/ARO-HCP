@@ -16,7 +16,6 @@ package simulate
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -24,9 +23,6 @@ import (
 )
 
 func TestLaunch(t *testing.T) {
-	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
-	}
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

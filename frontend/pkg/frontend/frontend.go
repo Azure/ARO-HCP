@@ -500,6 +500,9 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 		hcpCluster.SystemData = resourceDoc.SystemData
 		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+		if hcpCluster.Identity == nil {
+			hcpCluster.Identity = &arm.ManagedServiceIdentity{}
+		}
 
 		if resourceDoc.Identity != nil {
 			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
@@ -1292,6 +1295,9 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 	hcpCluster.SystemData = doc.SystemData
 	hcpCluster.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
+	if hcpCluster.Identity == nil {
+		hcpCluster.Identity = &arm.ManagedServiceIdentity{}
+	}
 
 	if doc.Identity != nil {
 		hcpCluster.Identity.PrincipalID = doc.Identity.PrincipalID
