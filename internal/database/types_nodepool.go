@@ -15,6 +15,8 @@
 package database
 
 import (
+	"fmt"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -23,6 +25,8 @@ type NodePool struct {
 
 	NodePoolProperties `json:"properties"`
 }
+
+var _ ResourceProperties = &NodePool{}
 
 type NodePoolProperties struct {
 	ResourceDocument `json:",inline"`
@@ -46,6 +50,21 @@ type ServiceProviderNodePoolState struct {
 	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
 	// There is no validation on this structure.
 	NodePool api.HCPOpenShiftClusterNodePoolProperties `json:"nodePoolProperties"`
+}
+
+func (o *NodePool) ValidateResourceType() error {
+	if o.ResourceType != api.NodePoolResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *NodePool) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *NodePool) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterNodePoolState ResourceDocumentStateFilter = newJSONRoundTripFilterer(

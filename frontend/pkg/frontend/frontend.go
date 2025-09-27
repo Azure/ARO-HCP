@@ -410,6 +410,63 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	}
 }
 
+// GetHCPCluster implements the GET single resource API contract for HCP Clusters
+// * 200 If the resource exists
+// * 404 If the resource does not exist
+func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+
+	hcpCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		reportingErr := arm.NewResourceNotFoundError(resourceID)
+		logger.Error(reportingErr.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(reportingErr, resourceID, nil))
+		return
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpCluster.InternalID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, hcpCluster.ResourceID, nil))
+		return
+	}
+
+	responseBody, err := marshalCSCluster(csCluster, hcpCluster.GetResourceDocument(), versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
 func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
