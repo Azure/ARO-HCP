@@ -21,16 +21,7 @@ Pin the `@autorest/go` version so we control when to upgrade it.
 
 ``` yaml
 use:
-- "@autorest/go@4.0.0-preview.73"
-```
-
-### Default Version
-
-This is the API version to be generated unless it is overridden on
-the command line.
-
-``` yaml
-tag: v20240610preview
+- "@autorest/go@4.0.0-preview.74"
 ```
 
 ### Basic Information
@@ -58,6 +49,14 @@ Additional options to reduce unused code as much as possible.
 go:
   inject-spans: false
   remove-unreferenced-types: true
+```
+
+### Tag v20251223preview
+
+These settings apply only when `--tag=v20251223preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20251223preview'
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2025-12-23-preview/openapi.json
 ```
 
 ### Tag v20240610preview

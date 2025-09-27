@@ -18,4 +18,5 @@ package main
 // API version package so it can register itself.
 import (
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	_ "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 )
