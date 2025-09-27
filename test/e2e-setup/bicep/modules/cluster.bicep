@@ -73,7 +73,6 @@ resource hcp 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview'
   properties: {
     version: {
       id: openshiftVersionId
-      channelGroup: 'stable'
     }
     dns: {}
     network: networkConfig
