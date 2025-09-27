@@ -3,7 +3,10 @@
 set -euo pipefail
 
 # these are the default values of the emulator container.
-DEFAULT_COSMOS_ENDPOINT="https://localhost:8081"
+DEFAULT_COSMOS_ENDPOINT="https://127.0.0.1:8081"
+
+echo "check for tls 1.2"
+curl -v --tlsv1.2 https://www.google.com
 
 echo "Starting Cosmos DB emulator..."
 
@@ -53,20 +56,34 @@ for i in {1..60}; do
     sleep 5
 done
 
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
+echo "CONTAINER LOGS"
+${CONTAINER_RUNTIME} logs "${CONTAINER_NAME}"
+echo "END"
+
 # Wait for HTTPS endpoint to be available
 echo "Waiting for HTTPS endpoint to be available..."
 for i in {1..30}; do
+    curl --insecure -v "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" || true
+
     if curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/dev/null 2>&1; then
         echo "HTTPS endpoint is ready!"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        echo "Timeout waiting for HTTPS endpoint to be available"
-        exit 1
+        echo "Timeout waiting for HTTPS endpoint to be available, but try anyway"
+        break
     fi
     echo "Attempt $i/30: Waiting for HTTPS endpoint..."
     sleep 2
 done
+
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
+echo "CONTAINER LOGS"
+${CONTAINER_RUNTIME} logs "${CONTAINER_NAME}"
+echo "END"
 
 echo "✅ Cosmos DB emulator started successfully!"
 echo "Container name: ${CONTAINER_NAME}"

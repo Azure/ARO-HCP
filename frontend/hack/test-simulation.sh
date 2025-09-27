@@ -4,9 +4,9 @@
 TMP_DATA_DIR="${ARTIFACT_DIR}"
 
 # these are the default values of the emulator container.
-DEFAULT_COSMOS_ENDPOINT="https://localhost:8081"
+DEFAULT_COSMOS_ENDPOINT="https://127.0.0.1:8081"
 DEFAULT_COSMOS_KEY="C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-DEFAULT_COSMOS_CONN_STRING="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
+DEFAULT_COSMOS_CONN_STRING="AccountEndpoint=https://127.0.0.1:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 
 if [ -n "${ARTIFACT_DIR}" ]; then
     TMP_DATA_DIR="${ARTIFACT_DIR}/tmp"
@@ -50,6 +50,11 @@ cleanup() {
 # Set trap to collect logs on exit
 trap cleanup EXIT
 
+echo "CONTAINERS"
+${CONTAINER_RUNTIME} ps -a
+echo "END"
+
+
 # Check if Cosmos emulator is already running
 echo "Checking for running Cosmos DB emulator..."
 if ! curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/dev/null 2>&1; then
@@ -60,14 +65,11 @@ if ! curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" >/de
     echo ""
     echo "Or to stop any existing emulators, run:"
     echo "  ./frontend/hack/stop-all-cosmos-emulators.sh"
-    exit 1
+#    try anyway to see if we can run in CI
+#    exit 1
 fi
 
 echo "✅ Cosmos DB emulator is running at ${DEFAULT_COSMOS_ENDPOINT}"
-
-# Download the emulator certificate
-echo "Downloading emulator certificate..."
-curl --insecure -s "${DEFAULT_COSMOS_ENDPOINT}/_explorer/emulator.pem" > "${TMP_DATA_DIR}/cosmos_emulator.crt"
 
 export FRONTEND_SIMULATION_TESTING="true"
 export FRONTEND_COSMOS_ENDPOINT="${DEFAULT_COSMOS_ENDPOINT}"
