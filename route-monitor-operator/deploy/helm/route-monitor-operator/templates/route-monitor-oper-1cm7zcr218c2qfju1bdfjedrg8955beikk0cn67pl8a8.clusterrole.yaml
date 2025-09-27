@@ -1,7 +1,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: route-monitor-oper-1cm7zcr218c2qfju1bdfjedrg8955beikk0cn67pl8a8
 rules:
 - apiGroups:
