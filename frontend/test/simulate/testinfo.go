@@ -32,9 +32,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type SimulationTestInfo struct {
@@ -55,8 +55,8 @@ func (s *SimulationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClien
 	return resources
 }
 
-func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) (*hcpapi20240610.ClientFactory, error) {
-	return hcpapi20240610.NewClientFactory(subscriptionID, nil, &azcorearm.ClientOptions{
+func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) (*hcpsdk20240610preview.ClientFactory, error) {
+	return hcpsdk20240610preview.NewClientFactory(subscriptionID, nil, &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Retry: policy.RetryOptions{
 				MaxRetries: -1, // no retries
