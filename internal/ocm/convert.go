@@ -65,6 +65,8 @@ func conversionError[T any](v any) error {
 
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (api.Visibility, error) {
 	switch listening {
+	case "":
+		return "", nil
 	case arohcpv1alpha1.ListeningMethodExternal:
 		return api.VisibilityPublic, nil
 	case arohcpv1alpha1.ListeningMethodInternal:
@@ -87,6 +89,8 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 
 func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
 	switch outboundTypeCS {
+	case "":
+		return "", nil
 	case csOutboundType:
 		return api.OutboundTypeLoadBalancer, nil
 	default:
@@ -172,6 +176,8 @@ func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) 
 
 func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
 	switch state {
+	case "":
+		return "", nil
 	case csImageRegistryStateDisabled:
 		return api.ClusterImageRegistryProfileStateDisabled, nil
 	case csImageRegistryStateEnabled:
