@@ -97,6 +97,9 @@ func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path,
 	if value == nil {
 		return nil
 	}
+	if len(*value) == 0 {
+		return nil
+	}
 	if regex.MatchString(*value) {
 		return nil
 	}

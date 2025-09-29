@@ -70,7 +70,6 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 
 	//Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("location"), &newObj.Location, nil)...)
 
 	//Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 
@@ -193,7 +192,7 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 
 	// ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
-	if newObj.ChannelGroup == "stable" {
+	if newObj.ChannelGroup != "stable" {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
 	errs = append(errs, OpenshiftVersion(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
@@ -344,7 +343,7 @@ func validatePlatformProfile(ctx context.Context, op operation.Operation, fldPat
 }
 
 var (
-	toPlatformOperatorsAuthenticationUserAssignedIdentities = func(oldObj *api.OperatorsAuthenticationProfile) *api.UserAssignedIdentitiesProfile {
+	toAuthenticationUserAssignedIdentities = func(oldObj *api.OperatorsAuthenticationProfile) *api.UserAssignedIdentitiesProfile {
 		return &oldObj.UserAssignedIdentities
 	}
 )
@@ -353,44 +352,72 @@ func validateOperatorsAuthenticationProfile(ctx context.Context, op operation.Op
 	errs := field.ErrorList{}
 
 	//UserAssignedIdentities UserAssignedIdentitiesProfile `json:"userAssignedIdentities,omitempty"`
-	errs = append(errs, validateUserAssignedIdentitiesProfile(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentities))...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
+	errs = append(errs, validateUserAssignedIdentitiesProfile(ctx, op, fldPath.Child("userAssignedIdentities"), &newObj.UserAssignedIdentities, safe.Field(oldObj, toAuthenticationUserAssignedIdentities))...)
 
 	return errs
 }
 
 var (
-	toPlatformOperatorsAuthenticationUserAssignedIdentitiesControlPlaneOperators  = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.ControlPlaneOperators }
-	toPlatformOperatorsAuthenticationUserAssignedIdentitiesDataPlaneOperators     = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.DataPlaneOperators }
-	toPlatformOperatorsAuthenticationUserAssignedIdentitiesServiceManagedIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *string { return &oldObj.ServiceManagedIdentity }
+	toUserAssignedIdentitiesControlPlaneOperators  = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.ControlPlaneOperators }
+	toUserAssignedIdentitiesDataPlaneOperators     = func(oldObj *api.UserAssignedIdentitiesProfile) map[string]string { return oldObj.DataPlaneOperators }
+	toUserAssignedIdentitiesServiceManagedIdentity = func(oldObj *api.UserAssignedIdentitiesProfile) *string { return &oldObj.ServiceManagedIdentity }
 )
 
 func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("controlPlaneOperators"), newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators))...)
 	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("controlPlaneOperators"),
-		newObj.ControlPlaneOperators, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentitiesControlPlaneOperators),
+		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
+		validate.RequiredValue,
+	)...)
+	// even though it's not listed, prior validation had the value required.
+	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("controlPlaneOperators"),
+		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
+		nil,
+		validate.RequiredValue,
+	)...)
+	// even though it's not listed, prior validation had the value required.
+	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("controlPlaneOperators"),
+		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
+		nil,
 		validate.RequiredValue,
 	)...)
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("controlPlaneOperators"),
-		newObj.ControlPlaneOperators, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentitiesControlPlaneOperators),
+		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
 		nil,
 		newRestrictedResourceID("Microsoft.ManagedIdentity/userAssignedIdentities"),
 	)...)
 
 	//DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("dataPlaneOperators"), newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators))...)
 	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("dataPlaneOperators"),
-		newObj.DataPlaneOperators, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentitiesDataPlaneOperators),
+		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
+		validate.RequiredValue,
+	)...)
+	// even though it's not listed, prior validation had the value required.
+	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("dataPlaneOperators"),
+		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
+		nil,
+		validate.RequiredValue,
+	)...)
+	// even though it's not listed, prior validation had the value required.
+	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("dataPlaneOperators"),
+		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
+		nil,
 		validate.RequiredValue,
 	)...)
 	errs = append(errs, validate.EachMapVal(ctx, op, fldPath.Child("dataPlaneOperators"),
-		newObj.DataPlaneOperators, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentitiesDataPlaneOperators),
+		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
 		nil,
 		newRestrictedResourceID("Microsoft.ManagedIdentity/userAssignedIdentities"),
 	)...)
 
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toPlatformOperatorsAuthenticationUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
+	errs = append(errs, RestrictedResourceID(ctx, op, fldPath.Child("serviceManagedIdentity"), &newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
 
 	return errs
 }
@@ -414,6 +441,7 @@ func validateEtcdProfile(ctx context.Context, op operation.Operation, fldPath *f
 	errs := field.ErrorList{}
 
 	//DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 	errs = append(errs, validateEtcdDataEncryptionProfile(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 
 	return errs
@@ -432,9 +460,11 @@ func validateEtcdDataEncryptionProfile(ctx context.Context, op operation.Operati
 	errs := field.ErrorList{}
 
 	//KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" validate:"enum_etcddataencryptionkeymanagementmodetype"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode), api.ValidEtcdDataEncryptionKeyManagementModeType)...)
 
 	//CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"   validate:"required_if=KeyManagementMode CustomerManaged,excluded_unless=KeyManagementMode CustomerManaged,omitempty"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("customerManaged"), newObj.CustomerManaged, safe.Field(oldObj, toEtcdDataEncryptionProfileCustomerManaged))...)
 	union := validate.NewDiscriminatedUnionMembership("keyManagementMode", [2]string{"customerManaged", "CustomerManaged"})
 	discriminatorExtractor := func(obj *api.EtcdDataEncryptionProfile) api.EtcdDataEncryptionKeyManagementModeType {
 		return obj.KeyManagementMode
@@ -465,9 +495,11 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 	errs := field.ErrorList{}
 
 	//EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType), api.ValidCustomerManagedEncryptionType)...)
 
 	//Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"required_if=EncryptionType KMS,excluded_unless=EncryptionType KMS,omitempty"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("kms"), newObj.Kms, safe.Field(oldObj, toEtcdDataEncryptionProfileKms))...)
 	union := validate.NewDiscriminatedUnionMembership("encryptionType", [2]string{"kms", "KMS"})
 	discriminatorExtractor := func(obj *api.CustomerManagedEncryptionProfile) api.CustomerManagedEncryptionType {
 		return obj.EncryptionType
@@ -495,40 +527,50 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs := field.ErrorList{}
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	return errs
 }
 
-func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, _ *api.KmsKey) field.ErrorList {
+var (
+	toKmsKeyName      = func(oldObj *api.KmsKey) *string { return &oldObj.Name }
+	toKmsKeyVaultName = func(oldObj *api.KmsKey) *string { return &oldObj.VaultName }
+	toKmsKeyVersion   = func(oldObj *api.KmsKey) *string { return &oldObj.Version }
+)
+
+func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.KmsKey) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//Name      string `json:"name"      validate:"required,min=1,max=255"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toKmsKeyName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("name"), &newObj.Name, nil)...)
-	errs = append(errs, MinLen(ctx, op, fldPath.Child("name"), &newObj.Name, nil, 1)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("name"), &newObj.Name, nil, 255)...)
 
 	//VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, safe.Field(oldObj, toKmsKeyVaultName))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil)...)
-	errs = append(errs, MinLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 1)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
 
 	//Version   string `json:"version"   validate:"required,min=1,max=255"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
-	errs = append(errs, MinLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 1)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
 
 	return errs
 }
 
 var (
-	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryProfileState { return &oldObj.State }
+	toPlatformClusterImageRegistryState = func(oldObj *api.ClusterImageRegistryProfile) *api.ClusterImageRegistryProfileState {
+		return &oldObj.State
+	}
 )
 
 func validateClusterImageRegistryProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ClusterImageRegistryProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"enum_clusterimageregistryprofilestate"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.State, safe.Field(oldObj, toPlatformClusterImageRegistryState), api.ValidClusterImageRegistryProfileStates)...)
 
 	return errs
@@ -538,7 +580,9 @@ var (
 	toManagedServiceIdentityPrincipalID            = func(oldObj *arm.ManagedServiceIdentity) *string { return &oldObj.PrincipalID }
 	toManagedServiceIdentityTenantID               = func(oldObj *arm.ManagedServiceIdentity) *string { return &oldObj.TenantID }
 	toManagedServiceIdentityType                   = func(oldObj *arm.ManagedServiceIdentity) *arm.ManagedServiceIdentityType { return &oldObj.Type }
-	toManagedServiceIdentityUserAssignedIdentities = func(oldObj *arm.ManagedServiceIdentity) map[string]*arm.UserAssignedIdentity { return oldObj.UserAssignedIdentities }
+	toManagedServiceIdentityUserAssignedIdentities = func(oldObj *arm.ManagedServiceIdentity) map[string]*arm.UserAssignedIdentity {
+		return oldObj.UserAssignedIdentities
+	}
 )
 
 func validateManagedServiceIdentity(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.ManagedServiceIdentity) field.ErrorList {

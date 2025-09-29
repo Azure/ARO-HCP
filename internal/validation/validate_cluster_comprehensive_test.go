@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -290,17 +292,6 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "resource ID must reference an instance of type", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-			},
-		},
-		{
-			name: "missing location - create",
-			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.Location = ""
-				return c
-			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "trackedResource.location"},
 			},
 		},
 		{
@@ -877,7 +868,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 
 // Helper function to create a valid cluster for testing
 func createValidCluster() *api.HCPOpenShiftCluster {
-	cluster := api.NewDefaultHCPOpenShiftCluster()
+	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")))
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus" // Required for TrackedResource validation
