@@ -27,7 +27,7 @@ spec:
         summary: 'High Error Rate on Backend Operations'
     - alert: BackendHealthAvailability
       expr: |
-        (1 - (sum_over_time(backend_health[1h]) / 3600)) >= (300 / 3600)
+        (((120 - sum_over_time(backend_health[1h])) * 30) >= 300)
       for: 5m
       labels:
         severity: info
