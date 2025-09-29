@@ -196,7 +196,8 @@ var _ = Describe("Customer", func() {
 			By("validating all admin credentials now fail after revocation")
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
-				Eventually(verifiers.VerifyHCPCluster(ctx, cred), 5*time.Minute, 15*time.Second).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
+				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
+				Eventually(verifiers.VerifyHCPCluster(ctx, cred), 10*time.Minute, 15*time.Second).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
