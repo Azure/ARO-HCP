@@ -423,12 +423,12 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         annotations: {
           correlationId: 'FrontendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+          description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
           runbook_url: 'TBD'
-          summary: 'Frontend latency is high: 95th percentile exceeds 1 second'
-          title: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+          summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
+          title: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
         }
-        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1'
+        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
         severity: 3
       }

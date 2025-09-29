@@ -14,7 +14,7 @@ spec:
     rules:
     - alert: FrontendLatency
       expr: |
-        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1
+        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5
       for: 15m
       labels:
         severity: info
