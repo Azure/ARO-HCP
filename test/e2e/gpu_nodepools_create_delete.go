@@ -25,7 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -122,7 +122,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(created.Properties).ToNot(BeNil())
 				Expect(created.Properties.ProvisioningState).ToNot(BeNil())
-				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk.ProvisioningStateSucceeded))
+				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
 				Expect(created.Properties.Platform).ToNot(BeNil())
 				Expect(created.Properties.Platform.VMSize).ToNot(BeNil())
 				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))

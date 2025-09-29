@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -102,7 +102,7 @@ var _ = Describe("Customer", func() {
 					GinkgoWriter.Printf("Cluster found with provisioning state: %v\n", state)
 
 					// If cluster is still deploying and we haven't tested yet, test admin credentials
-					if !testedWhileDeploying && (state == hcpsdk.ProvisioningStateAccepted || state == hcpsdk.ProvisioningStateProvisioning) {
+					if !testedWhileDeploying && (state == hcpsdk20240610preview.ProvisioningStateAccepted || state == hcpsdk20240610preview.ProvisioningStateProvisioning) {
 						By("testing admin credentials while cluster is in deploying state")
 						_, adminCredErr := clusterClient.BeginRequestAdminCredential(
 							ctx,
@@ -124,7 +124,7 @@ var _ = Describe("Customer", func() {
 					}
 
 					// If cluster is ready, we're done
-					if state == hcpsdk.ProvisioningStateSucceeded {
+					if state == hcpsdk20240610preview.ProvisioningStateSucceeded {
 						if !testedWhileDeploying {
 							Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
 						}
@@ -132,7 +132,7 @@ var _ = Describe("Customer", func() {
 					}
 
 					// If cluster failed, that's an error
-					if state == hcpsdk.ProvisioningStateFailed {
+					if state == hcpsdk20240610preview.ProvisioningStateFailed {
 						return fmt.Errorf("cluster deployment failed")
 					}
 				}

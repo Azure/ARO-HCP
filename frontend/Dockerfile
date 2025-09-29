@@ -5,6 +5,7 @@ FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-
 RUN yum install --assumeyes jq
 COPY internal/go.mod internal/go.sum internal/
 COPY frontend/go.mod frontend/go.sum frontend/
+COPY test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/
 RUN cd frontend && go mod download
 WORKDIR /app
 COPY . .

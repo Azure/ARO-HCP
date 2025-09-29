@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/log"
 )
@@ -113,8 +113,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		log.Logger.Warnf("Failed to extract identityValue from deployment outputs: %v", err)
 	}
 
-	// Convert userAssignedIdentitiesValue to hcpsdk.UserAssignedIdentitiesProfile
-	var uamis hcpsdk.UserAssignedIdentitiesProfile
+	// Convert userAssignedIdentitiesValue to hcpsdk20240610preview.UserAssignedIdentitiesProfile
+	var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
 	if userAssignedIdentitiesValueBytes != nil {
 		err := json.Unmarshal(userAssignedIdentitiesValueBytes, &uamis)
 		if err != nil {
@@ -122,8 +122,8 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 		}
 	}
 
-	// Convert identityValue to hcpsdk.ManagedServiceIdentity
-	identityUAMIs := hcpsdk.ManagedServiceIdentity{}
+	// Convert identityValue to hcpsdk20240610preview.ManagedServiceIdentity
+	identityUAMIs := hcpsdk20240610preview.ManagedServiceIdentity{}
 	if identityValueBytes != nil {
 		err := json.Unmarshal(identityValueBytes, &identityUAMIs)
 		if err != nil {
@@ -134,7 +134,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	// Fetch ARM resources for ARMData
 	clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 	clusterResp, err := clusterClient.Get(ctx, resourceGroupName, clusterName, nil)
-	var clusterData hcpsdk.HcpOpenShiftCluster
+	var clusterData hcpsdk20240610preview.HcpOpenShiftCluster
 	if err != nil {
 		log.Logger.Warnf("Failed to get cluster ARM data: %v", err)
 	} else {
@@ -143,7 +143,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 
 	nodepoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 	nodepoolResp, err := nodepoolClient.Get(ctx, resourceGroupName, clusterName, nodepoolName, nil)
-	var nodepoolData hcpsdk.NodePool
+	var nodepoolData hcpsdk20240610preview.NodePool
 	if err != nil {
 		log.Logger.Warnf("Failed to get nodepool ARM data: %v", err)
 	} else {
