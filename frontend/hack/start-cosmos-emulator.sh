@@ -60,6 +60,8 @@ echo "CONTAINERS"
 ${CONTAINER_RUNTIME} ps -a
 echo "CONTAINER LOGS"
 ${CONTAINER_RUNTIME} logs "${CONTAINER_NAME}"
+echo "NETSTAT"
+netstat -anlp | grep 8081
 echo "END"
 
 # Wait for HTTPS endpoint to be available

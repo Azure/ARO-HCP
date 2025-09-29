@@ -52,8 +52,9 @@ trap cleanup EXIT
 
 echo "CONTAINERS"
 ${CONTAINER_RUNTIME} ps -a
+echo "NETSTAT"
+netstat -anlp | grep 8081
 echo "END"
-
 
 # Check if Cosmos emulator is already running
 echo "Checking for running Cosmos DB emulator..."
