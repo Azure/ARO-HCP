@@ -29,8 +29,8 @@ linters:
         alias: azcorearm
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
-      - pkg: github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
-        alias: hcpsdk
+      - pkg: github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+        alias: hcpsdk20240610preview
     staticcheck:
       dot-import-whitelist:
       - "github.com/onsi/ginkgo"

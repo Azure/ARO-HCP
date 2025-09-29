@@ -22,7 +22,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -46,7 +46,7 @@ var _ = Describe("List HCPOpenShiftCluster", func() {
 			tc := framework.NewTestContext()
 
 			By("Preparing pager to list clusters")
-			listOptions := &hcpsdk.HcpOpenShiftClustersClientListBySubscriptionOptions{}
+			listOptions := &hcpsdk20240610preview.HcpOpenShiftClustersClientListBySubscriptionOptions{}
 			pager := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(listOptions)
 			By("Accessing IDs of all fetched clusters")
 			foundPreCreated := false
