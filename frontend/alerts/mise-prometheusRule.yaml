@@ -13,7 +13,7 @@ spec:
   - name: mise
     rules:
     - alert: MiseEnvoyScrapeDown
-      expr: absent(up{job="envoy-stats", namespace="mise"}) or (up{job="envoy-stats", namespace="mise"} == 0)
+      expr: absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0
       for: 5m
       labels:
         severity: info
