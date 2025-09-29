@@ -480,7 +480,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High unavailability on the Frontend'
           title: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
         }
-        expression: '(1 - (sum_over_time(frontend_health[1h]) / 3600)) >= (300 / 3600)'
+        expression: '(((120 - sum_over_time(frontend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
         severity: 3
       }

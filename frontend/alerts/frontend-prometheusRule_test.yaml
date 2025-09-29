@@ -71,12 +71,12 @@ tests:
     alertname: FrontendClusterServiceErrorRate
     exp_alerts: []
 # Test: FrontendHealthAvailability greater than 300s
-- interval: 1s
+- interval: 30s
   input_series:
   - series: "frontend_health"
-    values: "1x3300 0x400 1x300" # 3200s up, 400s down
+    values: "1x100 0x20 1x20" # 100*30s=3000s up, 20*30s=600s down, 20*30s=600s up
   alert_rule_test:
-  - eval_time: 4000s
+  - eval_time: 4200s
     alertname: FrontendHealthAvailability
     exp_alerts:
     - exp_labels:
@@ -86,10 +86,10 @@ tests:
         runbook_url: 'TBD'
         summary: 'High unavailability on the Frontend'
 # Test: FrontendHealthAvailability less than 300s
-- interval: 1s
+- interval: 30s
   input_series:
   - series: "frontend_health"
-    values: "1x3350 0x299" # 3350s up, 299s down
+    values: "1x110 0x9 1x1" # 110*30s=3300s up, 9*30s=270s down, 1*30s=30s up
   alert_rule_test:
   - eval_time: 3600s
     alertname: FrontendHealthAvailability
