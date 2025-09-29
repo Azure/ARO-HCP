@@ -687,32 +687,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             }
           }
         ]
-        alert: 'BackendLatency'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'BackendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
-          runbook_url: 'TBD'
-          summary: 'Backend latency is high: 95th percentile exceeds 1 second'
-          title: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
-        }
-        expression: 'histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket[1h])) > 1'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'BackendOperationErrorRate'
         enabled: true
         labels: {
