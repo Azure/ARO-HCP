@@ -637,12 +637,12 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
 	newValidationErr := func(prevValidationErr *arm.CloudError) *arm.CloudError {
-		var newInternalCluster *api.HCPOpenShiftCluster
+		newInternalCluster := &api.HCPOpenShiftCluster{}
 		versionedRequestCluster.Normalize(newInternalCluster)
 
 		var validationErrs field.ErrorList
 		if updating {
-			var oldInternalCluster *api.HCPOpenShiftCluster
+			oldInternalCluster := &api.HCPOpenShiftCluster{}
 			versionedCurrentCluster.Normalize(oldInternalCluster)
 			validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
 
@@ -666,8 +666,8 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 	// prefer new validation.  Have a fallback for old validation.
 	if newValidationErr != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
 
