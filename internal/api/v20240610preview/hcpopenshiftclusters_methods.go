@@ -86,11 +86,12 @@ func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
 		return generated.PlatformProfile{}
 	}
 	return generated.PlatformProfile{
-		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
-		SubnetID:                api.PtrOrNil(from.SubnetID),
-		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
-		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ManagedResourceGroup:   api.PtrOrNil(from.ManagedResourceGroup),
+		SubnetID:               api.PtrOrNil(from.SubnetID),
+		OutboundType:           api.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID: api.PtrOrNil(from.NetworkSecurityGroupID),
+		// non-nillable
+		OperatorsAuthentication: ptr.To(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
 		IssuerURL:               api.PtrOrNil(from.IssuerURL),
 	}
 }
@@ -166,7 +167,8 @@ func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile)
 		return generated.OperatorsAuthenticationProfile{}
 	}
 	return generated.OperatorsAuthenticationProfile{
-		UserAssignedIdentities: api.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
+		// non-nillable
+		UserAssignedIdentities: ptr.To(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
 	}
 }
 

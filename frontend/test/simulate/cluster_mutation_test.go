@@ -295,5 +295,6 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 	expectedMap := map[string]any{}
 	require.NoError(t, json.Unmarshal(expectedJSON, &expectedMap))
 
+	t.Logf("Actual: %s", actualJSON)
 	require.Equal(t, expectedMap, actualMap)
 }
