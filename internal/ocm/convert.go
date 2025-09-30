@@ -66,6 +66,10 @@ func conversionError[T any](v any) error {
 func convertListeningToVisibility(listening arohcpv1alpha1.ListeningMethod) (api.Visibility, error) {
 	switch listening {
 	case "":
+		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
+		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
+		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
+		// in ocm-api-model is different than the expression of unset in canonical golang.
 		return "", nil
 	case arohcpv1alpha1.ListeningMethodExternal:
 		return api.VisibilityPublic, nil
@@ -90,6 +94,10 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 func convertOutboundTypeCSToRP(outboundTypeCS string) (api.OutboundType, error) {
 	switch outboundTypeCS {
 	case "":
+		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
+		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
+		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
+		// in ocm-api-model is different than the expression of unset in canonical golang.
 		return "", nil
 	case csOutboundType:
 		return api.OutboundTypeLoadBalancer, nil
@@ -177,6 +185,10 @@ func convertClusterImageRegistryStateRPToCS(in api.ClusterImageRegistryProfile) 
 func convertClusterImageRegistryStateCSToRP(state string) (api.ClusterImageRegistryProfileState, error) {
 	switch state {
 	case "":
+		// We convert illegal values because zero-value is the state for an object and while the value may not be valid
+		// We need to convert it and let validation worry about whether it is legal or illegal in the context of its usage.
+		// Zero values are preserved through round tripping these, the difference we're seeing here is the expression of unset
+		// in ocm-api-model is different than the expression of unset in canonical golang.
 		return "", nil
 	case csImageRegistryStateDisabled:
 		return api.ClusterImageRegistryProfileStateDisabled, nil
