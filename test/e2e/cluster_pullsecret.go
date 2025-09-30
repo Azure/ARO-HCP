@@ -17,6 +17,9 @@ package e2e
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -120,6 +123,80 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				testPullSecretHost,
 				auth,
 				testPullSecretEmail,
+			).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking for CLUSTER_PROFILE_DIR environment variable")
+			clusterProfileDir := os.Getenv("CLUSTER_PROFILE_DIR")
+			Expect(clusterProfileDir).NotTo(BeEmpty(), "CLUSTER_PROFILE_DIR environment variable is not set")
+
+			By("reading pull-secret file from cluster profile directory")
+			pullSecretFilePath := filepath.Join(clusterProfileDir, "pull-secret")
+			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
+			Expect(err).NotTo(HaveOccurred(), "failed to read pull-secret file from %s", pullSecretFilePath)
+
+			By("parsing pull-secret file")
+			var pullSecretConfig map[string]interface{}
+			err = json.Unmarshal(pullSecretFileData, &pullSecretConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse pull-secret file")
+
+			By("extracting registry.redhat.io credentials")
+			auths, ok := pullSecretConfig["auths"].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "auths field not found in pull-secret file")
+
+			const redhatRegistryHost = "registry.redhat.io"
+			redhatRegistryAuth, ok := auths[redhatRegistryHost].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "registry.redhat.io credentials not found in pull-secret file")
+
+			redhatRegistryAuthString, ok := redhatRegistryAuth["auth"].(string)
+			Expect(ok).To(BeTrue(), "auth field not found in registry.redhat.io credentials")
+
+			redhatRegistryEmail := ""
+			if email, ok := redhatRegistryAuth["email"].(string); ok {
+				redhatRegistryEmail = email
+			}
+
+			By("creating registry.redhat.io pull secret in the cluster")
+			decodedAuth, err := base64.StdEncoding.DecodeString(redhatRegistryAuthString)
+			Expect(err).NotTo(HaveOccurred(), "failed to decode registry.redhat.io auth string")
+
+			// Extract username and password from decoded auth
+			var redhatRegistryUsername, redhatRegistryPassword string
+			for i := 0; i < len(decodedAuth); i++ {
+				if decodedAuth[i] == ':' {
+					redhatRegistryUsername = string(decodedAuth[:i])
+					redhatRegistryPassword = string(decodedAuth[i+1:])
+					break
+				}
+			}
+
+			const redhatRegistryPullSecretName = "redhat-registry-io-pull-secret"
+			redhatRegistryPullSecret, err := framework.CreateTestDockerConfigSecret(
+				redhatRegistryHost,
+				redhatRegistryUsername,
+				redhatRegistryPassword,
+				redhatRegistryEmail,
+				redhatRegistryPullSecretName,
+				pullSecretNamespace,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the registry.redhat.io pull secret in the cluster")
+			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, redhatRegistryPullSecret, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for HCCO to merge the registry.redhat.io pull secret with the global pull secret")
+			Eventually(func() error {
+				return verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost).Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 2*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
+
+			By("verifying the registry.redhat.io pull secret was merged into the global pull secret")
+			err = verifiers.VerifyPullSecretAuthData(
+				"global-pull-secret",
+				pullSecretNamespace,
+				redhatRegistryHost,
+				redhatRegistryAuthString,
+				redhatRegistryEmail,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 		})
