@@ -17,8 +17,6 @@ package v20240610preview
 import (
 	"strings"
 
-	"k8s.io/utils/ptr"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -86,12 +84,11 @@ func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
 		return generated.PlatformProfile{}
 	}
 	return generated.PlatformProfile{
-		ManagedResourceGroup:   api.PtrOrNil(from.ManagedResourceGroup),
-		SubnetID:               api.PtrOrNil(from.SubnetID),
-		OutboundType:           api.PtrOrNil(generated.OutboundType(from.OutboundType)),
-		NetworkSecurityGroupID: api.PtrOrNil(from.NetworkSecurityGroupID),
-		// non-nillable
-		OperatorsAuthentication: ptr.To(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
+		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
+		SubnetID:                api.PtrOrNil(from.SubnetID),
+		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
+		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
 		IssuerURL:               api.PtrOrNil(from.IssuerURL),
 	}
 }
@@ -167,8 +164,7 @@ func newOperatorsAuthenticationProfile(from *api.OperatorsAuthenticationProfile)
 		return generated.OperatorsAuthenticationProfile{}
 	}
 	return generated.OperatorsAuthenticationProfile{
-		// non-nillable
-		UserAssignedIdentities: ptr.To(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
+		UserAssignedIdentities: api.PtrOrNil(newUserAssignedIdentitiesProfile(&from.UserAssignedIdentities)),
 	}
 }
 

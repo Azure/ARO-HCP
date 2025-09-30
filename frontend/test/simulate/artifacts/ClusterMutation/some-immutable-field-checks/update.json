@@ -41,13 +41,6 @@
     "platform": {
       "managedResourceGroup": "illegal-change",
       "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/illegal-change",
-      "operatorsAuthentication": {
-        "userAssignedIdentities": {
-          "controlPlaneOperators": null,
-          "dataPlaneOperators": null,
-          "serviceManagedIdentity": null
-        }
-      },
       "outboundType": "LoadBalancer",
       "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
     },
