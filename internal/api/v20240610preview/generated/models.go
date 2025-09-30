@@ -479,7 +479,7 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
-// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
 type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
@@ -1004,7 +1004,7 @@ type UsernameClaimProfile struct {
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
 	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and 'None'.
+	// Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the default policy is 'None'.
 	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
 	// field must be set when prefixPolicy is 'Prefix'.
 	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
@@ -1027,7 +1027,7 @@ type UsernameClaimProfileUpdate struct {
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
 	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and 'None'.
+	// Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the default policy is 'None'.
 	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
 	// field must be set when prefixPolicy is 'Prefix'.
 	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
