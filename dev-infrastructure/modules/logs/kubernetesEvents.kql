@@ -1,0 +1,56 @@
+.create-merge table kubernetesEvents (
+    log: dynamic,
+    tag: string,
+    timestamp: datetime,
+  	namespace: string,
+    container_image: string,
+  	host: string,
+    labels: string,
+    podName: string,
+    region: string,
+    cluster: string,
+    environment: string,
+    unmatched: dynamic,
+    count: int,
+    kubeEventType: string,
+    firstSeen: datetime,
+    lastSeen: datetime,
+    message: string,
+    event_namespace: string,
+    objectKind: string,
+    objectName: string,
+    objectApiVersion: string,
+    objectUID: string,
+    reason: string,
+    sourceComponent: string
+)
+
+
+.create-or-alter table kubernetesEvents ingestion json mapping 'ingestionMapping'
+ ```
+ [
+   {"column":"log","Properties":{"path":"$.log"}},
+   {"column":"timestamp","Properties":{"path":"$.date"}},
+   {"column":"region","Properties":{"path":"$.region"}},
+   {"column":"cluster","Properties":{"path":"$.cluster"}},
+   {"column":"namespace","Properties":{"path":"$.kubernetes.namespace_name"}},
+   {"column":"container_image","Properties":{"path":"$.kubernetes.container_image"}},
+   {"column":"host","Properties":{"path":"$.kubernetes.host"}},
+   {"column":"labels","Properties":{"path":"$.kubernetes.labels"}},
+   {"column":"podName","Properties":{"path":"$.kubernetes.pod_name"}},
+   {"column":"environment","Properties":{"path":"$.environment"}},
+   {"column":"count","Properties":{"path":"$.count"}},
+   {"column":"kubeEventType","Properties":{"path":"$.kubeEventType"}},
+   {"column":"firstSeen","Properties":{"path":"$.firstSeen"}},
+   {"column":"lastSeen","Properties":{"path":"$.lastSeen"}},
+   {"column":"message","Properties":{"path":"$.message"}},
+   {"column":"event_namespace", "Properties":{"path":"$.namespace"}},
+   {"column":"objectKind","Properties":{"path":"$.objectKind"}},
+   {"column":"objectName","Properties":{"path":"$.objectName"}},
+   {"column":"objectApiVersion","Properties":{"path":"$.objectApiVersion"}},
+   {"column":"objectUID","Properties":{"path":"$.objectUID"}},
+   {"column":"reason","Properties":{"path":"$.reason"}},
+   {"column":"sourceComponent","Properties":{"path":"$.sourceComponent"}},
+   {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
+ ]
+ ```

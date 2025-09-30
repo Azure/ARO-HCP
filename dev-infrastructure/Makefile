@@ -315,6 +315,18 @@ mgmt.solo:
 # Monitoring
 #
 
+kusto:
+# 		--resource-group $(GLOBAL_RG_DEPLOYMENT_NAME) \
+	
+	az deployment group create \
+		--name kusto-dev \
+ 		--resource-group jbollglobal \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/kusto-dev.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/kusto-dev.bicepparam
+.PHONY: kusto
+
 monitoring:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring

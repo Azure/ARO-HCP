@@ -1,0 +1,31 @@
+.create-merge table containerLogs (
+    log: dynamic,
+    tag: string,
+    timestamp: datetime,
+  	namespace: string,
+    container_image: string,
+  	host: string,
+    labels: string,
+    podName: string,
+    region: string,
+    cluster: string,
+    environment: string,
+    unmatched: dynamic
+)
+
+.create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
+ ```
+ [
+   {"column":"log","Properties":{"path":"$.log"}},
+   {"column":"timestamp","Properties":{"path":"$.date"}},
+   {"column":"region","Properties":{"path":"$.region"}},
+   {"column":"cluster","Properties":{"path":"$.cluster"}},
+   {"column":"namespace","Properties":{"path":"$.kubernetes.namespace_name"}},
+   {"column":"container_image","Properties":{"path":"$.kubernetes.container_image"}},
+   {"column":"host","Properties":{"path":"$.kubernetes.host"}},
+   {"column":"labels","Properties":{"path":"$.kubernetes.labels"}},
+   {"column":"podName","Properties":{"path":"$.kubernetes.pod_name"}},
+   {"column":"environment","Properties":{"path":"$.environment"}},
+   {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
+ ]
+ ```
