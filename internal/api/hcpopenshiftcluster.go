@@ -27,18 +27,17 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
-	Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
+	CustomerProperties        HCPOpenShiftCustomerClusterProperties        `json:"customerProperties,omitempty" validate:"required"`
+	ServiceProviderProperties HCPOpenShiftServiceProviderClusterProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"   validate:"omitempty"`
 }
 
-// HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
-type HCPOpenShiftClusterProperties struct {
-	ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
-	Version                 VersionProfile              `json:"version,omitempty"`
-	DNS                     DNSProfile                  `json:"dns,omitempty"`
+// HCPOpenShiftCustomerClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
+type HCPOpenShiftCustomerClusterProperties struct {
+	Version                 CustomerVersionProfile      `json:"version,omitempty"`
+	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
-	Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
-	API                     APIProfile                  `json:"api,omitempty"`
+	API                     CustomerAPIProfile          `json:"api,omitempty"`
 	Platform                PlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
 	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
@@ -46,16 +45,34 @@ type HCPOpenShiftClusterProperties struct {
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
 }
 
-// VersionProfile represents the cluster control plane version.
-type VersionProfile struct {
+type HCPOpenShiftServiceProviderClusterProperties struct {
+	ProvisioningState arm.ProvisioningState         `json:"provisioningState,omitempty"       visibility:"read"`
+	Version           CustomerVersionProfile        `json:"version,omitempty"`
+	DNS               ServiceProviderDNSProfile     `json:"dns,omitempty"`
+	Console           ServiceProviderConsoleProfile `json:"console,omitempty"                 visibility:"read"`
+	API               ServiceProviderAPIProfile     `json:"api,omitempty"`
+}
+
+// CustomerVersionProfile represents the cluster control plane version.
+type CustomerVersionProfile struct {
 	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 }
 
-// DNSProfile represents the DNS configuration of the cluster.
-type DNSProfile struct {
-	BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
+// ServiceProviderVersionProfile represents the cluster control plane version.
+type ServiceProviderVersionProfile struct {
+	// TODO this actually conflicts with the user desire. One must win.
+	//ID string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+}
+
+// CustomerDNSProfile represents the DNS configuration of the cluster.
+type CustomerDNSProfile struct {
 	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label,max=15"`
+}
+
+// CustomerDNSProfile represents the DNS configuration of the cluster.
+type ServiceProviderDNSProfile struct {
+	BaseDomain string `json:"baseDomain,omitempty"       visibility:"read"`
 }
 
 // NetworkProfile represents a cluster network configuration.
@@ -68,17 +85,21 @@ type NetworkProfile struct {
 	HostPrefix  int32       `json:"hostPrefix,omitempty"  validate:"omitempty,min=23,max=26"`
 }
 
-// ConsoleProfile represents a cluster web console configuration.
+// ServiceProviderConsoleProfile represents a cluster web console configuration.
 // Visibility for the entire struct is "read".
-type ConsoleProfile struct {
+type ServiceProviderConsoleProfile struct {
 	URL string `json:"url,omitempty"`
 }
 
-// APIProfile represents a cluster API server configuration.
-type APIProfile struct {
-	URL             string     `json:"url,omitempty"             visibility:"read"`
+// CustomerAPIProfile represents a cluster API server configuration.
+type CustomerAPIProfile struct {
 	Visibility      Visibility `json:"visibility,omitempty"      visibility:"read create"        validate:"enum_visibility"`
 	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty" visibility:"read create update" validate:"max=500,dive,ipv4|cidrv4"`
+}
+
+// ServiceProviderAPIProfile represents a cluster API server configuration from the service provider.
+type ServiceProviderAPIProfile struct {
+	URL string `json:"url,omitempty"             visibility:"read"`
 }
 
 // PlatformProfile represents the Azure platform configuration.
@@ -167,8 +188,8 @@ type ClusterImageRegistryProfile struct {
 func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		TrackedResource: arm.NewTrackedResource(resourceID),
-		Properties: HCPOpenShiftClusterProperties{
-			Version: VersionProfile{
+		CustomerProperties: HCPOpenShiftCustomerClusterProperties{
+			Version: CustomerVersionProfile{
 				ChannelGroup: "stable",
 			},
 			Network: NetworkProfile{
@@ -178,7 +199,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShi
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			API: APIProfile{
+			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
 			},
 			Platform: PlatformProfile{
@@ -209,13 +230,13 @@ func (cluster *HCPOpenShiftCluster) NewVersioned(versionedInterface Version) Ver
 func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if cluster.Properties.Version.ID != "" {
+	if cluster.CustomerProperties.Version.ID != "" {
 		// The version ID has already passed syntax validation so we know
 		// it's a valid semantic version.
-		if len(strings.SplitN(cluster.Properties.Version.ID, ".", 3)) > 2 {
+		if len(strings.SplitN(cluster.CustomerProperties.Version.ID, ".", 3)) > 2 {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Code:    arm.CloudErrorCodeInvalidRequestContent,
-				Message: fmt.Sprintf("Invalid value '%s' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)", cluster.Properties.Version.ID),
+				Message: fmt.Sprintf("Invalid value '%s' for field 'id' (must be specified as MAJOR.MINOR; the PATCH value is managed)", cluster.CustomerProperties.Version.ID),
 				Target:  "properties.version.id",
 			})
 		}
@@ -224,7 +245,7 @@ func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	// XXX For now, "stable" is the only accepted value. In the future, we may
 	//     allow unlocking other channel groups through Azure Feature Exposure
 	//     Control (AFEC) flags or some other mechanism.
-	if cluster.Properties.Version.ChannelGroup != "stable" {
+	if cluster.CustomerProperties.Version.ChannelGroup != "stable" {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
 			Message: "Channel group must be 'stable'",
@@ -242,9 +263,9 @@ func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody 
 	// Populated CIDR fields have already passed syntax validation so parsing
 	// should not fail. If parsing does fail then skip validating that field.
 
-	_, podCIDR, _ = net.ParseCIDR(cluster.Properties.Network.PodCIDR)
-	_, serviceCIDR, _ = net.ParseCIDR(cluster.Properties.Network.ServiceCIDR)
-	_, machineCIDR, _ = net.ParseCIDR(cluster.Properties.Network.MachineCIDR)
+	_, podCIDR, _ = net.ParseCIDR(cluster.CustomerProperties.Network.PodCIDR)
+	_, serviceCIDR, _ = net.ParseCIDR(cluster.CustomerProperties.Network.ServiceCIDR)
+	_, machineCIDR, _ = net.ParseCIDR(cluster.CustomerProperties.Network.MachineCIDR)
 
 	// Just check for overlapping subnets. Defer subnet limits to Cluster Service.
 
@@ -261,8 +282,8 @@ func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody 
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Machine CIDR '%s' and service CIDR '%s' overlap",
-				cluster.Properties.Network.MachineCIDR,
-				cluster.Properties.Network.ServiceCIDR),
+				cluster.CustomerProperties.Network.MachineCIDR,
+				cluster.CustomerProperties.Network.ServiceCIDR),
 			Target: "properties.network",
 		})
 	}
@@ -272,8 +293,8 @@ func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody 
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Machine CIDR '%s' and pod CIDR '%s' overlap",
-				cluster.Properties.Network.MachineCIDR,
-				cluster.Properties.Network.PodCIDR),
+				cluster.CustomerProperties.Network.MachineCIDR,
+				cluster.CustomerProperties.Network.PodCIDR),
 			Target: "properties.network",
 		})
 	}
@@ -283,8 +304,8 @@ func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody 
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Service CIDR '%s' and pod CIDR '%s' overlap",
-				cluster.Properties.Network.ServiceCIDR,
-				cluster.Properties.Network.PodCIDR),
+				cluster.CustomerProperties.Network.ServiceCIDR,
+				cluster.CustomerProperties.Network.PodCIDR),
 			Target: "properties.network",
 		})
 	}
@@ -295,7 +316,7 @@ func (cluster *HCPOpenShiftCluster) validateNetworkCIDRs() []arm.CloudErrorBody 
 func (cluster *HCPOpenShiftCluster) validateManagedResourceGroup(clusterResourceID *azcorearm.ResourceID) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
-	if strings.EqualFold(cluster.Properties.Platform.ManagedResourceGroup, clusterResourceID.ResourceGroupName) {
+	if strings.EqualFold(cluster.CustomerProperties.Platform.ManagedResourceGroup, clusterResourceID.ResourceGroupName) {
 		errorDetails = append(errorDetails, arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
 			Message: "Managed resource group name must not be the cluster's resource group name",
@@ -312,7 +333,7 @@ func (cluster *HCPOpenShiftCluster) validateSubnetID(clusterResourceID *azcorear
 	// Subnet ID has already passed syntax validation so parsing should
 	// not fail. If parsing does somehow fail then skip the validation.
 
-	subnetResourceID, err := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	subnetResourceID, err := azcorearm.ParseResourceID(cluster.CustomerProperties.Platform.SubnetID)
 	if err != nil {
 		return nil
 	}
@@ -322,19 +343,19 @@ func (cluster *HCPOpenShiftCluster) validateSubnetID(clusterResourceID *azcorear
 			Code: arm.CloudErrorCodeInvalidRequestContent,
 			Message: fmt.Sprintf(
 				"Subnet '%s' must be in the same Azure subscription as the cluster",
-				cluster.Properties.Platform.SubnetID),
+				cluster.CustomerProperties.Platform.SubnetID),
 			Target: "properties.platform.subnetId",
 		})
 	}
 
-	if cluster.Properties.Platform.ManagedResourceGroup != "" {
-		if strings.EqualFold(subnetResourceID.ResourceGroupName, cluster.Properties.Platform.ManagedResourceGroup) {
+	if cluster.CustomerProperties.Platform.ManagedResourceGroup != "" {
+		if strings.EqualFold(subnetResourceID.ResourceGroupName, cluster.CustomerProperties.Platform.ManagedResourceGroup) {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Code: arm.CloudErrorCodeInvalidRequestContent,
 				Message: fmt.Sprintf(
 					"Subnet '%s' cannot be in the managed resource group '%s'",
-					cluster.Properties.Platform.SubnetID,
-					cluster.Properties.Platform.ManagedResourceGroup),
+					cluster.CustomerProperties.Platform.SubnetID,
+					cluster.CustomerProperties.Platform.ManagedResourceGroup),
 				Target: "properties.platform.subnetId",
 			})
 		}
@@ -364,14 +385,14 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentity(clusterResource
 		})
 	}
 
-	if cluster.Properties.Platform.ManagedResourceGroup != "" {
-		if strings.EqualFold(identityResourceID.ResourceGroupName, cluster.Properties.Platform.ManagedResourceGroup) {
+	if cluster.CustomerProperties.Platform.ManagedResourceGroup != "" {
+		if strings.EqualFold(identityResourceID.ResourceGroupName, cluster.CustomerProperties.Platform.ManagedResourceGroup) {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{
 				Code: arm.CloudErrorCodeInvalidRequestContent,
 				Message: fmt.Sprintf(
 					"Identity '%s' cannot be in the managed resource group '%s'",
 					identity,
-					cluster.Properties.Platform.ManagedResourceGroup),
+					cluster.CustomerProperties.Platform.ManagedResourceGroup),
 				Target: target,
 			})
 		}
@@ -384,14 +405,14 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	const baseTarget = "properties.platform.operatorsAuthentication.userAssignedIdentities"
 	var errorDetails []arm.CloudErrorBody
 
-	serviceManagedIdentity := cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
+	serviceManagedIdentity := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 
-	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+	for operatorName, operatorIdentity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentity(
 			clusterResourceID, operatorIdentity,
 			fmt.Sprintf("%s.controlPlaneOperators[%s]", baseTarget, operatorName))...)
 	}
-	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+	for operatorName, operatorIdentity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		errorDetails = append(errorDetails, cluster.validateUserAssignedIdentity(
 			clusterResourceID, operatorIdentity,
 			fmt.Sprintf("%s.dataPlaneOperators[%s]", baseTarget, operatorName))...)
@@ -429,7 +450,7 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 		}
 	}
 
-	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+	for operatorName, operatorIdentity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		tallyIdentity(operatorIdentity, baseTarget+fmt.Sprintf(".controlPlaneOperators[%s]", operatorName))
 	}
 
@@ -466,7 +487,7 @@ func (cluster *HCPOpenShiftCluster) validateUserAssignedIdentities(clusterResour
 	}
 
 	// Data-plane operator identities must not be assigned to this resource.
-	for operatorName, operatorIdentity := range cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+	for operatorName, operatorIdentity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		key := strings.ToLower(operatorIdentity)
 		if _, ok := userAssignedIdentities[key]; ok {
 			errorDetails = append(errorDetails, arm.CloudErrorBody{

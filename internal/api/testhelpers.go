@@ -145,9 +145,9 @@ func NewTestUserAssignedIdentity(name string) string {
 
 func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)))
-	resource.Properties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
-	resource.Properties.Platform.SubnetID = TestSubnetResourceID
-	resource.Properties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
+	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
+	resource.CustomerProperties.Platform.SubnetID = TestSubnetResourceID
+	resource.CustomerProperties.Platform.NetworkSecurityGroupID = TestNetworkSecurityGroupResourceID
 	return resource
 }
 
@@ -390,7 +390,7 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 		//
 		//   &generated.HcpOpenShiftCluster{
 		//       Properties: &generated.HcpOpenShiftClusterProperties{
-		//           API: &generated.APIProfile{
+		//           API: &generated.CustomerAPIProfile{
 		//               Visibility: &"Public",
 		//           },
 		//       },
@@ -402,9 +402,9 @@ func TestVersionedNullPatch[T any](t *testing.T, newResource func() VersionedCre
 		//
 		// will cause the API field to change to
 		//
-		//   API: &generated.APIProfile{}
+		//   API: &generated.CustomerAPIProfile{}
 		//
-		// which is the zero-value for type generated.APIProfile.
+		// which is the zero-value for type generated.CustomerAPIProfile.
 		//
 		// This function will then reduce it further to
 		//

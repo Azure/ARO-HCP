@@ -502,7 +502,7 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		// body included a new set of resource tags.
 
 		hcpCluster.SystemData = resourceDoc.SystemData
-		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+		hcpCluster.ServiceProviderProperties.ProvisioningState = resourceDoc.ProvisioningState
 		if hcpCluster.Identity == nil {
 			hcpCluster.Identity = &arm.ManagedServiceIdentity{}
 		}
@@ -526,9 +526,9 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 			// values that are determined downstream of this phase of
 			// request processing. To ensure idempotency, add these
 			// values to the target struct for the incoming request.
-			reqCluster.Properties.Version.ID = hcpCluster.Properties.Version.ID
-			reqCluster.Properties.DNS.BaseDomainPrefix = hcpCluster.Properties.DNS.BaseDomainPrefix
-			reqCluster.Properties.Platform.ManagedResourceGroup = hcpCluster.Properties.Platform.ManagedResourceGroup
+			reqCluster.CustomerProperties.Version.ID = hcpCluster.CustomerProperties.Version.ID
+			reqCluster.CustomerProperties.DNS.BaseDomainPrefix = hcpCluster.CustomerProperties.DNS.BaseDomainPrefix
+			reqCluster.CustomerProperties.Platform.ManagedResourceGroup = hcpCluster.CustomerProperties.Platform.ManagedResourceGroup
 
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
@@ -1332,7 +1332,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 
 	hcpCluster.SystemData = doc.SystemData
 	hcpCluster.Tags = maps.Clone(doc.Tags)
-	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
+	hcpCluster.ServiceProviderProperties.ProvisioningState = doc.ProvisioningState
 	if hcpCluster.Identity == nil {
 		hcpCluster.Identity = &arm.ManagedServiceIdentity{}
 	}

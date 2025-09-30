@@ -78,7 +78,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					Value(42),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftCustomerClusterProperties{
 					NodeDrainTimeoutMinutes: 42,
 				},
 			},
@@ -94,7 +94,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftCustomerClusterProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -125,7 +125,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftCustomerClusterProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							CustomerManaged: &api.CustomerManagedEncryptionProfile{
@@ -151,7 +151,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					State(string(csImageRegistryStateDisabled)),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftCustomerClusterProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileStateDisabled,
 					},
@@ -165,9 +165,9 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
 
 			// FIXME Temporary hack until we pass cluster autoscaling values to CS.
-			expectHcpCluster.Properties.Autoscaling.MaxPodGracePeriodSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.PodPriorityThreshold = 0
+			expectHcpCluster.CustomerProperties.Autoscaling.MaxPodGracePeriodSeconds = 0
+			expectHcpCluster.CustomerProperties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
+			expectHcpCluster.CustomerProperties.Autoscaling.PodPriorityThreshold = 0
 
 			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 			require.NoError(t, err)

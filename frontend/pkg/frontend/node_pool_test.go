@@ -269,7 +269,7 @@ func TestCreateNodePool(t *testing.T) {
 // 		Properties: &generated.NodePoolProperties{
 // 			Spec: &generated.NodePoolSpec{
 // 				Replicas: &dummyReplicas,
-// 				Version: &generated.VersionProfile{
+// 				Version: &generated.CustomerVersionProfile{
 // 					ID:           &dummyVersionID,
 //					ChannelGroup: api.Ptr("stable"),
 // 				},

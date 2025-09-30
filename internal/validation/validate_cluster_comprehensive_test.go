@@ -62,7 +62,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid version - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "invalid-version"
+				c.CustomerProperties.Version.ID = "invalid-version"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -73,7 +73,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid DNS prefix - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "Invalid-Name"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -84,7 +84,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid network type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.NetworkType = "InvalidType"
+				c.CustomerProperties.Network.NetworkType = "InvalidType"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -95,7 +95,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid Pod CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "invalid-cidr"
+				c.CustomerProperties.Network.PodCIDR = "invalid-cidr"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -106,7 +106,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid Service CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.ServiceCIDR = "300.0.0.0/16"
+				c.CustomerProperties.Network.ServiceCIDR = "300.0.0.0/16"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -117,7 +117,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid Machine CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.MachineCIDR = "2001:db8::/32"
+				c.CustomerProperties.Network.MachineCIDR = "2001:db8::/32"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -128,7 +128,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "host prefix too small - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.HostPrefix = 22
+				c.CustomerProperties.Network.HostPrefix = 22
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -139,7 +139,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "host prefix too large - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.HostPrefix = 27
+				c.CustomerProperties.Network.HostPrefix = 27
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -150,7 +150,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid API visibility - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = "InvalidVisibility"
+				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -161,7 +161,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "too many authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = make([]string, 501)
+				c.CustomerProperties.API.AuthorizedCIDRs = make([]string, 501)
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -172,7 +172,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid authorized CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -183,7 +183,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "missing subnet ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = ""
+				c.CustomerProperties.Platform.SubnetID = ""
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -194,7 +194,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid outbound type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OutboundType = "InvalidType"
+				c.CustomerProperties.Platform.OutboundType = "InvalidType"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -205,7 +205,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "missing network security group ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.NetworkSecurityGroupID = ""
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = ""
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -216,7 +216,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "wrong NSG resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -227,7 +227,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "node drain timeout too large - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 10081
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 10081
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -238,7 +238,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid etcd encryption key management mode - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -249,8 +249,8 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "customer managed without customer managed profile - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.Properties.Etcd.DataEncryption.CustomerManaged = nil
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -261,7 +261,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid cluster image registry state - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = "InvalidState"
+				c.CustomerProperties.ClusterImageRegistry.State = "InvalidState"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -272,7 +272,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "missing user assigned identity name - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
 				}
 				return c
@@ -285,7 +285,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid user assigned identity resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet",
 				}
 				return c
@@ -345,10 +345,10 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "multiple validation errors - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "invalid-version"
-				c.Properties.DNS.BaseDomainPrefix = "Invalid-Name"
-				c.Properties.Network.NetworkType = "InvalidType"
-				c.Properties.API.Visibility = "InvalidVisibility"
+				c.CustomerProperties.Version.ID = "invalid-version"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
+				c.CustomerProperties.Network.NetworkType = "InvalidType"
+				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -415,12 +415,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow channel group change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -429,12 +429,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow authorized CIDRs change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -443,12 +443,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow autoscaling changes",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Autoscaling.MaxNodesTotal = 200
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 200
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Autoscaling.MaxNodesTotal = 100
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -457,12 +457,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow node drain timeout change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 60
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 60
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 30
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -496,12 +496,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable provisioning state - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
+				c.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateProvisioning
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
+				c.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateSucceeded
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -512,12 +512,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable version ID - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.15.2"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -528,12 +528,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable base domain - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomain = "new.example.com"
+				c.ServiceProviderProperties.DNS.BaseDomain = "new.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomain = "example.com"
+				c.ServiceProviderProperties.DNS.BaseDomain = "example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -544,12 +544,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable base domain prefix - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -560,12 +560,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable network profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "10.200.0.0/14"
+				c.CustomerProperties.Network.PodCIDR = "10.200.0.0/14"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -576,12 +576,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable console profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Console.URL = "https://new-console.example.com"
+				c.ServiceProviderProperties.Console.URL = "https://new-console.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Console.URL = "https://console.example.com"
+				c.ServiceProviderProperties.Console.URL = "https://console.example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -592,12 +592,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable API URL - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.URL = "https://new-api.example.com"
+				c.ServiceProviderProperties.API.URL = "https://new-api.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.URL = "https://api.example.com"
+				c.ServiceProviderProperties.API.URL = "https://api.example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -608,12 +608,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable API visibility - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = api.VisibilityPrivate
+				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = api.VisibilityPublic
+				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -624,12 +624,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable platform profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"
+				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -640,12 +640,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable etcd profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -656,12 +656,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable cluster image registry profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -672,7 +672,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "invalid new field value on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
@@ -816,16 +816,16 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.2"
-				c.Properties.DNS.BaseDomainPrefix = "new-prefix"
-				c.Properties.API.Visibility = api.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.1"
-				c.Properties.DNS.BaseDomainPrefix = "old-prefix"
-				c.Properties.API.Visibility = api.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -872,13 +872,13 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 
 	// Set required fields that are not in the default
 	cluster.Location = "eastus" // Required for TrackedResource validation
-	cluster.Properties.Version.ID = "4.15.1"
-	cluster.Properties.DNS.BaseDomainPrefix = "test-cluster"
-	cluster.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
+	cluster.CustomerProperties.Version.ID = "4.15.1"
+	cluster.CustomerProperties.DNS.BaseDomainPrefix = "test-cluster"
+	cluster.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
 
 	// Set up user assigned identities for valid testing
-	cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 		"test-operator": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
 	}
 
