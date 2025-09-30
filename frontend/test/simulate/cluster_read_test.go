@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/fs"
-	"os"
 	"testing"
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
@@ -30,9 +29,8 @@ import (
 )
 
 func TestFrontendClusterRead(t *testing.T) {
-	if os.Getenv("FRONTEND_SIMULATION_TESTING") != "true" {
-		t.Skip("Skipping test")
-	}
+	SkipIfNotSimulationTesting(t)
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -43,6 +41,7 @@ func TestFrontendClusterRead(t *testing.T) {
 
 	go frontend.Run(ctx, ctx.Done())
 
+	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cosmos-state")))
 	require.NoError(t, err)
 
@@ -50,13 +49,9 @@ func TestFrontendClusterRead(t *testing.T) {
 	require.NoError(t, err)
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(ocm.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
 
-	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
-	hcpClientFactory, err := testInfo.Get20240610ClientFactory(subscriptionID)
-	require.NoError(t, err)
-
 	resourceGroup := "some-resource-group"
 	hcpClusterName := "some-hcp-cluster"
-	hcpCluster, err := hcpClientFactory.NewHcpOpenShiftClustersClient().Get(ctx, resourceGroup, hcpClusterName, nil)
+	hcpCluster, err := testInfo.Get20240610ClientFactory(subscriptionID).NewHcpOpenShiftClustersClient().Get(ctx, resourceGroup, hcpClusterName, nil)
 	require.NoError(t, err)
 
 	actualJSON, err := json.MarshalIndent(hcpCluster, "", "    ")

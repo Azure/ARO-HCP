@@ -34,6 +34,7 @@ echo "Starting Cosmos DB emulator with container name: ${CONTAINER_NAME}"
 ${CONTAINER_RUNTIME} run \
   --publish 8081:8081 \
   --publish 10250-10255:10250-10255 \
+  -e AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE=127.0.0.1 \
   --name "${CONTAINER_NAME}" \
   --detach \
   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest

@@ -15,13 +15,18 @@
 package simulate
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -29,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
+	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -38,12 +44,56 @@ import (
 )
 
 type SimulationTestInfo struct {
+	ArtifactsDir string
+	mockClusters map[string]map[string][]*csarhcpv1alpha1.Cluster
+
 	CosmosDatabaseClient     *azcosmos.DatabaseClient
 	DBClient                 database.DBClient
 	MockClusterServiceClient *mocks.MockClusterServiceClientSpec
 	CosmosClient             *azcosmos.Client
 	DatabaseName             string
 	FrontendURL              string
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func (s *SimulationTestInfo) UpdateClusterOperationStatus(ctx context.Context, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	err := s.patchOperationDocument(ctx, operation, opStatus, opError)
+	if err != nil {
+		return err
+	}
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, operation.OperationID.Name)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetProvisioningState(opStatus)
+	if opStatus.IsTerminal() {
+		patchOperations.SetActiveOperationID(nil)
+	}
+
+	_, err = s.DBClient.PatchResourceDoc(ctx, operation.ExternalID, patchOperations)
+	return err
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func (s *SimulationTestInfo) patchOperationDocument(ctx context.Context, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	var patchOperations database.OperationDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(time.Now())
+	patchOperations.SetStatus(opStatus)
+	if opError != nil {
+		patchOperations.SetError(opError)
+	}
+
+	operationPartitionKey := azcosmos.NewPartitionKeyString(operation.OperationID.SubscriptionID)
+	_, err := s.DBClient.PatchOperationDoc(ctx, operationPartitionKey, operation.OperationID.Name, patchOperations)
+	return err
 }
 
 func (s *SimulationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClient {
@@ -55,24 +105,40 @@ func (s *SimulationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClien
 	return resources
 }
 
-func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) (*hcpsdk20240610preview.ClientFactory, error) {
-	return hcpsdk20240610preview.NewClientFactory(subscriptionID, nil, &azcorearm.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: -1, // no retries
-			},
-			Cloud: cloud.Configuration{
-				//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
-				Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-					cloud.ResourceManager: {
-						Audience: "https://management.core.windows.net/",
-						Endpoint: s.FrontendURL,
+func (s *SimulationTestInfo) Get20240610ClientFactory(subscriptionID string) *hcpsdk20240610preview.ClientFactory {
+	return api.Must(
+		hcpsdk20240610preview.NewClientFactory(subscriptionID, nil,
+			&azcorearm.ClientOptions{
+				ClientOptions: azcore.ClientOptions{
+					Retry: policy.RetryOptions{
+						MaxRetries: -1, // no retries
+					},
+					Cloud: cloud.Configuration{
+						//ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
+						Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+							cloud.ResourceManager: {
+								Audience: "https://management.core.windows.net/",
+								Endpoint: s.FrontendURL,
+							},
+						},
+					},
+					InsecureAllowCredentialWithHTTP: true,
+					PerCallPolicies: []policy.Policy{
+						emptySystemData{},
 					},
 				},
 			},
-			InsecureAllowCredentialWithHTTP: true,
-		},
-	})
+		),
+	)
+}
+
+// emptySystemData provides enough systemdata (normally supplied somewhere in ARM) to enable the server tow ork.
+type emptySystemData struct{}
+
+func (emptySystemData) Do(req *policy.Request) (*http.Response, error) {
+	req.Raw().Header.Set(arm.HeaderNameARMResourceSystemData, "{}")
+	req.Raw().Header.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
+	return req.Next()
 }
 
 func (s *SimulationTestInfo) CreateNewSubscription(ctx context.Context) (string, *arm.Subscription, error) {
@@ -94,15 +160,25 @@ func (s *SimulationTestInfo) CreateSpecificSubscription(ctx context.Context, sub
 }
 
 func (s *SimulationTestInfo) Cleanup(ctx context.Context) {
+	if err := s.saveClusterServiceMockData(ctx); err != nil {
+		fmt.Printf("Failed to save mock data: %v\n", err)
+	}
+
 	if err := s.CleanupDatabase(ctx); err != nil {
 		fmt.Printf("Failed to cleanup database: %v\n", err)
 	}
 }
 
-// CleanupDatabase deletes the randomly created database
+// CleanupDatabase reads all records from all containers and saves them to artifacts, then deletes the database
 func (s *SimulationTestInfo) CleanupDatabase(ctx context.Context) error {
 	if s.CosmosDatabaseClient == nil || s.DatabaseName == "" {
 		return nil // Nothing to cleanup
+	}
+
+	// Save all database content before deleting
+	if err := s.saveAllDatabaseContent(ctx); err != nil {
+		fmt.Printf("Failed to save database content: %v\n", err)
+		// Continue with deletion even if saving fails
 	}
 
 	_, err := s.CosmosDatabaseClient.Delete(ctx, nil)
@@ -116,6 +192,172 @@ func (s *SimulationTestInfo) CleanupDatabase(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// saveAllDatabaseContent reads all records from all containers and saves them to files
+func (s *SimulationTestInfo) saveAllDatabaseContent(ctx context.Context) error {
+	// Create timestamped subdirectory for this database
+	cosmosDir := filepath.Join(s.ArtifactsDir, "cosmos-content")
+	if err := os.MkdirAll(cosmosDir, 0755); err != nil {
+		return fmt.Errorf("failed to create artifact directory %s: %w", cosmosDir, err)
+	}
+	fmt.Printf("Saving Cosmos DB content to: %s\n", cosmosDir)
+
+	// List all containers in the database
+	containers := []string{"Resources", "Billing", "Locks"}
+	for _, containerName := range containers {
+		if err := s.saveContainerContent(ctx, containerName, cosmosDir); err != nil {
+			fmt.Printf("Failed to save container %s: %v\n", containerName, err)
+			// Continue with other containers
+		}
+	}
+
+	return nil
+}
+
+// saveContainerContent saves all documents from a specific container
+func (s *SimulationTestInfo) saveContainerContent(ctx context.Context, containerName, outputDir string) error {
+	containerClient, err := s.CosmosDatabaseClient.NewContainer(containerName)
+	if err != nil {
+		return fmt.Errorf("failed to get container client for %s: %w", containerName, err)
+	}
+
+	// Create subdirectory for this container
+	containerDir := filepath.Join(outputDir, containerName)
+	if err := os.MkdirAll(containerDir, 0755); err != nil {
+		return fmt.Errorf("failed to create container directory %s: %w", containerDir, err)
+	}
+
+	// Query all documents in the container
+	querySQL := "SELECT * FROM c"
+	queryOptions := &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{},
+	}
+
+	queryPager := containerClient.NewQueryItemsPager(querySQL, azcosmos.PartitionKey{}, queryOptions)
+
+	docCount := 0
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to query container %s: %w", containerName, err)
+		}
+
+		for _, item := range queryResponse.Items {
+			// Parse the document to get its ID for filename
+			var docMap map[string]interface{}
+			if err := json.Unmarshal(item, &docMap); err != nil {
+				fmt.Printf("Failed to parse document in %s: %v\n", containerName, err)
+				continue
+			}
+
+			filename := ""
+			resourceType := docMap["resourceType"]
+			var armResourceID *azcorearm.ResourceID
+			var properties map[string]any
+			obj, hasProperties := docMap["properties"]
+			if hasProperties {
+				properties = obj.(map[string]any)
+				if resourceID, hasResourceID := properties["resourceId"]; hasResourceID {
+					armResourceID, _ = azcorearm.ParseResourceID(resourceID.(string))
+				}
+			}
+			switch {
+			case armResourceID != nil:
+				filename = filepath.Join(
+					resourceIDToDir(armResourceID),
+					armResourceID.Name+".json",
+				)
+
+			case strings.EqualFold(resourceType.(string), azcorearm.SubscriptionResourceType.String()):
+				filename = filepath.Join(
+					"subscriptions",
+					fmt.Sprintf("subscription_%s.json", docMap["id"].(string)))
+
+			case strings.EqualFold(resourceType.(string), database.OperationResourceType.String()):
+				externalID := properties["externalId"].(string)
+				if clusterResourceID, _ := azcorearm.ParseResourceID(externalID); clusterResourceID != nil {
+					clusterDir := resourceIDToDir(clusterResourceID)
+					filename = filepath.Join(
+						clusterDir,
+						fmt.Sprintf("hcpoperationstatuses_%v_%v_%v.json", properties["startTime"], properties["request"], docMap["id"]),
+					)
+				}
+			}
+
+			if len(filename) == 0 {
+				if id, ok := docMap["id"].(string); ok {
+					// Sanitize filename
+					basename := strings.ReplaceAll("unknown-type-"+id+".json", "/", "_")
+					basename = strings.ReplaceAll(basename, "\\", "_")
+					basename = strings.ReplaceAll(basename, ":", "_")
+					filename = filepath.Join("unknown", basename)
+				} else {
+					filename = filepath.Join("unknown", fmt.Sprintf("unknown_%d.json", docCount))
+				}
+			}
+			filename = filepath.Join(containerDir, filename)
+			fmt.Printf("Saving document %s\n", filename)
+
+			dirName := filepath.Dir(filename)
+			if err := os.MkdirAll(dirName, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dirName, err)
+			}
+			prettyPrint, err := json.MarshalIndent(docMap, "", "    ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal document: %w", err)
+			}
+			// Write document to file
+			if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
+				fmt.Printf("Failed to write document to %s: %v\n", filename, err)
+				continue
+			}
+
+			docCount++
+		}
+	}
+
+	fmt.Printf("Saved %d documents from container %s\n", docCount, containerName)
+	return nil
+}
+
+func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
+	if resourceID.Parent == nil {
+		return ""
+	}
+	startingDir := resourceIDToDir(resourceID.Parent)
+
+	switch resourceID.ResourceType.String() {
+	case "Microsoft.Resources/tenants":
+		return ""
+	case "Microsoft.Resources/subscriptions":
+		return filepath.Join(
+			startingDir,
+			"subscriptions",
+			resourceID.Name,
+		)
+	case "Microsoft.Resources/resourceGroups":
+		return filepath.Join(
+			startingDir,
+			"resourceGroups",
+			resourceID.Name,
+		)
+
+	default:
+		if resourceID.Parent.ResourceType.String() == "Microsoft.Resources/resourceGroups" {
+			return filepath.Join(
+				startingDir,
+				resourceID.ResourceType.String(),
+				resourceID.Name,
+			)
+		}
+
+		return filepath.Join(
+			startingDir,
+			resourceID.ResourceType.Type,
+			resourceID.Name,
+		)
+	}
 }
 
 func (s *SimulationTestInfo) CreateInitialCosmosContent(ctx context.Context, createDir fs.FS) error {
@@ -167,5 +409,47 @@ func (s *SimulationTestInfo) createInitialCosmosContent(ctx context.Context, con
 		return fmt.Errorf("failed to create item: %w", err)
 	}
 
+	return nil
+}
+
+func (s *SimulationTestInfo) saveClusterServiceMockData(ctx context.Context) error {
+	for dataName, clusters := range s.mockClusters {
+		for clusterName, clusterHistory := range clusters {
+			for i, currCluster := range clusterHistory {
+				basename := fmt.Sprintf("%d_%s.json", i, strings.ReplaceAll(clusterName, "/", "."))
+				filename := filepath.Join(s.ArtifactsDir, "cluster-service-mock-data", dataName, strings.ReplaceAll(clusterName, "/", "."), basename)
+				dirname := filepath.Dir(filename)
+				if err := os.MkdirAll(dirname, 0755); err != nil {
+					return fmt.Errorf("failed to create directory %s: %w", dirname, err)
+				}
+
+				buf := &bytes.Buffer{}
+				if err := csarhcpv1alpha1.MarshalCluster(currCluster, buf); err != nil {
+					return fmt.Errorf("failed to marshal cluster: %w", err)
+				}
+				obj := map[string]any{}
+				if err := json.Unmarshal(buf.Bytes(), &obj); err != nil {
+					return fmt.Errorf("failed to unmarshal cluster: %w", err)
+				}
+				prettyPrint, err := json.MarshalIndent(obj, "", "    ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal document: %w", err)
+				}
+				if err := os.WriteFile(filename, prettyPrint, 0644); err != nil {
+					return fmt.Errorf("failed to write document to %s: %w", filename, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// adds mock data for later inclusion in artifacts
+func (s *SimulationTestInfo) AddMockData(dataName string, cluster map[string][]*csarhcpv1alpha1.Cluster) error {
+	if _, ok := s.mockClusters[dataName]; ok {
+		return fmt.Errorf("mock data for %q already exists", dataName)
+	}
+	s.mockClusters[dataName] = cluster
 	return nil
 }
