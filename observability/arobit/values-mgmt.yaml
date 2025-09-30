@@ -31,7 +31,7 @@ forwarder:
       service.conf: |
         [SERVICE]
             Flush                     1
-            Log_Level                 info
+            Log_Level                 debug
             Parsers_File              /fluent-bit/etc/parsers.conf
             Parsers_File              /forwarder/etc/parsers_custom.conf
             Plugins_File              /fluent-bit/etc/plugins.conf
@@ -50,11 +50,24 @@ forwarder:
             HC_Retry_Failure_Count    5
             HC_Period                 60
       parsers_custom.conf: |
+        # Previously, docker parser would parse the container log as record["log"].
+        # With the default cri parser, the container log will be parsed as record["message"].
+        # For backward compat with docker implementation, use the following parser.
         [PARSER]
-            Name                nested_time_field
-            Format              json
-            Time_Key            time
-            Time_Format         %Y-%m-%dT%H:%M:%S.%L
+            Name        cri-o
+            Format      regex
+            Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+            Time_Key    time
+            Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+            Time_Keep   On
+        
+        [PARSER]
+            Name        containerlogs
+            Format      json
+            Time_Key    time
+            Time_Format %Y-%m-%dT%H:%M:%S.%L
+            Time_Keep   On
+        
       input.conf: |
         [INPUT]
             Name              tail
@@ -62,10 +75,9 @@ forwarder:
             Tag               kubernetes.*
             Path              /var/log/containers/*.log
             Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
-            # For kubernetes version < 1.19.x, use 'docker' parser instead:
-            # Parser            docker
-            # Docker_Mode       On
             Parser            cri-o
+            # Docker_Mode       On
+            # Parser            none
             DB                /var/log/flb-tail.db
             DB.sync           normal
             DB.locking        true
@@ -120,6 +132,13 @@ forwarder:
             Port   4318
       filter.conf: |
         [FILTER]
+            Name   lua
+            Alias  lua.reassemble_cri
+            Match  kubernetes.var.log.containers.*
+            script /forwarder/etc/reassemble_cri.lua
+            call   reassemble_cri
+        
+        [FILTER]
             Name                kubernetes
             Alias               filter.kubernetes
             Match               kubernetes.var.log.containers.*
@@ -129,39 +148,41 @@ forwarder:
             Buffer_Size         64k
 
         [FILTER]
-            Name          nest
-            Match         kubernetes.*
-            Operation     lift
-            Nested_under  kubernetes
-
-        [FILTER]
-            Name          parser
-            Alias         parser.nested_time_field
-            Match         kubernetes.*
-            Parser        nested_time_field
-            Key_Name      log
-
-        [FILTER]
             Name            rewrite_tag
             Alias           filter.namespace_router
             Match           kubernetes.var.log.containers.*
-            Rule            namespace_name ^ocm-.* ocm.logs false
-            Rule            namespace_name ^(?!ocm-).* other.logs false
-            Emitter_Name    re_emitted
+            Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+            Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
+            Emitter_Name    re_emitted_namespace_router
+
+        [FILTER]
+            # Other logs are keept, because want to send them to mdsd as well
+            Name            rewrite_tag
+            Alias           filter.container_name_router
+            Match           other.logs
+            Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
+            Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+            Emitter_Name    re_emitted_container_name_router
+
+        [FILTER]
+            Name Parser
+            Match aro-hcp-frontend.logs
+            Key_Name log
+            Parser containerlogs
+            Preserve_Key On
+            Reserve_Data On
       output.conf: |
         [OUTPUT]
-            Name       opentelemetry
-            Match      *
-            Host       ingest.observability
-            Port       4318
-            Traces_uri /v1/traces
+            Name  stdout
+            Match aro-hcp-frontend.logs
+            format json
 
-        [OUTPUT]
-            Name  prometheus_exporter
-            Alias exporter.fluentbit
-            Match metrics.fluentbit
-            Host  0.0.0.0
-            Port  2020
+      output-azure-kusto.conf: |
+          [FILTER]
+
+          [OUTPUT]
+            Name azure_kusto
+            Match *
       output-mdsd.conf: |
         # Forward logs to mdsd instance (default port)
         [OUTPUT]
@@ -187,6 +208,20 @@ forwarder:
             Host  127.0.0.1
             Port  5002
             Tag   akskubesystem
+      reassemble_cri.lua: |
+        local reassemble_state = {}
+        function reassemble_cri(tag, timestamp, record)
+          local reassemble_key = tag
+          -- if partial line, accumulate
+          if record.logtag == 'P' then
+            reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+            return -1, 0, 0
+          end
+          -- otherwise, it's a full line, concatenate with accumulated partial lines if any
+          record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
+          reassemble_state[reassemble_key] = nil
+          return 1, timestamp, record
+        end
   mdsd:
     # Geneva Config
     geneva:
