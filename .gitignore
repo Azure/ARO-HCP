@@ -21,3 +21,4 @@ tooling/bin
 **/*.sha256
 CLAUDE.local.md
 .claude/*.local.json
+go.work.sum
