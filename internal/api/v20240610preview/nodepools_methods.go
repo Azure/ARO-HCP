@@ -15,8 +15,6 @@
 package v20240610preview
 
 import (
-	"net/http"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -24,6 +22,10 @@ import (
 
 type NodePool struct {
 	generated.NodePool
+}
+
+func (h *NodePool) GetVersion() api.Version {
+	return versionedInterface
 }
 
 func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
@@ -93,8 +95,14 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 		}
 		out.Properties.Labels = make(map[string]string)
 		for _, v := range h.Properties.Labels {
-			if v != nil {
-				out.Properties.Labels[*v.Key] = *v.Value
+			if v != nil && v.Key != nil {
+				var value string
+
+				if v.Value != nil {
+					value = *v.Value
+				}
+
+				out.Properties.Labels[*v.Key] = value
 			}
 		}
 		out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
@@ -162,27 +170,6 @@ func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api
 	return api.ValidateVisibility(h, current.(*NodePool), nodePoolVisibilityMap, structTagMap, updating)
 }
 
-func (h *NodePool) ValidateStatic(current api.VersionedHCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = h.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized api.HCPOpenShiftClusterNodePool
-
-		h.Normalize(&normalized)
-
-		// Run additional validation on the "normalized" node pool model.
-		errorDetails = append(errorDetails, normalized.Validate(validate, request, cluster)...)
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
-}
-
 type NodePoolVersionProfile struct {
 	generated.NodePoolVersionProfile
 }
@@ -241,7 +228,7 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAut
 
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterNodePool()
+		from = api.NewDefaultHCPOpenShiftClusterNodePool(nil)
 	}
 
 	out := &NodePool{
@@ -280,8 +267,4 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 	}
 
 	return out
-}
-
-func (v version) MarshalHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) ([]byte, error) {
-	return arm.MarshalJSON(v.NewHCPOpenShiftClusterNodePool(from))
 }

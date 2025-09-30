@@ -89,19 +89,21 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
   - name: upgrade-istio
     action: Shell                                       (1)
     script: make deploy                                 (2)
-    variables:                                          (3)
-    - name: TARGET_VERSION                              (4)
-      configRef: svc.istio.targetVersion                (5)
+    workingDir: ./component                             (3)
+    variables:                                          (4)
+    - name: TARGET_VERSION                              (5)
+      configRef: svc.istio.targetVersion                (6)
     - name: RETRIES
-      value: 5                                          (6)
+      value: 5                                          (7)
 ```
 
 1. `action: Shell` marks the step as a shell step.
 2. `script`: The shell command to be executed. This can be a single command or a script file.
-3. `variables`: A list of environment variables that are set before executing the script.
-4. `variables.name`: The name of the environment variable.
-5. `variables.configRef`: The [configuration reference](configuration.md) to look up the value for the environment variable.
-6. `variables.value`: Alternatively static values can be provided for the environment variable.
+3. `workingDir`: The directory that the shell step will have access to at runtime, optional. Highly recommended. If left unset, the step will be able to access the entire repository, but will run in the working directory of the `pipeline.yaml` file. Such steps will always re-run in incremental mode.
+4. `variables`: A list of environment variables that are set before executing the script.
+5. `variables.name`: The name of the environment variable.
+6. `variables.configRef`: The [configuration reference](configuration.md) to look up the value for the environment variable.
+7. `variables.value`: Alternatively static values can be provided for the environment variable.
 
 Currently, the following list of tools can be used within shell scripts:
 

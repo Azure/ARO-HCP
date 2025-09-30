@@ -26,11 +26,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -168,52 +169,51 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating an external auth config with a prefix")
-			extAuth := generated.ExternalAuth{
-				Properties: &generated.ExternalAuthProperties{
-					Issuer: &generated.TokenIssuerProfile{
+			extAuth := hcpsdk20240610preview.ExternalAuth{
+				Properties: &hcpsdk20240610preview.ExternalAuthProperties{
+					Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(app.AppID)},
 					},
-					Claim: &generated.ExternalAuthClaimProfile{
-						Mappings: &generated.TokenClaimMappingsProfile{
-							Username: &generated.UsernameClaimProfile{
-								Claim:        to.Ptr("sub"),                                     // objectID of SP
-								PrefixPolicy: to.Ptr(generated.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
+					Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
+							Username: &hcpsdk20240610preview.UsernameClaimProfile{
+								Claim:        to.Ptr("sub"),                                                 // objectID of SP
+								PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix), // TODO: ARO-21008 preventing us setting NoPrefix
 								Prefix:       to.Ptr(externalAuthSubjectPrefix),
 							},
-							Groups: &generated.GroupClaimProfile{
+							Groups: &hcpsdk20240610preview.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
 					},
-					// TODO: ARO-20830 needs to be rolled out before this bit will pass
-					// Clients: []*generated.ExternalAuthClientProfile{
-					// 	{
-					// 		ClientID: to.Ptr(app.ID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("console"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypeConfidential),
-					// 	},
-					// 	{
-					// 		ClientID: to.Ptr(app.AppID),
-					// 		Component: &generated.ExternalAuthClientComponentProfile{
-					// 			Name:                to.Ptr("cli"),
-					// 			AuthClientNamespace: to.Ptr("openshift-console"),
-					// 		},
-					// 		Type: to.Ptr(generated.ExternalAuthClientTypePublic),
-					// 	},
-					// },
+					Clients: []*hcpsdk20240610preview.ExternalAuthClientProfile{
+						{
+							ClientID: to.Ptr(app.AppID),
+							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("console"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypeConfidential),
+						},
+						{
+							ClientID: to.Ptr(app.AppID),
+							Component: &hcpsdk20240610preview.ExternalAuthClientComponentProfile{
+								Name:                to.Ptr("cli"),
+								AuthClientNamespace: to.Ptr("openshift-console"),
+							},
+							Type: to.Ptr(hcpsdk20240610preview.ExternalAuthClientTypePublic),
+						},
+					},
 				},
 			}
 			_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, extAuth, 15*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying ExternalAuth is in a Succeeded state")
-			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName, 5*time.Minute)
+			eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, customerClusterName, customerExternalAuthName)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*eaResult.Properties.ProvisioningState).To(Equal(generated.ExternalAuthProvisioningStateSucceeded))
+			Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
 
 			By("creating a cluster role binding for the entra application")
 			err = framework.CreateClusterRoleBinding(ctx, externalAuthSubjectPrefix+sp.ID, adminRESTConfig)
@@ -224,10 +224,19 @@ var _ = Describe("Customer", func() {
 			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			accessToken, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
-			})
-			Expect(err).NotTo(HaveOccurred())
+			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
+			var accessToken azcore.AccessToken
+			Eventually(func() error {
+				var err error
+				accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
+					Scopes: []string{fmt.Sprintf("%s/.default", app.AppID)},
+				})
+
+				if err != nil {
+					GinkgoWriter.Printf("GetToken failed: %v\n", err)
+				}
+				return err
+			}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
 			config := &rest.Config{
 				Host:        adminRESTConfig.Host,
@@ -236,6 +245,7 @@ var _ = Describe("Customer", func() {
 			client, err := kubernetes.NewForConfig(config)
 			Expect(err).NotTo(HaveOccurred())
 
+			// TODO (bvesel): XCMSTRAT-1292
 			// The kube-apiserver restarts on external auth config creation, so we need to wait
 			// for it to completely restart. There doesn't appear to be a way to track this in the data plane
 			By("confirming we can list namespaces using entra OIDC token")

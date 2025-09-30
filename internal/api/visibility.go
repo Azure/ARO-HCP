@@ -241,8 +241,12 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 	case reflect.Slice:
-		if newVal.IsNil() != curVal.IsNil() {
-			vv.checkFlags(flags, namespace, fieldname, newVal.IsNil())
+		// Treat a nil slice and an empty slice as equal.
+		newValIsNil := (newVal.IsNil() || newVal.Len() == 0)
+		curValIsNil := (curVal.IsNil() || curVal.Len() == 0)
+
+		if newValIsNil != curValIsNil {
+			vv.checkFlags(flags, namespace, fieldname, newValIsNil)
 			return
 		}
 
@@ -259,9 +263,24 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 	case reflect.Interface, reflect.Pointer:
-		if newVal.IsNil() != curVal.IsNil() {
-			vv.checkFlags(flags, namespace, fieldname, newVal.IsNil())
-		} else if !newVal.IsNil() && !curVal.IsNil() {
+		var newValIsNil, curValIsNil bool
+
+		// If the field is NOT nullable, treat a nil pointer and a
+		// pointer to the zero value of the pointer's type as equal.
+		if flags.IsNullable() {
+			newValIsNil = newVal.IsNil()
+			curValIsNil = newVal.IsNil()
+		} else {
+			newValIsNil = (newVal.IsNil() || newVal.Elem().IsZero())
+			curValIsNil = (curVal.IsNil() || curVal.Elem().IsZero())
+		}
+
+		if newValIsNil != curValIsNil {
+			if !vv.checkFlags(flags, namespace, fieldname, newVal.IsNil()) {
+				return
+			}
+		}
+		if !newVal.IsNil() && !curVal.IsNil() {
 			vv.recurse(newVal.Elem(), curVal.Elem(), mapKey, namespace, fieldname)
 		}
 
@@ -269,7 +288,11 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		// Determine if newVal and curVal share identical keys.
 		var keysEqual = true
 
-		if newVal.IsNil() != curVal.IsNil() || newVal.Len() != curVal.Len() {
+		// Treat a nil map and an empty map as equal.
+		newValIsNil := (newVal.IsNil() || newVal.Len() == 0)
+		curValIsNil := (curVal.IsNil() || curVal.Len() == 0)
+
+		if newValIsNil != curValIsNil || newVal.Len() != curVal.Len() {
 			keysEqual = false
 		} else {
 			iter := newVal.MapRange()
@@ -282,7 +305,7 @@ func (vv *validateVisibility) recurse(newVal, curVal reflect.Value, mapKey, name
 		}
 
 		// Skip recursion if visibility check on the map itself fails.
-		if !keysEqual && !vv.checkFlags(flags, namespace, fieldname, newVal.IsNil()) {
+		if !keysEqual && !vv.checkFlags(flags, namespace, fieldname, newValIsNil) {
 			return
 		}
 

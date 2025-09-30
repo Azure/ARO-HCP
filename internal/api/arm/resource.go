@@ -16,42 +16,46 @@ package arm
 
 import (
 	"iter"
-	"maps"
 	"slices"
 	"time"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         string      `json:"id,omitempty"         visibility:"read"`
-	Name       string      `json:"name,omitempty"       visibility:"read"`
-	Type       string      `json:"type,omitempty"       visibility:"read"`
+	ID         string      `json:"id,omitempty"         visibility:"read nocase"`
+	Name       string      `json:"name,omitempty"       visibility:"read nocase"`
+	Type       string      `json:"type,omitempty"       visibility:"read nocase"`
 	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
 }
 
-func (src *Resource) Copy(dst *Resource) {
-	dst.ID = src.ID
-	dst.Name = src.Name
-	dst.Type = src.Type
-	if src.SystemData == nil {
-		dst.SystemData = nil
-	} else {
-		dst.SystemData = &SystemData{}
-		src.SystemData.Copy(dst.SystemData)
+// NewResource returns a Resource initialized from resourceID.
+func NewResource(resourceID *azcorearm.ResourceID) Resource {
+	var resource Resource
+
+	if resourceID != nil {
+		resource.ID = resourceID.String()
+		resource.Name = resourceID.Name
+		resource.Type = resourceID.ResourceType.String()
 	}
+
+	return resource
 }
 
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
+	Location string            `json:"location,omitempty" visibility:"read create nocase" validate:"required"`
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
-func (src *TrackedResource) Copy(dst *TrackedResource) {
-	src.Resource.Copy(&dst.Resource)
-	dst.Location = src.Location
-	dst.Tags = maps.Clone(src.Tags)
+// NewTrackedResource returns a TrackedResource initialized from resourceID.
+func NewTrackedResource(resourceID *azcorearm.ResourceID) TrackedResource {
+	return TrackedResource{
+		Resource: NewResource(resourceID),
+		Location: GetAzureLocation(),
+	}
 }
 
 // ProxyResource represents an ARM resource without location/tags
@@ -59,8 +63,11 @@ type ProxyResource struct {
 	Resource
 }
 
-func (src *ProxyResource) Copy(dst *ProxyResource) {
-	src.Resource.Copy(&dst.Resource)
+// NewProxyResource returns a ProxyResource initialized from resourceID.
+func NewProxyResource(resourceID *azcorearm.ResourceID) ProxyResource {
+	return ProxyResource{
+		Resource: NewResource(resourceID),
+	}
 }
 
 // CreatedByType is the type of identity that created (or modified) the resource
@@ -88,25 +95,6 @@ type SystemData struct {
 	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
 	// LastModifiedAt is the timestamp of resource last modification (UTC)
 	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
-}
-
-func (src *SystemData) Copy(dst *SystemData) {
-	dst.CreatedBy = src.CreatedBy
-	dst.CreatedByType = src.CreatedByType
-	if src.CreatedAt == nil {
-		dst.CreatedAt = nil
-	} else {
-		t := time.Unix(src.CreatedAt.Unix(), 0)
-		dst.CreatedAt = &t
-	}
-	dst.LastModifiedBy = src.LastModifiedBy
-	dst.LastModifiedByType = src.LastModifiedByType
-	if dst.LastModifiedAt == nil {
-		dst.LastModifiedAt = nil
-	} else {
-		t := time.Unix(src.LastModifiedAt.Unix(), 0)
-		dst.LastModifiedAt = &t
-	}
 }
 
 // ProvisioningState represents the asynchronous provisioning state of an ARM resource

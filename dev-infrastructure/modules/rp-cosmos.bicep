@@ -9,13 +9,7 @@ param zoneRedundant bool
 param userAssignedMIs array
 param private bool
 
-// Local Params
-type Container = {
-  name: string
-  defaultTtl: int
-  partitionKeyPaths: array
-}
-var containers Container[] = [
+var containers = [
   {
     name: 'Resources'
     defaultTtl: -1 // On, no default expiration

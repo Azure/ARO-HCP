@@ -840,7 +840,12 @@ func (s *OperationsScanner) patchOperationDocument(ctx context.Context, op opera
 				message = "Credential revocation failed"
 			}
 		}
-		op.logger.Info(message)
+
+		if opError != nil {
+			op.logger.With("cloud_error_code", opError.Code, "cloud_error_message", opError.Message).Error(message)
+		} else {
+			op.logger.Info(message)
+		}
 	} else if !database.IsResponseError(err, http.StatusPreconditionFailed) {
 		return err
 	}

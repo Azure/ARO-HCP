@@ -423,12 +423,12 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         annotations: {
           correlationId: 'FrontendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+          description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
           runbook_url: 'TBD'
-          summary: 'Frontend latency is high: 95th percentile exceeds 1 second'
-          title: 'The 95th percentile of frontend request latency has exceeded 1 second over the past hour.'
+          summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
+          title: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
         }
-        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 1'
+        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
         severity: 3
       }
@@ -480,7 +480,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High unavailability on the Frontend'
           title: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
         }
-        expression: '(1 - (sum_over_time(frontend_health[1h]) / 3600)) >= (300 / 3600)'
+        expression: '(((120 - sum_over_time(frontend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
         severity: 3
       }
@@ -687,32 +687,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             }
           }
         ]
-        alert: 'BackendLatency'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'BackendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
-          runbook_url: 'TBD'
-          summary: 'Backend latency is high: 95th percentile exceeds 1 second'
-          title: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
-        }
-        expression: 'histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket[1h])) > 1'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
         alert: 'BackendOperationErrorRate'
         enabled: true
         labels: {
@@ -751,7 +725,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'High unavailability on the Backend'
           title: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
         }
-        expression: '(1 - (sum_over_time(backend_health[1h]) / 3600)) >= (300 / 3600)'
+        expression: '(((120 - sum_over_time(backend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
         severity: 3
       }

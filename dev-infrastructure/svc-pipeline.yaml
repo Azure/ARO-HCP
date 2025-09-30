@@ -59,6 +59,15 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: logAnalyticsWorkspaceId
+  - name: infra-output
+    action: ARM
+    template: templates/svc-infra-lookup.bicep
+    parameters: configurations/svc-infra-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: service
+      step: infra
   # Configure certificate issuers for the SVC KV
   - name: oncert-private-kv-issuer
     action: SetCertificateIssuer
@@ -71,7 +80,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: service
-        step: infra
+        step: infra-output
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
@@ -86,7 +95,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: service
-        step: infra
+        step: infra-output
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
@@ -143,8 +152,8 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster
-  # Deploy prometheus first since istio depends on it's CRDs
   - name: prometheus
+    # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../observability/prometheus deploy
@@ -201,8 +210,8 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # configure istio
   - name: istio-config
+    # configure istio
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make -C ../istio deploy
@@ -221,12 +230,13 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # - updates workload to use istio on version svc.istio.targetVersion
-        # - configures istio IP tag usage
   - name: istio-upgrade
+    # - updates workload to use istio on version svc.istio.targetVersion
+    # - configures istio IP tag usage
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: scripts/istio.sh
+    command: ./istio.sh
+    workingDir: ./scripts
     variables:
     - name: TARGET_VERSION
       configRef: svc.istio.targetVersion
@@ -246,30 +256,20 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../acrpull deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ACRPULL_DIGEST
-      configRef: acrPull.image.digest
-    - name: ACRPULL_REPO
-      configRef: acrPull.image.repository
-    - name: ACRPULL_REGISTRY
-      configRef: acrPull.image.registry
+    action: Helm
+    releaseName: acrpull
+    releaseNamespace: acrpull
+    chartDir: ./../acrpull/deploy
+    valuesFile: ./../acrpull/deploy/values.yaml
     dependsOn:
     - resourceGroup: service
       step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: arobit
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
@@ -325,26 +325,15 @@ resourceGroups:
         name: globalMSIId
   - name: kube-events
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../observability/kube-events deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: IMAGE_REGISTRY
-      configRef: kubeEvents.image.registry
-    - name: IMAGE_REPOSITORY
-      configRef: kubeEvents.image.repository
-    - name: IMAGE_DIGEST
-      configRef: kubeEvents.image.digest
-    - name: ENABLED
-      configRef: kubeEvents.enabled
+    action: Helm
+    releaseName: kube-events
+    releaseNamespace: monitoring
+    chartDir: ./../observability/kube-events/deploy
+    valuesFile: ./../observability/kube-events/values.yaml
     dependsOn:
     - resourceGroup: service
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

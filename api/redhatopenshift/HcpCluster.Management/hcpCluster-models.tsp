@@ -244,7 +244,17 @@ union Visibility {
 
 /** Azure specific configuration */
 model PlatformProfile {
-  /** Resource group to put cluster resources */
+  /** Resource group name to put cluster resources
+   *
+   * If not specified then a unique name is generated from the
+   * following pattern
+   *
+   *   "aro-hcp-" + clusterName + "-" + UUID
+   *
+   * where clusterName means the hcpOpenShiftClusters resource name
+   * (up to 45 characters) followed by a 16-byte universally unique
+   * identifier per RFC 4122.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   managedResourceGroup?: string;
 
@@ -431,8 +441,7 @@ model CustomerManagedEncryptionProfile {
 
 /** Configure etcd encryption Key Management Service (KMS) key.
  * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
- * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`
- *
+ * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
  */
 model KmsEncryptionProfile {
   /** The details of the active key. */
@@ -550,9 +559,8 @@ model Taint {
   /** The value of the taint
    * @example true
    */
-  @minLength(1)
   @maxLength(63)
-  value: string;
+  value?: string;
 
   /** The effect of the taint
    * @example NoSchedule
@@ -948,7 +956,8 @@ model UsernameClaimProfile {
   /** Prefix policy is an optional field that configures how a prefix should be
    * applied to the value of the JWT claim specified in the 'claim' field.
    *
-   * Allowed values are 'Prefix', 'NoPrefix', and 'None'.
+   * Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the
+   * default policy is 'None'.
    *
    * When set to 'Prefix', the value specified in the prefix field will be
    * prepended to the value of the JWT claim.
@@ -967,6 +976,11 @@ model UsernameClaimProfile {
    *    and `claim` is set to:
    *    - "username": the mapped value will be "https://myoidc.tld#userA"
    *    - "email": the mapped value will be "userA@myoidc.tld"
+   *
+   * Note: The default value is not declared in the API specification because
+   *       of a TypeSpec bug with updatable fields. The default value will be
+   *       declared in a future API version once the TypeSpec bug is fixed.
+   *       https://github.com/Azure/typespec-azure/issues/1586
    */
   prefixPolicy?: UsernameClaimPrefixPolicy;
 }

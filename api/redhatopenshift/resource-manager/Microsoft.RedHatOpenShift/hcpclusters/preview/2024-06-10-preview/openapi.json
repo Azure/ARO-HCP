@@ -2485,7 +2485,7 @@
     },
     "KmsEncryptionProfile": {
       "type": "object",
-      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>`",
+      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
       "properties": {
         "activeKey": {
           "$ref": "#/definitions/KmsKey",
@@ -3102,7 +3102,7 @@
       "properties": {
         "managedResourceGroup": {
           "type": "string",
-          "description": "Resource group to put cluster resources",
+          "description": "Resource group name to put cluster resources\n\nIf not specified then a unique name is generated from the\nfollowing pattern\n\n\"aro-hcp-\" + clusterName + \"-\" + UUID\n\nwhere clusterName means the hcpOpenShiftClusters resource name\n(up to 45 characters) followed by a 16-byte universally unique\nidentifier per RFC 4122.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -3328,7 +3328,6 @@
         "value": {
           "type": "string",
           "description": "The value of the taint",
-          "minLength": 1,
           "maxLength": 63
         },
         "effect": {
@@ -3338,7 +3337,6 @@
       },
       "required": [
         "key",
-        "value",
         "effect"
       ]
     },
@@ -3617,7 +3615,7 @@
         },
         "prefixPolicy": {
           "$ref": "#/definitions/UsernameClaimPrefixPolicy",
-          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
+          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the\ndefault policy is 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
         }
       },
       "required": [
@@ -3640,7 +3638,7 @@
         },
         "prefixPolicy": {
           "$ref": "#/definitions/UsernameClaimPrefixPolicy",
-          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
+          "description": "Prefix policy is an optional field that configures how a prefix should be\napplied to the value of the JWT claim specified in the 'claim' field.\n\nAllowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the\ndefault policy is 'None'.\n\nWhen set to 'Prefix', the value specified in the prefix field will be\nprepended to the value of the JWT claim.\nThe prefix field must be set when prefixPolicy is 'Prefix'.\n\nWhen set to 'NoPrefix', no prefix will be prepended to the value\nof the JWT claim.\n\nWhen set to 'None', this means no opinion and the platform is left to choose\nany prefixes that are applied which is subject to change over time.\nCurrently, the platform prepends `{issuerURL}#` to the value of the JWT claim\nwhen the claim is not 'email'.\nAs an example, consider the following scenario:\n`prefix` is unset, `issuerURL` is set to `https://myoidc.tld`,\nthe JWT claims include \"username\":\"userA\" and \"email\":\"userA"
         }
       }
     },

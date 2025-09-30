@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -120,7 +120,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry).NotTo(BeNil())
 			Expect(actualHCPCluster.Properties.ClusterImageRegistry.State).NotTo(BeNil())
-			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpapi20240610.ClusterImageRegistryProfileStateDisabled))
+			Expect(ptr.Deref(actualHCPCluster.Properties.ClusterImageRegistry.State, "")).To(Equal(hcpsdk20240610preview.ClusterImageRegistryProfileStateDisabled))
 
 			By("getting credentials")
 			adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(

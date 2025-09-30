@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -416,6 +417,46 @@ func TestValidateVisibility(t *testing.T) {
 			m:              TestModelTypeVisibilityMap,
 			updating:       false,
 			errorsExpected: 1,
+		},
+		{
+			name: "Replace read-only nil struct with empty struct is accepted",
+			v: TestModelType{
+				B: &TestModelSubtype{},
+			},
+			w:              TestModelType{},
+			m:              TestModelTypeVisibilityMap,
+			updating:       false,
+			errorsExpected: 0,
+		},
+		{
+			name: "Replace read-only empty struct with nil struct is accepted",
+			v:    TestModelType{},
+			w: TestModelType{
+				B: &TestModelSubtype{},
+			},
+			m:              TestModelTypeVisibilityMap,
+			updating:       false,
+			errorsExpected: 0,
+		},
+		{
+			name: "Replace read-only nil slice with empty slice is accepted",
+			v: TestModelType{
+				C: []*string{},
+			},
+			w:              TestModelType{},
+			m:              TestModelTypeVisibilityMap,
+			updating:       false,
+			errorsExpected: 0,
+		},
+		{
+			name: "Replace read-only empty slice with nil slice is accepted",
+			v:    TestModelType{},
+			w: TestModelType{
+				C: []*string{},
+			},
+			m:              TestModelTypeVisibilityMap,
+			updating:       false,
+			errorsExpected: 0,
 		},
 		{
 			name: "Add map key with read-only value to nil map is accepted for zero value",
@@ -1036,7 +1077,9 @@ func TestValidateVisibility(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cloudErrors := ValidateVisibility(tt.v, tt.w, tt.m, StructTagMap{}, tt.updating)
-			assert.Len(t, cloudErrors, tt.errorsExpected)
+			if !assert.Len(t, cloudErrors, tt.errorsExpected) {
+				t.Log(spew.Sdump(cloudErrors))
+			}
 		})
 	}
 }

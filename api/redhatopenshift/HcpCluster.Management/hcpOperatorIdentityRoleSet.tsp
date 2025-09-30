@@ -2,11 +2,13 @@ import "@typespec/rest";
 import "@typespec/http";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
+import "@azure-tools/typespec-client-generator-core";
 
 namespace Microsoft.RedHatOpenShift;
 
 using TypeSpec.Rest;
 using Azure.ResourceManager;
+using Azure.ClientGenerator.Core;
 
 /** HcpOperatorIdentityRoles represents a location based representation of
  * the required platform workload identities and their required roles for a given
@@ -60,6 +62,7 @@ union OperatorIdentityRequired {
 }
 
 /** A single role definition required by a given operator */
+@clientName("RoleDefinitionInfo", "csharp")
 model RoleDefinition {
   /** The name of the required role definition */
   name: string;

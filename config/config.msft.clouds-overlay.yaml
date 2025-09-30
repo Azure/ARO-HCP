@@ -5,10 +5,19 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          # E2E
+          e2e:
+            regionTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
+              digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
+            k8s:
+              deploymentStrategy:
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
           # ACR Pull
           acrPull:
             image:
@@ -35,37 +44,41 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # MC cluster settings
           mgmt:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:9b62a8100ef5228363089daece26519b5c8e72d797d0514638688940fc32ed52"
+              digest: "sha256:d285efee38209fdf612b6b5858f28cad43137759f193d19625745cefd0b9c039"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:ad30dffd2a1e325f4c58895a16cf2d29d8f1e9c881447a7a863cfa2f2a3f9218"
+              digest: "sha256:b1ef6283753e6b7b33e3ef698c211aa6565976dbe2eec089ca1c94e85af97dbd"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
+              digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
           # Maestro
           maestro:
             image:
-              digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
+              digest: sha256:d14c940a103d3811123c907bec610349960ac2028df508a1a8c89264bd3ed847
+            agent:
+              sidecar:
+                image:
+                  digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
           # OCP image sync
           imageSync:
             ocMirror:
@@ -74,10 +87,14 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
+          # E2E
+          e2e:
+            regionTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
+              digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
           # ACR Pull
           acrPull:
             image:
@@ -104,35 +121,41 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # MC cluster settings
           mgmt:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:84efda0d58201cfe0b7e38587b9b1e1ce581b11a062ca4d3ea23d473ca3e8ca8"
+              digest: "sha256:d285efee38209fdf612b6b5858f28cad43137759f193d19625745cefd0b9c039"
+            audit:
+              connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:ad30dffd2a1e325f4c58895a16cf2d29d8f1e9c881447a7a863cfa2f2a3f9218"
+              digest: "sha256:b1ef6283753e6b7b33e3ef698c211aa6565976dbe2eec089ca1c94e85af97dbd"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
+              digest: sha256:51c4b99787b6ba4092e39fcb73bdb1ad3a1b240737b2ad2f43144e676df579c1
           # Maestro
           maestro:
             image:
-              digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
+              digest: sha256:d14c940a103d3811123c907bec610349960ac2028df508a1a8c89264bd3ed847
+            agent:
+              sidecar:
+                image:
+                  digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
           # OCP image sync
           imageSync:
             ocMirror:
@@ -141,10 +164,14 @@ clouds:
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
+          # E2E
+          e2e:
+            regionTest:
+              prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:aa0376a7826b62e47f542c49eeb1036753e40e0153836ca9725542125f4d21a0
+              digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
           # ACR Pull
           acrPull:
             image:
@@ -171,35 +198,41 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # MC cluster settings
           mgmt:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:a5bf4407cb83dc93d4e29ef680e0a4d621256e0f004822f53b2ff1c592bf2a82
+                  digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
               prometheusSpec:
                 image:
-                  digest: sha256:2dcc22f4a8ea5c198e1c9eb6e7f04d127c55924da72e0f4334e659633185283c
+                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:86e355daec68ef2fe01cce2daa63409dc47250c3f844da0e85284f169b2d9ce2"
+              digest: "sha256:d285efee38209fdf612b6b5858f28cad43137759f193d19625745cefd0b9c039"
+            audit:
+              connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:26f7b10c2e4892e88edc2bc4d086d91c9e6c5694c828a9e78fcef9448667dd8f"
+              digest: "sha256:b1ef6283753e6b7b33e3ef698c211aa6565976dbe2eec089ca1c94e85af97dbd"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:6e58c196dc6175a60146d6f4660bda181203a0e1054de09015cc67841238c99b
+              digest: sha256:51c4b99787b6ba4092e39fcb73bdb1ad3a1b240737b2ad2f43144e676df579c1
           # Maestro
           maestro:
             image:
-              digest: sha256:e0077b61a4f6fb612f12b63401f7d6e82c6cb1ff29ac4d31797eda808d68d082
+              digest: sha256:d14c940a103d3811123c907bec610349960ac2028df508a1a8c89264bd3ed847
+            agent:
+              sidecar:
+                image:
+                  digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
           # OCP image sync
           imageSync:
             ocMirror:

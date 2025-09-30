@@ -9,4 +9,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: metrics-proxy-sa
-  namespace: maestro
+  namespace: '{{ .Release.Namespace }}'

@@ -28,25 +28,6 @@ type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
 	UserAssignedIdentities map[string]*UserAssignedIdentity
 }
 
-// AzureResourceManagerCommonTypesTrackedResourceUpdate - The resource model definition for an Azure Resource Manager tracked
-// top level resource which has 'tags' and a 'location'
-type AzureResourceManagerCommonTypesTrackedResourceUpdate struct {
-	// Resource tags.
-	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
 // ClusterAutoscalingProfile - ClusterAutoscaling specifies auto-scaling behavior that applies to all NodePools associated
 // with a control plane.
 type ClusterAutoscalingProfile struct {
@@ -102,40 +83,6 @@ type DNSProfile struct {
 
 	// READ-ONLY; BaseDomain is the base DNS domain of the cluster.
 	BaseDomain *string
-}
-
-// ErrorAdditionalInfo - The resource management error additional info.
-type ErrorAdditionalInfo struct {
-	// READ-ONLY; The additional info.
-	Info any
-
-	// READ-ONLY; The additional info type.
-	Type *string
-}
-
-// ErrorDetail - The error detail.
-type ErrorDetail struct {
-	// READ-ONLY; The error additional info.
-	AdditionalInfo []*ErrorAdditionalInfo
-
-	// READ-ONLY; The error code.
-	Code *string
-
-	// READ-ONLY; The error details.
-	Details []*ErrorDetail
-
-	// READ-ONLY; The error message.
-	Message *string
-
-	// READ-ONLY; The error target.
-	Target *string
-}
-
-// ErrorResponse - Common error response for all Azure Resource Manager APIs to return error details for failed operations.
-// (This also follows the OData error response format.).
-type ErrorResponse struct {
-	// The error object.
-	Error *ErrorDetail
 }
 
 // EtcdDataEncryptionProfile - The ETCD data encryption settings.
@@ -532,7 +479,7 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
 // to create the cluster must be authorized to access this keyvault, e.g using the AzureCLI: az keyvault
-// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn <YOUR APPLICATION CLIENT ID>
+// set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)
 type KmsEncryptionProfile struct {
 	// REQUIRED; The details of the active key.
 	ActiveKey *KmsKey
@@ -865,7 +812,11 @@ type PlatformProfile struct {
 	// REQUIRED; The Azure resource ID of the worker subnet Note that a subnet cannot be reused between ARO-HCP Clusters.
 	SubnetID *string
 
-	// Resource group to put cluster resources
+	// Resource group name to put cluster resources
+	// If not specified then a unique name is generated from the following pattern
+	// "aro-hcp-" + clusterName + "-" + UUID
+	// where clusterName means the hcpOpenShiftClusters resource name (up to 45 characters) followed by a 16-byte universally
+	// unique identifier per RFC 4122.
 	ManagedResourceGroup *string
 
 	// The core outgoing configuration
@@ -879,37 +830,6 @@ type PlatformProfile struct {
 type PlatformProfileUpdate struct {
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
-}
-
-// ProxyResource - The resource model definition for a Azure Resource Manager proxy resource. It will not have tags and a
-// location
-type ProxyResource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
-// Resource - Common fields that are returned in the response for all Azure Resource Manager resources
-type Resource struct {
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
 }
 
 // RoleDefinition - A single role definition required by a given operator
@@ -950,7 +870,7 @@ type Taint struct {
 	// REQUIRED; The key of the taint
 	Key *string
 
-	// REQUIRED; The value of the taint
+	// The value of the taint
 	Value *string
 }
 
@@ -1032,28 +952,6 @@ type TokenRequiredClaim struct {
 	RequiredValue *string
 }
 
-// TrackedResource - The resource model definition for an Azure Resource Manager tracked top level resource which has 'tags'
-// and a 'location'
-type TrackedResource struct {
-	// REQUIRED; The geo-location where the resource lives
-	Location *string
-
-	// Resource tags.
-	Tags map[string]*string
-
-	// READ-ONLY; Fully qualified resource ID for the resource. E.g. "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}"
-	ID *string
-
-	// READ-ONLY; The name of the resource
-	Name *string
-
-	// READ-ONLY; Azure Resource Manager metadata containing createdBy and modifiedBy information.
-	SystemData *SystemData
-
-	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
-	Type *string
-}
-
 // UserAssignedIdentitiesProfile - Represents the information related to Azure User-Assigned managed identities needed to
 // perform Operators authentication based on Azure User-Assigned Managed Identities
 type UserAssignedIdentitiesProfile struct {
@@ -1106,7 +1004,7 @@ type UsernameClaimProfile struct {
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
 	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and 'None'.
+	// Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the default policy is 'None'.
 	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
 	// field must be set when prefixPolicy is 'Prefix'.
 	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.
@@ -1129,7 +1027,7 @@ type UsernameClaimProfileUpdate struct {
 
 	// Prefix policy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified
 	// in the 'claim' field.
-	// Allowed values are 'Prefix', 'NoPrefix', and 'None'.
+	// Allowed values are 'Prefix', 'NoPrefix', and 'None'. If not specified, the default policy is 'None'.
 	// When set to 'Prefix', the value specified in the prefix field will be prepended to the value of the JWT claim. The prefix
 	// field must be set when prefixPolicy is 'Prefix'.
 	// When set to 'NoPrefix', no prefix will be prepended to the value of the JWT claim.

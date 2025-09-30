@@ -4,7 +4,7 @@ evaluation_interval: 1s
 tests:
 - interval: 1s
   input_series:
-  - series: 'up{job="envoy-stats", namespace="mise"}'
+  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}'
     values: '1x100 0x500' # 100s healthy, 400s down
   alert_rule_test:
   - eval_time: 401s # alert should fire after 5m of 0s
@@ -13,11 +13,12 @@ tests:
     - exp_labels:
         alertname: MiseEnvoyScrapeDown
         severity: info
-        job: envoy-stats
+        endpoint: http-envoy-prom
+        container: istio-proxy
         namespace: mise
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        description: "Prometheus scrape for istio envoy in namespace mise is failing or missing."
         runbook_url: 'TBD'
 - interval: 1s
   input_series: [] # No 'up' series at all (absent)
@@ -32,12 +33,12 @@ tests:
         namespace: mise
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
+        description: "Prometheus scrape for istio envoy in namespace mise is failing or missing."
         runbook_url: 'TBD'
 # Test: Envoy up and healthy for 10 minutes (no alert should fire)
 - interval: 1s
   input_series:
-  - series: 'up{job="envoy-stats", namespace="mise"}'
+  - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}'
     values: '1x600'
   alert_rule_test:
   - eval_time: 600s

@@ -91,9 +91,6 @@ type DBClientListActiveOperationDocsOptions struct {
 // DBClient provides a customized interface to the Cosmos DB containers used by the
 // ARO-HCP resource provider.
 type DBClient interface {
-	// DBConnectionTest verifies the database is reachable. Intended for use in health checks.
-	DBConnectionTest(ctx context.Context) error
-
 	// GetLockClient returns a LockClient, or nil if the DBClient does not support a LockClient.
 	GetLockClient() LockClientInterface
 
@@ -112,9 +109,6 @@ type DBClient interface {
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
 	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)
-
-	// CreateResourceDoc creates a new cluster or node pool document in the "Resources" container.
-	CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error
 
 	// PatchResourceDoc patches a cluster or node pool document in the "Resources" container by
 	// applying a sequence of patch operations. The patch operations may include a precondition
@@ -228,14 +222,6 @@ func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClie
 	}, nil
 }
 
-func (d *cosmosDBClient) DBConnectionTest(ctx context.Context) error {
-	if _, err := d.database.Read(ctx, nil); err != nil {
-		return fmt.Errorf("failed to read Cosmos database information during healthcheck: %v", err)
-	}
-
-	return nil
-}
-
 func (d *cosmosDBClient) GetLockClient() LockClientInterface {
 	return d.lockClient
 }
@@ -333,7 +319,7 @@ func (d *cosmosDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcore
 	return nil
 }
 
-func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*typedDocument, *ResourceDocument, error) {
+func (d *cosmosDBClient) getResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (*TypedDocument, *ResourceDocument, error) {
 	var responseItem []byte
 
 	pk := NewPartitionKey(resourceID.SubscriptionID)
@@ -407,22 +393,6 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 	innerDoc.ResourceID = resourceID
 
 	return typedDoc.ID, innerDoc, nil
-}
-
-func (d *cosmosDBClient) CreateResourceDoc(ctx context.Context, doc *ResourceDocument) error {
-	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
-
-	data, err := typedDocumentMarshal(typedDoc, doc)
-	if err != nil {
-		return fmt.Errorf("failed to marshal Resources container item for '%s': %w", doc.ResourceID, err)
-	}
-
-	_, err = d.resources.CreateItem(ctx, typedDoc.getPartitionKey(), data, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create Resources container item for '%s': %w", doc.ResourceID, err)
-	}
-
-	return nil
 }
 
 func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {
@@ -505,7 +475,7 @@ func (d *cosmosDBClient) ListResourceDocs(prefix *azcorearm.ResourceID, options 
 	}
 }
 
-func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*typedDocument, *OperationDocument, error) {
+func (d *cosmosDBClient) getOperationDoc(ctx context.Context, pk azcosmos.PartitionKey, operationID string) (*TypedDocument, *OperationDocument, error) {
 	// Make sure lookup keys are lowercase.
 	operationID = strings.ToLower(operationID)
 
@@ -605,7 +575,7 @@ func (d *cosmosDBClient) ListActiveOperationDocs(pk azcosmos.PartitionKey, optio
 	return newQueryItemsIterator[OperationDocument](pager)
 }
 
-func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*typedDocument, *arm.Subscription, error) {
+func (d *cosmosDBClient) getSubscriptionDoc(ctx context.Context, subscriptionID string) (*TypedDocument, *arm.Subscription, error) {
 	// Make sure lookup keys are lowercase.
 	subscriptionID = strings.ToLower(subscriptionID)
 
@@ -655,7 +625,7 @@ func (d *cosmosDBClient) UpdateSubscriptionDoc(ctx context.Context, subscription
 	options := &azcosmos.ItemOptions{}
 
 	for try := 0; try < 5; try++ {
-		var typedDoc *typedDocument
+		var typedDoc *TypedDocument
 		var innerDoc *arm.Subscription
 		var data []byte
 

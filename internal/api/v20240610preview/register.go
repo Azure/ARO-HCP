@@ -15,6 +15,8 @@
 package v20240610preview
 
 import (
+	"github.com/go-playground/validator/v10"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
@@ -26,6 +28,12 @@ func (v version) String() string {
 	return "2024-06-10-preview"
 }
 
+// GetValidator returns the validator.Validate instance configured
+// specifically for this API version.
+func (v version) GetValidator() *validator.Validate {
+	return validate
+}
+
 var (
 	versionedInterface        = version{}
 	validate                  = api.NewValidator()
@@ -34,6 +42,7 @@ var (
 	externalAuthVisibilityMap = api.NewVisibilityMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
+// TODO avoid side effects, directly call this.
 func init() {
 	// NOTE: If future versions of the API expand field visibility, such as
 	//       a field with @visibility("read","create") becoming updatable,

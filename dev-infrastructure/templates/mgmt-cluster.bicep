@@ -134,6 +134,15 @@ param maestroCertIssuer string
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
 
+@description('The name of the maestro consumer.')
+param maestroConsumerMIName string
+
+@description('The namespace of the maestro consumer.')
+param maestroConsumerNamespace string
+
+@description('The service account name of the maestro consumer.')
+param maestroConsumerServiceAccountName string
+
 @description('The regional SVC DNS zone name.')
 param regionalSvcDNSZoneName string
 
@@ -238,9 +247,9 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     clusterType: 'mgmt-cluster'
     workloadIdentities: items({
       maestro_wi: {
-        uamiName: 'maestro-consumer'
-        namespace: 'maestro'
-        serviceAccountName: 'maestro'
+        uamiName: maestroConsumerMIName
+        namespace: maestroConsumerNamespace
+        serviceAccountName: maestroConsumerServiceAccountName
       }
       logs_wi: {
         uamiName: logsMSI

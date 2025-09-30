@@ -82,17 +82,17 @@ func (c *MockDBTransactionCreateOperationDocCall) DoAndReturn(f func(*database.O
 }
 
 // CreateResourceDoc mocks base method.
-func (m *MockDBTransaction) CreateResourceDoc(doc *database.ResourceDocument, o *azcosmos.TransactionalBatchItemOptions) string {
+func (m *MockDBTransaction) CreateResourceDoc(doc *database.ResourceDocument, documentFilter database.ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateResourceDoc", doc, o)
+	ret := m.ctrl.Call(m, "CreateResourceDoc", doc, documentFilter, o)
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
 // CreateResourceDoc indicates an expected call of CreateResourceDoc.
-func (mr *MockDBTransactionMockRecorder) CreateResourceDoc(doc, o any) *MockDBTransactionCreateResourceDocCall {
+func (mr *MockDBTransactionMockRecorder) CreateResourceDoc(doc, documentFilter, o any) *MockDBTransactionCreateResourceDocCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResourceDoc", reflect.TypeOf((*MockDBTransaction)(nil).CreateResourceDoc), doc, o)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateResourceDoc", reflect.TypeOf((*MockDBTransaction)(nil).CreateResourceDoc), doc, documentFilter, o)
 	return &MockDBTransactionCreateResourceDocCall{Call: call}
 }
 
@@ -108,13 +108,13 @@ func (c *MockDBTransactionCreateResourceDocCall) Return(arg0 string) *MockDBTran
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockDBTransactionCreateResourceDocCall) Do(f func(*database.ResourceDocument, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocCall {
+func (c *MockDBTransactionCreateResourceDocCall) Do(f func(*database.ResourceDocument, database.ResourceDocumentStateFilter, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBTransactionCreateResourceDocCall) DoAndReturn(f func(*database.ResourceDocument, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocCall {
+func (c *MockDBTransactionCreateResourceDocCall) DoAndReturn(f func(*database.ResourceDocument, database.ResourceDocumentStateFilter, *azcosmos.TransactionalBatchItemOptions) string) *MockDBTransactionCreateResourceDocCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

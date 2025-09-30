@@ -16,9 +16,9 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -43,42 +43,124 @@ var (
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
+type Resource interface {
+	NewVersioned(versionedInterface Version) VersionedResource
+}
+
+type VersionedResource interface {
+	GetVersion() Version
+}
+
 type VersionedCreatableResource[T any] interface {
+	VersionedResource
 	Normalize(*T)
 	GetVisibility(path string) (VisibilityFlags, bool)
 	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody
 }
 
-type VersionedHCPOpenShiftCluster interface {
-	VersionedCreatableResource[HCPOpenShiftCluster]
-	ValidateStatic(current VersionedHCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
-}
-
-type VersionedHCPOpenShiftClusterNodePool interface {
-	VersionedCreatableResource[HCPOpenShiftClusterNodePool]
-	ValidateStatic(current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool, request *http.Request) *arm.CloudError
-}
-
-type VersionedHCPOpenShiftClusterExternalAuth interface {
-	VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
-	ValidateStatic(current VersionedHCPOpenShiftClusterExternalAuth, updating bool, request *http.Request) *arm.CloudError
-}
+type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]
+type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[HCPOpenShiftClusterNodePool]
+type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
+type VersionedHCPOpenShiftVersion VersionedResource
 
 type Version interface {
 	fmt.Stringer
+
+	GetValidator() *validator.Validate
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
 	NewHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) VersionedHCPOpenShiftClusterNodePool
 	NewHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) VersionedHCPOpenShiftClusterExternalAuth
+	NewHCPOpenShiftVersion(*HCPOpenShiftVersion) VersionedHCPOpenShiftVersion
 
 	// Response Marshaling
-	MarshalHCPOpenShiftCluster(*HCPOpenShiftCluster) ([]byte, error)
-	MarshalHCPOpenShiftClusterNodePool(*HCPOpenShiftClusterNodePool) ([]byte, error)
-	MarshalHCPOpenShiftClusterExternalAuth(*HCPOpenShiftClusterExternalAuth) ([]byte, error)
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
-	MarshalHCPOpenShiftVersion(*HCPOpenShiftVersion) ([]byte, error)
+}
+
+func ValidateVersionedHCPOpenShiftCluster(incoming, current VersionedHCPOpenShiftCluster, updating bool) *arm.CloudError {
+	var errorDetails []arm.CloudErrorBody
+
+	errorDetails = incoming.ValidateVisibility(current, updating)
+
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized HCPOpenShiftCluster
+
+		incoming.Normalize(&normalized)
+
+		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
+
+		// Proceed with complex, multi-field validation only if single-field
+		// validation has passed. This avoids running further checks on data
+		// we already know to be invalid and prevents the response body from
+		// becoming overwhelming.
+		if len(errorDetails) == 0 {
+			errorDetails = normalized.Validate()
+		}
+	}
+
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
+}
+
+func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
+	var errorDetails []arm.CloudErrorBody
+
+	errorDetails = incoming.ValidateVisibility(current, updating)
+
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized HCPOpenShiftClusterNodePool
+
+		incoming.Normalize(&normalized)
+
+		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
+
+		// Proceed with complex, multi-field validation only if single-field
+		// validation has passed. This avoids running further checks on data
+		// we already know to be invalid and prevents the response body from
+		// becoming overwhelming.
+		if len(errorDetails) == 0 {
+			errorDetails = normalized.Validate(cluster)
+		}
+	}
+
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
+}
+
+func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current VersionedHCPOpenShiftClusterExternalAuth, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
+	var errorDetails []arm.CloudErrorBody
+
+	errorDetails = incoming.ValidateVisibility(current, updating)
+
+	// Proceed with additional validation only if visibility validation has
+	// passed. This avoids running further checks on changes we already know
+	// to be invalid and prevents the response body from becoming overwhelming.
+	if len(errorDetails) == 0 {
+		var normalized HCPOpenShiftClusterExternalAuth
+
+		incoming.Normalize(&normalized)
+
+		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
+
+		// Proceed with complex, multi-field validation only if single-field
+		// validation has passed. This avoids running further checks on data
+		// we already know to be invalid and prevents the response body from
+		// becoming overwhelming.
+		if len(errorDetails) == 0 {
+			errorDetails = normalized.Validate(cluster)
+		}
+	}
+
+	// Returns nil if errorDetails is empty.
+	return arm.NewContentValidationError(errorDetails)
 }
 
 // apiRegistry is the map of registered API versions

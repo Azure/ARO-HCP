@@ -16,10 +16,9 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
-	validator "github.com/go-playground/validator/v10"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -132,8 +131,9 @@ type TokenRequiredClaim struct {
 	RequiredValue string `json:"requiredValue" validate:"required"`
 }
 
-func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAuth {
+func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
 	return &HCPOpenShiftClusterExternalAuth{
+		ProxyResource: arm.NewProxyResource(resourceID),
 		Properties: HCPOpenShiftClusterExternalAuthProperties{
 			Claim: ExternalAuthClaimProfile{
 				Mappings: TokenClaimMappingsProfile{
@@ -144,6 +144,10 @@ func NewDefaultHCPOpenShiftClusterExternalAuth() *HCPOpenShiftClusterExternalAut
 			},
 		},
 	}
+}
+
+func (externalAuth *HCPOpenShiftClusterExternalAuth) NewVersioned(versionedInterface Version) VersionedResource {
+	return versionedInterface.NewHCPOpenShiftClusterExternalAuth(externalAuth)
 }
 
 // This combination is used later in the system as a unique identifier and as
@@ -209,17 +213,11 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 	return errorDetails
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(validate *validator.Validate, request *http.Request) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, externalAuth)
+func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(errorDetails) == 0 {
-		errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
-		errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
-	}
+	errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
+	errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
 
 	return errorDetails
 }

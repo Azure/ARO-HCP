@@ -80,6 +80,15 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
+  - name: infra-output
+    action: ARM
+    template: templates/mgmt-infra-lookup.bicep
+    parameters: configurations/mgmt-infra-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: management
+      step: infra
   # Configure certificate issuers for the MC KVs
   - name: cx-oncert-public-kv-issuer
     action: SetCertificateIssuer
@@ -92,7 +101,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: cxKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
@@ -107,7 +116,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
@@ -122,7 +131,7 @@ resourceGroups:
     vaultBaseUrl:
       input:
         resourceGroup: management
-        step: infra
+        step: infra-output
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
@@ -266,32 +275,22 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-        # Install ACRpull
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make -C ../acrpull deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ACRPULL_DIGEST
-      configRef: acrPull.image.digest
-    - name: ACRPULL_REPO
-      configRef: acrPull.image.repository
-    - name: ACRPULL_REGISTRY
-      configRef: acrPull.image.registry
+    action: Helm
+    releaseName: acrpull
+    releaseNamespace: acrpull
+    chartDir: ./../acrpull/deploy
+    valuesFile: ./../acrpull/deploy/values.yaml
     dependsOn:
     - resourceGroup: management
       step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-        # Install cluster patches
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: fixes
+    # Install cluster patches
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
@@ -373,26 +372,15 @@ resourceGroups:
         name: globalMSIId
   - name: kube-events
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make -C ../observability/kube-events deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: IMAGE_REGISTRY
-      configRef: kubeEvents.image.registry
-    - name: IMAGE_REPOSITORY
-      configRef: kubeEvents.image.repository
-    - name: IMAGE_DIGEST
-      configRef: kubeEvents.image.digest
-    - name: ENABLED
-      configRef: kubeEvents.enabled
+    action: Helm
+    releaseName: kube-events
+    releaseNamespace: monitoring
+    chartDir: ./../observability/kube-events/deploy
+    valuesFile: ./../observability/kube-events/values.yaml
     dependsOn:
     - resourceGroup: management
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

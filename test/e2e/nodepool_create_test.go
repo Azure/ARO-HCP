@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/integration"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -44,8 +44,8 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 		var (
 			nodePoolName     = "mynodepool"
 			clusterName      = "non-existing_cluster"
-			nodePoolResource api.NodePool
-			nodePoolOptions  *api.NodePoolsClientBeginCreateOrUpdateOptions
+			nodePoolResource hcpsdk20240610preview.NodePool
+			nodePoolOptions  *hcpsdk20240610preview.NodePoolsClientBeginCreateOrUpdateOptions
 		)
 
 		By("Sending a  put request to create nodepool for non-existing HCPOpenshiftCluster and cluster resource as nil")

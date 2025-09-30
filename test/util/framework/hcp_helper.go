@@ -33,15 +33,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	timeout time.Duration,
+	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
 ) (*rest.Config, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -64,7 +64,7 @@ func GetAdminRESTConfigForHCPCluster(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
 		return readStaticRESTConfig(m.Kubeconfig)
 	default:
 		return nil, fmt.Errorf("unknown type %T", m)
@@ -88,7 +88,7 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 // DeleteHCPCluster deletes an hcp cluster and waits for the operation to complete
 func DeleteHCPCluster(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	timeout time.Duration,
@@ -109,7 +109,7 @@ func DeleteHCPCluster(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.HcpOpenShiftClustersClientDeleteResponse:
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientDeleteResponse:
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
@@ -118,10 +118,53 @@ func DeleteHCPCluster(
 	return nil
 }
 
-// DeleteResourceGroup deletes a resource group and waits for the operation to complete
+// UpdateHCPCluster sends a PATCH (BeginUpdate) request for an HCP cluster and waits for completion
+// within the provided timeout. It returns the final update response or an error.
+func UpdateHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
+	timeout time.Duration,
+) (hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
+	if err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, err
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
+		return m, nil
+	default:
+		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// GetHCPCluster fetches an HCP cluster
+func GetHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) (hcpsdk20240610preview.HcpOpenShiftClustersClientGetResponse, error) {
+	return hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+}
+
+// DeleteAllHCPClusters deletes all HCPOpenShiftClusters within a resource group and waits
 func DeleteAllHCPClusters(
 	ctx context.Context,
-	hcpClient *hcpapi20240610.HcpOpenShiftClustersClient,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	timeout time.Duration,
 ) error {
@@ -163,7 +206,7 @@ func DeleteAllHCPClusters(
 // DeleteNodePool deletes a nodepool and waits for the operation to complete
 func DeleteNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
@@ -185,7 +228,7 @@ func DeleteNodePool(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.NodePoolsClientDeleteResponse:
+	case hcpsdk20240610preview.NodePoolsClientDeleteResponse:
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
 		return fmt.Errorf("unknown type %T", m)
@@ -197,28 +240,24 @@ func DeleteNodePool(
 // GetNodePool fetches a nodepool resource
 func GetNodePool(
 	ctx context.Context,
-	nodePoolsClient *hcpapi20240610.NodePoolsClient,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	nodePoolName string,
-	timeout time.Duration,
-) (hcpapi20240610.NodePoolsClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
+) (hcpsdk20240610preview.NodePoolsClientGetResponse, error) {
 	return nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 }
 
 // CreateOrUpdateExternalAuthAndWait creates or updates an external auth on an HCP cluster and waits
 func CreateOrUpdateExternalAuthAndWait(
 	ctx context.Context,
-	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	externalAuthName string,
-	externalAuth hcpapi20240610.ExternalAuth,
+	externalAuth hcpsdk20240610preview.ExternalAuth,
 	timeout time.Duration,
-) (*hcpapi20240610.ExternalAuth, error) {
+) (*hcpsdk20240610preview.ExternalAuth, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -241,7 +280,7 @@ func CreateOrUpdateExternalAuthAndWait(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.ExternalAuthsClientCreateOrUpdateResponse:
+	case hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse:
 		// TODO someone may want this return value.  We'll have to work it out then.
 		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
 		return &m.ExternalAuth, nil
@@ -254,28 +293,24 @@ func CreateOrUpdateExternalAuthAndWait(
 // CreateExternalAuthAndWait creates a an external auth on an HCP cluster and waits
 func GetExternalAuth(
 	ctx context.Context,
-	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	externalAuthName string,
-	timeout time.Duration,
-) (hcpapi20240610.ExternalAuthsClientGetResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
+) (hcpsdk20240610preview.ExternalAuthsClientGetResponse, error) {
 	return externalAuthClient.Get(
 		ctx,
 		resourceGroupName,
 		hcpClusterName,
 		externalAuthName,
-		&hcpapi20240610.ExternalAuthsClientGetOptions{},
+		&hcpsdk20240610preview.ExternalAuthsClientGetOptions{},
 	)
 }
 
 // DeleteExternalAuthAndWait deletes a an external auth on an HCP cluster and waits
 func DeleteExternalAuthAndWait(
 	ctx context.Context,
-	externalAuthClient *hcpapi20240610.ExternalAuthsClient,
+	externalAuthClient *hcpsdk20240610preview.ExternalAuthsClient,
 	resourceGroupName string,
 	hcpClusterName string,
 	externalAuthName string,
@@ -302,7 +337,7 @@ func DeleteExternalAuthAndWait(
 	}
 
 	switch m := any(operationResult).(type) {
-	case hcpapi20240610.ExternalAuthsClientDeleteResponse:
+	case hcpsdk20240610preview.ExternalAuthsClientDeleteResponse:
 		return nil
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))

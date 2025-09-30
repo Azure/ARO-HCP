@@ -1,7 +1,7 @@
 prometheusRules:
-  rulesFolders: []
-  untestedRules:
+  rulesFolders:
   - ../observability/alerts/HCPkasMonitor-prometheusRule.yaml
+  untestedRules:
   - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep
   outputReplacements:

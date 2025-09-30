@@ -27,7 +27,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -53,7 +52,6 @@ type Frontend struct {
 	metricsServer        http.Server
 	dbClient             database.DBClient
 	auditClient          audit.Client
-	ready                atomic.Value
 	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -111,7 +109,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 	if stop != nil {
 		go func() {
 			<-stop
-			f.ready.Store(false)
 			_ = f.server.Shutdown(ctx)
 			_ = f.metricsServer.Shutdown(ctx)
 			close(f.done)
@@ -120,7 +117,6 @@ func (f *Frontend) Run(ctx context.Context, stop <-chan struct{}) {
 
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
-	f.ready.Store(true)
 
 	errs, ctx := errgroup.WithContext(ctx)
 	errs.Go(func() error {
@@ -144,19 +140,6 @@ func (f *Frontend) Join() {
 	<-f.done
 }
 
-func (f *Frontend) CheckReady(ctx context.Context) bool {
-	logger := LoggerFromContext(ctx)
-
-	// Verify the DB is available and accessible
-	if err := f.dbClient.DBConnectionTest(ctx); err != nil {
-		logger.Error(fmt.Sprintf("Database test failed: %v", err))
-		return false
-	}
-	logger.Debug("Database check completed")
-
-	return f.ready.Load().(bool)
-}
-
 func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 	arm.WriteError(
 		writer, http.StatusNotFound,
@@ -165,14 +148,8 @@ func (f *Frontend) NotFound(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (f *Frontend) Healthz(writer http.ResponseWriter, request *http.Request) {
-	if f.CheckReady(request.Context()) {
-		writer.WriteHeader(http.StatusOK)
-		f.healthGauge.Set(1.0)
-		return
-	}
-
-	arm.WriteInternalServerError(writer)
-	f.healthGauge.Set(0.0)
+	writer.WriteHeader(http.StatusOK)
+	f.healthGauge.Set(1.0)
 }
 
 func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
@@ -390,7 +367,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	// Check for iteration error.
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, CSErrorToCloudError(err, nil))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
 		return
 	}
 
@@ -433,7 +410,7 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -506,11 +483,11 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
-		hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+		hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -523,6 +500,9 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 		hcpCluster.SystemData = resourceDoc.SystemData
 		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
+		if hcpCluster.Identity == nil {
+			hcpCluster.Identity = &arm.ManagedServiceIdentity{}
+		}
 
 		if resourceDoc.Identity != nil {
 			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
@@ -537,7 +517,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		case http.MethodPut:
 			// Initialize versionedRequestCluster to include both
 			// non-zero default values and current read-only values.
-			reqCluster := api.NewDefaultHCPOpenShiftCluster()
+			reqCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
 
 			// Some optional create-only fields have dynamic default
 			// values that are determined downstream of this phase of
@@ -561,8 +541,14 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
+
+			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
@@ -589,38 +575,39 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 		return
 	}
 
-	cloudError = versionedRequestCluster.ValidateStatic(versionedCurrentCluster, updating, request)
+	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
-	hcpCluster := api.NewDefaultHCPOpenShiftCluster()
+	hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
 	versionedRequestCluster.Normalize(hcpCluster)
 
-	hcpCluster.Name = request.PathValue(PathSegmentResourceName)
-	csCluster, err := f.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
+	csClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
+	var csCluster *arohcpv1alpha1.Cluster
+
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csCluster)
+		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csCluster)
+		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csClusterBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
@@ -640,7 +627,7 @@ func (f *Frontend) ArmResourceCreateOrUpdate(writer http.ResponseWriter, request
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterHCPClusterState, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -1015,7 +1002,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	cloudError := api.ValidateSubscription(&subscription, request)
+	cloudError := api.ValidateSubscription(&subscription)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
@@ -1127,7 +1114,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1148,12 +1135,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a cluster creation request.
-			cloudError = versionedCluster.ValidateStatic(versionedCluster, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedCluster, versionedCluster, false)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1174,12 +1161,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = versionedNodePool.ValidateStatic(versionedNodePool, nil, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedNodePool, versionedNodePool, nil, false)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
 			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, request, preflightResource)
+			resourceErrors := api.ValidateRequest(validate, preflightResource)
 			if len(resourceErrors) > 0 {
 				// Preflight is best-effort: a malformed resource is not a validation failure.
 				logger.Warn(
@@ -1200,7 +1187,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			cloudError = versionedExternalAuth.ValidateStatic(versionedExternalAuth, false, request)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedExternalAuth, versionedExternalAuth, nil, false)
 
 		default:
 			// Disregard foreign resource types.
@@ -1300,7 +1287,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -1308,6 +1295,9 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 	hcpCluster.SystemData = doc.SystemData
 	hcpCluster.Tags = maps.Clone(doc.Tags)
 	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
+	if hcpCluster.Identity == nil {
+		hcpCluster.Identity = &arm.ManagedServiceIdentity{}
+	}
 
 	if doc.Identity != nil {
 		hcpCluster.Identity.PrincipalID = doc.Identity.PrincipalID
@@ -1315,7 +1305,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceD
 		hcpCluster.Identity.Type = doc.Identity.Type
 	}
 
-	return versionedInterface.MarshalHCPOpenShiftCluster(hcpCluster)
+	return arm.MarshalJSON(hcpCluster.NewVersioned(versionedInterface))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1460,7 +1450,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ConvertCStoAdminCredential(csBreakGlassCredential))
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1496,6 +1486,6 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 }
 
 func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
-	hcpClusterVersion := ConvertCStoHCPOpenshiftVersion(resourceID, version)
-	return versionedInterface.MarshalHCPOpenShiftVersion(hcpClusterVersion)
+	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
+	return arm.MarshalJSON(hcpVersion.NewVersioned(versionedInterface))
 }

@@ -38,6 +38,9 @@ param aksEnableSwiftVnet = {{ .mgmt.aks.enableSwiftV2Vnet }}
 param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
 
 // Maestro
+param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'
+param maestroConsumerNamespace = '{{ .maestro.agent.k8s.namespace }}'
+param maestroConsumerServiceAccountName = '{{ .maestro.agent.k8s.serviceAccountName }}'
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 param maestroCertDomain = '{{ .maestro.certDomain }}'

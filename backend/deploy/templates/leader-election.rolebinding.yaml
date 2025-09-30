@@ -9,5 +9,5 @@ roleRef:
   name: leader-election
 subjects:
 - kind: ServiceAccount
-  name: backend
+  name: '{{ .Values.serviceAccount.name }}'
   namespace: '{{ .Release.Namespace }}'

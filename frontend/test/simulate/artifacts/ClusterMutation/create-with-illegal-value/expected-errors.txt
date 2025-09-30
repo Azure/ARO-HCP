@@ -1,0 +1,1 @@
+InvalidRequestContent: properties.network.hostPrefix: Invalid value '30' for field 'hostPrefix' (must be at most 26)

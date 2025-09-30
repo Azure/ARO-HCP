@@ -1,0 +1,158 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package internal
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/pkg/types"
+	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
+)
+
+func TestStepsWellFormed(t *testing.T) {
+	repoRootDir := "../../../"
+	configFile := filepath.Join(repoRootDir, "config", "config.yaml")
+	configProvider, err := config.NewConfigProvider(configFile)
+	if err != nil {
+		t.Fatalf("failed to create config provider %s: %v", configFile, err)
+	}
+
+	// we don't particularly care what the values in the config are, we just need to create a config to resolve pipelines
+	regionalEv2Cfg, err := ev2config.ResolveConfig("public", "uksouth")
+	if err != nil {
+		t.Fatalf("failed to retrieve embedded Ev2 configuration from ARO-Tools: %v", err)
+	}
+	cloud, environment := "dev", "dev"
+	resolver, err := configProvider.GetResolver(&config.ConfigReplacements{
+		RegionReplacement:      "string",
+		RegionShortReplacement: "string",
+		StampReplacement:       "string",
+		CloudReplacement:       cloud,
+		EnvironmentReplacement: environment,
+		Ev2Config:              regionalEv2Cfg,
+	})
+	if err != nil {
+		t.Fatalf("failed to get resolver: %v", err)
+	}
+	cfg, err := resolver.GetConfiguration()
+	if err != nil {
+		t.Fatalf("failed to get configuration from %s: %v", configFile, err)
+	}
+
+	topologyFile := filepath.Join(repoRootDir, "topology.yaml")
+	rawTopology, err := os.ReadFile(topologyFile)
+	if err != nil {
+		t.Fatalf("failed to read input file %s: %v", topologyFile, err)
+	}
+
+	var topo topology.Topology
+	if err := yaml.Unmarshal(rawTopology, &topo); err != nil {
+		t.Fatalf("failed to unmarshal topology: %v", err)
+	}
+
+	if err := topo.Validate(); err != nil {
+		t.Fatalf("failed to validate topology: %v", err)
+	}
+
+	serviceGroup := "Microsoft.Azure.ARO.HCP.Global"
+	service, err := topo.Lookup(serviceGroup)
+	if err != nil {
+		t.Fatalf("failed to look up entrypoint %s in topology: %v", serviceGroup, err)
+	}
+
+	var e *topology.Entrypoint
+	for _, option := range topo.Entrypoints {
+		if option.Identifier == serviceGroup {
+			e = &option
+		}
+	}
+	if e == nil {
+		t.Fatalf("no entrypoint found for service group %s", serviceGroup)
+	}
+
+	pipelines := map[string]*types.Pipeline{}
+	if err := loadPipelines(t.Context(), service, repoRootDir, pipelines, cfg); err != nil {
+		t.Fatalf("failed to load pipelines: %v", err)
+	}
+
+	executionGraph, graphConstructionErr := graph.ForEntrypoint(&topo, e, pipelines)
+	if graphConstructionErr != nil {
+		t.Fatalf("failed to construct graph: %v", graphConstructionErr)
+	}
+
+	illFormed := map[string]map[string]map[string]string{}
+	for serviceGroupName, resourceGroups := range executionGraph.Steps {
+		for resourceGroupName, steps := range resourceGroups {
+			for stepName, step := range steps {
+				if !step.IsWellFormedOverInputs() {
+					reason := "unknown"
+					switch s := step.(type) {
+					case *types.ShellStep:
+						if strings.Contains(s.Command, "make") && strings.Contains(s.Command, "deploy") {
+							reason = "helm step needing migration"
+						} else if s.WorkingDir == "" {
+							reason = "raw shell step needing working directory"
+						}
+					}
+
+					if _, exists := illFormed[serviceGroupName]; !exists {
+						illFormed[serviceGroupName] = map[string]map[string]string{}
+					}
+					if _, exists := illFormed[serviceGroupName][resourceGroupName]; !exists {
+						illFormed[serviceGroupName][resourceGroupName] = map[string]string{}
+					}
+					illFormed[serviceGroupName][resourceGroupName][stepName] = reason
+				}
+			}
+		}
+	}
+
+	testutil.CompareWithFixture(t, illFormed, testutil.WithoutDirMangling())
+}
+
+func loadPipelines(
+	ctx context.Context,
+	root *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline,
+	cfg config.Configuration,
+) error {
+	pipelineConfigFilePath := filepath.Join(topologyDir, root.PipelinePath)
+	pipeline, err := types.NewPipelineFromFile(pipelineConfigFilePath, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to precompile pipeline: %w", err)
+	}
+	if pipeline.ServiceGroup != root.ServiceGroup {
+		return fmt.Errorf("pipeline loaded from %s is for %s, not %s", pipelineConfigFilePath, pipeline.ServiceGroup, root.ServiceGroup)
+	}
+
+	pipelines[root.ServiceGroup] = pipeline
+
+	for _, child := range root.Children {
+		if err := loadPipelines(ctx, &child, topologyDir, pipelines, cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}

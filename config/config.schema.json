@@ -17,7 +17,54 @@
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
       "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
     },
-    "k8sServiceAccount": {
+    "intOrString": {
+       "description": "IntOrString is a type that can hold an int32 or a string.  When used in JSON or YAML marshalling and unmarshalling, it produces or consumes the inner type. This allows you to have, for example, a JSON field that can accept a name or number.",
+       "format": "int-or-string",
+       "oneOf": [
+         {
+           "type": "integer"
+         },
+         {
+           "type": "string"
+         }
+       ]
+    },
+    "k8sRollingUpdateDeploymentStrategy": {
+      "type": "object",
+      "description": "Spec to control the desired behavior of rolling update.",
+      "properties": {
+        "maxSurge": {
+          "description": "The maximum number of pods that can be scheduled above the desired number of pods. Value can be an absolute number (ex: 5) or a percentage of desired pods (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 25%. Example: when this is set to 30%, the new ReplicaSet can be scaled up immediately when the rolling update starts, such that the total number of old and new pods do not exceed 130% of desired pods. Once old pods have been killed, new ReplicaSet can be scaled up further, ensuring that total number of pods running at any time during the update is at most 130% of desired pods.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/intOrString"
+            }
+          ]
+        },
+        "maxUnavailable": {
+          "description": "The maximum number of pods that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired pods (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 25%. Example: when this is set to 30%, the old ReplicaSet can be scaled down to 70% of desired pods immediately when the rolling update starts. Once new pods are ready, old ReplicaSet can be scaled down further, followed by scaling up the new ReplicaSet, ensuring that the total number of pods available at all times during the update is at least 70% of desired pods.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/intOrString"
+            }
+          ]
+        }
+      }
+    },
+    "k8sDeploymentStrategy": {
+      "type": "object",
+      "properties": {
+        "rollingUpdate": {
+          "description": "Rolling update config params",
+          "allOf": [
+            {
+              "$ref": "#/definitions/k8sRollingUpdateDeploymentStrategy"
+            }
+          ]
+        }
+      }
+    },
+    "k8sDeployment": {
       "type": "object",
       "properties": {
         "namespace": {
@@ -25,6 +72,13 @@
         },
         "serviceAccountName": {
           "$ref": "#/definitions/serviceAccountName"
+        },
+        "replicas": {
+          "type": "number",
+          "minimum": 1
+        },
+        "deploymentStrategy": {
+          "$ref": "#/definitions/k8sDeploymentStrategy"
         }
       },
       "additionalProperties": false,
@@ -793,8 +847,12 @@
           "type": "string",
           "description": "The name of the MSI that will be used by CS to interact with Azure"
         },
+        "provisionShardClusterLimit": {
+          "type": "integer",
+          "description": "The maximum number of HCPs that can be placed on an MC, sadly not configurable per MC"
+        },
         "k8s": {
-          "$ref": "#/definitions/k8sServiceAccount"
+          "$ref": "#/definitions/k8sDeployment"
         },
         "postgres": {
           "$ref": "#/definitions/postgres"
@@ -927,12 +985,21 @@
         },
         "tracing": {
           "$ref": "#/definitions/tracing"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the backend to interact with Azure"
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
-        "tracing"
+        "tracing",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "frontend": {
@@ -946,6 +1013,13 @@
         },
         "tracing": {
           "$ref": "#/definitions/tracing"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the frontend to interact with Azure"
         },
         "cosmosDB": {
           "type": "object",
@@ -998,7 +1072,9 @@
         "image",
         "cosmosDB",
         "cert",
-        "tracing"
+        "tracing",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "billing": {
@@ -1033,6 +1109,7 @@
             "cloudName"
           ]
         },
+
         "kusto": {
           "type": "object",
           "properties": {
@@ -1320,8 +1397,12 @@
           "type": "string",
           "description": "The client ID of the first party application that will be used by the refresher"
         },
+        "earlyRefreshFrequency": {
+          "type": "string",
+          "description": "Early refresh interval before credential is eligible for refresh. For testing, 0 means no early refresh. Example: 24h"
+        },
         "k8s": {
-          "$ref": "#/definitions/k8sServiceAccount"
+          "$ref": "#/definitions/k8sDeployment"
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -1363,7 +1444,8 @@
         "managedIdentityName",
         "k8s",
         "image",
-        "certificate"
+        "certificate",
+        "earlyRefreshFrequency"
       ]
     },
     "global": {
@@ -1609,7 +1691,7 @@
               "$ref": "#/definitions/tracing"
             },
             "k8s": {
-              "$ref": "#/definitions/k8sServiceAccount"
+              "$ref": "#/definitions/k8sDeployment"
             }
           },
           "additionalProperties": false,
@@ -1630,6 +1712,12 @@
             "loglevel": {
               "type": "integer"
             },
+            "managedIdentityName": {
+              "type": "string"
+            },
+            "k8s": {
+              "$ref": "#/definitions/k8sDeployment"
+            },
             "sidecar": {
               "type:": "object",
               "additionalProperties": false,
@@ -1644,7 +1732,9 @@
           "required": [
             "consumerName",
             "loglevel",
-            "sidecar"
+            "sidecar",
+            "managedIdentityName",
+            "k8s"
           ]
         },
         "eventGrid": {
@@ -2145,6 +2235,43 @@
         "releaseManagementGroupId"
       ]
     },
+    "keyVaultDNSSuffix": {
+      "type": "string"
+    },
+    "e2e": {
+      "type": "object",
+      "properties": {
+        "prow": {
+          "type": "object",
+          "properties": {
+            "globalKeyVaultTokenSecret": {
+              "type": "string",
+              "description": "The name of the KeyVault secret in the global AKV that stores the token used to authenticate with Prow."
+            }
+          }
+        },
+        "regionTest": {
+          "type": "object",
+          "properties": {
+            "prowJobName": {
+              "type": "string"
+            },
+            "gatePromotion": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "prowJobName",
+            "gatePromotion"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "prow",
+        "regionTest"
+      ]
+    },
     "automationDryRun": {
       "type": "boolean",
       "description": "Whether automation account runs in dry-run mode"
@@ -2177,6 +2304,8 @@
     "serviceKeyVault",
     "svc",
     "msiRp",
-    "msiCredentialsRefresher"
+    "msiCredentialsRefresher",
+    "keyVaultDNSSuffix",
+    "e2e"
   ]
 }

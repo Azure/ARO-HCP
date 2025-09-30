@@ -22,9 +22,9 @@ import (
 
 func TestTestResourceVisibilityMap(t *testing.T) {
 	expectedVisibility := map[string]VisibilityFlags{
-		"ID":                              VisibilityRead,
-		"Name":                            VisibilityRead,
-		"Type":                            VisibilityRead,
+		"ID":                              VisibilityRead | VisibilityCaseInsensitive,
+		"Name":                            VisibilityRead | VisibilityCaseInsensitive,
+		"Type":                            VisibilityRead | VisibilityCaseInsensitive,
 		"SystemData":                      SkipVisibilityTest,
 		"SystemData.CreatedBy":            VisibilityRead,
 		"SystemData.CreatedByType":        VisibilityRead,
@@ -32,7 +32,7 @@ func TestTestResourceVisibilityMap(t *testing.T) {
 		"SystemData.LastModifiedBy":       VisibilityRead,
 		"SystemData.LastModifiedByType":   VisibilityRead,
 		"SystemData.LastModifiedAt":       VisibilityRead,
-		"Location":                        VisibilityRead | VisibilityCreate,
+		"Location":                        VisibilityRead | VisibilityCreate | VisibilityCaseInsensitive,
 		"Tags":                            VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
 		"Identity":                        VisibilityRead | VisibilityCreate | VisibilityUpdate | VisibilityNullable,
 		"Identity.PrincipalID":            VisibilityRead,

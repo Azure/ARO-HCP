@@ -23,7 +23,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -34,8 +34,8 @@ var _ = Describe("Put HCPOpenShiftCluster", func() {
 		clusterName := "non-existing-cluster"
 		customerRGName := "non-existing-group"
 		var (
-			clusterResource api.HcpOpenShiftCluster
-			clusterOptions  *api.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+			clusterResource hcpsdk20240610preview.HcpOpenShiftCluster
+			clusterOptions  *hcpsdk20240610preview.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
 		)
 
 		By("Sending put request to create HCPOpenshiftCluster")

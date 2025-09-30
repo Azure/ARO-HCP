@@ -170,9 +170,11 @@ func (e *e2eImpl) Persist() (*run.RawRunOptions, error) {
 				return nil, err
 			}
 
-			err = os.WriteFile(e.tmpdir+"/"+b.paramFileName, []byte(b.paramFile), 0644)
-			if err != nil {
-				return nil, err
+			if (len(b.paramFile) != 0) || (len(b.paramFileName) != 0) {
+				err = os.WriteFile(e.tmpdir+"/"+b.paramFileName, []byte(b.paramFile), 0644)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

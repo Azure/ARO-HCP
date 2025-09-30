@@ -134,12 +134,18 @@ resourceGroups:
       configRef: clustersService.k8s.namespace
     - name: SERVICE_ACCOUNT_NAME
       configRef: clustersService.k8s.serviceAccountName
+    - name: REPLICAS
+      configRef: clustersService.k8s.replicas
     - name: ENVIRONMENT
       configRef: clustersService.environment
     - name: DENYASSIGNMENTS
       configRef: clustersService.denyAssignments
     - name: MI_DATAPLANE_AUDIENCE_RESOURCE
       configRef: msiRp.dataPlaneAudienceResource
+    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE
+      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge
+    - name: CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE
+      configRef: clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable
     - name: OCP_ACR_RESOURCE_ID
       input:
         resourceGroup: global
@@ -150,6 +156,8 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
+    - name: PROVISION_SHARD_CLUSTER_LIMIT
+      configRef: clustersService.provisionShardClusterLimit
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

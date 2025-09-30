@@ -12,16 +12,6 @@ spec:
   groups:
   - name: backend
     rules:
-    - alert: BackendLatency
-      expr: |
-        histogram_quantile(0.95, rate(backend_operations_duration_seconds_bucket[1h])) > 1
-      for: 15m
-      labels:
-        severity: info
-      annotations:
-        description: 'The 95th percentile of backend request latency has exceeded 1 second over the past hour.'
-        runbook_url: 'TBD'
-        summary: 'Backend latency is high: 95th percentile exceeds 1 second'
     - alert: BackendOperationErrorRate
       expr: |
         (sum(rate(backend_failed_operations_total[1h])))
@@ -37,7 +27,7 @@ spec:
         summary: 'High Error Rate on Backend Operations'
     - alert: BackendHealthAvailability
       expr: |
-        (1 - (sum_over_time(backend_health[1h]) / 3600)) >= (300 / 3600)
+        (((120 - sum_over_time(backend_health[1h])) * 30) >= 300)
       for: 5m
       labels:
         severity: info

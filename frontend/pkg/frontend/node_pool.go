@@ -101,11 +101,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
-		hcpNodePool := ConvertCStoNodePool(resourceID, csNodePool)
+		hcpNodePool := ocm.ConvertCStoNodePool(resourceID, csNodePool)
 
 		// Do not set the TrackedResource.Tags field here. We need
 		// the Tags map to remain nil so we can see if the request
@@ -121,7 +121,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		case http.MethodPut:
 			// Initialize versionedRequestNodePool to include both
 			// non-zero default values and current read-only values.
-			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+			reqNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
 
 			// Some optional create-only fields have dynamic default
 			// values that are determined downstream of this phase of
@@ -144,8 +144,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 		switch request.Method {
 		case http.MethodPut:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
+			// Initialize top-level resource fields from the request path.
+			// If the request body specifies these fields, validation should
+			// accept them as long as they match (case-insensitively) values
+			// from the request path.
+			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
+
+			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
@@ -182,11 +188,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterResourceDoc.InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID.Parent))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID.Parent, writer.Header()))
 		return
 	}
 
-	hcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
+	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -200,30 +206,31 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = versionedRequestNodePool.ValidateStatic(versionedCurrentNodePool, hcpCluster, updating, request)
+	cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedRequestNodePool, versionedCurrentNodePool, hcpCluster, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
-	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool()
+	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
 	versionedRequestNodePool.Normalize(hcpNodePool)
 
-	hcpNodePool.Name = request.PathValue(PathSegmentNodePoolName)
-	csNodePool, err := f.BuildCSNodePool(ctx, hcpNodePool, updating)
+	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, hcpNodePool, updating)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
+	var csNodePool *arohcpv1alpha1.NodePool
+
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 	} else {
@@ -235,10 +242,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePool)
+		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePoolBuilder)
 		if err != nil {
 			logger.Error(err.Error())
-			arm.WriteCloudError(writer, CSErrorToCloudError(err, resourceID))
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 			return
 		}
 
@@ -258,7 +265,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	f.ExposeOperation(writer, request, operationID, transaction)
 
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, nil)
+		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterNodePoolState, nil)
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -314,10 +321,10 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 // the necessary conversions for the API version of the request.
 func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ConvertCStoNodePool(doc.ResourceID, csNodePool)
+	hcpNodePool := ocm.ConvertCStoNodePool(doc.ResourceID, csNodePool)
 	hcpNodePool.SystemData = doc.SystemData
 	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return versionedInterface.MarshalHCPOpenShiftClusterNodePool(hcpNodePool)
+	return arm.MarshalJSON(hcpNodePool.NewVersioned(versionedInterface))
 }

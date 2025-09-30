@@ -84,7 +84,11 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	maps.Copy(envVars, stepVars)
 	maps.Copy(envVars, dryRunVars)
 
-	cmd, skipCommand := createCommand(ctx, s.Command, filepath.Dir(options.PipelineFilePath), dryRun, envVars)
+	workingDir := filepath.Dir(options.PipelineFilePath)
+	if s.WorkingDir != "" {
+		workingDir = filepath.Join(filepath.Dir(options.PipelineFilePath), s.WorkingDir)
+	}
+	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil

@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -88,12 +88,11 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
-				5*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(nodePool.Properties).ToNot(BeNil())
 			Expect(nodePool.Properties.ProvisioningState).ToNot(BeNil())
-			Expect(*nodePool.Properties.ProvisioningState).To(Equal(hcpapi20240610.ProvisioningStateProvisioning))
+			Expect(*nodePool.Properties.ProvisioningState).To(Equal(hcpsdk.ProvisioningStateProvisioning))
 
 			By("expecting that on a cluster without CNI plugin, nodes are in NotReady state")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodesReady())

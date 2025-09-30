@@ -46,7 +46,7 @@ class TestDashboard(unittest.TestCase):
     def test_create_dashboard_exists(self):
         g = GrafanaRunner("", "", "")
 
-        d = {"dashboard": {"title": "test"}}
+        d = {"dashboard": {"title": "test", "uid": "bar"}}
         g.create_dashboard = MagicMock(return_value=d)
         g.show_existing_dashboard = MagicMock(return_value=d)
 

@@ -79,58 +79,6 @@ func newClusterInternalID(t *testing.T) ocm.InternalID {
 	return internalID
 }
 
-func TestReadiness(t *testing.T) {
-	tests := []struct {
-		name               string
-		ready              bool
-		expectedStatusCode int
-	}{
-		{
-			name:               "Not ready - returns 500",
-			ready:              false,
-			expectedStatusCode: http.StatusInternalServerError,
-		},
-		{
-			name:               "Ready - returns 200",
-			ready:              true,
-			expectedStatusCode: http.StatusOK,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockDBClient := mocks.NewMockDBClient(ctrl)
-			reg := prometheus.NewRegistry()
-
-			f := NewFrontend(
-				api.NewTestLogger(),
-				nil,
-				nil,
-				reg,
-				mockDBClient,
-				nil,
-				newNoopAuditClient(t),
-			)
-			f.ready.Store(test.ready)
-
-			mockDBClient.EXPECT().DBConnectionTest(gomock.Any())
-
-			ts := newHTTPServer(f, ctrl, mockDBClient, nil)
-
-			rs, err := ts.Client().Get(ts.URL + "/healthz")
-			require.NoError(t, err)
-			require.Equal(t, test.expectedStatusCode, rs.StatusCode)
-
-			lintMetrics(t, reg)
-
-			got, err := testutil.GatherAndCount(reg, healthGaugeName)
-			require.NoError(t, err)
-			assert.Equal(t, 1, got)
-		})
-	}
-}
-
 func TestSubscriptionsGET(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -464,14 +412,14 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 					"taints": []map[string]any{
 						{
-							// 1 invalid + 2 missing required fields
+							// 1 invalid + 1 missing required fields
 							"effect": "NoTouchy",
 						},
 					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 5,
+			expectErrors: 4,
 		},
 	}
 

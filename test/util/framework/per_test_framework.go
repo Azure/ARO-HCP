@@ -31,8 +31,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/yaml"
 
-	hcpapi20240610 "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 type perItOrDescribeTestContext struct {
@@ -42,7 +42,7 @@ type perItOrDescribeTestContext struct {
 	knownResourceGroups           []string
 	knownAppRegistrationIDs       []string
 	subscriptionID                string
-	clientFactory20240610         *hcpapi20240610.ClientFactory
+	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	graphClient                   *graphutil.Client
@@ -124,7 +124,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
 }
 
-func CleanupResourceGroups(ctx context.Context, hcpClient *hcpapi20240610.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
+func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
 	// deletion takes a while, it's worth it to do this in parallel
 	wg := sync.WaitGroup{}
 	errCh := make(chan error, len(resourceGroupNames))
@@ -203,7 +203,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
-func cleanupResourceGroup(ctx context.Context, hcpClient *hcpapi20240610.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
+func cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
 	errs := []error{}
 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
@@ -315,7 +315,7 @@ func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx cont
 	return Must(tc.GetARMResourcesClientFactory(ctx))
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpapi20240610.ClientFactory {
+func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
 	return Must(tc.Get20240610ClientFactory(ctx))
 }
 
@@ -387,7 +387,7 @@ func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx c
 	return tc.armResourcesClientFactory, nil
 }
 
-func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpapi20240610.ClientFactory, error) {
+func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
 	tc.contextLock.RLock()
 	if tc.clientFactory20240610 != nil {
 		defer tc.contextLock.RUnlock()
@@ -401,7 +401,7 @@ func (tc *perItOrDescribeTestContext) Get20240610ClientFactory(ctx context.Conte
 	return tc.get20240610ClientFactoryUnlocked(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx context.Context) (*hcpapi20240610.ClientFactory, error) {
+func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20240610preview.ClientFactory, error) {
 	if tc.clientFactory20240610 != nil {
 		return tc.clientFactory20240610, nil
 	}
@@ -414,7 +414,7 @@ func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := hcpapi20240610.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}

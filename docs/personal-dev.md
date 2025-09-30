@@ -21,6 +21,7 @@ Ensure you have access to the RH Azure tenant:
 The following additional tools are also required:
 
 - `jq`
+- `yq`
 - `make`
 - `kubelogin` - download from <https://azure.github.io/kubelogin/install.html>
 - `kubectl` version >= 1.30
@@ -100,7 +101,7 @@ The cluster in personal DEV have no reachable ingress. To interact with the serv
 
   ```bash
   kubectl port-forward svc/aro-hcp-frontend 8443:8443 -n aro-hcp
-  kubectl port-forward svc/clusters-service 8000:8000 -n cluster-service
+  kubectl port-forward svc/clusters-service 8000:8000 -n clusters-service
   kubectl port-forward svc/maestro 8001:8000 -n maestro
   kubectl port-forward svc/maestro-grpc 8090 -n maestro
   ```

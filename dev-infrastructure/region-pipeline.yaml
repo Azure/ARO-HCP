@@ -24,7 +24,8 @@ resourceGroups:
     outputOnly: true
   - name: ocp-acr-replication
     action: Shell
-    command: scripts/manage-acr-replication.sh
+    command: ./manage-acr-replication.sh
+    workingDir: ./scripts
     dryRun:
       variables:
       - name: DRY_RUN
@@ -41,7 +42,8 @@ resourceGroups:
         name: globalMSIId
   - name: svc-acr-replication
     action: Shell
-    command: scripts/manage-acr-replication.sh
+    command: ./manage-acr-replication.sh
+    workingDir: ./scripts
     variables:
     - name: ACR_NAME
       configRef: acr.svc.name
@@ -58,7 +60,8 @@ resourceGroups:
         name: globalMSIId
   - name: add-svc-grafana-datasource
     action: Shell
-    command: scripts/add-grafana-datasource.sh
+    command: ./add-grafana-datasource.sh
+    workingDir: ./scripts
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
@@ -82,7 +85,8 @@ resourceGroups:
         name: globalMSIId
   - name: add-hcp-grafana-datasource
     action: Shell
-    command: scripts/add-grafana-datasource.sh
+    command: ./add-grafana-datasource.sh
+    workingDir: ./scripts
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
@@ -154,7 +158,8 @@ resourceGroups:
       step: rpRegistration
   - name: housekeeping
     action: Shell
-    command: scripts/regional-housekeeping.sh
+    command: ./regional-housekeeping.sh
+    workingDir: ./scripts
     dryRun:
       variables:
       - name: DRY_RUN

@@ -47,6 +47,14 @@ resourceGroups:
     - resourceGroup: global
       step: mirror-image
     variables:
+    - name: REPLICAS
+      configRef: frontend.k8s.replicas
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: frontend.k8s.serviceAccountName
+    - name: NAMESPACE
+      configRef: frontend.k8s.namespace
+    - name: MANAGED_IDENTITY_NAME
+      configRef: frontend.managedIdentityName
     - name: ARO_HCP_IMAGE_ACR
       configRef: acr.svc.name
     - name: LOCATION

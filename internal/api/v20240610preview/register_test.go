@@ -24,9 +24,9 @@ func TestClusterVisibilityMap(t *testing.T) {
 	// This should include any clusterVisibilityMap
 	// overrides from the package's init() function.
 	expectedVisibility := map[string]api.VisibilityFlags{
-		"ID":                                          api.VisibilityRead,
-		"Name":                                        api.VisibilityRead,
-		"Type":                                        api.VisibilityRead,
+		"ID":                                          api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Name":                                        api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Type":                                        api.VisibilityRead | api.VisibilityCaseInsensitive,
 		"SystemData":                                  api.SkipVisibilityTest,
 		"SystemData.CreatedBy":                        api.VisibilityRead,
 		"SystemData.CreatedByType":                    api.VisibilityRead,
@@ -34,7 +34,7 @@ func TestClusterVisibilityMap(t *testing.T) {
 		"SystemData.LastModifiedBy":                   api.VisibilityRead,
 		"SystemData.LastModifiedByType":               api.VisibilityRead,
 		"SystemData.LastModifiedAt":                   api.VisibilityRead,
-		"Location":                                    api.VisibilityRead | api.VisibilityCreate,
+		"Location":                                    api.VisibilityRead | api.VisibilityCreate | api.VisibilityCaseInsensitive,
 		"Tags":                                        api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate | api.VisibilityNullable,
 		"Properties":                                  api.SkipVisibilityTest,
 		"Properties.ProvisioningState":                api.VisibilityRead,
@@ -101,9 +101,9 @@ func TestNodePoolVisibilityMap(t *testing.T) {
 	// This should include any nodePoolVisibilityMap
 	// overrides from the package's init() function.
 	expectedVisibility := map[string]api.VisibilityFlags{
-		"ID":                              api.VisibilityRead,
-		"Name":                            api.VisibilityRead,
-		"Type":                            api.VisibilityRead,
+		"ID":                              api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Name":                            api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Type":                            api.VisibilityRead | api.VisibilityCaseInsensitive,
 		"SystemData":                      api.SkipVisibilityTest,
 		"SystemData.CreatedBy":            api.VisibilityRead,
 		"SystemData.CreatedByType":        api.VisibilityRead,
@@ -111,7 +111,7 @@ func TestNodePoolVisibilityMap(t *testing.T) {
 		"SystemData.LastModifiedBy":       api.VisibilityRead,
 		"SystemData.LastModifiedByType":   api.VisibilityRead,
 		"SystemData.LastModifiedAt":       api.VisibilityRead,
-		"Location":                        api.VisibilityRead | api.VisibilityCreate,
+		"Location":                        api.VisibilityRead | api.VisibilityCreate | api.VisibilityCaseInsensitive,
 		"Tags":                            api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate | api.VisibilityNullable,
 		"Properties":                      api.SkipVisibilityTest,
 		"Properties.ProvisioningState":    api.VisibilityRead,
@@ -156,9 +156,9 @@ func TestExternalAuthVisibilityMap(t *testing.T) {
 	// This should include any nodePoolVisibilityMap
 	// overrides from the package's init() function.
 	expectedVisibility := map[string]api.VisibilityFlags{
-		"ID":                                                           api.VisibilityRead,
-		"Name":                                                         api.VisibilityRead,
-		"Type":                                                         api.VisibilityRead,
+		"ID":                                                           api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Name":                                                         api.VisibilityRead | api.VisibilityCaseInsensitive,
+		"Type":                                                         api.VisibilityRead | api.VisibilityCaseInsensitive,
 		"SystemData":                                                   api.SkipVisibilityTest,
 		"SystemData.CreatedBy":                                         api.VisibilityRead,
 		"SystemData.CreatedByType":                                     api.VisibilityRead,

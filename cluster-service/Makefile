@@ -56,6 +56,7 @@ deploy:
 	  --set tenantId=$${TENANT_ID} \
 	  --set region=${REGION} \
 	  --set serviceKeyvaultName=${SERVICE_KV} \
+	  --set replicas=${REPLICAS} \
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageDigest=${IMAGE_DIGEST} \
@@ -84,6 +85,9 @@ deploy:
 	  --set pullBinding.scope=repository:${IMAGE_REPO}:pull \
 	  --set managedIdentitiesDataPlaneAudienceResource=${MI_DATAPLANE_AUDIENCE_RESOURCE} \
 	  --set tracing.address=${TRACING_ADDRESS} \
+	  --set csDeploymentStrategy.rollingUpdate.maxSurge=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_SURGE} \
+	  --set csDeploymentStrategy.rollingUpdate.maxUnavailable=${CS_DEPLOYMENT_ROLLINGUPDATE_MAX_UNAVAILABLE} \
+	  --set provisionShardClusterLimit=${PROVISION_SHARD_CLUSTER_LIMIT} \
 	  "$${OP_HELM_SET_FLAGS[@]}"
 
 deploy-pr-env-deps:

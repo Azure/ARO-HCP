@@ -16,11 +16,9 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -84,14 +82,12 @@ type NodePoolAutoScaling struct {
 type Taint struct {
 	Effect Effect `json:"effect,omitempty" validate:"required,enum_effect"`
 	Key    string `json:"key,omitempty"    validate:"required,k8s_qualified_name"`
-	Value  string `json:"value,omitempty"  validate:"required,k8s_label_value"`
+	Value  string `json:"value,omitempty"  validate:"k8s_label_value"`
 }
 
-func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
+func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterNodePool {
 	return &HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Location: arm.GetAzureLocation(),
-		},
+		TrackedResource: arm.NewTrackedResource(resourceID),
 		Properties: HCPOpenShiftClusterNodePoolProperties{
 			Version: NodePoolVersionProfile{
 				ChannelGroup: "stable",
@@ -105,6 +101,10 @@ func NewDefaultHCPOpenShiftClusterNodePool() *HCPOpenShiftClusterNodePool {
 			AutoRepair: true,
 		},
 	}
+}
+
+func (nodePool *HCPOpenShiftClusterNodePool) NewVersioned(versionedInterface Version) VersionedResource {
+	return versionedInterface.NewHCPOpenShiftClusterNodePool(nodePool)
 }
 
 func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
@@ -158,18 +158,12 @@ func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenSh
 	return errorDetails
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) Validate(validate *validator.Validate, request *http.Request, cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	errorDetails := ValidateRequest(validate, request, nodePool)
+func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+	var errorDetails []arm.CloudErrorBody
 
-	// Proceed with complex, multi-field validation only if single-field
-	// validation has passed. This avoids running further checks on data
-	// we already know to be invalid and prevents the response body from
-	// becoming overwhelming.
-	if len(errorDetails) == 0 {
-		if cluster != nil {
-			errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
-			errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
-		}
+	if cluster != nil {
+		errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
+		errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
 	}
 
 	return errorDetails

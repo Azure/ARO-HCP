@@ -73,25 +73,27 @@ deploy:
 	fi; \
 	BACKEND_MI_CLIENT_ID=$$(az identity show \
 			-g ${RESOURCEGROUP} \
-			-n backend \
+			-n ${MANAGED_IDENTITY_NAME} \
 			--query clientId -o tsv) && \
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
-	kubectl create namespace aro-hcp --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace aro-hcp "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	../hack/helm.sh aro-hcp-backend-dev deploy aro-hcp \
+	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
+	../hack/helm.sh aro-hcp-backend-dev deploy ${NAMESPACE} \
 		--set configMap.databaseName=${DB_NAME} \
 		--set configMap.databaseUrl="$${DB_URL}" \
 		--set configMap.backendMiClientId="$${BACKEND_MI_CLIENT_ID}" \
+		--set serviceAccount.name=${SERVICE_ACCOUNT_NAME} \
 		--set serviceAccount.workloadIdentityClientId="$${BACKEND_MI_CLIENT_ID}" \
 		--set configMap.currentVersion="$${ARO_HCP_IMAGE_DIGEST}" \
 		--set configMap.location=${LOCATION} \
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
 		--set deployment.imageName="$${ARO_HCP_IMAGE_DIGEST}" \
+		--set deployment.replicas=${REPLICAS} \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER}
 .PHONY: deploy
 
 undeploy:
-	helm uninstall aro-hcp-backend-dev --namespace aro-hcp
+	helm uninstall aro-hcp-backend-dev --namespace ${NAMESPACE}
 .PHONY: undeploy

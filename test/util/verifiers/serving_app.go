@@ -22,6 +22,7 @@ import (
 	"net/http/httputil"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ func (v verifySimpleWebApp) Name() string {
 }
 
 func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	klog.SetOutput(ginkgo.GinkgoWriter)
 	defer func() {
 		if err := v.cleanup(ctx, adminRESTConfig); err != nil {
 			klog.ErrorS(err, "Error cleaning up resources")
@@ -96,7 +98,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// check for route to have hostname for us
 	host := ""
 	var lastErr error
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		currRoute, err := dynamicClient.Resource(gvr("route.openshift.io", "v1", "routes")).
 			Namespace(namespace.GetName()).Get(ctx, route.GetName(), metav1.GetOptions{})
 		if err != nil {
@@ -132,7 +134,25 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// wait for a response
 	lastErr = nil
 	url := "https://" + host
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+	startTime := time.Now()
+	logged5Min := false
+	logged10Min := false
+	logged15Min := false
+	// firstResponseReceived := false
+	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+		elapsed := time.Since(startTime)
+
+		// Log progress messages at specific intervals
+		if elapsed >= 15*time.Minute && !logged15Min {
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking over 15 minutes: url=%s elapsed=%v\n", url, elapsed)
+			logged15Min = true
+		} else if elapsed >= 10*time.Minute && !logged10Min {
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 10-15 minutes: url=%s elapsed=%v\n", url, elapsed)
+			logged10Min = true
+		} else if elapsed >= 5*time.Minute && !logged5Min {
+			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 5-10 minutes: url=%s elapsed=%v\n", url, elapsed)
+			logged5Min = true
+		}
 		resp, err := http.Get(url)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
@@ -141,6 +161,17 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 				)
 			}
 			lastErr = err
+			return false, nil
+		}
+		defer resp.Body.Close()
+
+		// Check for successful HTTP status code (200)
+		if resp.StatusCode != 200 {
+			statusErr := fmt.Errorf("received non-success status code: %d %s", resp.StatusCode, resp.Status)
+			if lastErr == nil || statusErr.Error() != lastErr.Error() {
+				ginkgo.GinkgoWriter.Printf("%s: route returned non-success status code", statusErr)
+			}
+			lastErr = statusErr
 			return false, nil
 		}
 
@@ -154,7 +185,13 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			lastErr = err
 			return false, nil
 		}
-		klog.InfoS("got response from route", "response", string(responseByte))
+
+		// Log timing information for successful response
+		elapsed = time.Since(startTime)
+		if elapsed < 5*time.Minute {
+			ginkgo.GinkgoWriter.Printf("Route became available in less than 5 minutes: url=%s elapsed=%v\n", url, elapsed)
+		}
+		ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
 		return true, nil
 	})
 	switch {
