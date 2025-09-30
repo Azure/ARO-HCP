@@ -1,3 +1,0 @@
-1. instead of the user input being rejected, it is silently ignored by ARO-HCP.
-
-It is possible cluster-service is catching these, but we need to catch them in ARO-HCP to remove it.

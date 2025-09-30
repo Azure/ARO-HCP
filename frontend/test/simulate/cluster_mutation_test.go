@@ -153,6 +153,10 @@ type expectedFieldError struct {
 	message string
 }
 
+func (e expectedFieldError) String() string {
+	return fmt.Sprintf("%s: %s: %s", e.code, e.field, e.message)
+}
+
 func (e expectedFieldError) matches(actualError arm.CloudErrorBody) error {
 	if actualError.Code != e.code {
 		return fmt.Errorf("expected code %q, got %q", e.code, actualError.Code)
@@ -223,7 +227,7 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 
 		toUpdate := &hcpsdk20240610preview.HcpOpenShiftCluster{}
 		require.NoError(t, json.Unmarshal(api.Must(fs.ReadFile(tt.testDir, "update.json")), toUpdate))
-		_, err = clusterClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, *toCreate.Name, *toCreate, nil)
+		_, err = clusterClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, *toUpdate.Name, *toUpdate, nil)
 
 	}
 
@@ -258,7 +262,7 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 				}
 			}
 			if !found {
-				t.Errorf("unexpected error: %v", actualError)
+				t.Errorf("unexpected error: %s: %s: %s", actualError.Code, actualError.Target, actualError.Message)
 			}
 		}
 

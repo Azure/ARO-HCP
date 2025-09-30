@@ -1,0 +1,1 @@
+InvalidRequestContent: properties.network.hostPrefix: Field 'hostPrefix' cannot be updated

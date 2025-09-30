@@ -1,0 +1,12 @@
+InvalidRequestContent: properties.platform.networkSecurityGroupId: Field 'networkSecurityGroupId' cannot be updated
+InvalidRequestContent: properties.platform.subnetId: Field 'subnetId' cannot be updated
+InvalidRequestContent: properties.platform.managedResourceGroup: Field 'managedResourceGroup' cannot be updated
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Field 'name' cannot be updated
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Field 'vaultName' cannot be updated
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Field 'version' cannot be updated
+InvalidRequestContent: properties.network.hostPrefix: Field 'hostPrefix' cannot be updated
+InvalidRequestContent: properties.network.machineCidr: Field 'machineCidr' cannot be updated
+InvalidRequestContent: properties.network.networkType: Field 'networkType' cannot be updated
+InvalidRequestContent: properties.network.podCidr: Field 'podCidr' cannot be updated
+InvalidRequestContent: properties.network.serviceCidr: Field 'serviceCidr' cannot be updated
+InvalidRequestContent: properties.version.id: Field 'id' cannot be updated
