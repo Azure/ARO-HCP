@@ -116,25 +116,25 @@ tests:
         summary: "API is slowly but steadily burning its 28 day availability error budget (99% SLO)"
         description: "This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days."
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
-# Test 5: Edge case - exactly at 99% threshold (should not fire critical alert)
+# Test 5: Edge case - just below critical threshold (should not fire critical alert)
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 99.01% success rate (0.99% error rate) - just below 1% SLO breach
-    values: "9901+9901x80"
+    # 99.95% success rate (0.05% error rate) - just below 30m+6h threshold
+    values: "99950+99950x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # 0.99% error rate - just below threshold
-    values: "99+99x80"
+    # 0.05% error rate - just below 30m+6h threshold (0.056)
+    values: "50+50x80"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 0.99 # 0.99% error rate / 1% budget = 0.99x burn rate
+      value: 0.05 # 0.05% error rate / 1% budget = 0.05x burn rate (rounded to 0.01)
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
-    # Should not fire - below critical threshold (< 13.44)
+    # Should not fire - just below 30m+6h threshold (0.05 < 0.056)
 # Test 6: Prometheus replica handling (deduplication)
 - interval: 1m
   input_series:
