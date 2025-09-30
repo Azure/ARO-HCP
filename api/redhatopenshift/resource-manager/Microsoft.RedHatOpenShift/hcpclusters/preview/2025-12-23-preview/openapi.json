@@ -1673,6 +1673,19 @@
         ]
       }
     },
+    "EffectiveOutboundIp": {
+      "type": "object",
+      "description": "Represents an effective outbound IP resource of the cluster's public load balancer",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/PublicIpAddressResourceId",
+          "description": "The fully qualified Azure resource ID of an IP address resource"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
     "EtcdDataEncryptionProfile": {
       "type": "object",
       "description": "The ETCD data encryption settings.",
@@ -2546,6 +2559,89 @@
         "key"
       ]
     },
+    "LoadBalancerProfile": {
+      "type": "object",
+      "description": "A representation of the cluster's public load balancer.",
+      "properties": {
+        "managedOutboundIps": {
+          "$ref": "#/definitions/ManagedOutboundIps",
+          "description": "The desired managed outbound IPs for the cluster's public load balancer",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "effectiveOutboundIps": {
+          "type": "array",
+          "description": "The list of effective outbound IP addresses of the cluster's public load balancer",
+          "items": {
+            "$ref": "#/definitions/EffectiveOutboundIp"
+          },
+          "readOnly": true
+        }
+      },
+      "required": [
+        "managedOutboundIps",
+        "effectiveOutboundIps"
+      ]
+    },
+    "LoadBalancerProfileUpdate": {
+      "type": "object",
+      "description": "A representation of the cluster's public load balancer.",
+      "properties": {
+        "managedOutboundIps": {
+          "$ref": "#/definitions/ManagedOutboundIpsUpdate",
+          "description": "The desired managed outbound IPs for the cluster's public load balancer",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "ManagedOutboundIps": {
+      "type": "object",
+      "description": "Represents the desired managed outbound IPs for the cluster's public load balancer.",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Represents the desired number of IPv4 outbound addresses.",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 20,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "count"
+      ]
+    },
+    "ManagedOutboundIpsUpdate": {
+      "type": "object",
+      "description": "Represents the desired managed outbound IPs for the cluster's public load balancer.",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Represents the desired number of IPv4 outbound addresses.",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 20,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "NetworkProfile": {
       "type": "object",
       "description": "OpenShift networking configuration",
@@ -3139,6 +3235,15 @@
             "create"
           ]
         },
+        "loadBalancer": {
+          "$ref": "#/definitions/LoadBalancerProfile",
+          "description": "The cluster's load balancer configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "networkSecurityGroupId": {
           "$ref": "#/definitions/NetworkSecurityGroupResourceId",
           "description": "ResourceId for the NSG (network security group) attached to the cluster subnet\n\nNote that NSGs cannot be reused for other ARO-HCP clusters.",
@@ -3174,6 +3279,15 @@
       "type": "object",
       "description": "Azure specific configuration",
       "properties": {
+        "loadBalancer": {
+          "$ref": "#/definitions/LoadBalancerProfileUpdate",
+          "description": "The cluster's load balancer configuration",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfileUpdate",
           "description": "The configuration that the operators of the cluster have to authenticate to Azure",
@@ -3239,6 +3353,18 @@
         ]
       },
       "readOnly": true
+    },
+    "PublicIpAddressResourceId": {
+      "type": "string",
+      "format": "arm-id",
+      "description": "A type definition that refers the id to an Azure Resource Manager resource.",
+      "x-ms-arm-id-details": {
+        "allowedResources": [
+          {
+            "type": "Microsoft.Network/publicIPAddresses"
+          }
+        ]
+      }
     },
     "RoleDefinition": {
       "type": "object",
