@@ -72,6 +72,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		}
 	}
 	artifactDir = filepath.Join(artifactDir, t.Name())
+	t.Logf("ARTIFACT_DIR: %s\n", artifactDir)
 	if err := os.MkdirAll(artifactDir, 0755); err != nil {
 		return nil, nil, fmt.Errorf("failed to create artifact directory %s: %w", artifactDir, err)
 	}
