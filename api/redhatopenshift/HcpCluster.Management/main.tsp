@@ -19,8 +19,14 @@ interface Operations extends Azure.ResourceManager.Operations {}
 /** The available API versions. */
 enum Versions {
   /** 2024-06-10-preview version */
-  @useDependency(Azure.ResourceManager.Versions.v1_0_Preview_1)
   @useDependency(Azure.Core.Versions.v1_0_Preview_1)
+  @useDependency(Azure.ResourceManager.Versions.v1_0_Preview_1)
   @armCommonTypesVersion(Azure.ResourceManager.CommonTypes.Versions.v6)
   v2024_06_10_preview: "2024-06-10-preview",
+
+  /** 2025-12-23-preview version */
+  @useDependency(Azure.Core.Versions.v1_0_Preview_2)
+  @useDependency(Azure.ResourceManager.Versions.v1_0_Preview_1)
+  @armCommonTypesVersion(Azure.ResourceManager.CommonTypes.Versions.v6)
+  v2025_12_23_preview: "2025-12-23-preview",
 }
