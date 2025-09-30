@@ -1,1 +1,1 @@
-InvalidRequestContent: properties.version.id: Field 'id' is required when 'channelGroup' is not 'stable'
+InvalidRequestContent: properties.version.id: properties.version.id: Required value

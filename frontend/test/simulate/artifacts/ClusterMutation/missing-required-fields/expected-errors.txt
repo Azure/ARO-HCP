@@ -1,10 +1,11 @@
-InvalidRequestContent: properties.platform.subnetId: Missing required field 'subnetId'
-InvalidRequestContent: properties.platform.networkSecurityGroupId: Missing required field 'networkSecurityGroupId'
-InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Missing required field 'controlPlaneOperators[]'
-InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Invalid value '' for field 'controlPlaneOperators[]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)
-InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Missing required field 'dataPlaneOperators[]'
-InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Invalid value '' for field 'dataPlaneOperators[]' (must be a valid 'Microsoft.ManagedIdentity/userAssignedIdentities' resource ID)
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Missing required field 'name'
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Missing required field 'vaultName'
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Missing required field 'version'
-InvalidRequestContent: identity.type: Missing required field 'type'
+InvalidRequestContent: properties.platform.subnetId: properties.platform.subnetId: Required value
+InvalidRequestContent: properties.platform.networkSecurityGroupId: properties.platform.networkSecurityGroupId: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Required value
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Required value
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Required value
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Required value
+InvalidRequestContent: identity.type: identity.type: Required value
+InvalidRequestContent: identity.state: identity.state: Unsupported value: "": supported values: "None", "SystemAssigned", "SystemAssigned,UserAssigned", "UserAssigned"

@@ -172,11 +172,11 @@ func validateClusterProperties(ctx context.Context, op operation.Operation, fldP
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
 
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 	errs = append(errs, validateClusterImageRegistryProfile(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 
 	return errs

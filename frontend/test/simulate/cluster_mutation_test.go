@@ -171,6 +171,10 @@ func (e expectedFieldError) matches(actualError arm.CloudErrorBody) error {
 }
 
 func (tt *clusterMutationTest) runTest(t *testing.T) {
+	if t.Name() != "TestFrontendClusterMutation/change-channel" {
+		//t.Fatal("remove-me")
+	}
+
 	ctx := tt.ctx
 
 	isUpdateTest := false
