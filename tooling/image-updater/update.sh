@@ -96,21 +96,35 @@ create_update_branch() {
 run_image_update() {
     log "🔄 Running image update..."
 
-    local output
+    local stdout_output
     local exit_code
+    local tmpfile
 
-    output=$(make update 2>&1)
+    # Create a temporary file to capture stdout
+    tmpfile=$(mktemp)
+    trap "rm -f '$tmpfile'" RETURN
+
+    # Run make update:
+    # - stdout is captured to tmpfile AND displayed via tee to stderr (so user sees it)
+    # - stderr passes through directly to terminal (for Go logger output)
+    # - We capture the exit code
+    set +e
+    make update 2>&1 | tee "$tmpfile" >&2
     exit_code=$?
+    set -e
+
+    stdout_output=$(cat "$tmpfile")
 
     if [[ $exit_code -ne 0 ]]; then
         log "❌ make update failed with exit code $exit_code"
-        echo "$output"
         exit 1
     fi
 
-    if echo "$output" | grep -q "=== COMMIT MESSAGE ==="; then
+    # Check if commit message marker exists in the combined output
+    if echo "$stdout_output" | grep -q "=== COMMIT MESSAGE ==="; then
         log "✅ Image updates found"
-        echo "$output" | sed -n '/=== COMMIT MESSAGE ===/,$ p' | tail -n +2
+        # Extract everything after the marker
+        echo "$stdout_output" | sed -n '/=== COMMIT MESSAGE ===/,$ p' | tail -n +2
         return 0
     else
         log "ℹ️  No image updates needed"
