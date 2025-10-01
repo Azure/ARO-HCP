@@ -21,7 +21,10 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/randfill"
+
+	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
@@ -38,7 +41,57 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		roundTripHCPCluster(t, original)
+		roundTripInternalHCPCluster(t, original)
+	}
+}
+
+func TestRoundTripExternalInternalExternal(t *testing.T) {
+	t.Skip("zero value pointer don't roundtrip, making the comparison impossible until we fix that.")
+	seed := rand.Int63()
+	fuzzer := fuzzerFor([]interface{}{
+		func(j *HcpOpenShiftCluster, c randfill.Continue) {
+			c.FillNoCustom(j)
+
+			// TODO determine if this is intentional (required fields only and correctly reported) or accidental.
+			if j.Properties == nil {
+				newVal := &generated.HcpOpenShiftClusterProperties{}
+				c.Fill(newVal)
+				j.Properties = newVal
+			}
+			if j.ID == nil {
+				newVal := ptr.To("")
+				c.Fill(&newVal)
+				j.ID = newVal
+			}
+		},
+		func(j *generated.HcpOpenShiftClusterProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+
+			// zero values don't currently roundtrip.  This is a problem for expressivity and patching
+			// TODO determine if this is intentional (required fields only and correctly reported) or accidental.
+			if j.API != nil && reflect.DeepEqual(*j.API, generated.APIProfile{}) {
+				j.API = nil
+			}
+			if j.ClusterImageRegistry != nil && reflect.DeepEqual(*j.ClusterImageRegistry, generated.ClusterImageRegistryProfile{}) {
+				j.ClusterImageRegistry = nil
+			}
+			if j.DNS != nil && reflect.DeepEqual(*j.DNS, generated.DNSProfile{}) {
+				j.DNS = nil
+			}
+			if j.Etcd != nil && reflect.DeepEqual(*j.Etcd, generated.EtcdProfile{}) {
+				j.Etcd = nil
+			}
+			if j.Console != nil && reflect.DeepEqual(*j.Console, generated.ConsoleProfile{}) {
+				j.Console = nil
+			}
+		},
+	}, rand.NewSource(seed))
+
+	// Try a few times, since runTest uses random values.
+	for i := 0; i < 20; i++ {
+		original := &HcpOpenShiftCluster{}
+		fuzzer.Fill(original)
+		roundTripExternalHCPCluster(t, original)
 	}
 }
 
@@ -52,12 +105,31 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 	return f
 }
 
-func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
+func roundTripInternalHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
 	roundTrippedObj := &api.HCPOpenShiftCluster{}
 	externalObj.Normalize(roundTrippedObj)
+
+	// useful for debugging
+	//originalJSON, _ := json.MarshalIndent(original, "", "    ")
+	//intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
+	//resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
+	//fmt.Printf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
+
+	// we compare the JSON here because many of these types have private fields that cannot be introspected
+	if !reflect.DeepEqual(original, roundTrippedObj) {
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj))
+	}
+}
+
+func roundTripExternalHCPCluster(t *testing.T, original *HcpOpenShiftCluster) {
+	v := version{}
+	internalObj := &api.HCPOpenShiftCluster{}
+	original.Normalize(internalObj)
+
+	roundTrippedObj := v.NewHCPOpenShiftCluster(internalObj)
 
 	// useful for debugging
 	//originalJSON, _ := json.MarshalIndent(original, "", "    ")
