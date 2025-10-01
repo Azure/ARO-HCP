@@ -178,6 +178,7 @@ data:
         Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
         Database_Name HCPServiceLogs
         Table_Name containerLogs
+        ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 
     [OUTPUT]
@@ -190,6 +191,7 @@ data:
         Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
         Database_Name HCPServiceLogs
         Table_Name frontendContainerLogs
+        ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 
 
