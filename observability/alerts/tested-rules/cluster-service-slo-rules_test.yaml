@@ -3,23 +3,30 @@ rule_files:
 evaluation_interval: 1m
 tests:
 # Test 1: Normal operation - no errors, no alert should fire
+# This test verifies that when the API is operating normally with all successful requests,
+# no availability alerts should trigger. The burn rate should be 0.
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 100 requests per minute, all successful
+    # 100 requests per minute for 80 minutes, all successful (HTTP 200)
+    # Total duration: 80 minutes to cover all time windows (5m, 30m, 1h, 6h)
     values: "100+100x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="201"}'
-    # Additional successful requests
+    # 50 additional successful requests per minute (HTTP 201 - Created)
+    # Shows that different 2xx codes are all treated as successful
     values: "50+50x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # No 5xx errors
+    # 0 server errors (5xx) - no SLO violations
+    # The SLI monitors code=~"5..|0" so 5xx codes count as errors
     values: "0+0x80"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 0 # No errors = 0 burn rate
+      # Expected: 0 burn rate because error rate is 0%
+      # Burn rate = (error_rate / error_budget) where error_budget = 1 - SLO = 1 - 0.99 = 0.01 (1%)
+      value: 0
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
@@ -28,20 +35,27 @@ tests:
     alertname: ClustersServiceAPIAvailability6hto3dErrorBudgetBurn
     # Should not fire - no errors
 # Test 2: Fast burn rate - high error rate triggering critical alert (5m + 1h windows)
+# This test simulates a severe outage with 80% error rate, which should trigger
+# the critical alert after 5 minutes. Burn rate = 80% / 1% = 80x
+# Alert fires when: burnrate5m > 13.44 * 0.01 AND burnrate1h > 13.44 * 0.01
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 20% success rate (80% errors) for full test duration
+    # Only 20% of requests succeed (20 req/min for 80 minutes)
+    # This represents a severe service degradation
     values: "20+20x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # 80% error rate for full test duration
+    # 80% of requests fail with 5xx errors (80 req/min for 80 minutes)
+    # Total error rate: 80/(20+80) = 0.80 = 80%
     values: "80+80x80"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 80 # 80% error rate / 1% budget = 80x burn rate
+      # Expected: 80x burn rate
+      # Calculation: 80% error rate / 1% error budget = 80
+      value: 80
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
@@ -58,20 +72,27 @@ tests:
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
         summary: "Cluster Service API availability error budget burn rate is too high"
 # Test 3: Medium burn rate - triggering critical alert (30m + 6h windows)
+# This test simulates a moderate but sustained error rate (10%), which should trigger
+# the alert when both 30m and 6h burn rates exceed threshold. Burn rate = 10% / 1% = 10x
+# Alert fires when: burnrate30m > 5.6 * 0.01 AND burnrate6h > 5.6 * 0.01
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # Consistent 90% success rate (10% error rate)
+    # 90% success rate (90 req/min for 400 minutes = ~6.7 hours)
+    # Need enough data to cover the 6h window
     values: "90+90x400"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # Consistent 10% error rate
+    # 10% error rate (10 req/min for 400 minutes)
+    # Total error rate: 10/(90+10) = 0.10 = 10%
     values: "10+10x400"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate30m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
-    eval_time: 420m # 7 hours
+    eval_time: 420m # 7 hours - enough to cover 6h window
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate30m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 10 # 10% error rate / 1% budget = 10x burn rate
+      # Expected: 10x burn rate
+      # Calculation: 10% error rate / 1% error budget = 10
+      value: 10
   alert_rule_test:
   - eval_time: 420m # 7 hours - after 6h window + buffer
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
@@ -88,20 +109,28 @@ tests:
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
         summary: "Cluster Service API availability error budget burn rate is too high"
 # Test 4: Slow burn rate - triggering warning alert (6h + 3d windows)
+# This test simulates a slow but persistent error rate (1.5%), which should trigger
+# the warning alert when both 6h and 3d burn rates exceed threshold. Burn rate = 1.5% / 1% = 1.5x
+# Alert fires when: burnrate6h > 0.934 * 0.01 AND burnrate3d > 0.934 * 0.01
+# Requires 3 days (4320 minutes) of data to properly evaluate 3d window
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 98.5% success rate (1.5% error rate) - slow burn
-    values: "985+985x4320" # 3 days worth of data
+    # 98.5% success rate (985 req/min for 4320 minutes = 3 days)
+    # This is below the 99% SLO but above the 0.934% threshold for slow burn
+    values: "985+985x4320"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # 1.5% error rate consistently
+    # 1.5% error rate (15 req/min for 4320 minutes = 3 days)
+    # Total error rate: 15/(985+15) = 0.015 = 1.5%
     values: "15+15x4320"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate6h{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
-    eval_time: 4400m # After 3 days
+    eval_time: 4400m # After 3 days + buffer
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate6h{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 1.5 # 1.5% error rate / 1% budget = 1.5x burn rate
+      # Expected: 1.5x burn rate
+      # Calculation: 1.5% error rate / 1% error budget = 1.5
+      value: 1.5
   alert_rule_test:
   - eval_time: 4400m # After 3 days + buffer
     alertname: ClustersServiceAPIAvailability6hto3dErrorBudgetBurn
@@ -198,24 +227,32 @@ tests:
   - eval_time: 135m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
     # Should not fire - error rate has been recovered for 70 minutes (1h+ window clear)
-# Test 8: Mixed status codes (only 5xx should count as errors)
+# Test 8: Mixed status codes - verifies that only 5xx errors count as SLO breaches
+# IMPORTANT: This test demonstrates that 4xx (client errors) do NOT count against the SLO.
+# Only 5xx (server errors) count as SLO violations, as defined by code=~"5..|0" in the alert expr.
+# Distribution: 60% success (200), 20% client error (400), 20% server error (500)
+# Expected burn rate: 20% / 1% = 20x (only counting the 5xx errors)
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 2xx successful
+    # 60% of requests succeed (HTTP 200)
     values: "60+60x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="400"}'
-    # 4xx client errors (should not count as SLO breach)
+    # 20% are client errors (HTTP 400) - these DO NOT count as SLO violations
+    # Client errors are the client's fault, not the service's fault
     values: "20+20x80"
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="500"}'
-    # 5xx server errors (should count as SLO breach) - 20% error rate
+    # 20% are server errors (HTTP 500) - these DO count as SLO violations
+    # Error rate for SLO: 20/(60+20+20) = 0.20 = 20%
     values: "20+20x80"
   promql_expr_test:
   - expr: availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}
     eval_time: 70m
     exp_samples:
     - labels: 'availability:api_inbound_request_count:burnrate5m{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics"}'
-      value: 20 # 20% error rate / 1% budget = 20x burn rate
+      # Expected: 20x burn rate (only server errors count, not client errors)
+      # Calculation: 20% server error rate / 1% error budget = 20
+      value: 20
   alert_rule_test:
   - eval_time: 70m
     alertname: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
@@ -232,19 +269,25 @@ tests:
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
         summary: "Cluster Service API availability error budget burn rate is too high"
 # Test 9: P99 Latency - Normal operation (no latency issues, no alert should fire)
+# This test verifies that when API latency is good (all requests < 1s), no P99 latency alert fires.
+# P99 SLO: 99% of successful (non-5xx) requests should complete within 1 second.
+# This test shows 100% of requests under 1s, which exceeds the 99% SLO target.
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 1000 successful requests per minute - larger numbers for stability
+    # 1000 successful requests per minute (use larger numbers for numerical stability)
     values: "1000+1000x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="0.1", code="200"}'
-    # 900 requests under 0.1s (90%)
+    # Histogram bucket: 900 requests completed in ≤0.1s (90% of requests)
+    # This is for P90 latency tracking (separate SLO)
     values: "900+900x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="1", code="200"}'
-    # 1000 requests under 1s (100% - perfect P99 performance)
+    # Histogram bucket: 1000 requests completed in ≤1s (100% of requests)
+    # Perfect P99 performance: 100% under 1s exceeds 99% SLO requirement
     values: "1000+1000x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="+Inf", code="200"}'
-    # All requests
+    # Histogram bucket: all requests (regardless of duration)
+    # This bucket always equals the total request count
     values: "1000+1000x80"
   alert_rule_test:
   - eval_time: 70m
@@ -276,19 +319,24 @@ tests:
     alertname: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
     # Should not fire - no requests are slow
 # Test 11: P99 Latency - Critical burn rate triggering alert
+# This test simulates a latency degradation where only 80% of requests complete within 1s.
+# P99 SLO: 99% of requests should complete within 1s, but we only have 80%.
+# Latency error rate: (1 - 80%) = 20% of requests violate the 1s threshold
+# Burn rate: 20% / 1% = 20x, which exceeds the critical threshold (13.44x)
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 1000 requests per minute
+    # 1000 successful requests per minute
     values: "1000+1000x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="0.1", code="200"}'
-    # 500 under 0.1s (50%)
+    # Histogram bucket: 500 requests completed in ≤0.1s (50%)
     values: "500+500x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="1", code="200"}'
-    # 800 under 1s (80% - violating P99 SLO significantly)
+    # Histogram bucket: 800 requests completed in ≤1s (80%)
+    # This means 20% of requests took >1s, violating the P99 SLO (which requires 99% ≤1s)
     values: "800+800x80"
   - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="+Inf", code="200"}'
-    # All requests
+    # All requests (total count)
     values: "1000+1000x80"
   alert_rule_test:
   - eval_time: 70m
