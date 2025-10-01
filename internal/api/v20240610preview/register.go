@@ -82,3 +82,10 @@ func init() {
 	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(generated.PossibleUsernameClaimPrefixPolicyValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
 }
+
+func RegisterVersion(validationPathMappers *api.ValidationPathMappers) error {
+	if err := validationPathMappers.AddMapperForVersion(versionedInterface.String(), InternalToExternalValidationPathMapping); err != nil {
+		return err
+	}
+	return nil
+}

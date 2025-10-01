@@ -58,6 +58,8 @@ type Frontend struct {
 	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
+
+	validationPathMappers *api.ValidationPathMappers
 }
 
 func NewFrontend(

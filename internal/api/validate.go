@@ -19,14 +19,53 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
 	semver "github.com/hashicorp/go-version"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
+
+type ValidationPathMapperFunc func(path *field.Path) *field.Path
+
+func NoOpValidationPathMapper(path *field.Path) *field.Path {
+	return path
+}
+
+type ValidationPathMappers struct {
+	lock                sync.RWMutex
+	versionToPathMapper map[string]ValidationPathMapperFunc
+}
+
+func NewValidationPathMappers() ValidationPathMappers {
+	return ValidationPathMappers{
+		versionToPathMapper: map[string]ValidationPathMapperFunc{},
+	}
+}
+
+func (v *ValidationPathMappers) MapperForVersion(version string) ValidationPathMapperFunc {
+	v.lock.RLock()
+	defer v.lock.RUnlock()
+	if _, ok := v.versionToPathMapper[version]; !ok {
+		return NoOpValidationPathMapper
+	}
+	return v.versionToPathMapper[version]
+}
+
+func (v *ValidationPathMappers) AddMapperForVersion(version string, validationPathMapperFn ValidationPathMapperFunc) error {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	if _, exists := v.versionToPathMapper[version]; exists {
+		return fmt.Errorf("mapper for version %s already exists", version)
+	}
+	v.versionToPathMapper[version] = validationPathMapperFn
+	return nil
+}
 
 // GetJSONTagName extracts the JSON field name from the "json" key in
 // a struct tag. Returns an empty string if no "json" key is present,
