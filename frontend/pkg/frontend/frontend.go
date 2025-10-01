@@ -499,6 +499,238 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	updating := resourceDoc != nil
+
+	if updating {
+		f.updateHCPCluster(writer, request, resourceItemID, resourceDoc)
+		return
+	}
+
+	f.createHCPCluster(writer, request)
+}
+
+func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) {
+	var err error
+
+	// This handles both PUT and PATCH requests. PATCH requests will
+	// never create a new resource. The only other notable difference
+	// is the target struct that request bodies are overlayed onto:
+	//
+	// PUT requests overlay the request body onto a default resource
+	// struct, which only has API-specified non-zero default values.
+	// This means all required properties must be specified in the
+	// request body, whether creating or updating a resource.
+	//
+	// PATCH requests overlay the request body onto a resource struct
+	// that represents an existing resource to be updated.
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	resourceID, err := ResourceIDFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodPut:
+		// expected
+	case http.MethodPatch:
+		// PATCH requests never create a new resource.
+		logger.Error("Resource not found")
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+	default:
+		logger.Error("unexpected method: " + request.Method)
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+
+	}
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	systemData, err := SystemDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	operationRequest := database.OperationRequestCreate
+
+	// Initialize top-level resource fields from the request path.
+	// If the request body specifies these fields, validation should
+	// accept them as long as they match (case-insensitively) values
+	// from the request path.
+	newExternalCluster := versionedInterface.NewHCPOpenShiftCluster(api.NewDefaultHCPOpenShiftCluster(resourceID))
+	successStatusCode := http.StatusCreated
+
+	cloudError := api.ApplyRequestBody(request, body, newExternalCluster)
+	if cloudError != nil {
+		logger.Error(cloudError.Error())
+		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+
+	// this sets many default values, which are then sometimes overridden by Normalize
+	newInternalCluster := &api.HCPOpenShiftCluster{}
+	newExternalCluster.Normalize(newInternalCluster)
+	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster)
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+
+	// prefer new validation.  Have a fallback for old validation.
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
+		return
+	}
+
+	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
+		return
+	}
+
+	newCosmosCluster := database.NewResourceDocument(resourceID)
+	newCosmosCluster.InternalID, err = ocm.NewInternalID(resultingClusterServiceCluster.HREF())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	transaction := f.dbClient.NewTransaction(pk)
+
+	operationDoc := database.NewOperationDocument(operationRequest, newCosmosCluster.ResourceID, newCosmosCluster.InternalID, correlationData)
+	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+
+	f.ExposeOperation(writer, request, operationID, transaction)
+
+	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	patchOperations.SetActiveOperationID(&operationID)
+	patchOperations.SetProvisioningState(operationDoc.Status)
+
+	// TODO some of this becomes extraneous once we build the cosmosCluster from the internalCluster
+	// Record the latest system data values form ARM, if present.
+	if systemData != nil {
+		patchOperations.SetSystemData(systemData)
+	}
+
+	// Record managed identity type an any system-assigned identifiers.
+	// Omit the user-assigned identities map since that is reconstructed
+	// from Cluster Service data.
+	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
+		PrincipalID: newInternalCluster.Identity.PrincipalID,
+		TenantID:    newInternalCluster.Identity.TenantID,
+		Type:        newInternalCluster.Identity.Type,
+	})
+
+	// Here the difference between a nil map and an empty map is significant.
+	// If the Tags map is nil, that means it was omitted from the request body,
+	// so we leave any existing tags alone. If the Tags map is non-nil, even if
+	// empty, that means it was specified in the request body and should fully
+	// replace any existing tags.
+	if newInternalCluster.Tags != nil {
+		patchOperations.SetTags(newInternalCluster.Tags)
+	}
+
+	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+
+	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Read back the resource document so the response body is accurate.
+	resultingCosmosCluster, err := transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingCosmosCluster, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, cosmosID string, oldCosmosCluster *database.ResourceDocument) {
+	var err error
+
+	// This handles both PUT and PATCH requests. PATCH requests will
+	// never create a new resource. The only other notable difference
+	// is the target struct that request bodies are overlayed onto:
+	//
+	// PUT requests overlay the request body onto a default resource
+	// struct, which only has API-specified non-zero default values.
+	// This means all required properties must be specified in the
+	// request body, whether creating or updating a resource.
+	//
+	// PATCH requests overlay the request body onto a resource struct
+	// that represents an existing resource to be updated.
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -534,146 +766,95 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	operationRequest := database.OperationRequestUpdate
+	var oldExternalCluster api.VersionedHCPOpenShiftCluster
+	var newExternalCluster api.VersionedHCPOpenShiftCluster
+	var successStatusCode int
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
+	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldCosmosCluster.InternalID)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
+		return
+	}
+
+	internalOldCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, oldClusterServiceCluster)
+	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var updating = (resourceDoc != nil)
-	var operationRequest database.OperationRequest
+	// Do not set the TrackedResource.Tags field here. We need
+	// the Tags map to remain nil so we can see if the request
+	// body included a new set of resource tags.
 
-	var versionedCurrentCluster api.VersionedHCPOpenShiftCluster
-	var versionedRequestCluster api.VersionedHCPOpenShiftCluster
-	var successStatusCode int
+	internalOldCluster.SystemData = oldCosmosCluster.SystemData
+	internalOldCluster.Properties.ProvisioningState = oldCosmosCluster.ProvisioningState
+	if internalOldCluster.Identity == nil {
+		internalOldCluster.Identity = &arm.ManagedServiceIdentity{}
+	}
 
-	if updating {
-		csCluster, err := f.clusterServiceClient.GetCluster(ctx, resourceDoc.InternalID)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
-		}
+	if oldCosmosCluster.Identity != nil {
+		internalOldCluster.Identity.PrincipalID = oldCosmosCluster.Identity.PrincipalID
+		internalOldCluster.Identity.TenantID = oldCosmosCluster.Identity.TenantID
+		internalOldCluster.Identity.Type = oldCosmosCluster.Identity.Type
+	}
 
-		hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+	// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
+	switch request.Method {
+	case http.MethodPut:
+		// Initialize versionedRequestCluster to include both
+		// non-zero default values and current read-only values.
+		newInternalCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
 
-		// Do not set the TrackedResource.Tags field here. We need
-		// the Tags map to remain nil so we can see if the request
-		// body included a new set of resource tags.
+		// Some optional create-only fields have dynamic default
+		// values that are determined downstream of this phase of
+		// request processing. To ensure idempotency, add these
+		// values to the target struct for the incoming request.
+		newInternalCluster.Properties.Version.ID = internalOldCluster.Properties.Version.ID
+		newInternalCluster.Properties.DNS.BaseDomainPrefix = internalOldCluster.Properties.DNS.BaseDomainPrefix
+		newInternalCluster.Properties.Platform.ManagedResourceGroup = internalOldCluster.Properties.Platform.ManagedResourceGroup
 
-		hcpCluster.SystemData = resourceDoc.SystemData
-		hcpCluster.Properties.ProvisioningState = resourceDoc.ProvisioningState
-		if hcpCluster.Identity == nil {
-			hcpCluster.Identity = &arm.ManagedServiceIdentity{}
-		}
-
-		if resourceDoc.Identity != nil {
-			hcpCluster.Identity.PrincipalID = resourceDoc.Identity.PrincipalID
-			hcpCluster.Identity.TenantID = resourceDoc.Identity.TenantID
-			hcpCluster.Identity.Type = resourceDoc.Identity.Type
-		}
-
-		operationRequest = database.OperationRequestUpdate
-
-		// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
-		switch request.Method {
-		case http.MethodPut:
-			// Initialize versionedRequestCluster to include both
-			// non-zero default values and current read-only values.
-			reqCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
-
-			// Some optional create-only fields have dynamic default
-			// values that are determined downstream of this phase of
-			// request processing. To ensure idempotency, add these
-			// values to the target struct for the incoming request.
-			reqCluster.Properties.Version.ID = hcpCluster.Properties.Version.ID
-			reqCluster.Properties.DNS.BaseDomainPrefix = hcpCluster.Properties.DNS.BaseDomainPrefix
-			reqCluster.Properties.Platform.ManagedResourceGroup = hcpCluster.Properties.Platform.ManagedResourceGroup
-
-			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
-			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
-			successStatusCode = http.StatusOK
-		case http.MethodPatch:
-			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			successStatusCode = http.StatusAccepted
-		}
-	} else {
-		operationRequest = database.OperationRequestCreate
-
-		switch request.Method {
-		case http.MethodPut:
-			// Initialize top-level resource fields from the request path.
-			// If the request body specifies these fields, validation should
-			// accept them as long as they match (case-insensitively) values
-			// from the request path.
-			hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
-
-			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
-			successStatusCode = http.StatusCreated
-		case http.MethodPatch:
-			// PATCH requests never create a new resource.
-			logger.Error("Resource not found")
-			arm.WriteResourceNotFoundError(writer, resourceID)
-			return
-		}
-
-		resourceDoc = database.NewResourceDocument(resourceID)
+		oldExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
+		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(newInternalCluster)
+		api.CopyReadOnlyValues(oldExternalCluster, newExternalCluster)
+		successStatusCode = http.StatusOK
+	case http.MethodPatch:
+		oldExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
+		// TODO find a way to represent the desired change without starting from internal state here (very confusing)
+		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
+		successStatusCode = http.StatusAccepted
+	default:
+		logger.Error("unexpected method: " + request.Method)
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
+	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, oldCosmosCluster)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
-	cloudError = api.ApplyRequestBody(request, body, versionedRequestCluster)
+	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
+	cloudError = api.ApplyRequestBody(request, body, newExternalCluster)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
-	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
-	newValidationErr := func(prevValidationErr *arm.CloudError) *arm.CloudError {
-		newInternalCluster := &api.HCPOpenShiftCluster{}
-		versionedRequestCluster.Normalize(newInternalCluster)
+	newInternalCluster := &api.HCPOpenShiftCluster{}
+	newExternalCluster.Normalize(newInternalCluster)
 
-		var validationErrs field.ErrorList
-		if updating {
-			oldInternalCluster := &api.HCPOpenShiftCluster{}
-			versionedCurrentCluster.Normalize(oldInternalCluster)
-			validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
-
-		} else {
-			validationErrs = validation.ValidateClusterCreate(ctx, newInternalCluster)
-
-		}
-
-		switch {
-		case len(validationErrs) > 0 && prevValidationErr == nil:
-			logger.Error(fmt.Sprintf("new validation got errors, but old validation did not: newErrors=%v", validationErrs))
-			// TODO can we panic here?  do panics go to sentry or similar?
-		case len(validationErrs) == 0 && prevValidationErr != nil:
-			logger.Error(fmt.Sprintf("new validation missing errors, but old validation detected errors: oldEerrors=%v", prevValidationErr))
-			// TODO can we panic here?  do panics go to sentry or similar?
-		}
-
-		return arm.CloudErrorFromFieldErrors(validationErrs)
-
-	}(cloudError)
+	var validationErrs field.ErrorList
+	oldInternalCluster := &api.HCPOpenShiftCluster{}
+	oldExternalCluster.Normalize(oldInternalCluster)
+	validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
 
 	// prefer new validation.  Have a fallback for old validation.
 	if newValidationErr != nil {
@@ -682,59 +863,27 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		return
 	}
 
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	hcpCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
-	versionedRequestCluster.Normalize(hcpCluster)
-
-	csClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, hcpCluster, updating)
+	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	var csCluster *arohcpv1alpha1.Cluster
-
-	if updating {
-		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.UpdateCluster(ctx, resourceDoc.InternalID, csClusterBuilder)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
-		}
-	} else {
-		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		csCluster, err = f.clusterServiceClient.PostCluster(ctx, csClusterBuilder)
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
-		}
-
-		resourceDoc.InternalID, err = ocm.NewInternalID(csCluster.HREF())
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
+	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldCosmosCluster.InternalID, newClusterServiceClusterBuilder)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
+		return
 	}
 
+	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)
-
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, oldCosmosCluster.ResourceID, oldCosmosCluster.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
-
-	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterHCPClusterState, nil)
-	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
@@ -750,9 +899,9 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	// Omit the user-assigned identities map since that is reconstructed
 	// from Cluster Service data.
 	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
-		PrincipalID: hcpCluster.Identity.PrincipalID,
-		TenantID:    hcpCluster.Identity.TenantID,
-		Type:        hcpCluster.Identity.Type,
+		PrincipalID: newInternalCluster.Identity.PrincipalID,
+		TenantID:    newInternalCluster.Identity.TenantID,
+		Type:        newInternalCluster.Identity.Type,
 	})
 
 	// Here the difference between a nil map and an empty map is significant.
@@ -760,11 +909,11 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	// so we leave any existing tags alone. If the Tags map is non-nil, even if
 	// empty, that means it was specified in the request body and should fully
 	// replace any existing tags.
-	if hcpCluster.Tags != nil {
-		patchOperations.SetTags(hcpCluster.Tags)
+	if newInternalCluster.Tags != nil {
+		patchOperations.SetTags(newInternalCluster.Tags)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -776,14 +925,14 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingCosmosCluster, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
