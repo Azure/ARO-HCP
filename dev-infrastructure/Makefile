@@ -320,7 +320,7 @@ kusto:
 	MGMT_LOGS_MSI=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
 	az deployment group create \
 		--name kusto-dev \
- 		--resource-group jbollglobal \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
 		--template-file templates/kusto-dev.bicep \
 		$(PROMPT_TO_CONFIRM) \
