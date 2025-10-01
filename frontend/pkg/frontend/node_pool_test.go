@@ -167,6 +167,10 @@ func TestCreateNodePool(t *testing.T) {
 						State("enabled")).
 					Version(arohcpv1alpha1.NewVersion().
 						ChannelGroup("stable")).
+					Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+						PodPriorityThreshold(-10).
+						MaxNodeProvisionTime("15m").
+						MaxPodGracePeriod(600)).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().
