@@ -99,7 +99,6 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   name: 'HCPCustomerLogs'
   kind: 'ReadWrite'
 
-
   resource mgmtIngest 'principalAssignments' = {
     name: 'mgmtIngest'
     properties: {
