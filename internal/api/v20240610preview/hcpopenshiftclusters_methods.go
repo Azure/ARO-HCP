@@ -116,15 +116,15 @@ func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) generated
 		return generated.EtcdDataEncryptionProfile{}
 	}
 	return generated.EtcdDataEncryptionProfile{
-		CustomerManaged:   api.PtrOrNil(newCustomerManagedEncryptionProfile(from.CustomerManaged)),
+		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
 		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
-func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) generated.CustomerManagedEncryptionProfile {
+func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
 	if from == nil {
-		return generated.CustomerManagedEncryptionProfile{}
+		return nil
 	}
-	return generated.CustomerManagedEncryptionProfile{
+	return &generated.CustomerManagedEncryptionProfile{
 		Kms:            api.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
