@@ -69,24 +69,36 @@ type ConfigSource struct {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "digest-analyzer <config-dir>",
+	Use:   "digest-analyzer <config-dir> [config-dir2]",
 	Short: "Analyze ARO-HCP component image digests across environments",
 	Long: `digest-analyzer parses ARO-HCP configuration files and extracts
 image digests for all components across different cloud environments.
 
 It supports multiple output formats and tracks git commit information
-for each digest to provide deployment history.`,
+for each digest to provide deployment history.
+
+When two config directories are provided, environments from the first
+directory are prefixed with 'left.' and from the second with 'right.'.`,
 	Example: `  digest-analyzer config
   digest-analyzer -o csv config
   digest-analyzer --output table config
   digest-analyzer -e dev,int,stg config
-  digest-analyzer --envs dev,cspr --output csv config`,
-	Args: cobra.ExactArgs(1),
+  digest-analyzer --envs dev,cspr --output csv config
+  digest-analyzer config1 config2 -e left.stg,right.prod`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configDir := args[0]
+		var allDigests []DigestInfo
 
-		// Parse all environments with proper precedence
-		allDigests := parseAllEnvironments(configDir)
+		if len(args) == 1 {
+			// Single config directory - original behavior
+			configDir := args[0]
+			allDigests = parseAllEnvironments(configDir, "")
+		} else {
+			// Two config directories - parse both with prefixes
+			leftDigests := parseAllEnvironments(args[0], "left")
+			rightDigests := parseAllEnvironments(args[1], "right")
+			allDigests = append(leftDigests, rightDigests...)
+		}
 
 		// Create table rows from digests
 		rows := createTableRows(allDigests)
@@ -179,7 +191,7 @@ for each digest to provide deployment history.`,
 func init() {
 	rootCmd.Flags().StringSliceVarP(&outputFormats, "output", "o", []string{"table"}, "Output format(s) (table|gs|narrow|md|wide)")
 	rootCmd.Flags().StringVarP(&envFilter, "envs", "e", "", "Comma-separated list of environments to show (e.g. dev,int,stg)")
-	rootCmd.Flags().StringVarP(&componentFilter, "component", "c", "", "Filter by component name (case-insensitive partial match)")
+	rootCmd.Flags().StringVarP(&componentFilter, "component", "c", "", "Filter by component name(s) - comma-separated list (case-insensitive partial match)")
 }
 
 func main() {
@@ -189,7 +201,7 @@ func main() {
 }
 
 // parseAllEnvironments parses all required environments with proper precedence
-func parseAllEnvironments(configDir string) []DigestInfo {
+func parseAllEnvironments(configDir string, prefix string) []DigestInfo {
 	var allDigests []DigestInfo
 
 	// Define environment configurations with proper precedence order
@@ -243,7 +255,7 @@ func parseAllEnvironments(configDir string) []DigestInfo {
 
 	// Process each environment
 	for _, envConfig := range envConfigs {
-		envDigests := parseEnvironment(configDir, envConfig)
+		envDigests := parseEnvironment(configDir, envConfig, prefix)
 		allDigests = append(allDigests, envDigests...)
 	}
 
@@ -251,7 +263,7 @@ func parseAllEnvironments(configDir string) []DigestInfo {
 }
 
 // parseEnvironment parses a single environment with proper precedence
-func parseEnvironment(configDir string, envConfig EnvConfig) []DigestInfo {
+func parseEnvironment(configDir string, envConfig EnvConfig, prefix string) []DigestInfo {
 	// Parse base config files
 	configs := make(map[string]map[string]interface{})
 	for _, source := range envConfig.Sources {
@@ -278,7 +290,11 @@ func parseEnvironment(configDir string, envConfig EnvConfig) []DigestInfo {
 	}
 
 	// Extract digests from merged config
-	digests := extractDigestsWithEnv(mergedConfig, envConfig.Cloud, envConfig.Environment, envConfig.Sources, configDir)
+	environmentName := envConfig.Environment
+	if prefix != "" {
+		environmentName = prefix + "." + envConfig.Environment
+	}
+	digests := extractDigestsWithEnv(mergedConfig, envConfig.Cloud, environmentName, envConfig.Sources, configDir)
 
 	// Add merge time and commit hash information
 	for i := range digests {
@@ -713,20 +729,30 @@ func filterByEnvironments(rows []TableRow, envFilter string) []TableRow {
 	return filteredRows
 }
 
-// filterByComponent filters table rows to only include components matching the filter (case-insensitive partial match)
+// filterByComponent filters table rows to only include components matching the filter(s) (case-insensitive partial match)
 func filterByComponent(rows []TableRow, componentFilter string) []TableRow {
 	if componentFilter == "" {
 		return rows
 	}
 
-	// Convert filter to lowercase for case-insensitive matching
-	filterLower := strings.ToLower(componentFilter)
+	// Parse the comma-separated component list
+	filters := make([]string, 0)
+	for _, filter := range strings.Split(componentFilter, ",") {
+		filter = strings.TrimSpace(filter)
+		if filter != "" {
+			filters = append(filters, strings.ToLower(filter))
+		}
+	}
 
-	// Filter rows to only include components that contain the filter string
+	// Filter rows to only include components that match any of the filters
 	var filteredRows []TableRow
 	for _, row := range rows {
-		if strings.Contains(strings.ToLower(row.Component), filterLower) {
-			filteredRows = append(filteredRows, row)
+		componentLower := strings.ToLower(row.Component)
+		for _, filter := range filters {
+			if strings.Contains(componentLower, filter) {
+				filteredRows = append(filteredRows, row)
+				break
+			}
 		}
 	}
 
@@ -757,13 +783,34 @@ func getCloudOrder(cloud string) int {
 }
 
 func getEnvOrder(env string) int {
+	// Handle prefixed environments
+	baseEnv := env
+	prefix := ""
+	if strings.Contains(env, ".") {
+		parts := strings.SplitN(env, ".", 2)
+		if len(parts) == 2 {
+			prefix = parts[0]
+			baseEnv = parts[1]
+		}
+	}
+
 	order := map[string]int{
 		"dev": 0, "cspr": 1, "int": 2, "stg": 3, "prod": 4,
 	}
-	if idx, exists := order[env]; exists {
-		return idx
+
+	baseOrder := 999
+	if idx, exists := order[baseEnv]; exists {
+		baseOrder = idx
 	}
-	return 999
+
+	// Adjust order based on prefix: left comes before right
+	if prefix == "left" {
+		return baseOrder * 10
+	} else if prefix == "right" {
+		return baseOrder * 10 + 5
+	}
+
+	return baseOrder
 }
 
 func displayNarrow(rows []TableRow) {
