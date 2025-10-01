@@ -1,32 +1,34 @@
 .create-merge table containerLogs (
-    log: dynamic,
-    tag: string,
     timestamp: datetime,
+    log: dynamic,
+    environment: string,
+    cluster: string,
   	namespace: string,
-    container_image: string,
+    containerName: string,
+    containerImage: string,
   	host: string,
     labels: string,
     podName: string,
     region: string,
-    cluster: string,
-    environment: string,
+    tag: string,
     unmatched: dynamic
 )
 
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
-   {"column":"log","Properties":{"path":"$.log.log"}},
    {"column":"timestamp","Properties":{"path":"$.timestamp"}},
-   {"column":"tag","Properties":{"path":"$.tag"}},
+   {"column":"log","Properties":{"path":"$.log.log"}},
+   {"column":"environment","Properties":{"path":"$.environment"}},
    {"column":"region","Properties":{"path":"$.region"}},
    {"column":"cluster","Properties":{"path":"$.cluster"}},
-   {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
-   {"column":"container_image","Properties":{"path":"$.log.kubernetes.container_image"}},
    {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
+   {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
+   {"column":"containerImage","Properties":{"path":"$.log.kubernetes.container_image"}},
+   {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
    {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
    {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
-   {"column":"environment","Properties":{"path":"$.environment"}},
+   {"column":"tag","Properties":{"path":"$.tag"}},
    {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
  ```

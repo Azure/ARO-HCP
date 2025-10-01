@@ -1,16 +1,11 @@
 .create-merge table backendContainerLogs (
-    log: dynamic,
-    tag: string,
     timestamp: datetime,
-  	namespace: string,
-    container_image: string,
-  	host: string,
-    labels: string,
-    podName: string,
-    region: string,
-    cluster: string,
+    log: dynamic,
     environment: string,
-    unmatched: dynamic,
+    cluster: string,
+  	namespace: string,
+    containerName: string,
+    containerImage: string,
 	  level: string,
     operation: string,
     operationId: string,
@@ -21,7 +16,9 @@
     correlationRequestId: string,
     cloudErrorCode: string,
     cloudErrorMessage: string,
-    subscriptionId: string
+    subscriptionId: string,
+    tag: string
+    unmatched: dynamic
 )
 
 .create-or-alter table backendContainerLogs ingestion json mapping 'ingestionMapping'
@@ -33,7 +30,8 @@
    {"column":"region","Properties":{"path":"$.region"}},
    {"column":"cluster","Properties":{"path":"$.cluster"}},
    {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
-   {"column":"container_image","Properties":{"path":"$.log.kubernetes.container_image"}},
+   {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
+   {"column":"containerImage","Properties":{"path":"$.log.kubernetes.container_image"}},
    {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
    {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
    {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
