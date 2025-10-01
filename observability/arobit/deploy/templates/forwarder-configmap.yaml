@@ -157,12 +157,13 @@ data:
         Match           other.logs
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
+        Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
 
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match aro-hcp-frontend.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -194,6 +195,31 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 
+    [OUTPUT]
+        Match aro-hcp-backend.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
+        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
+        Database_Name HCPServiceLogs
+        Table_Name backendContainerLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
+
+    [OUTPUT]
+        Match kube-events.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
+        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
+        Database_Name HCPServiceLogs
+        Table_Name kubernetesEvents
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
 
   output-mdsd.conf: |
     [OUTPUT]
