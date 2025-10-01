@@ -10,11 +10,25 @@ metadata:
   namespace: monitoring
 spec:
   groups:
+  # ========================================
   # API Availability Recording Rules
+  # ========================================
+  # These rules track the availability SLO for the Cluster Service API.
+  # SLO: 99% of requests should succeed (not return 5xx or code=0)
+  # Error Budget: 1% (1 - 0.99)
+  #
+  # The rules calculate:
+  # - Long-term SLI (28-day rolling window)
+  # - Burn rates across multiple time windows (5m, 30m, 1h, 2h, 6h, 1d, 3d)
+  #
+  # Burn rate formula: (error_rate / error_budget)
+  # - Burn rate = 1x means consuming error budget at exactly the allowed rate
+  # - Burn rate > 1x means consuming error budget faster than sustainable
   - name: arohcp_cs_api_availability_recording_rules
     interval: 1m
     rules:
-    # 28-day rolling SLI
+    # 28-day rolling SLI - measures actual availability over 28 days
+    # This is the baseline metric to compare against the 99% SLO target
     - record: availability:api_inbound_request_count:sli_ratio_28d
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service",code!~"5..", service="clusters-service-metrics"}[28d])))
@@ -22,8 +36,18 @@ spec:
         sum by(cluster, namespace, service) ((max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[28d]))))
       labels:
         service: "clusters-service-metrics"
-    # Burn rate recording rules for various time windows
+    # 5m burn rate - used for detecting rapid, severe outages
+    # Critical threshold: 13.44x (would exhaust 28d budget in ~2 days)
     - record: availability:api_inbound_request_count:burnrate5m
+      # ----------------------------------------
+      # Burn rate recording rules for various time windows
+      # ----------------------------------------
+      # These rules calculate how fast we're consuming the error budget.
+      # The round() function rounds to 2 decimal places (0.01 precision).
+      #
+      # Pattern: code=~"5..|0" matches 5xx errors and code=0 (connection failures)
+      # Note: Prometheus uses max without(prometheus_replica) to deduplicate metrics from HA replicas
+
       expr: |
         round(
         (
@@ -33,6 +57,8 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+    # 30m burn rate - used with 6h window for medium-speed burn detection
+    # Critical threshold: 5.6x (would exhaust budget in ~5 days)
     - record: availability:api_inbound_request_count:burnrate30m
       expr: |
         round(
@@ -43,6 +69,7 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+    # 1h burn rate - used with 5m window for fast burn detection (long window)
     - record: availability:api_inbound_request_count:burnrate1h
       expr: |
         round(
@@ -53,6 +80,8 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+    # 6h burn rate - used for both medium burn (with 30m) and slow burn (with 3d) detection
+    # Warning threshold: 0.934x (would exhaust budget in ~30 days)
     - record: availability:api_inbound_request_count:burnrate6h
       expr: |
         round(
@@ -63,6 +92,7 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+    # 3d burn rate - used with 6h window for slow burn detection (long window)
     - record: availability:api_inbound_request_count:burnrate3d
       expr: |
         round(
@@ -73,6 +103,7 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+    # 2h and 1d burn rates (not currently used in alerts, but available for dashboards)
     - record: availability:api_inbound_request_count:burnrate2h
       expr: |
         round(
@@ -93,11 +124,33 @@ spec:
         ) / (1 - 0.99), 0.01)
       labels:
         service: "clusters-service-metrics"
+  # ========================================
   # API Latency Recording Rules
+  # ========================================
+  # These rules track latency SLOs for the Cluster Service API.
+  #
+  # TWO separate latency SLOs are tracked:
+  # - P99 SLO: 99% of successful requests should complete within 1 second
+  # - P90 SLO: 90% of successful requests should complete within 0.1 seconds (100ms)
+  #
+  # IMPORTANT: Latency SLOs only apply to successful requests (code!~"5..")
+  # Server errors (5xx) are excluded from latency calculations because they're already
+  # counted against the availability SLO.
+  #
+  # Histogram buckets used:
+  # - le="0.1": requests ≤100ms (for P90)
+  # - le="1": requests ≤1s (for P99)
+  # - le="+Inf": all requests (total count)
   - name: arohcp_cs_api_latency_recording_rules
     interval: 1m
     rules:
-    # P99 Latency SLI (28-day)
+    # ----------------------------------------
+    # P99 Latency SLI and Burn Rates
+    # ----------------------------------------
+    # P99 SLI: 99% of requests should complete within 1 second
+    # Error budget: 1% (1 - 0.99)
+
+    # P99 Latency SLI (28-day) - measures actual P99 latency over 28 days
     - record: latency:api_inbound_request_duration:p99_sli_ratio_28d
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (rate(api_inbound_request_duration_bucket{namespace="clusters-service", service="clusters-service-metrics", le="1", code!~"5.."}[28d])))
@@ -105,8 +158,14 @@ spec:
         sum by(cluster, namespace, service) (max without(prometheus_replica) (rate(api_inbound_request_count{namespace="clusters-service", service="clusters-service-metrics"}[28d])))
       labels:
         service: "clusters-service-metrics"
-    # P90 Latency SLI (28-day)
+    # P90 Latency SLI (28-day) - measures actual P90 latency over 28 days
     - record: latency:api_inbound_request_duration:p90_sli_ratio_28d
+      # ----------------------------------------
+      # P90 Latency SLI and Burn Rates
+      # ----------------------------------------
+      # P90 SLI: 90% of requests should complete within 0.1 seconds (100ms)
+      # Error budget: 10% (1 - 0.90)
+
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (rate(api_inbound_request_duration_bucket{namespace="clusters-service", service="clusters-service-metrics", le="0.1", code!~"5.."}[28d])))
         /
@@ -114,6 +173,8 @@ spec:
       labels:
         service: "clusters-service-metrics"
     # P99 Latency Burn Rate Recording Rules
+    # Formula: (1 - (requests_within_1s / successful_requests)) / error_budget
+    # This calculates the percentage of requests that are TOO SLOW (>1s)
     - record: latency:api_inbound_request_duration:p99_burnrate5m
       expr: |
         round(
@@ -199,6 +260,9 @@ spec:
       labels:
         service: "clusters-service-metrics"
     # P90 Latency Burn Rate Recording Rules
+    # Formula: (1 - (requests_within_100ms / successful_requests)) / error_budget
+    # This calculates the percentage of requests that are TOO SLOW (>100ms)
+    # Note: Different error budget divisor (1 - 0.90 = 0.10) compared to P99
     - record: latency:api_inbound_request_duration:p90_burnrate5m
       expr: |
         round(
@@ -283,10 +347,29 @@ spec:
         ) / (1 - 0.90), 0.01)
       labels:
         service: "clusters-service-metrics"
-  # Alerts for SLOs
+  # ========================================
+  # SLO Alerts
+  # ========================================
+  # These alerts fire when error budgets are being consumed too quickly.
+  #
+  # Multi-window, multi-burn-rate alerting strategy (Google SRE Workbook):
+  # - Fast burn alerts (5m+1h or 30m+6h): Detect severe, rapid issues
+  # - Slow burn alerts (6h+3d): Detect persistent, gradual degradation
+  #
+  # Each alert requires BOTH windows to exceed threshold (AND logic):
+  # - Short window: Confirms issue is happening NOW
+  # - Long window: Confirms issue is sustained, not a transient spike
+  #
+  # This prevents alert fatigue from brief transient issues while ensuring
+  # we catch both sudden outages and slow degradation.
   - name: arohcp_cs_slo_availability_alerts
     rules:
+    # ----------------------------------------
     # API Availability Alerts
+    # ----------------------------------------
+    # Fast burn alert: Fires when both 5m+1h OR 30m+6h burn rates are too high
+    # Threshold: 13.44x (5m+1h) or 5.6x (30m+6h)
+    # These thresholds would exhaust the 28-day error budget in ~2-5 days
     - alert: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
       annotations:
         description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
@@ -309,6 +392,9 @@ spec:
         long: 6h
         severity: warning
         short: 30m
+    # Slow burn alert: Fires when both 6h+3d burn rates exceed threshold
+    # Threshold: 0.934x
+    # This detects persistent degradation that would exhaust budget in ~30 days
     - alert: ClustersServiceAPIAvailability6hto3dErrorBudgetBurn
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))
@@ -322,7 +408,11 @@ spec:
         summary: "API is slowly but steadily burning its 28 day availability error budget (99% SLO)"
         description: "This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days."
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
+    # ----------------------------------------
     # API Latency Alerts - P99 (1s threshold)
+    # ----------------------------------------
+    # Fast burn alert for P99 latency
+    # Fires when too many requests take >1s to complete
     - alert: ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn
       annotations:
         description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
@@ -346,6 +436,7 @@ spec:
         severity: warning
         short: 30m
         slo: api-latency-p99
+    # Slow burn alert for P99 latency
     - alert: ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))
@@ -359,7 +450,11 @@ spec:
         summary: "API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)"
         description: "This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days."
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
-    # API Latency Alerts - P90 (0.1s threshold)
+    # ----------------------------------------
+    # API Latency Alerts - P90 (100ms threshold)
+    # ----------------------------------------
+    # Fast burn alert for P90 latency
+    # Fires when too many requests take >100ms to complete
     - alert: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
       annotations:
         description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
@@ -383,6 +478,7 @@ spec:
         severity: warning
         short: 30m
         slo: api-latency-p90
+    # Slow burn alert for P90 latency
     - alert: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
       expr: |
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90))
