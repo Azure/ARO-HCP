@@ -16,15 +16,16 @@
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
-   {"column":"log","Properties":{"path":"$.log"}},
-   {"column":"timestamp","Properties":{"path":"$.date"}},
+   {"column":"log","Properties":{"path":"$.log.log"}},
+   {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+   {"column":"tag","Properties":{"path":"$.tag"}},
    {"column":"region","Properties":{"path":"$.region"}},
    {"column":"cluster","Properties":{"path":"$.cluster"}},
-   {"column":"namespace","Properties":{"path":"$.kubernetes.namespace_name"}},
-   {"column":"container_image","Properties":{"path":"$.kubernetes.container_image"}},
-   {"column":"host","Properties":{"path":"$.kubernetes.host"}},
-   {"column":"labels","Properties":{"path":"$.kubernetes.labels"}},
-   {"column":"podName","Properties":{"path":"$.kubernetes.pod_name"}},
+   {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
+   {"column":"container_image","Properties":{"path":"$.log.kubernetes.container_image"}},
+   {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
+   {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
+   {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
    {"column":"environment","Properties":{"path":"$.environment"}},
    {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
