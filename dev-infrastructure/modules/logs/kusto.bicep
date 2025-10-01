@@ -18,7 +18,6 @@ param capacity int = 1
 @description('Id of the Managed Identity to ingest logs with')
 param svcLogsManagedIdentity string
 
-
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: clusterName
   location: location
@@ -33,13 +32,12 @@ resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   }
 }
 
-
 resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   parent: kustoCluster
   location: location
   name: 'HCPServiceLogs'
   kind: 'ReadWrite'
-  
+
   resource svcIngest 'principalAssignments' = {
     name: 'svcIngest'
     properties: {
@@ -89,7 +87,7 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   location: location
   name: 'HCPCustomerLogs'
   kind: 'ReadWrite'
-  
+
   resource containerLogs 'scripts' = {
     name: 'containerLogs'
     properties: {
@@ -99,4 +97,3 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
     }
   }
 }
-

@@ -9,9 +9,8 @@ module devkusto '../modules/logs/kusto.bicep' = {
   name: 'kusto-${clusterName}'
   params: {
     clusterName: clusterName
-     capacity: 1
-     location: location
-     svcLogsManagedIdentity: svcLogsManagedIdentity
+    capacity: 1
+    location: location
+    svcLogsManagedIdentity: svcLogsManagedIdentity
   }
-
 }
