@@ -22,6 +22,7 @@ spec:
         app.kubernetes.io/name: arobit-forwarder
         app.kubernetes.io/instance: '{{ .Release.Name }}'
         app: arobit-forwarder
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
       shareProcessNamespace: true
