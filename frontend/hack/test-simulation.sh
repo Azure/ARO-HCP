@@ -11,7 +11,7 @@ DEFAULT_COSMOS_KEY="C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mG
 DEFAULT_COSMOS_CONN_STRING="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 
 USE_GOTESTSUM=false
-if [ -n "${ARTIFACT_DIR}" ]; then
+if [ -n "${ARTIFACT_DIR:-}" ]; then
   echo "artifact dir found: ${ARTIFACT_DIR}"
   USE_GOTESTSUM=true
 else
