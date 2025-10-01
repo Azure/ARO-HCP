@@ -24,29 +24,37 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
+// Resource Keys
 const (
+	clusterKey              = "clusters"
+	nodePoolKey             = "node_pools"
+	externalAuthKey         = "external_auth_config/external_auths"
+	breakGlassCredentialKey = "break_glass_credentials"
+)
+
+var (
 	v1Pattern                     = "/api/clusters_mgmt/v1"
-	v1ClusterPattern              = v1Pattern + "/clusters/*"
-	v1NodePoolPattern             = v1ClusterPattern + "/node_pools/*"
-	v1ExternalAuthPattern         = v1ClusterPattern + "/external_auths/*"
-	v1BreakGlassCredentialPattern = v1ClusterPattern + "/break_glass_credentials/*"
+	v1ClusterPattern              = path.Join(v1Pattern, clusterKey, "*")
+	v1NodePoolPattern             = path.Join(v1ClusterPattern, nodePoolKey, "*")
+	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
+	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
 
 	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern      = aroHcpV1Alpha1Pattern + "/clusters/*"
-	aroHcpV1Alpha1NodePoolPattern     = aroHcpV1Alpha1ClusterPattern + "/node_pools/*"
-	aroHcpV1Alpha1ExternalAuthPattern = aroHcpV1Alpha1ClusterPattern + "/external_auth_config/external_auths/*"
+	aroHcpV1Alpha1ClusterPattern      = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
+	aroHcpV1Alpha1NodePoolPattern     = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
+	aroHcpV1Alpha1ExternalAuthPattern = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
 )
 
 func GenerateClusterHREF(clusterName string) string {
-	return path.Join(v1Pattern, "clusters", clusterName)
+	return path.Join(v1Pattern, clusterKey, clusterName)
 }
 
 func GenerateNodePoolHREF(clusterPath string, nodePoolName string) string {
-	return path.Join(clusterPath, "node_pools", nodePoolName)
+	return path.Join(clusterPath, nodePoolKey, nodePoolName)
 }
 
 func GenerateExternalAuthHREF(clusterPath string, externalAuthName string) string {
-	return path.Join(clusterPath, "external_auths", externalAuthName)
+	return path.Join(clusterPath, externalAuthKey, externalAuthName)
 }
 
 func GenerateBreakGlassCredentialHREF(clusterPath string, credentialName string) string {

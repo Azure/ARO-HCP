@@ -79,7 +79,7 @@ func TestInternalID(t *testing.T) {
 		},
 		{
 			name:      "parse v1 external auth",
-			path:      "/api/clusters_mgmt/v1/clusters/abc/external_auths/def",
+			path:      "/api/clusters_mgmt/v1/clusters/abc/external_auth_config/external_auths/def",
 			kind:      cmv1.ExternalAuthKind,
 			id:        "def",
 			clusterID: "abc",
