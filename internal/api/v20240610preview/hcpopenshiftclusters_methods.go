@@ -391,7 +391,7 @@ func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
 	}
-	out.AuthorizedCIDRs = api.TrimStringSlice(api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs))
+	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
 func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {

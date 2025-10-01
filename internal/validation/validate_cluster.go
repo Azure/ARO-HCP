@@ -297,6 +297,20 @@ func validateAPIProfile(ctx context.Context, op operation.Operation, fldPath *fi
 			nil, nil,
 			newOr(IPv4, CIDRv4),
 		)...)
+	errs = append(errs,
+		validate.EachSliceVal(
+			ctx, op, fldPath.Child("authorizedCidrs"),
+			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
+			nil, nil,
+			validate.RequiredValue,
+		)...)
+	errs = append(errs,
+		validate.EachSliceVal(
+			ctx, op, fldPath.Child("authorizedCidrs"),
+			newObj.AuthorizedCIDRs, safe.Field(oldObj, toAPIAuthorizedCIDRs),
+			nil, nil,
+			NoExtraWhitespace,
+		)...)
 
 	return errs
 }

@@ -180,6 +180,115 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "empty authorized CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{""}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "authorized CIDR with leading whitespace - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "authorized CIDR with trailing whitespace - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16 "}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "authorized CIDR with internal whitespace - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0. 0.0/16"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "valid IPv4 address in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"192.168.1.1"}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid CIDR ranges in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "IPv6 address in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "IPv6 CIDR in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::/32"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "invalid CIDR prefix in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/33"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "multiple validation errors in authorized CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"", "invalid-cidr", " 10.0.0.0/16", "2001:db8::1"}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[1]"},
+				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[2]"},
+				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[3]"},
+			},
+		},
+		{
 			name: "missing subnet ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -679,6 +788,99 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
 			},
+		},
+		{
+			name: "empty authorized CIDR on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{""}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "authorized CIDR with whitespace on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16 "}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "IPv6 in authorized CIDRs on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
+			},
+		},
+		{
+			name: "too many authorized CIDRs on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = make([]string, 501)
+				for i := range c.Properties.API.AuthorizedCIDRs {
+					c.Properties.API.AuthorizedCIDRs[i] = "10.0.0.1"
+				}
+				return c
+			}(),
+			oldCluster: createValidCluster(),
+			expectErrors: []expectedError{
+				{message: "Too long", fieldPath: "properties.api.authorizedCidrs"},
+			},
+		},
+		{
+			name: "add authorized CIDR on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24", "172.16.0.0/12"}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "remove authorized CIDR on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "clear all authorized CIDRs on update - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				return c
+			}(),
+			expectErrors: []expectedError{},
 		},
 		{
 			name: "immutable location - update",
