@@ -21,7 +21,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
-type version struct{}
+type version struct {
+	validator *validator.Validate
+}
+
+func newVersion() version {
+	return version{
+		validator: newValidator(),
+	}
+}
 
 // String returns the api-version parameter value for this API.
 func (v version) String() string {
@@ -31,36 +39,18 @@ func (v version) String() string {
 // GetValidator returns the validator.Validate instance configured
 // specifically for this API version.
 func (v version) GetValidator() *validator.Validate {
-	return validate
+	return v.validator
 }
 
 var (
-	versionedInterface        = version{}
-	validate                  = api.NewValidator()
+	versionedInterface        = newVersion()
 	clusterVisibilityMap      = api.NewVisibilityMap[api.HCPOpenShiftCluster]()
 	nodePoolVisibilityMap     = api.NewVisibilityMap[api.HCPOpenShiftClusterNodePool]()
 	externalAuthVisibilityMap = api.NewVisibilityMap[api.HCPOpenShiftClusterExternalAuth]()
 )
 
-// TODO avoid side effects, directly call this.
-func init() {
-	// NOTE: If future versions of the API expand field visibility, such as
-	//       a field with @visibility("read","create") becoming updatable,
-	//       then earlier versions of the API will need to override their
-	//       VisibilityMap to maintain the original visibility flags. This
-	//       is where such overrides should happen, along with a comment
-	//       about what changed and when. For example:
-	//
-	//       // This field became updatable in version YYYY-MM-DD.
-	//       clusterVisibilityMap["Properties.FieldName"] = api.VisibilityRead | api.VisibilityCreate
-	//
-
-	// We normalize node pool labels to a map, so there is
-	// no normalized Label model with Key and Value fields.
-	nodePoolVisibilityMap["Properties.Labels.Key"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
-	nodePoolVisibilityMap["Properties.Labels.Value"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
-
-	api.Register(versionedInterface)
+func newValidator() *validator.Validate {
+	validate := api.NewValidator()
 
 	// Register enum type validations
 	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
@@ -81,4 +71,32 @@ func init() {
 	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
 	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(generated.PossibleUsernameClaimPrefixPolicyValues()...))
 	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+
+	return validate
+}
+
+// TODO avoid side effects, directly call this.
+func init() {
+	// NOTE: If future versions of the API expand field visibility, such as
+	//       a field with @visibility("read","create") becoming updatable,
+	//       then earlier versions of the API will need to override their
+	//       VisibilityMap to maintain the original visibility flags. This
+	//       is where such overrides should happen, along with a comment
+	//       about what changed and when. For example:
+	//
+	//       // This field became updatable in version YYYY-MM-DD.
+	//       clusterVisibilityMap["Properties.FieldName"] = api.VisibilityRead | api.VisibilityCreate
+	//
+
+	// We normalize node pool labels to a map, so there is
+	// no normalized Label model with Key and Value fields.
+	nodePoolVisibilityMap["Properties.Labels.Key"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
+	nodePoolVisibilityMap["Properties.Labels.Value"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
+}
+
+func RegisterVersion(apiRegistry api.APIRegistry) error {
+	if err := apiRegistry.Register(versionedInterface); err != nil {
+		return err
+	}
+	return nil
 }
