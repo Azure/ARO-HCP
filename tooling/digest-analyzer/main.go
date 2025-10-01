@@ -536,7 +536,7 @@ func extractImageName(path string) string {
 		case "server", "agent":
 			nameParts = append(nameParts, "Maestro " + strings.Title(part))
 		case "sidecar":
-			nameParts = append(nameParts, "Maestro Agent Sidecar")
+			nameParts = append(nameParts, "Sidecar")
 		case "imagePackage":
 			nameParts = append(nameParts, "Package Operator Package")
 		case "imageManager":
