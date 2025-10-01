@@ -87,6 +87,7 @@ func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
 		ManagedResourceGroup:    api.PtrOrNil(from.ManagedResourceGroup),
 		SubnetID:                api.PtrOrNil(from.SubnetID),
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
+		LoadBalancer:            api.PtrOrNil(newLoadBalancerProfile(&from.LoadBalancer)),
 		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
 		IssuerURL:               api.PtrOrNil(from.IssuerURL),
@@ -156,6 +157,36 @@ func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) gener
 	}
 	return generated.ClusterImageRegistryProfile{
 		State: api.PtrOrNil(generated.ClusterImageRegistryProfileState(from.State)),
+	}
+}
+
+func newLoadBalancerProfile(from *api.LoadBalancerProfile) generated.LoadBalancerProfile {
+	if from == nil {
+		return generated.LoadBalancerProfile{}
+	}
+	return generated.LoadBalancerProfile{
+		ManagedOutboundIPs:   api.PtrOrNil(newManagedOutboundIps(from.ManagedOutboundIPs)),
+		EffectiveOutboundIPs: newEffectiveOutboundIps(from.EffectiveOutboundIPs),
+	}
+}
+
+func newManagedOutboundIps(from api.ManagedOutboundIPs) generated.ManagedOutboundIPs {
+	return generated.ManagedOutboundIPs{
+		Count: api.PtrOrNil(from.Count),
+	}
+}
+
+func newEffectiveOutboundIps(from []api.EffectiveOutboundIP) []*generated.EffectiveOutboundIP {
+	effectiveOutboundIps := make([]*generated.EffectiveOutboundIP, len(from))
+	for i, v := range from {
+		effectiveOutboundIps[i] = api.PtrOrNil(newEffectiveOutboundIp(v))
+	}
+	return effectiveOutboundIps
+}
+
+func newEffectiveOutboundIp(from api.EffectiveOutboundIP) generated.EffectiveOutboundIP {
+	return generated.EffectiveOutboundIP{
+		ID: api.PtrOrNil(from.ID),
 	}
 }
 
