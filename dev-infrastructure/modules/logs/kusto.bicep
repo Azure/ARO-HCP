@@ -15,6 +15,10 @@ param location string = resourceGroup().location
 @maxValue(3)
 param capacity int = 1
 
+@description('Id of the Managed Identity to ingest logs with')
+param svcLogsManagedIdentity string
+
+
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: clusterName
   location: location
@@ -36,6 +40,16 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   name: 'HCPServiceLogs'
   kind: 'ReadWrite'
   
+  resource svcIngest 'principalAssignments' = {
+    name: 'svcIngest'
+    properties: {
+      principalId: svcLogsManagedIdentity
+      principalType: 'App'
+      role: 'Ingestor'
+      tenantId: tenant().tenantId
+    }
+  }
+
   resource containerLogs 'scripts' = {
     name: 'containerLogs'
     properties: {
@@ -85,15 +99,4 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
     }
   }
 }
-
-
-// // Output the cluster details
-// output clusterId string = kustoCluster.id
-// output clusterName string = kustoCluster.name
-// output clusterUri string = kustoCluster.properties.uri
-// output clusterDataIngestionUri string = kustoCluster.properties.dataIngestionUri
-// output clusterLocation string = kustoCluster.location
-
-// // Output the managed identity details
-// output managedIdentityPrincipalId string = kustoCluster.identity.principalId
 

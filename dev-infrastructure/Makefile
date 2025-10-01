@@ -316,15 +316,16 @@ mgmt.solo:
 #
 
 kusto:
-# 		--resource-group $(GLOBAL_RG_DEPLOYMENT_NAME) \
-	
+# 		--resource-group $(GLOBAL_RG_DEPLOYMENT_NAME) 
+	SVC_LOGS_MSI=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
 	az deployment group create \
 		--name kusto-dev \
  		--resource-group jbollglobal \
 		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
 		--template-file templates/kusto-dev.bicep \
 		$(PROMPT_TO_CONFIRM) \
-		--parameters configurations/kusto-dev.bicepparam
+		--parameters configurations/kusto-dev.bicepparam \
+		--parameters svcLogsManagedIdentity=$${SVC_LOGS_MSI}
 .PHONY: kusto
 
 monitoring:
