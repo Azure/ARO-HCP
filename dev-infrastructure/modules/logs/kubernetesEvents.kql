@@ -15,15 +15,15 @@
     firstSeen: datetime,
     lastSeen: datetime,
     message: string,
-    event_namespace: string,
+    eventNamespace: string,
     objectKind: string,
     objectName: string,
     objectApiVersion: string,
     objectUID: string,
     reason: string,
-    sourceComponent: string
+    sourceComponent: string,
     tag: string,
-    unmatched: dynamic,
+    unmatched: dynamic
 )
 
 
@@ -47,7 +47,7 @@
    {"column":"firstSeen","Properties":{"path":"$.log.first_timestamp"}},
    {"column":"lastSeen","Properties":{"path":"$.log.last_timestamp"}},
    {"column":"message","Properties":{"path":"$.log.message"}},
-   {"column":"event_namespace", "Properties":{"path":"$.log.involved_object.namespace"}},
+   {"column":"eventNamespace", "Properties":{"path":"$.log.involved_object.namespace"}},
    {"column":"objectKind","Properties":{"path":"$.log.involved_object.kind"}},
    {"column":"objectName","Properties":{"path":"$.log.involved_object.name"}},
    {"column":"objectApiVersion","Properties":{"path":"$.log.involved_object.api_version"}},

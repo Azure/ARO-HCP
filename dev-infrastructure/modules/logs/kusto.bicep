@@ -17,6 +17,7 @@ param capacity int = 1
 
 @description('Id of the Managed Identity to ingest logs with')
 param svcLogsManagedIdentity string
+param mgmtLogsManagedIdentity string
 
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: clusterName
@@ -47,6 +48,16 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
       tenantId: tenant().tenantId
     }
   }
+
+  // resource mgmtIngest 'principalAssignments' = {
+  //   name: 'mgmtIngest'
+  //   properties: {
+  //     principalId: mgmtLogsManagedIdentity
+  //     principalType: 'App'
+  //     role: 'Ingestor'
+  //     tenantId: tenant().tenantId
+  //   }
+  // }
 
   resource containerLogs 'scripts' = {
     name: 'containerLogs'
@@ -87,6 +98,17 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   location: location
   name: 'HCPCustomerLogs'
   kind: 'ReadWrite'
+
+
+  resource mgmtIngest 'principalAssignments' = {
+    name: 'mgmtIngest'
+    properties: {
+      principalId: mgmtLogsManagedIdentity
+      principalType: 'App'
+      role: 'Ingestor'
+      tenantId: tenant().tenantId
+    }
+  }
 
   resource containerLogs 'scripts' = {
     name: 'containerLogs'

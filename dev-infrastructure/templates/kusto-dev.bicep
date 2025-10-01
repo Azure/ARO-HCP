@@ -4,6 +4,7 @@ param location string = resourceGroup().location
 param clusterName string
 
 param svcLogsManagedIdentity string
+param mgmtLogsManagedIdentity string
 
 module devkusto '../modules/logs/kusto.bicep' = {
   name: 'kusto-${clusterName}'
@@ -12,5 +13,6 @@ module devkusto '../modules/logs/kusto.bicep' = {
     capacity: 1
     location: location
     svcLogsManagedIdentity: svcLogsManagedIdentity
+    mgmtLogsManagedIdentity: mgmtLogsManagedIdentity
   }
 }

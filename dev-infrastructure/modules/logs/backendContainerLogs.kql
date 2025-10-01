@@ -17,7 +17,7 @@
     cloudErrorCode: string,
     cloudErrorMessage: string,
     subscriptionId: string,
-    tag: string
+    tag: string,
     unmatched: dynamic
 )
 
