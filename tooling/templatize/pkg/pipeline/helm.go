@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -85,7 +86,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 	}
 	var namespaceFiles []string
 	for _, file := range step.NamespaceFiles {
-		tmpfile := filepath.Join(tmpdir, "namespaces", file)
+		tmpfile := filepath.Join(tmpdir, "namespaces", strings.ReplaceAll(file, string(filepath.Separator), "-"))
 		processed, err := process(filepath.Join(filepath.Dir(options.PipelineFilePath), file))
 		if err != nil {
 			return fmt.Errorf("failed to preprocess namespace manifest %s: %w", file, err)
