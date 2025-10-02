@@ -159,28 +159,16 @@ func IPv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, 
 	return nil
 }
 
-func ResourceID(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
-	if value == nil || len(*value) == 0 {
-		return nil
-	}
-	resourceID, err := azcorearm.ParseResourceID(*value)
-	if err != nil {
-		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
-	}
-	// Check for required fields.
-	if len(resourceID.SubscriptionID) == 0 {
-		return field.ErrorList{field.Invalid(fldPath, *value, "subscription ID is required")}
-	}
-	if len(resourceID.ResourceGroupName) == 0 {
-		return field.ErrorList{field.Invalid(fldPath, *value, "resource group is required")}
-	}
-	if len(resourceID.Name) == 0 {
-		return field.ErrorList{field.Invalid(fldPath, *value, "resource name is required")}
-	}
-	return nil
+func ResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string) field.ErrorList {
+	return restrictedResourceIDCheck(ctx, op, fldPath, value, oldValue, "")
 }
 
-func RestrictedResourceID(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, resourceTypeRestriction string) field.ErrorList {
+func RestrictedResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *string, resourceTypeRestriction string) field.ErrorList {
+	return restrictedResourceIDCheck(ctx, op, fldPath, value, oldValue, resourceTypeRestriction)
+}
+
+// if resourceTypeRestriction is not set, then any kind of resourceType is allowed
+func restrictedResourceIDCheck(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, resourceTypeRestriction string) field.ErrorList {
 	if value == nil || len(*value) == 0 {
 		return nil
 	}
@@ -198,6 +186,10 @@ func RestrictedResourceID(_ context.Context, _ operation.Operation, fldPath *fie
 	if len(resourceID.Name) == 0 {
 		return field.ErrorList{field.Invalid(fldPath, *value, "resource name is required")}
 	}
+	if len(resourceTypeRestriction) == 0 {
+		return nil
+	}
+
 	if !strings.EqualFold(resourceTypeRestriction, resourceID.ResourceType.String()) {
 		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("resource ID must reference an instance of type %q", resourceTypeRestriction))}
 	}
