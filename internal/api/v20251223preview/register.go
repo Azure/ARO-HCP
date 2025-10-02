@@ -21,7 +21,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
 )
 
-type version struct{}
+type version struct {
+	validator *validator.Validate
+}
+
+func newVersion() version {
+	return version{
+		validator: newValidator(),
+	}
+}
 
 // String returns the api-version parameter value for this API.
 func (v version) String() string {
@@ -31,12 +39,37 @@ func (v version) String() string {
 // GetValidator returns the validator.Validate instance configured
 // specifically for this API version.
 func (v version) GetValidator() *validator.Validate {
+	return v.validator
+}
+
+func newValidator() *validator.Validate {
+	validate := api.NewValidator()
+
+	// Register enum type validations
+	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
+	validate.RegisterAlias("enum_clusterimageregistryprofilestate", api.EnumValidateTag(generated.PossibleClusterImageRegistryProfileStateValues()...))
+	validate.RegisterAlias("enum_createdbytype", api.EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
+	validate.RegisterAlias("enum_customermanagedencryptiontype", api.EnumValidateTag(generated.PossibleCustomerManagedEncryptionTypeValues()...))
+	validate.RegisterAlias("enum_diskstorageaccounttype", api.EnumValidateTag(generated.PossibleDiskStorageAccountTypeValues()...))
+	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
+	validate.RegisterAlias("enum_etcddataencryptionkeymanagementmodetype", api.EnumValidateTag(generated.PossibleEtcdDataEncryptionKeyManagementModeTypeValues()...))
+	validate.RegisterAlias("enum_externalauthclienttype", api.EnumValidateTag(generated.PossibleExternalAuthClientTypeValues()...))
+	validate.RegisterAlias("enum_externalauthconditionstatustype", api.EnumValidateTag(generated.PossibleStatusTypeValues()...))
+	validate.RegisterAlias("enum_externalauthconditiontype", api.EnumValidateTag(generated.PossibleExternalAuthConditionTypeValues()...))
+	validate.RegisterAlias("enum_managedserviceidentitytype", api.EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
+	validate.RegisterAlias("enum_networktype", api.EnumValidateTag(generated.PossibleNetworkTypeValues()...))
+	validate.RegisterAlias("enum_origin", api.EnumValidateTag(generated.PossibleOriginValues()...))
+	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
+	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
+	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
+	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(generated.PossibleUsernameClaimPrefixPolicyValues()...))
+	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+
 	return validate
 }
 
 var (
-	versionedInterface        = version{}
-	validate                  = api.NewValidator()
+	versionedInterface        = newVersion()
 	clusterVisibilityMap      = api.NewVisibilityMap[api.HCPOpenShiftCluster]()
 	nodePoolVisibilityMap     = api.NewVisibilityMap[api.HCPOpenShiftClusterNodePool]()
 	externalAuthVisibilityMap = api.NewVisibilityMap[api.HCPOpenShiftClusterExternalAuth]()
@@ -58,26 +91,11 @@ func init() {
 	// no normalized Label model with Key and Value fields.
 	nodePoolVisibilityMap["Properties.Labels.Key"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
 	nodePoolVisibilityMap["Properties.Labels.Value"] = nodePoolVisibilityMap["Properties.Labels"] & api.VisibilityDefault
+}
 
-	api.Register(versionedInterface)
-
-	// Register enum type validations
-	validate.RegisterAlias("enum_actiontype", api.EnumValidateTag(generated.PossibleActionTypeValues()...))
-	validate.RegisterAlias("enum_clusterimageregistryprofilestate", api.EnumValidateTag(generated.PossibleClusterImageRegistryProfileStateValues()...))
-	validate.RegisterAlias("enum_createdbytype", api.EnumValidateTag(generated.PossibleCreatedByTypeValues()...))
-	validate.RegisterAlias("enum_customermanagedencryptiontype", api.EnumValidateTag(generated.PossibleCustomerManagedEncryptionTypeValues()...))
-	validate.RegisterAlias("enum_diskstorageaccounttype", api.EnumValidateTag(generated.PossibleDiskStorageAccountTypeValues()...))
-	validate.RegisterAlias("enum_effect", api.EnumValidateTag(generated.PossibleEffectValues()...))
-	validate.RegisterAlias("enum_etcddataencryptionkeymanagementmodetype", api.EnumValidateTag(generated.PossibleEtcdDataEncryptionKeyManagementModeTypeValues()...))
-	validate.RegisterAlias("enum_externalauthclienttype", api.EnumValidateTag(generated.PossibleExternalAuthClientTypeValues()...))
-	validate.RegisterAlias("enum_externalauthconditionstatustype", api.EnumValidateTag(generated.PossibleStatusTypeValues()...))
-	validate.RegisterAlias("enum_externalauthconditiontype", api.EnumValidateTag(generated.PossibleExternalAuthConditionTypeValues()...))
-	validate.RegisterAlias("enum_managedserviceidentitytype", api.EnumValidateTag(generated.PossibleManagedServiceIdentityTypeValues()...))
-	validate.RegisterAlias("enum_networktype", api.EnumValidateTag(generated.PossibleNetworkTypeValues()...))
-	validate.RegisterAlias("enum_origin", api.EnumValidateTag(generated.PossibleOriginValues()...))
-	validate.RegisterAlias("enum_outboundtype", api.EnumValidateTag(generated.PossibleOutboundTypeValues()...))
-	validate.RegisterAlias("enum_provisioningstate", api.EnumValidateTag(generated.PossibleProvisioningStateValues()...))
-	validate.RegisterAlias("enum_tokenvalidationruletyperequiredclaim", api.EnumValidateTag(generated.PossibleTokenValidationRuleTypeValues()...))
-	validate.RegisterAlias("enum_usernameclaimprefixpolicy", api.EnumValidateTag(generated.PossibleUsernameClaimPrefixPolicyValues()...))
-	validate.RegisterAlias("enum_visibility", api.EnumValidateTag(generated.PossibleVisibilityValues()...))
+func RegisterVersion(apiRegistry api.APIRegistry) error {
+	if err := apiRegistry.Register(versionedInterface); err != nil {
+		return err
+	}
+	return nil
 }

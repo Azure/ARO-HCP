@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
 	semver "github.com/hashicorp/go-version"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
@@ -97,19 +97,6 @@ func NewValidator() *validator.Validate {
 		ConditionStatusTypeTrue,
 		ConditionStatusTypeUnknown,
 	))
-
-	// Use this for string fields specifying an ARO-HCP API version.
-	err = validate.RegisterValidation("api_version", func(fl validator.FieldLevel) bool {
-		field := fl.Field()
-		if field.Kind() != reflect.String {
-			panic("String type required for api_version")
-		}
-		_, ok := Lookup(field.String())
-		return ok
-	})
-	if err != nil {
-		panic(err)
-	}
 
 	// Use this for string fields that must be a valid Kubernetes qualified name.
 	err = validate.RegisterValidation("k8s_qualified_name", func(fl validator.FieldLevel) bool {
@@ -290,8 +277,6 @@ func ValidateRequest[T any](validate *validator.Validate, resource T) []arm.Clou
 				}
 			} else {
 				switch tag {
-				case "api_version": // custom tag
-					message = fmt.Sprintf("Unrecognized API version '%s'", fieldErr.Value())
 				case "openshift_version": // custom tag
 					message = fmt.Sprintf("Invalid OpenShift version '%s'", fieldErr.Value())
 				case "pem_certificates": // custom tag

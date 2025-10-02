@@ -24,7 +24,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+type middlewareValidatedAPIVersion struct {
+	apiRegistry api.APIRegistry
+}
+
+func newMiddlewareValidatedAPIVersion(apiRegistry api.APIRegistry) *middlewareValidatedAPIVersion {
+	return &middlewareValidatedAPIVersion{
+		apiRegistry: apiRegistry,
+	}
+}
+
+func (h *middlewareValidatedAPIVersion) handleRequest(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ctx := r.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -35,7 +45,7 @@ func MiddlewareValidateAPIVersion(w http.ResponseWriter, r *http.Request, next h
 			arm.CloudErrorCodeInvalidParameter, "",
 			"The request is missing required parameter '%s'.",
 			APIVersionKey)
-	} else if version, ok := api.Lookup(apiVersion); !ok {
+	} else if version, ok := h.apiRegistry.Lookup(apiVersion); !ok {
 		arm.WriteError(
 			w, http.StatusBadRequest,
 			arm.CloudErrorCodeInvalidResourceType, "",

@@ -18,7 +18,7 @@ import (
 	"reflect"
 	"testing"
 
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,27 +84,11 @@ func TestNewValidator(t *testing.T) {
 	var nilMap map[int]int
 	var nilPointer *int
 
-	// Register an API version without implementing the interface.
-	apiRegistry["valid-api-version"] = nil
-
 	tests := []struct {
 		name        string
 		resource    any
 		expectError bool
 	}{
-		{
-			name: "Validation passes on known API version",
-			resource: TestAPIVersionTag{
-				APIVersion: "valid-api-version",
-			},
-		},
-		{
-			name: "Validation fails on unknown API version",
-			resource: TestAPIVersionTag{
-				APIVersion: "bogus-api-version",
-			},
-			expectError: true,
-		},
 		{
 			name:     "Zero value is ok when not required",
 			resource: struct{ StructField int }{0},

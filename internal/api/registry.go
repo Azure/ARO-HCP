@@ -16,9 +16,11 @@ package api
 
 import (
 	"fmt"
+	"sync"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
+	"github.com/go-playground/validator/v10"
+	"k8s.io/utils/set"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -163,14 +165,50 @@ func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current Versione
 	return arm.NewContentValidationError(errorDetails)
 }
 
-// apiRegistry is the map of registered API versions
-var apiRegistry = map[string]Version{}
-
-func Register(version Version) {
-	apiRegistry[version.String()] = version
+// APIRegistry is a way to keep track of versioned interfaces.
+// It should always be done per-instance, so we can easily track what registers where and why it does it.
+// This construction also gives us a way to unit and integration test different scenarios without impacting a single
+// global as we run the tests.
+type APIRegistry interface {
+	Register(version Version) error
+	ListVersions() set.Set[string]
+	Lookup(key string) (version Version, ok bool)
 }
 
-func Lookup(key string) (version Version, ok bool) {
-	version, ok = apiRegistry[key]
-	return
+type apiRegistry struct {
+	lock             sync.RWMutex
+	versionToDetails map[string]Version
+}
+
+func NewAPIRegistry() APIRegistry {
+	return &apiRegistry{
+		versionToDetails: map[string]Version{},
+	}
+}
+
+func (a *apiRegistry) Register(version Version) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	if _, exists := a.versionToDetails[version.String()]; exists {
+		return fmt.Errorf("version %s already registered", version.String())
+	}
+
+	a.versionToDetails[version.String()] = version
+	return nil
+}
+
+func (a *apiRegistry) ListVersions() set.Set[string] {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
+	return set.KeySet(a.versionToDetails)
+}
+
+func (a *apiRegistry) Lookup(key string) (Version, bool) {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
+	version, ok := a.versionToDetails[key]
+	return version, ok
 }

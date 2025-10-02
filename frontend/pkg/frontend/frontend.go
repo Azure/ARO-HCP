@@ -39,6 +39,9 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/validation"
 
+	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -58,6 +61,8 @@ type Frontend struct {
 	done                 chan struct{}
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
+
+	apiRegistry api.APIRegistry
 }
 
 func NewFrontend(
@@ -69,6 +74,11 @@ func NewFrontend(
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 ) *Frontend {
+	// zero side-effect registration path
+	apiRegistry := api.NewAPIRegistry()
+	api.Must[any](nil, v20240610preview.RegisterVersion(apiRegistry))
+	api.Must[any](nil, v20251223preview.RegisterVersion(apiRegistry))
+
 	f := &Frontend{
 		clusterServiceClient: csClient,
 		listener:             listener,
@@ -97,6 +107,7 @@ func NewFrontend(
 				Help: "Reports the health status of the service (0: not healthy, 1: healthy).",
 			},
 		),
+		apiRegistry: apiRegistry,
 	}
 
 	f.server.Handler = f.routes(reg)
@@ -1169,6 +1180,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		return
 	}
 
+	// TODO explain why it is safe to decode this directly into an internal type
 	deploymentPreflight, cloudError := arm.UnmarshalDeploymentPreflight(body)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
@@ -1179,6 +1191,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 	validate := api.NewValidator()
 	preflightErrors := []arm.CloudErrorBody{}
 
+	availableAROHCPVersions := f.apiRegistry.ListVersions()
 	for index, raw := range deploymentPreflight.Resources {
 		var cloudError *arm.CloudError
 
@@ -1205,6 +1218,19 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			continue
 		}
 
+		if !availableAROHCPVersions.Has(preflightResource.APIVersion) {
+			// Preflight is best-effort: a malformed resource is not a validation failure.
+			validationErr := arm.CloudErrorBody{
+				Code:    arm.CloudErrorCodeInvalidRequestContent,
+				Message: fmt.Sprintf("Unrecognized API version '%s'", preflightResource.APIVersion),
+				Target:  "apiVersion",
+			}
+			logger.Warn(
+				fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
+				"details", validationErr)
+			continue
+		}
+
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
@@ -1219,7 +1245,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// API version is already validated by this point.
-			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
 
 			err = preflightResource.Convert(versionedCluster)
@@ -1245,7 +1271,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// API version is already validated by this point.
-			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
 
 			err = preflightResource.Convert(versionedNodePool)
@@ -1271,7 +1297,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// API version is already validated by this point.
-			versionedInterface, _ := api.Lookup(preflightResource.APIVersion)
+			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 
 			err = preflightResource.Convert(versionedExternalAuth)
