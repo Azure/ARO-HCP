@@ -26,7 +26,7 @@ forwarder:
       digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
       pullPolicy: IfNotPresent
   mdsd:
-    # Geneva Config
+    # Geneva Config, deprecated to be deleted after Kusto is enabled in prod
     geneva:
       role: ""
       rpAccountName: ""

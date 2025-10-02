@@ -159,6 +159,8 @@ defaults:
   kusto:
     resourceGroup: ""
     cluster: ""
+    ingestionUrl: ""
+    environmentName: {{ .ctx.environment }}
   # Hypershift
   hypershift:
     image:
