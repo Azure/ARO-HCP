@@ -284,20 +284,28 @@ func convertKmsEncryptionCSToRP(in *arohcpv1alpha1.AzureEtcdDataEncryptionCustom
 	return nil
 }
 
-func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (*api.ClusterAutoscalingProfile, error) {
-	// maxNodeProvisionTime (string) - minutes e.g - “15m”
-	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
-	maxNodeProvisionTime, err := time.ParseDuration(in.MaxNodeProvisionTime())
-	if err != nil {
-		return nil, err
+func convertAutoscalarCSToRP(in *arohcpv1alpha1.ClusterAutoscaler) (api.ClusterAutoscalingProfile, error) {
+	if in == nil {
+		return api.ClusterAutoscalingProfile{}, nil
 	}
 
-	return &api.ClusterAutoscalingProfile{
+	var maxNodeProvisionTime int32
+	if len(in.MaxNodeProvisionTime()) > 0 {
+		// maxNodeProvisionTime (string) - minutes e.g - “15m”
+		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
+		maxNodeProvisionTimeDuration, err := time.ParseDuration(in.MaxNodeProvisionTime())
+		if err != nil {
+			return api.ClusterAutoscalingProfile{}, err
+		}
+		maxNodeProvisionTime = int32(maxNodeProvisionTimeDuration.Seconds())
+	}
+
+	return api.ClusterAutoscalingProfile{
 		MaxNodesTotal: int32(in.ResourceLimits().MaxNodesTotal()),
 		// MaxPodGracePeriod (int) - seconds e.g - 300
 		// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
 		MaxPodGracePeriodSeconds:    int32(in.MaxPodGracePeriod()),
-		MaxNodeProvisionTimeSeconds: int32(maxNodeProvisionTime.Seconds()),
+		MaxNodeProvisionTimeSeconds: maxNodeProvisionTime,
 		PodPriorityThreshold:        int32(in.PodPriorityThreshold()),
 	}, nil
 }
@@ -395,7 +403,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 				NetworkSecurityGroupID: cluster.Azure().NetworkSecurityGroupResourceID(),
 				IssuerURL:              "",
 			},
-			Autoscaling:             *clusterAutoscaler,
+			Autoscaling:             clusterAutoscaler,
 			NodeDrainTimeoutMinutes: convertNodeDrainTimeoutCSToRP(cluster),
 			ClusterImageRegistry: api.ClusterImageRegistryProfile{
 				State: clusterImageRegistryState,
