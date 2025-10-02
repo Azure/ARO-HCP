@@ -1,0 +1,63 @@
+.create-merge table frontendContainerLogs (
+    timestamp: datetime,
+    log: dynamic,
+    environment: string,
+    cluster: string,
+  	namespace: string,
+    containerName: string,
+    containerImage: string,
+    level: string,
+    msg: string,
+    requestId: string,
+    clientRequestId: string,
+    correlationRequestId: string,
+    requestMethod: string,
+    requestPath: string,
+    requestProto: string,
+    requestQuery: string,
+    requestReferer: string,
+    requestRemoteAddr: string,
+    requestUserAgent: string,
+    bodyReadBytes: int,
+    bodyWrittenBytes: int,
+    responseStatusCode: string,
+    duration: int,
+    tag: string,
+    unmatched: dynamic
+)
+
+
+.create-or-alter table frontendContainerLogs ingestion json mapping 'ingestionMapping'
+ ```
+ [
+   {"column":"log","Properties":{"path":"$.log.log"}},
+   {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+   {"column":"tag","Properties":{"path":"$.tag"}},
+   {"column":"region","Properties":{"path":"$.region"}},
+   {"column":"cluster","Properties":{"path":"$.cluster"}},
+   {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
+   {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
+   {"column":"containerImage","Properties":{"path":"$.log.kubernetes.container_image"}},
+   {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
+   {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
+   {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
+   {"column":"environment","Properties":{"path":"$.environment"}},
+   {"column":"level","Properties":{"path":"$.log.level"}},
+   {"column":"msg","Properties":{"path":"$.log.msg"}},
+   {"column":"requestId","Properties":{"path":"$.log.request_id"}},
+   {"column":"clientRequestId","Properties":{"path":"$.log.clientRequestId"}},
+   {"column":"correlationRequestId","Properties":{"path":"$.log.correlationRequestId"}},
+   {"column":"requestMethod","Properties":{"path":"$.log.requestMethod"}},
+   {"column":"requestPath","Properties":{"path":"$.log.requestPath"}},
+   {"column":"requestProto","Properties":{"path":"$.log.requestProto"}},
+   {"column":"requestQuery","Properties":{"path":"$.log.requestQuery"}},
+   {"column":"requestReferer","Properties":{"path":"$.log.requestReferer"}},
+   {"column":"requestRemoteAddr","Properties":{"path":"$.log.requestRemoteAddr"}},
+   {"column":"requestUserAgent","Properties":{"path":"$.log.requestUserAgent"}},
+   {"column":"bodyReadBytes","Properties":{"path":"$.log.bodyReadBytes"}},
+   {"column":"bodyWrittenBytes","Properties":{"path":"$.log.bodyWrittenBytes"}},
+   {"column":"responseStatusCode","Properties":{"path":"$.log.responseStatusCode"}},
+   {"column":"duration","Properties":{"path":"$.log.duration"}},
+   {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
+ ]
+ ```

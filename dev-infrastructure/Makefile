@@ -315,6 +315,33 @@ mgmt.solo:
 # Monitoring
 #
 
+kusto:
+	SVC_LOGS_MSI=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	MGMT_LOGS_MSI=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	az deployment group create \
+		--name kusto-dev \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/kusto-dev.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/kusto-dev.bicepparam \
+		--parameters svcLogsManagedIdentity=$${SVC_LOGS_MSI} \
+		--parameters mgmtLogsManagedIdentity=$${MGMT_LOGS_MSI}
+.PHONY: kusto
+
+kusto.what-if:
+	SVC_LOGS_MSI=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	MGMT_LOGS_MSI=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	az deployment group what-if \
+		--name kusto-dev \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/kusto-dev.bicep \
+		--parameters configurations/kusto-dev.bicepparam \
+		--parameters svcLogsManagedIdentity=$${SVC_LOGS_MSI} \
+		--parameters mgmtLogsManagedIdentity=$${MGMT_LOGS_MSI}
+.PHONY: kusto.what-if
+
 monitoring:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring
