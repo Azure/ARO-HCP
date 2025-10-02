@@ -168,7 +168,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedRequestExternalAuth, versionedCurrentExternalAuth, nil, updating)
+	cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedRequestExternalAuth, versionedCurrentExternalAuth, updating)
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)

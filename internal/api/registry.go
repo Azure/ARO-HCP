@@ -135,7 +135,7 @@ func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCP
 	return arm.NewContentValidationError(errorDetails)
 }
 
-func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current VersionedHCPOpenShiftClusterExternalAuth, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
+func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current VersionedHCPOpenShiftClusterExternalAuth, updating bool) *arm.CloudError {
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = incoming.ValidateVisibility(current, updating)
@@ -155,7 +155,7 @@ func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current Versione
 		// we already know to be invalid and prevents the response body from
 		// becoming overwhelming.
 		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate(cluster)
+			errorDetails = normalized.Validate()
 		}
 	}
 
