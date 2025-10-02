@@ -51,6 +51,8 @@ type VersionedResource interface {
 
 type VersionedCreatableResource[T any] interface {
 	VersionedResource
+	NewExternal() any
+	SetDefaultValues(any) error
 	Normalize(*T)
 	GetVisibility(path string) (VisibilityFlags, bool)
 	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody

@@ -15,6 +15,10 @@
 package v20251223preview
 
 import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
@@ -22,6 +26,40 @@ import (
 
 type ExternalAuth struct {
 	generated.ExternalAuth
+}
+
+var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &ExternalAuth{}
+
+func (h *ExternalAuth) NewExternal() any {
+	return &ExternalAuth{}
+}
+
+func (h *ExternalAuth) SetDefaultValues(uncast any) error {
+	obj, ok := uncast.(*ExternalAuth)
+	if !ok {
+		return fmt.Errorf("unexpected type %T", uncast)
+	}
+
+	SetDefaultValuesExternalAuth(obj)
+	return nil
+}
+
+func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
+	if obj.Properties == nil {
+		obj.Properties = &generated.ExternalAuthProperties{}
+	}
+	if obj.Properties.Claim == nil {
+		obj.Properties.Claim = &generated.ExternalAuthClaimProfile{}
+	}
+	if obj.Properties.Claim.Mappings == nil {
+		obj.Properties.Claim.Mappings = &generated.TokenClaimMappingsProfile{}
+	}
+	if obj.Properties.Claim.Mappings.Username == nil {
+		obj.Properties.Claim.Mappings.Username = &generated.UsernameClaimProfile{}
+	}
+	if obj.Properties.Claim.Mappings.Username.PrefixPolicy == nil {
+		obj.Properties.Claim.Mappings.Username.PrefixPolicy = ptr.To(generated.UsernameClaimPrefixPolicyNone)
+	}
 }
 
 func (h *ExternalAuth) GetVersion() api.Version {
@@ -278,7 +316,9 @@ func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequired
 
 func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
+		ret := &ExternalAuth{}
+		SetDefaultValuesExternalAuth(ret)
+		return ret
 	}
 
 	out := &ExternalAuth{
