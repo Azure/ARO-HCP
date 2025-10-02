@@ -345,6 +345,9 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
+	// Cluster-wide proxy configuration
+	Proxy *ProxyProfile
+
 	// Version of the control plane components
 	Version *VersionProfile
 
@@ -372,6 +375,9 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
+
+	// Cluster-wide proxy configuration
+	Proxy *ProxyProfile
 
 	// Version of the control plane components
 	Version *VersionProfile
@@ -830,6 +836,21 @@ type PlatformProfile struct {
 type PlatformProfileUpdate struct {
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
+}
+
+// ProxyProfile - Cluster-wide proxy configuration
+type ProxyProfile struct {
+	// The HTTP proxy server endpoint to use
+	HTTPProxy *string
+
+	// The HTTPS proxy server endpoint to use
+	HTTPSProxy *string
+
+	// The endpoints that should not go through proxy
+	NoProxy []*string
+
+	// Alternative CA cert to use for connecting to proxy servers
+	TrustedCA *string
 }
 
 // RoleDefinition - A single role definition required by a given operator
