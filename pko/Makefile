@@ -18,7 +18,7 @@ deploy:
 	--set pullBinding.workloadIdentityClientId="$${IMAGE_PULLER_MI_CLIENT_ID}" \
 	--set pullBinding.workloadIdentityTenantId="$${IMAGE_PULLER_MI_TENANT_ID}" \
 	--set pullBinding.registry=${ARO_HCP_IMAGE_REGISTRY} \
-	--set pullBinding.scope='repository:*:pull' \
+	--set pullBinding.scope='repository:${PKO_IMAGEPACKAGE_REPOSITORY}:pull\,repository:${PKO_IMAGEMANAGER_REPOSITORY}:pull' \
 	--set pkoImagePrefixOverrides="quay.io/package-operator=${ARO_HCP_IMAGE_REGISTRY}/package-operator" \
 	--set pkoImagePackageRegistry=${ARO_HCP_IMAGE_REGISTRY} \
 	--set pkoImagePackageRepository=${PKO_IMAGEPACKAGE_REPOSITORY} \
