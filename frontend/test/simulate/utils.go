@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -116,7 +115,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 	frontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, dbClient, clusterServiceClient, noOpAuditClient)
 	testInfo := &SimulationTestInfo{
 		ArtifactsDir:             artifactDir,
-		mockClusters:             make(map[string]map[string][]*csarhcpv1alpha1.Cluster),
+		mockData:                 make(map[string]map[string][]any),
 		CosmosDatabaseClient:     cosmosDatabaseClient,
 		DBClient:                 dbClient,
 		MockClusterServiceClient: clusterServiceClient,
