@@ -1,0 +1,12 @@
+pkoImagePackageRegistry: "{{ .acr.svc.name }}.azurecr.io"
+pkoImagePackageRepository: "{{ .pko.imagePackage.repository }}"
+pkoImagePackageDigest: "{{ .pko.imagePackage.digest }}"
+pkoImageManagerRegistry: "{{ .acr.svc.name }}.azurecr.io"
+pkoImageManagerRepository: "{{ .pko.imageManager.repository }}"
+pkoImageManagerDigest: "{{ .pko.imageManager.digest }}"
+pkoImagePrefixOverrides: "quay.io/package-operator={{ .acr.svc.name }}.azurecr.io/package-operator"
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .pko.imagePackage.repository }}:pull,repository:{{ .pko.imageManager.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
