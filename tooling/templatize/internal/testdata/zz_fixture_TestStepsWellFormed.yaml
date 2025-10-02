@@ -7,7 +7,6 @@ Microsoft.Azure.ARO.HCP.ClusterService:
     deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Management.Infra:
   management:
-    arobit: helm step needing migration
     fixes: helm step needing migration
     prometheus: helm step needing migration
 Microsoft.Azure.ARO.HCP.PKO:
@@ -27,6 +26,5 @@ Microsoft.Azure.ARO.HCP.RouteMonitorOperator:
     deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Service.Infra:
   service:
-    arobit: helm step needing migration
     istio-config: helm step needing migration
     prometheus: helm step needing migration
