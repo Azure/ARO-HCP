@@ -49,15 +49,15 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
     }
   }
 
-  // resource mgmtIngest 'principalAssignments' = {
-  //   name: 'mgmtIngest'
-  //   properties: {
-  //     principalId: mgmtLogsManagedIdentity
-  //     principalType: 'App'
-  //     role: 'Ingestor'
-  //     tenantId: tenant().tenantId
-  //   }
-  // }
+  resource mgmtIngest 'principalAssignments' = {
+    name: 'mgmtIngest'
+    properties: {
+      principalId: mgmtLogsManagedIdentity
+      principalType: 'App'
+      role: 'Ingestor'
+      tenantId: tenant().tenantId
+    }
+  }
 
   resource containerLogs 'scripts' = {
     name: 'containerLogs'
