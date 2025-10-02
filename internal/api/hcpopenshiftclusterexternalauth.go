@@ -146,10 +146,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) NewVersioned(versionedInterface Version) VersionedResource {
-	return versionedInterface.NewHCPOpenShiftClusterExternalAuth(externalAuth)
-}
-
 // This combination is used later in the system as a unique identifier and as
 // such we must ensure uniqueness.
 func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentifiers() []arm.CloudErrorBody {

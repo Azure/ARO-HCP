@@ -202,10 +202,6 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShi
 	}
 }
 
-func (cluster *HCPOpenShiftCluster) NewVersioned(versionedInterface Version) VersionedResource {
-	return versionedInterface.NewHCPOpenShiftCluster(cluster)
-}
-
 func (cluster *HCPOpenShiftCluster) validateVersion() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 

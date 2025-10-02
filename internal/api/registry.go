@@ -45,10 +45,6 @@ var (
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
-type Resource interface {
-	NewVersioned(versionedInterface Version) VersionedResource
-}
-
 type VersionedResource interface {
 	GetVersion() Version
 }

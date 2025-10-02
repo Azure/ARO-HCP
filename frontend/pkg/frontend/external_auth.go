@@ -282,5 +282,5 @@ func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *data
 	hcpExternalAuth.SystemData = doc.SystemData
 	hcpExternalAuth.Properties.ProvisioningState = doc.ProvisioningState
 
-	return arm.MarshalJSON(hcpExternalAuth.NewVersioned(versionedInterface))
+	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth))
 }
