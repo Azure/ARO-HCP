@@ -40,7 +40,7 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 			}
 		}
 	}
-	return "", fmt.Errorf("subscription with name %s not found", subscriptionName)
+	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
 }
 
 // CreateResourceGroup creates a resource group
