@@ -9,6 +9,11 @@
     "api": {
       "visibility": "Public"
     },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 900,
+      "maxPodGracePeriodSeconds": 600,
+      "podPriorityThreshold": -10
+    },
     "clusterImageRegistry": {
       "state": "Disabled"
     },
