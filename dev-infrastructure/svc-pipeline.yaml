@@ -276,7 +276,7 @@ resourceGroups:
     parameters: configurations/arobit-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-  - name: deploy
+  - name: arobit
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     releaseName: 'arobit'
