@@ -51,6 +51,7 @@ arobit:
       registry: linuxgeneva-microsoft.azurecr.io
       repository: genevamdsd
 automationDryRun: false
+availabilityZoneCount: 4
 backend:
   image:
     digest: ""
@@ -431,23 +432,23 @@ mgmt:
     name: nsp-usw3-mgmt-1
   prometheus:
     namespace: prometheus
-    namespaceLabel: network.openshift.io/policy-group=monitoring
+    namespaceNetworkPolicyGroup: monitoring
     prometheusConfigReloader:
       image:
-        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
+        sha: b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
     prometheusOperator:
       image:
-        digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
+        sha: 82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
       version: ""
     prometheusSpec:
       image:
-        digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
+        sha: db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
       replicas: 2
       shards: 1
       version: v2.55.1-4
@@ -663,23 +664,23 @@ svc:
     name: nsp-usw3-svc
   prometheus:
     namespace: prometheus
-    namespaceLabel: ""
+    namespaceNetworkPolicyGroup: ""
     prometheusConfigReloader:
       image:
-        digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
+        sha: b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
     prometheusOperator:
       image:
-        digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
+        sha: 82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
       version: ""
     prometheusSpec:
       image:
-        digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
+        sha: db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
       replicas: 2
       shards: 1
       version: ""
