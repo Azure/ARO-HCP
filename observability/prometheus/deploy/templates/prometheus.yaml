@@ -74,7 +74,7 @@ spec:
       matchLabels:
         app: prometheus
     maxSkew: 1
-    topologyKey: '{{ .Values.prometheusSpec.topologyKey }}'
+    topologyKey: '{{ if eq (int .Values.prometheusSpec.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}failure-domain.beta.kubernetes.io/zone{{ end }}'
     whenUnsatisfiable: ScheduleAnyway
   tsdb:
     outOfOrderTimeWindow: 0s
@@ -102,7 +102,7 @@ spec:
         regex: '^ocm-{{ .Values.environment }}.*'
         action: drop 
     {{- end -}}
-  {{- if .Values.prometheusSpec.hcpRemoteWriteUrl }}
+  {{- if ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE" }}
   - url: '{{ .Values.prometheusSpec.hcpRemoteWriteUrl }}'
     azureAd:
       cloud: AzurePublic
