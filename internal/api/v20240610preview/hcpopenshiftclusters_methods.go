@@ -15,8 +15,6 @@
 package v20240610preview
 
 import (
-	"strings"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -118,15 +116,15 @@ func newEtcdDataEncryptionProfile(from *api.EtcdDataEncryptionProfile) generated
 		return generated.EtcdDataEncryptionProfile{}
 	}
 	return generated.EtcdDataEncryptionProfile{
-		CustomerManaged:   api.PtrOrNil(newCustomerManagedEncryptionProfile(from.CustomerManaged)),
+		CustomerManaged:   newCustomerManagedEncryptionProfile(from.CustomerManaged),
 		KeyManagementMode: api.PtrOrNil(generated.EtcdDataEncryptionKeyManagementModeType(from.KeyManagementMode)),
 	}
 }
-func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) generated.CustomerManagedEncryptionProfile {
+func newCustomerManagedEncryptionProfile(from *api.CustomerManagedEncryptionProfile) *generated.CustomerManagedEncryptionProfile {
 	if from == nil {
-		return generated.CustomerManagedEncryptionProfile{}
+		return nil
 	}
-	return generated.CustomerManagedEncryptionProfile{
+	return &generated.CustomerManagedEncryptionProfile{
 		Kms:            api.PtrOrNil(newKmsEncryptionProfile(from.Kms)),
 		EncryptionType: api.PtrOrNil(generated.CustomerManagedEncryptionType(from.EncryptionType)),
 	}
@@ -393,7 +391,7 @@ func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
 	}
-	out.AuthorizedCIDRs = api.TrimStringSlice(api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs))
+	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
 func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
@@ -452,8 +450,7 @@ func normalizeEtcdDataEncryptionProfile(p *generated.EtcdDataEncryptionProfile, 
 
 func normalizeCustomerManaged(p *generated.CustomerManagedEncryptionProfile, out *api.CustomerManagedEncryptionProfile) {
 	if p.EncryptionType != nil {
-		// FIXME Temporarily allow "kms" instead of "KMS".
-		out.EncryptionType = api.CustomerManagedEncryptionType(strings.ToUpper(string(*p.EncryptionType)))
+		out.EncryptionType = api.CustomerManagedEncryptionType(*p.EncryptionType)
 	}
 	if p.Kms != nil && p.Kms.ActiveKey != nil {
 		if out.Kms == nil {
@@ -488,6 +485,19 @@ func normalizeOperatorsAuthentication(p *generated.OperatorsAuthenticationProfil
 }
 
 func normalizeUserAssignedIdentities(p *generated.UserAssignedIdentitiesProfile, out *api.UserAssignedIdentitiesProfile) {
+	switch {
+	case p.ControlPlaneOperators != nil && out.ControlPlaneOperators == nil:
+		out.ControlPlaneOperators = make(map[string]string)
+	case p.ControlPlaneOperators == nil && out.ControlPlaneOperators != nil:
+		out.ControlPlaneOperators = nil
+	}
+	switch {
+	case p.DataPlaneOperators != nil && out.DataPlaneOperators == nil:
+		out.DataPlaneOperators = make(map[string]string)
+	case p.DataPlaneOperators == nil && out.DataPlaneOperators != nil:
+		out.DataPlaneOperators = nil
+	}
+
 	api.MergeStringPtrMap(p.ControlPlaneOperators, &out.ControlPlaneOperators)
 	api.MergeStringPtrMap(p.DataPlaneOperators, &out.DataPlaneOperators)
 	if p.ServiceManagedIdentity != nil {
@@ -505,11 +515,16 @@ func normalizeIdentityUserAssignedIdentities(p map[string]*generated.UserAssigne
 				ClientID:    value.ClientID,
 				PrincipalID: value.PrincipalID,
 			}
+		} else {
+			(*out)[key] = nil
 		}
 	}
 }
 
 func convertUserAssignedIdentities(from map[string]*arm.UserAssignedIdentity) map[string]*generated.UserAssignedIdentity {
+	if from == nil {
+		return nil
+	}
 	converted := make(map[string]*generated.UserAssignedIdentity)
 	for key, value := range from {
 		if value != nil {
@@ -517,6 +532,8 @@ func convertUserAssignedIdentities(from map[string]*arm.UserAssignedIdentity) ma
 				ClientID:    value.ClientID,
 				PrincipalID: value.PrincipalID,
 			}
+		} else {
+			converted[key] = nil
 		}
 	}
 	return converted

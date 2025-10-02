@@ -29,6 +29,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if strings.TrimSpace(*value) != *value {
+		return field.ErrorList{field.Invalid(fldPath, *value, "must not contain extra whitespace")}
+	}
+	return nil
+}
+
 func OpenshiftVersion(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
