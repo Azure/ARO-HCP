@@ -130,6 +130,21 @@ clustersService:
     replicas: 3
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
+  ocpVersions:
+    channelGroups:
+      fast:
+        enabled: false
+        maxVersion: 4.19.8
+        minVersion: 4.19.0
+        url: https://api.openshift.com/api/upgrades_info/graph
+      stable:
+        enabled: true
+        maxVersion: 4.19.8
+        minVersion: 4.19.0
+        url: https://api.openshift.com/api/upgrades_info/graph
+    defaultVersion:
+      channelGroupName: stable
+      version: 4.19.7
   postgres:
     backupRetentionDays: 7
     databaseName: clusters-service
