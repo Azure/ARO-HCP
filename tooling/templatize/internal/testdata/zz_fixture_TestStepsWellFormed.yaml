@@ -5,9 +5,6 @@ Microsoft.Azure.ARO.HCP.ACM:
 Microsoft.Azure.ARO.HCP.ClusterService:
   service:
     deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.Maestro.Agent:
-  management:
-    deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Maestro.Server:
   service:
     deploy: helm step needing migration
