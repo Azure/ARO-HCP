@@ -4,3 +4,5 @@ param azureMonitorWorkspaceName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpAzureMonitorWorkspaceName = '{{ .monitoring.hcpWorkspaceName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param enableLogAnalytics = {{ .logs.loganalytics.enable }}
+param useAzureDB = {{ .maestro.postgres.deploy }}
+param postgresName = '{{ .maestro.postgres.name }}'
