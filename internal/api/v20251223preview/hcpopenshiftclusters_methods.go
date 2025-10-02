@@ -15,6 +15,10 @@
 package v20251223preview
 
 import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
@@ -22,6 +26,93 @@ import (
 
 type HcpOpenShiftCluster struct {
 	generated.HcpOpenShiftCluster
+}
+
+var _ api.VersionedCreatableResource[api.HCPOpenShiftCluster] = &HcpOpenShiftCluster{}
+
+func (h *HcpOpenShiftCluster) NewExternal() any {
+	return &HcpOpenShiftCluster{}
+}
+
+func (h *HcpOpenShiftCluster) SetDefaultValues(uncast any) error {
+	obj, ok := uncast.(*HcpOpenShiftCluster)
+	if !ok {
+		return fmt.Errorf("unexpected type %T", uncast)
+	}
+
+	SetDefaultValuesCluster(obj)
+	return nil
+}
+
+func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
+	if obj.Properties == nil {
+		obj.Properties = &generated.HcpOpenShiftClusterProperties{}
+	}
+	if obj.Properties.Version == nil {
+		obj.Properties.Version = &generated.VersionProfile{}
+	}
+	if obj.Properties.Version.ChannelGroup == nil {
+		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+	}
+	if obj.Properties.Network == nil {
+		obj.Properties.Network = &generated.NetworkProfile{}
+	}
+	if obj.Properties.Network.NetworkType == nil {
+		obj.Properties.Network.NetworkType = ptr.To(generated.NetworkTypeOVNKubernetes)
+	}
+	if obj.Properties.Network.PodCIDR == nil {
+		obj.Properties.Network.PodCIDR = ptr.To("10.128.0.0/14")
+	}
+	if obj.Properties.Network.ServiceCIDR == nil {
+		obj.Properties.Network.ServiceCIDR = ptr.To("172.30.0.0/16")
+	}
+	if obj.Properties.Network.MachineCIDR == nil {
+		obj.Properties.Network.MachineCIDR = ptr.To("10.0.0.0/16")
+	}
+	if obj.Properties.Network.HostPrefix == nil {
+		obj.Properties.Network.HostPrefix = ptr.To(int32(23))
+	}
+	if obj.Properties.API == nil {
+		obj.Properties.API = &generated.APIProfile{}
+	}
+	if obj.Properties.API.Visibility == nil {
+		obj.Properties.API.Visibility = ptr.To(generated.VisibilityPublic)
+	}
+	if obj.Properties.Platform == nil {
+		obj.Properties.Platform = &generated.PlatformProfile{}
+	}
+	if obj.Properties.Platform.OutboundType == nil {
+		obj.Properties.Platform.OutboundType = ptr.To(generated.OutboundTypeLoadBalancer)
+	}
+	if obj.Properties.Autoscaling == nil {
+		obj.Properties.Autoscaling = &generated.ClusterAutoscalingProfile{}
+	}
+	if obj.Properties.Autoscaling.MaxPodGracePeriodSeconds == nil {
+		obj.Properties.Autoscaling.MaxPodGracePeriodSeconds = ptr.To(int32(600))
+	}
+	if obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds == nil {
+		obj.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = ptr.To(int32(900))
+	}
+	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
+		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(int32(-10))
+	}
+	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
+	// TODO cannot change the default value for this version, but why keep it in our new version?
+	if obj.Properties.Etcd == nil {
+		obj.Properties.Etcd = &generated.EtcdProfile{}
+	}
+	if obj.Properties.Etcd.DataEncryption == nil {
+		obj.Properties.Etcd.DataEncryption = &generated.EtcdDataEncryptionProfile{}
+	}
+	if obj.Properties.Etcd.DataEncryption.KeyManagementMode == nil {
+		obj.Properties.Etcd.DataEncryption.KeyManagementMode = ptr.To(generated.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
+	}
+	if obj.Properties.ClusterImageRegistry == nil {
+		obj.Properties.ClusterImageRegistry = &generated.ClusterImageRegistryProfile{}
+	}
+	if obj.Properties.ClusterImageRegistry.State == nil {
+		obj.Properties.ClusterImageRegistry.State = ptr.To(generated.ClusterImageRegistryProfileStateEnabled)
+	}
 }
 
 func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
@@ -205,7 +296,9 @@ func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) generated.Manag
 
 func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.VersionedHCPOpenShiftCluster {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftCluster(nil)
+		ret := &HcpOpenShiftCluster{}
+		SetDefaultValuesCluster(ret)
+		return ret
 	}
 
 	out := &HcpOpenShiftCluster{

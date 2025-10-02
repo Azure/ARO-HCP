@@ -201,6 +201,16 @@ type InternalTestResource struct {
 var _ VersionedCreatableResource[InternalTestResource] = &ExternalTestResource{}
 var testResourceVisibilityMap = NewVisibilityMap[InternalTestResource]()
 
+func (m *ExternalTestResource) NewExternal() any {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *ExternalTestResource) SetDefaultValues(a any) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *ExternalTestResource) GetVersion() Version {
 	// FIXME Implement if there's a need for it in tests.
 	return nil

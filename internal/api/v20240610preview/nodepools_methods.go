@@ -15,6 +15,10 @@
 package v20240610preview
 
 import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -22,6 +26,49 @@ import (
 
 type NodePool struct {
 	generated.NodePool
+}
+
+var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool] = &NodePool{}
+
+func (h *NodePool) NewExternal() any {
+	return &NodePool{}
+}
+
+func (h *NodePool) SetDefaultValues(uncast any) error {
+	obj, ok := uncast.(*NodePool)
+	if !ok {
+		return fmt.Errorf("unexpected type %T", uncast)
+	}
+
+	SetDefaultValuesNodePool(obj)
+	return nil
+}
+
+func SetDefaultValuesNodePool(obj *NodePool) {
+	if obj.Properties == nil {
+		obj.Properties = &generated.NodePoolProperties{}
+	}
+	if obj.Properties.Version == nil {
+		obj.Properties.Version = &generated.NodePoolVersionProfile{}
+	}
+	if obj.Properties.Version.ChannelGroup == nil {
+		obj.Properties.Version.ChannelGroup = ptr.To("stable")
+	}
+	if obj.Properties.Platform == nil {
+		obj.Properties.Platform = &generated.NodePoolPlatformProfile{}
+	}
+	if obj.Properties.Platform.OSDisk == nil {
+		obj.Properties.Platform.OSDisk = &generated.OsDiskProfile{}
+	}
+	if obj.Properties.Platform.OSDisk.SizeGiB == nil {
+		obj.Properties.Platform.OSDisk.SizeGiB = ptr.To(int32(64))
+	}
+	if obj.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		obj.Properties.Platform.OSDisk.DiskStorageAccountType = ptr.To(generated.DiskStorageAccountTypePremiumLRS)
+	}
+	if obj.Properties.AutoRepair == nil {
+		obj.Properties.AutoRepair = ptr.To(true)
+	}
 }
 
 func (h *NodePool) GetVersion() api.Version {
@@ -228,7 +275,9 @@ func newNodePoolAutoScaling(from *api.NodePoolAutoScaling) generated.NodePoolAut
 
 func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNodePool) api.VersionedHCPOpenShiftClusterNodePool {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterNodePool(nil)
+		ret := &NodePool{}
+		SetDefaultValuesNodePool(ret)
+		return ret
 	}
 
 	out := &NodePool{

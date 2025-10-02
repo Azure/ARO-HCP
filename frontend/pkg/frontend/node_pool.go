@@ -326,5 +326,5 @@ func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.Resour
 	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return arm.MarshalJSON(hcpNodePool.NewVersioned(versionedInterface))
+	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
