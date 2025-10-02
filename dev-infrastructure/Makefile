@@ -342,6 +342,41 @@ kusto.what-if:
 		--parameters mgmtLogsManagedIdentity=$${MGMT_LOGS_MSI}
 .PHONY: kusto.what-if
 
+kusto.grant.ingest:
+	SVC_LOGS_MSI=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	SVC_IDENTIFIER=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv | cut -d- -f1)  && \
+	MGMT_LOGS_MSI=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	MGMT_IDENTIFIER=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv | cut -d- -f1)  && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPServiceLogs \
+		--principal-assignment-name "svc$${SVC_IDENTIFIER}" \
+		--principal-id $${SVC_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID} && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPServiceLogs \
+		--principal-assignment-name "mgmt$${MGMT_IDENTIFIER}" \
+		--principal-id $${MGMT_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID} && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPCustomerLogs \
+		--principal-assignment-name "svc$${SVC_IDENTIFIER}" \
+		--principal-id $${MGMT_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID}
+.PHONY: kusto.grant.ingest
+
 monitoring:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring
