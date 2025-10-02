@@ -16,8 +16,8 @@ deploy:
 		--set forwarder.clusterType=${AROBIT_CLUSTER_TYPE} \
 		--set forwarder.mdsd.enabled=${AROBIT_MDSD_ENABLED} \
 		--set forwarder.secretProvider.keyVault=${AROBIT_SECRET_PROVIDER_KEY_VAULT} \
-		--set forwarder.secretProvider.msiClientId=$${CLIENT_ID} \
-		--set forwarder.secretProvider.tenantId=$${TENANT_ID} \
+		--set forwarder.msiClientId=$${CLIENT_ID} \
+		--set forwarder.tenantId=$${TENANT_ID} \
 		--set forwarder.mdsd.geneva.rpAccountName=${AROBIT_GENEVA_RP_ACCOUNT_NAME} \
 		--set forwarder.mdsd.geneva.rpSecretName=${AROBIT_GENEVA_RP_SECRET_NAME} \
 		--set forwarder.mdsd.geneva.rpSan=${AROBIT_GENEVA_RP_SAN} \
@@ -26,7 +26,8 @@ deploy:
 		--set forwarder.mdsd.geneva.clusterLogsSecretName=${AROBIT_GENEVA_CLUSTER_LOGS_SECRET_NAME} \
 		--set forwarder.mdsd.geneva.clusterLogsSan=${AROBIT_GENEVA_CLUSTER_LOGS_SAN} \
 		--set forwarder.mdsd.geneva.clusterLogsNamespace=${AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE} \
-		--set forwarder.mdsd.geneva.role=${RESOURCEGROUP}
+		--set forwarder.mdsd.geneva.role=${RESOURCEGROUP} \
+		--set kusto.ingestionUrl=${KUSTO_INGESTIONURL}
 .PHONY: deploy
 
 undeploy:

@@ -49,7 +49,11 @@ forwarder:
       repository: genevamdsd
       digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
       pullPolicy: IfNotPresent
+  kusto:
+    ingestionUrl:
+    rpDatabase:
+    clusterLogsDatabase:
+  msiClientId: ""
+  tenantId: ""
   secretProvider:
-    msiClientId: ""
     keyVault: ""
-    tenantId: ""
