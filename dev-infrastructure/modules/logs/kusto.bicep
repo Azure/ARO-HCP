@@ -15,10 +15,6 @@ param location string = resourceGroup().location
 @maxValue(3)
 param capacity int = 1
 
-@description('Id of the Managed Identity to ingest logs with')
-param svcLogsManagedIdentity string
-param mgmtLogsManagedIdentity string
-
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: clusterName
   location: location
@@ -39,26 +35,15 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   name: 'HCPServiceLogs'
   kind: 'ReadWrite'
 
-  resource svcIngest 'principalAssignments' = {
-    name: 'svcIngest'
+  resource dbAdmin 'principalAssignments' = {
+    name: 'dbAdmin'
     properties: {
-      principalId: svcLogsManagedIdentity
-      principalType: 'App'
-      role: 'Ingestor'
+      principalId: 'ARO-Application Developer'
+      principalType: 'Group'
+      role: 'Admin'
       tenantId: tenant().tenantId
     }
   }
-
-  resource mgmtIngest 'principalAssignments' = {
-    name: 'mgmtIngest'
-    properties: {
-      principalId: mgmtLogsManagedIdentity
-      principalType: 'App'
-      role: 'Ingestor'
-      tenantId: tenant().tenantId
-    }
-  }
-
   resource containerLogs 'scripts' = {
     name: 'containerLogs'
     properties: {
@@ -99,12 +84,12 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   name: 'HCPCustomerLogs'
   kind: 'ReadWrite'
 
-  resource mgmtIngest 'principalAssignments' = {
-    name: 'mgmtIngest'
+  resource dbAdmin 'principalAssignments' = {
+    name: 'dbAdmin'
     properties: {
-      principalId: mgmtLogsManagedIdentity
-      principalType: 'App'
-      role: 'Ingestor'
+      principalId: 'ARO-Application Developer'
+      principalType: 'Group'
+      role: 'Admin'
       tenantId: tenant().tenantId
     }
   }
