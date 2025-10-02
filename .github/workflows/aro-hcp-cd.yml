@@ -94,6 +94,9 @@ jobs:
 
         # Setup operator roles for platform workload identity
         make operator-roles
+
+        # Manage Dev Kusto
+        make kusto
   service_ci:
     name: 'Build service images'
     permissions:
