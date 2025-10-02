@@ -9,11 +9,15 @@ spec:
     - name: 'user-is-secrets-store-sync-controller'
       expression: {{ include "chartname.matchConditionExpression" . | quote }}
   matchConstraints:
+    matchPolicy: Equivalent
+    namespaceSelector: { }
+    objectSelector: { }
     resourceRules:
     - apiGroups:   [""]
       apiVersions: ["v1"]
       operations:  ["CREATE"]
       resources:   ["serviceaccounts/token"]
+      scope: '*'
   variables:
   - name: expirationSeconds
     expression: "string(object.spec.expirationSeconds) == '600'"
