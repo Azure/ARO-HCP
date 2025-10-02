@@ -32,6 +32,6 @@ deploy:
 		--set pullBinding.registry=${ACR_NAME}.azurecr.io \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
-		--set pullBinding.scope=repository:${IMAGE_BASE}:pull
+		--set pullBinding.scope=repository:${IMAGE_REPO}:pull
 
 .PHONY: deploy
