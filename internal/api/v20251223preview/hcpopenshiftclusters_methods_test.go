@@ -31,6 +31,8 @@ import (
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
@@ -48,6 +50,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 func TestRoundTripExternalInternalExternal(t *testing.T) {
 	t.Skip("zero value pointer don't roundtrip, making the comparison impossible until we fix that.")
 	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *HcpOpenShiftCluster, c randfill.Continue) {
 			c.FillNoCustom(j)
