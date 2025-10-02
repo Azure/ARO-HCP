@@ -170,6 +170,13 @@ data:
         Preserve_Key On
         Reserve_Data On
   output.conf: |
+    [FILTER]
+        Name modify
+        Match *
+        Add environment {{ .Values.forwarder.environment }}
+        Add region {{ .Values.forwarder.region }}
+        Add cluster {{ .Values.forwarder.clusterName }}
+
 {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
         Match ocm.logs

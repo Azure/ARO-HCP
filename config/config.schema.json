@@ -1382,6 +1382,9 @@
         },
         "ingestionUrl": {
           "type": "string"
+        },
+        "environmentName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

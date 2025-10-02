@@ -1,0 +1,59 @@
+# Global Docker image parameters
+##
+# imagePullSecrets:
+#   - linuxgeneva-microsoft
+forwarder:
+  clusterType: svc
+  ## Enable forwarder daemonset
+  ##
+  dynamicConfig: false
+  ## K8s Security Context for forwarder pods
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  ##
+  securityContext:
+    enabled: true
+    runAsUser: 65532
+    runAsGroup: 65532
+  ## Pods Service Account
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+  serviceAccountName: arobit-forwarder
+  fluentbit:
+    ## Fluent Bit image version
+    ##
+    image:
+      registry: mcr.microsoft.com
+      repository: /oss/v2/fluent/fluent-bit
+      digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
+      pullPolicy: IfNotPresent
+  mdsd:
+    # Geneva Config, deprecated to be deleted after Kusto is enabled in prod
+    geneva:
+      role: ""
+      rpAccountName: ""
+      rpSecretName: ""
+      rpSan: ""
+      rpNamespace: ""
+      clusterLogsAccountName: ""
+      clusterLogsSecretName: ""
+      clusterLogsSan: ""
+      clusterLogsNamespace: ""
+      configVersion: 1
+      environment: ""
+      region: ""
+    ## Specifies whether mdsd should enabled
+    enabled: false
+    ## mdsd image version
+    ##
+    image:
+      registry: linuxgeneva-microsoft.azurecr.io
+      repository: genevamdsd
+      digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+      pullPolicy: IfNotPresent
+  kusto:
+    ingestionUrl:
+    rpDatabase:
+    clusterLogsDatabase:
+  msiClientId: ""
+  tenantId: ""
+  secretProvider:
+    keyVault: ""

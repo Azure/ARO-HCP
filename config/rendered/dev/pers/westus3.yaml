@@ -310,6 +310,7 @@ kubeEvents:
     repository: ""
 kusto:
   cluster: ""
+  environmentName: pers
   ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
   resourceGroup: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb

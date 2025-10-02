@@ -310,6 +310,10 @@ resourceGroups:
       configRef: geneva.logs.environment
     - name: KUSTO_INGESTIONURL
       configRef: kusto.ingestionUrl
+    - name: ENVIRONMENT
+      configRef: kusto.environmentName 
+    - name: CLUSTER_NAME
+      configRef: svc.aks.name
     dependsOn:
     - resourceGroup: service
       step: cluster
