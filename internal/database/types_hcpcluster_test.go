@@ -40,6 +40,8 @@ func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
 
 func TestHCPClusterJSONRoundTripThroughResourceDocument(t *testing.T) {
 	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *TypedDocument, c randfill.Continue) {
 			c.FillNoCustom(j)

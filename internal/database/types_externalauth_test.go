@@ -27,6 +27,8 @@ import (
 
 func TestExternalAuthJSONRoundTripThroughResourceDocument(t *testing.T) {
 	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *TypedDocument, c randfill.Continue) {
 			c.FillNoCustom(j)

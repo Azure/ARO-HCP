@@ -165,7 +165,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Too long", fieldPath: "properties.api.authorizedCidrs"},
+				{message: "Too many", fieldPath: "properties.api.authorizedCidrs"},
 			},
 		},
 		{
@@ -837,7 +837,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "Too long", fieldPath: "properties.api.authorizedCidrs"},
+				{message: "Too many", fieldPath: "properties.api.authorizedCidrs"},
 			},
 		},
 		{
