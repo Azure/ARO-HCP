@@ -213,23 +213,18 @@ resourceGroups:
   - name: istio-config
     # configure istio
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../istio deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ISTIO_VERSIONS
-      configRef: svc.istio.versions
+    action: Helm
+    releaseName: 'istio'
+    releaseNamespace: 'aks-istio-system'
+    chartDir: ../istio/deploy
+    valuesFile: ../istio/values.yaml
     dependsOn:
     - resourceGroup: service
       step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: istio-upgrade
     # - updates workload to use istio on version svc.istio.targetVersion
     # - configures istio IP tag usage
