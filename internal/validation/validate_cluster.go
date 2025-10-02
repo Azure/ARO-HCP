@@ -117,7 +117,7 @@ func validateSystemData(ctx context.Context, op operation.Operation, fldPath *fi
 }
 
 var (
-	toProvisioningState = func(oldObj *api.HCPOpenShiftClusterProperties) *arm.ProvisioningState {
+	toClusterPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
 	toVersion            = func(oldObj *api.HCPOpenShiftClusterProperties) *api.VersionProfile { return &oldObj.Version }
@@ -140,7 +140,7 @@ func validateClusterProperties(ctx context.Context, op operation.Operation, fldP
 	errs := field.ErrorList{}
 
 	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toProvisioningState))...)
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterPropertiesProvisioningState))...)
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
 	errs = append(errs, validateVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toVersion))...)

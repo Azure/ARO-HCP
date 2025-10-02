@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"regexp"
@@ -68,6 +69,16 @@ func OpenshiftVersion(_ context.Context, op operation.Operation, fldPath *field.
 	_, err := semver.NewVersion(*value)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+	return nil
+}
+
+func MinItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ []T, minLen int) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(value) < minLen {
+		return field.ErrorList{field.Invalid(fldPath, len(value), fmt.Sprintf("must have at least %d items", minLen))}
 	}
 	return nil
 }
@@ -235,4 +246,19 @@ func newOr[T any](validateFns ...validate.ValidateFunc[T]) validate.ValidateFunc
 	return func(ctx context.Context, op operation.Operation, fldPath *field.Path, newValue, oldValue T) field.ErrorList {
 		return Or(ctx, op, fldPath, newValue, oldValue, validateFns...)
 	}
+}
+
+// TODO this is compatible with what existed before, but still allows much invalid content
+func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	if !x509.NewCertPool().AppendCertsFromPEM([]byte(*value)) {
+		return field.ErrorList{field.Invalid(fldPath, *value, "not a valid PEM")}
+	}
+
+	return nil
 }
