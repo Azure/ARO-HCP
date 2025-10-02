@@ -1320,6 +1320,9 @@
         },
         "cluster": {
           "type": "string"
+        },
+        "ingestionUrl": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

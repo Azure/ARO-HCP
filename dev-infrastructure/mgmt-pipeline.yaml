@@ -362,6 +362,8 @@ resourceGroups:
       configRef: region
     - name: GENEVA_ENVIRONMENT
       configRef: geneva.logs.environment
+    - name: KUSTO_INGESTIONURL
+      configRef: kusto.ingestionUrl
     dependsOn:
     - resourceGroup: management
       step: cluster
