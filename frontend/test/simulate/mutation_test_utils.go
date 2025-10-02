@@ -40,7 +40,6 @@ import (
 func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo) {
 	internalIDToCluster := map[string][]any{}
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
-
 	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, builder *csarhcpv1alpha1.ClusterBuilder) (*csarhcpv1alpha1.Cluster, error) {
 		internalID := "/api/clusters_mgmt/v1/clusters/" + rand.String(10)
 		builder = builder.HREF(internalID)
@@ -71,6 +70,40 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
 		}
 		return csarhcpv1alpha1.UnmarshalCluster(mergedJSON)
+	}).AnyTimes()
+
+	internalIDToExternalAuth := map[string][]any{}
+	require.NoError(t, testInfo.AddMockData(t.Name()+"_externalAuths", internalIDToExternalAuth))
+	testInfo.MockClusterServiceClient.EXPECT().PostExternalAuth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
+		externalAuthInternalID := clusterID.String() + "/external_auth_config/external_auths/" + rand.String(10)
+		builder = builder.HREF(externalAuthInternalID)
+		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToExternalAuth[externalAuthInternalID] = append(internalIDToExternalAuth[externalAuthInternalID], ret)
+		return ret, nil
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().UpdateExternalAuth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
+		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToExternalAuth[id.String()] = append(internalIDToExternalAuth[id.String()], ret)
+		return ret, nil
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().GetExternalAuth(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
+		history := internalIDToExternalAuth[id.String()]
+		if len(history) == 0 {
+			return nil, fmt.Errorf("not found: %q", id.String())
+		}
+		mergedJSON, err := mergeClusterServiceReturn(history)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
+		}
+		return csarhcpv1alpha1.UnmarshalExternalAuth(mergedJSON)
 	}).AnyTimes()
 }
 
@@ -144,19 +177,38 @@ func readGenericMutationTest(testDir fs.FS) (*genericMutationTest, error) {
 		return nil, fmt.Errorf("failed to read expected.json: %w", err)
 	}
 
+	var initialCosmosState fs.FS
+	if _, err := fs.ReadDir(testDir, "cosmos-state"); err == nil {
+		if cosmosState, err := fs.Sub(testDir, "cosmos-state"); err == nil {
+			initialCosmosState = cosmosState
+		}
+	}
+
 	return &genericMutationTest{
-		createJSON:     createJSON,
-		updateJSON:     updateJSON,
-		expectedJSON:   expectedJSON,
-		expectedErrors: expectedErrors,
+		initialCosmosState: initialCosmosState,
+		createJSON:         createJSON,
+		updateJSON:         updateJSON,
+		expectedJSON:       expectedJSON,
+		expectedErrors:     expectedErrors,
 	}, nil
 }
 
 type genericMutationTest struct {
-	createJSON     []byte
-	updateJSON     []byte
-	expectedJSON   []byte
-	expectedErrors []expectedFieldError
+	initialCosmosState fs.FS
+	createJSON         []byte
+	updateJSON         []byte
+	expectedJSON       []byte
+	expectedErrors     []expectedFieldError
+}
+
+func (h *genericMutationTest) initialize(ctx context.Context, testInfo *SimulationTestInfo) error {
+	if h.initialCosmosState != nil {
+		err := testInfo.CreateInitialCosmosContent(ctx, h.initialCosmosState)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *genericMutationTest) isUpdateTest() bool {
