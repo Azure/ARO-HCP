@@ -62,7 +62,7 @@ func MaxItems[T any](_ context.Context, _ operation.Operation, fldPath *field.Pa
 		return nil
 	}
 	if len(value) > maxLen {
-		return field.ErrorList{field.TooLong(fldPath, len(value), maxLen)}
+		return field.ErrorList{field.TooMany(fldPath, len(value), maxLen)}
 	}
 	return nil
 }
