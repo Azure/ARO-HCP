@@ -695,6 +695,29 @@
         "key",
         "displayName"
       ]
+    },
+    "ocpVersionChannelGroupSpec": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        },
+        "minVersion": {
+          "type": "string"
+        },
+        "maxVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "url",
+        "minVersion"
+      ]
     }
   },
   "properties": {
@@ -912,6 +935,39 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "ocpVersions": {
+          "type": "object",
+          "properties": {
+            "defaultVersion": {
+              "type": "object",
+              "properties": {
+                "channelGroupName": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              },
+              "required": ["channelGroupName", "version"],
+              "additionalProperties": false
+            },
+            "channelGroups": {
+              "type": "object",
+              "properties": {
+                "stable": {
+                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
+                },
+                "fast": {
+                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
+                }
+              },
+              "required": ["stable", "fast"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["defaultVersion", "channelGroups"],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -924,7 +980,8 @@
         "azureOperatorsManagedIdentities",
         "postgres",
         "tracing",
-        "azureRuntimeConfig"
+        "azureRuntimeConfig",
+        "ocpVersions"
       ]
     },
     "cxKeyVault": {
