@@ -21,8 +21,9 @@ data:
     {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
     {{- end }}
-{{- end }}
+{{- else}}
     @INCLUDE /forwarder/etc/output.conf
+{{- end }}
   service.conf: |
     [SERVICE]
         Flush                     1
@@ -169,28 +170,29 @@ data:
         Preserve_Key On
         Reserve_Data On
   output.conf: |
+{{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
-        Match other.logs
+        Match ocm.logs
         Name azure_kusto
         auth_type workload_identity
-        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
-        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
+        Database_Name {{ .Values.kusto.clusterLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
-
+{{- else }}
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
         auth_type workload_identity
-        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
-        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
+        Database_Name {{ .Values.kusto.rpDatabase }}
         Table_Name frontendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -199,12 +201,25 @@ data:
         Match aro-hcp-backend.logs
         Name azure_kusto
         auth_type workload_identity
-        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
-        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
+        Database_Name {{ .Values.kusto.rpDatabase }}
         Table_Name backendContainerLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
+{{- end }}
+    [OUTPUT]
+        Match other.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
+        Database_Name {{ .Values.kusto.rpDatabase }}
+        Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 
@@ -212,28 +227,14 @@ data:
         Match kube-events.logs
         Name azure_kusto
         auth_type workload_identity
-        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
-        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
+        Database_Name {{ .Values.kusto.rpDatabase }}
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
-
-  output-mdsd.conf: |
-    [OUTPUT]
-        Match other.logs
-        Name azure_kusto
-        auth_type workload_identity
-        tenant_id {{ .Values.forwarder.secretProvider.tenantId }}
-        client_id {{ .Values.forwarder.secretProvider.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.westus3.kusto.windows.net
-        Database_Name HCPCustomerLogs
-        Table_Name containerLogs
-        buffer_dir /var/kusto
-
   output-mdsd.conf: |
     # Forward logs to mdsd instance (default port)
     [OUTPUT]

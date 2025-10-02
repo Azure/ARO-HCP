@@ -712,6 +712,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      kusto:
+        ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
       kubeEvents:
         enabled: false
       automationDryRun: false
