@@ -15,7 +15,6 @@
 package simulate
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,7 +33,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -45,7 +43,7 @@ import (
 
 type SimulationTestInfo struct {
 	ArtifactsDir string
-	mockClusters map[string]map[string][]*csarhcpv1alpha1.Cluster
+	mockData     map[string]map[string][]any
 
 	CosmosDatabaseClient     *azcosmos.DatabaseClient
 	DBClient                 database.DBClient
@@ -413,22 +411,22 @@ func (s *SimulationTestInfo) createInitialCosmosContent(ctx context.Context, con
 }
 
 func (s *SimulationTestInfo) saveClusterServiceMockData(ctx context.Context) error {
-	for dataName, clusters := range s.mockClusters {
-		for clusterName, clusterHistory := range clusters {
-			for i, currCluster := range clusterHistory {
-				basename := fmt.Sprintf("%d_%s.json", i, strings.ReplaceAll(clusterName, "/", "."))
-				filename := filepath.Join(s.ArtifactsDir, "cluster-service-mock-data", dataName, strings.ReplaceAll(clusterName, "/", "."), basename)
+	for dataName, clusterServiceData := range s.mockData {
+		for clusterServiceName, clusterServiceHistory := range clusterServiceData {
+			for i, currCluster := range clusterServiceHistory {
+				basename := fmt.Sprintf("%d_%s.json", i, strings.ReplaceAll(clusterServiceName, "/", "."))
+				filename := filepath.Join(s.ArtifactsDir, "cluster-service-mock-data", dataName, strings.ReplaceAll(clusterServiceName, "/", "."), basename)
 				dirname := filepath.Dir(filename)
 				if err := os.MkdirAll(dirname, 0755); err != nil {
 					return fmt.Errorf("failed to create directory %s: %w", dirname, err)
 				}
 
-				buf := &bytes.Buffer{}
-				if err := csarhcpv1alpha1.MarshalCluster(currCluster, buf); err != nil {
+				clusterServiceBytes, err := marshalClusterServiceAny(currCluster)
+				if err != nil {
 					return fmt.Errorf("failed to marshal cluster: %w", err)
 				}
 				obj := map[string]any{}
-				if err := json.Unmarshal(buf.Bytes(), &obj); err != nil {
+				if err := json.Unmarshal(clusterServiceBytes, &obj); err != nil {
 					return fmt.Errorf("failed to unmarshal cluster: %w", err)
 				}
 				prettyPrint, err := json.MarshalIndent(obj, "", "    ")
@@ -446,10 +444,10 @@ func (s *SimulationTestInfo) saveClusterServiceMockData(ctx context.Context) err
 }
 
 // adds mock data for later inclusion in artifacts
-func (s *SimulationTestInfo) AddMockData(dataName string, cluster map[string][]*csarhcpv1alpha1.Cluster) error {
-	if _, ok := s.mockClusters[dataName]; ok {
+func (s *SimulationTestInfo) AddMockData(dataName string, data map[string][]any) error {
+	if _, ok := s.mockData[dataName]; ok {
 		return fmt.Errorf("mock data for %q already exists", dataName)
 	}
-	s.mockClusters[dataName] = cluster
+	s.mockData[dataName] = data
 	return nil
 }
