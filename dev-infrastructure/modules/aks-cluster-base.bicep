@@ -17,7 +17,6 @@ param systemAgentMinCount int
 param systemAgentMaxCount int
 param systemAgentVMSize string
 param systemAgentPoolZones array
-param systemAgentPoolCount int
 param systemZoneRedundantMode string
 
 // User agentpool spec (Worker)
@@ -611,20 +610,6 @@ var acrPullRoleDefinitionId = subscriptionResourceId(
   '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 )
 
-var acrReferences = [for acrId in pullAcrResourceIds: res.acrRefFromId(acrId)]
-
-module acrPullRole 'acr/acr-permissions.bicep' = [
-  for acrRef in acrReferences: {
-    name: guid(acrRef.name, aksCluster.id, acrPullRoleDefinitionId)
-    scope: resourceGroup(acrRef.resourceGroup.subscriptionId, acrRef.resourceGroup.name)
-    params: {
-      principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
-      acrName: acrRef.name
-      grantPullAccess: true
-    }
-  }
-]
-
 resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
   for wi in workloadIdentities: {
     location: location
@@ -654,6 +639,8 @@ resource pullerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
   location: location
   name: 'image-puller'
 }
+
+var acrReferences = [for acrId in pullAcrResourceIds: res.acrRefFromId(acrId)]
 
 module acrPullerRoles 'acr/acr-permissions.bicep' = [
   for acrRef in acrReferences: {
