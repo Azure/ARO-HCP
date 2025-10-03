@@ -61,7 +61,7 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	} else if o.DeleteExpired {
 		// If no resource groups provided, use deleteExpired logic
-		// to dinamycally list expired resource groups
+		// to dynamically list expired resource groups
 		now, err := time.Parse(time.RFC3339, o.EvaluationTime)
 		if err != nil {
 			return fmt.Errorf("failed to parse --evaluation-time value: %w", err)
