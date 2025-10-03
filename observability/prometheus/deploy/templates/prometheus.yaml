@@ -74,7 +74,7 @@ spec:
       matchLabels:
         app: prometheus
     maxSkew: 1
-    topologyKey: '{{ .Values.prometheusSpec.topologyKey }}'
+    topologyKey: '{{ if eq (int .Values.prometheusSpec.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}failure-domain.beta.kubernetes.io/zone{{ end }}'
     whenUnsatisfiable: ScheduleAnyway
   tsdb:
     outOfOrderTimeWindow: 0s
