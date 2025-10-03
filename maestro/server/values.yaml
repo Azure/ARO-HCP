@@ -1,0 +1,54 @@
+deployment:
+  replicas: {{ .maestro.server.k8s.replicas }}
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+tracing:
+  address: "{{ .maestro.server.tracing.address }}"
+  exporter: "{{ .maestro.server.tracing.exporter }}"
+broker:
+  host: "__brokerHost__"
+  port: 8883
+database:
+  azureDb: {{ .maestro.postgres.deploy }}
+  containerizedDbImage: "{{ .maestro.postgres.containerizedDb.image }}"
+  containerizedDbPvcCapacity: "{{ .maestro.postgres.containerizedDb.pvcCapacity }}"
+  host: "__databaseHost__"
+  port: 5432
+  name: "{{ .maestro.postgres.databaseName }}"
+  user: "maestro-server"
+  maxOpenConnections: 50
+  debug: false
+maestro:
+  serviceAccount: "{{ .maestro.server.k8s.serviceAccountName }}"
+  httpReadTimeout: 60s
+  httpWriteTimeout: 60s
+  labelMetricsInclusionDuration: 168h
+  httpBindPort: 8000
+  grpcBindPort: 8090
+  healthCheckBindPort: 8083
+  glog_v: {{ .maestro.server.loglevel }}
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"
+  serviceAccount: "{{ .clustersService.k8s.serviceAccountName }}"
+istio:
+  restrictIngress: {{ .maestro.restrictIstioIngress }}
+azure:
+  clientId: "__maestroMsiClientId__"
+  tenantId: "__tenantId__"
+image:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  repository: "{{ .maestro.image.repository }}"
+  digest: "{{ .maestro.image.digest }}"
+credsKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+  secret: "{{ .maestro.server.mqttClientName }}"
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .maestro.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"

@@ -147,6 +147,9 @@ clustersService:
       version: 4.19.7
   postgres:
     backupRetentionDays: 7
+    containerizedDb:
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: clusters-service
     deploy: false
     geoRedundantBackup: false
@@ -356,6 +359,9 @@ maestro:
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
     backupRetentionDays: 7
+    containerizedDb:
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: maestro
     deploy: false
     geoRedundantBackup: false

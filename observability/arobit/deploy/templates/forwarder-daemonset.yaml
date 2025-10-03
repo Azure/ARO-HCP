@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: arobit-forwarder
+  namespace: '{{ .Release.Namespace }}'
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: '{{ .Release.Name }}'

@@ -1,6 +1,27 @@
+image: '{{ .acr.svc.name }}.azurecr.io/{{ .secretSyncController.image.repository }}@{{ .secretSyncController.image.digest }}'
+imagePullPolicy: IfNotPresent
+# Configuration for validating admission policies
+validatingAdmissionPolicies:
+  applyPolicies: true
+  allowedSecretTypes:
+  - "Opaque"
+  - "kubernetes.io/basic-auth"
+  - "bootstrap.kubernetes.io/token"
+  - "kubernetes.io/dockerconfigjson"
+  - "kubernetes.io/dockercfg"
+  - "kubernetes.io/ssh-auth"
+  - "kubernetes.io/tls"
+  deniedSecretTypes:
+  - "kubernetes.io/service-account-token"
+# Default values for controller configuration
+controllerName: secrets-store-sync-controller-manager
+tokenRequestAudience:
+- audience: # e.g. api://TokenAudienceExample
+# Metrics configuration
+metricsPort: 8085
 providerContainer:
 - name: provider-azure-installer
-  image: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+  image: '{{ .secretSyncController.providerImage }}'
   imagePullPolicy: IfNotPresent
   args:
   - --endpoint=unix:///provider/azure.sock

@@ -643,6 +643,18 @@
         "geoRedundantBackup": {
           "type": "boolean",
           "description": "Enable geo-redundant backups for the PostgreSQL server."
+        },
+        "containerizedDb": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "type": "string"
+            },
+            "pvcCapacity": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false,

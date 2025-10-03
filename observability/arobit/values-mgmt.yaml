@@ -3,7 +3,7 @@
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
-  clusterType: svc
+  clusterType: "mgmt"
   ## Enable forwarder daemonset
   ##
   dynamicConfig: false
@@ -21,9 +21,9 @@ forwarder:
     ## Fluent Bit image version
     ##
     image:
-      registry: mcr.microsoft.com
-      repository: /oss/fluent/fluent-bit
-      digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+      registry: "{{ .arobit.forwarder.image.registry }}"
+      repository: "{{ .arobit.forwarder.image.repository }}"
+      digest: "{{ .arobit.forwarder.image.digest }}"
       pullPolicy: IfNotPresent
     ## The configMap that contains the configuration files for fluent-bit
     ##
@@ -190,28 +190,28 @@ forwarder:
   mdsd:
     # Geneva Config
     geneva:
-      role: ""
-      rpAccountName: ""
-      rpSecretName: ""
-      rpSan: ""
-      rpNamespace: ""
-      clusterLogsAccountName: ""
-      clusterLogsSecretName: ""
-      clusterLogsSan: ""
-      clusterLogsNamespace: ""
+      role: "{{ .mgmt.rg }}"
+      rpAccountName: "{{ .geneva.logs.rp.accountName }}"
+      rpSecretName: "{{ .geneva.logs.rp.secretName }}"
+      rpSan: "{{ .geneva.logs.rp.san }}"
+      rpNamespace: "{{ .geneva.logs.rp.namespace }}"
+      clusterLogsAccountName: "{{ .geneva.logs.cluster.accountName }}"
+      clusterLogsSecretName: "{{ .geneva.logs.cluster.secretName }}"
+      clusterLogsSan: "{{ .geneva.logs.cluster.san }}"
+      clusterLogsNamespace: "{{ .geneva.logs.cluster.namespace }}"
       configVersion: 1
-      environment: ""
-      region: ""
+      environment: "{{ .geneva.logs.environment }}"
+      region: "{{ .region }}"
     ## Specifies whether mdsd should enabled
-    enabled: false
+    enabled: {{ .arobit.mdsd.enabled }}
     ## mdsd image version
     ##
     image:
-      registry: linuxgeneva-microsoft.azurecr.io
-      repository: genevamdsd
-      digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+      registry: "{{ .arobit.mdsd.image.registry }}"
+      repository: "{{ .arobit.mdsd.image.repository }}"
+      digest: "{{ .arobit.mdsd.image.digest }}"
       pullPolicy: IfNotPresent
   secretProvider:
-    msiClientId: ""
-    keyVault: ""
-    tenantId: ""
+    msiClientId: "__msiClientId__"
+    keyVault: "{{ .mgmtKeyVault.name }}"
+    tenantId: "__tenantId__"

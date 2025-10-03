@@ -547,6 +547,9 @@ defaults:
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      containerizedDb:
+        image: ""
+        pvcCapacity: ""
     restrictIstioIngress: true
     certDomain: ""
     image:
@@ -606,6 +609,9 @@ defaults:
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      containerizedDb:
+        image: ""
+        pvcCapacity: ""
     managedIdentityName: clusters-service
     k8s:
       replicas: 3
@@ -1025,6 +1031,9 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
@@ -1032,6 +1041,9 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # Frontend
           frontend:
             cosmosDB:
@@ -1082,6 +1094,9 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
@@ -1096,6 +1111,9 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               tracing:
@@ -1177,6 +1195,9 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1184,6 +1205,9 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Frontend

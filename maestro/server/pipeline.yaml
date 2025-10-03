@@ -31,70 +31,60 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+- name: regional
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../dev-infrastructure/templates/output-region.bicep
+    parameters: ../../dev-infrastructure/configurations/output-region.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ../../dev-infrastructure/templates/maestro/maestro-server-lookup.bicep
+    parameters: ../../dev-infrastructure/configurations/maestro-server-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+    action: Helm
+    releaseName: 'maestro-server'
+    releaseNamespace: '{{ .maestro.server.k8s.namespace }}'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+      maestroMsiClientId:
+        resourceGroup: service
+        step: output
+        name: maestroMsiClientId
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      databaseHost:
+        resourceGroup: regional
+        step: output
+        name: databaseHost
+      brokerHost:
+        resourceGroup: regional
+        step: output
+        name: maestroEventGridNamespacesHostname
     dependsOn:
     - resourceGroup: global
       step: mirror-image
-    variables:
-    - name: EVENTGRID_NAME
-      configRef: maestro.eventGrid.name
-    - name: REGION_RG
-      configRef: regionRG
-    - name: SVC_RG
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
-    - name: IMAGE_REPO
-      configRef: maestro.image.repository
-    - name: IMAGE_DIGEST
-      configRef: maestro.image.digest
-    - name: USE_AZURE_DB
-      configRef: maestro.postgres.deploy
-    - name: DATABASE_SERVER_NAME
-      configRef: maestro.postgres.name
-    - name: DATABASE_NAME
-      configRef: maestro.postgres.databaseName
-    - name: ISTIO_RESTRICT_INGRESS
-      configRef: maestro.restrictIstioIngress
-    - name: KEYVAULT_NAME
-      configRef: serviceKeyVault.name
-    - name: MQTT_CLIENT_NAME
-      configRef: maestro.server.mqttClientName
-    - name: MAESTRO_LOG_LEVEL
-      configRef: maestro.server.loglevel
-    - name: ISTO_TAG
-      configRef: svc.istio.tag
-    - name: NAMESPACE
-      configRef: maestro.server.k8s.namespace
-    - name: SERVICE_ACCOUNT_NAME
-      configRef: maestro.server.k8s.serviceAccountName
-    - name: REPLICAS
-      configRef: maestro.server.k8s.replicas
-    - name: MANAGED_IDENTITY_NAME
-      configRef: maestro.server.managedIdentityName
-    - name: CS_NAMESPACE
-      configRef: clustersService.k8s.namespace
-    - name: CS_SERVICE_ACCOUNT_NAME
-      configRef: clustersService.k8s.serviceAccountName
-    - name: ACR_NAME
-      configRef: acr.svc.name
-    - name: TRACING_ADDRESS
-      configRef: maestro.server.tracing.address
-    - name: TRACING_EXPORTER
-      configRef: maestro.server.tracing.exporter
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

@@ -1,4 +1,4 @@
-# {{- if .Values.database.containerizedDb }}
+# {{- if not .Values.database.azureDb }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -55,10 +55,10 @@ spec:
         - --db-password-file=/secrets/db/db.password
         - --db-name-file=/secrets/db/db.name
         - --db-rootcert=
-        - --db-sslmode={{ .Values.database.ssl }}
+        - --db-sslmode={{ if .Values.database.azureDb }}require{{ else }}disable{{ end }}
         - --alsologtostderr
         - -v={{ .Values.maestro.glog_v }}
-        - --db-auth-method={{ .Values.database.authMethod }}
+        - --db-auth-method={{ if .Values.database.azureDb }}az-entra{{ else }}password{{ end }}
       containers:
       - name: service
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
@@ -94,7 +94,7 @@ spec:
         - --db-password-file=/secrets/db/db.password
         - --db-name-file=/secrets/db/db.name
         - --db-rootcert=
-        - --db-sslmode={{ .Values.database.ssl }}
+        - --db-sslmode={{ if .Values.database.azureDb }}require{{ else }}disable{{ end }}
         - --db-max-open-connections={{ .Values.database.maxOpenConnections }}
         - --message-broker-config-file=/secrets/maestro/config.yaml
         - --message-broker-type=mqtt
@@ -117,7 +117,7 @@ spec:
         - --label-metrics-inclusion-duration={{ .Values.maestro.labelMetricsInclusionDuration }}
         - --alsologtostderr
         - -v={{ .Values.maestro.glog_v }}
-        - --db-auth-method={{ .Values.database.authMethod }}
+        - --db-auth-method={{ if .Values.database.azureDb }}az-entra{{ else }}password{{ end }}
         resources:
           requests:
             cpu: '{{ .Values.deployment.requests.cpu }}'
