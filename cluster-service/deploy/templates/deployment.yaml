@@ -102,8 +102,8 @@ spec:
         - --db-name=@/secrets/rds/db.name
         - --db-user=@/secrets/rds/db.user
         - --db-password=@/secrets/rds/db.password
-        - --db-disable-tls={{ .Values.databaseDisableTls }}
-        - --db-auth-method={{ .Values.databaseAuthMethod }}
+        - --db-disable-tls={{ ternary "true" "false" (eq .Values.database.localDb true) }}
+        - --db-auth-method={{ ternary "postgres" "az-entra" (eq .Values.database.localDb true) }}
         - --force-migration={{ .Values.forceMigration }}
         - --batch-processes-dry-run={{ .Values.batchProcessesDryRun }}
         - --batch-processes={{ .Values.batchProcesses }}
@@ -167,9 +167,9 @@ spec:
         - --db-name=@/secrets/rds/db.name
         - --db-user=@/secrets/rds/db.user
         - --db-password=@/secrets/rds/db.password
-        - --db-disable-tls={{ .Values.databaseDisableTls }}
-        - --db-auth-method={{ .Values.databaseAuthMethod }}
-        - --gateway-url={{ .Values.gatewayURL }}
+        - --db-disable-tls={{ ternary "true" "false" (eq .Values.database.localDb true) }}
+        - --db-auth-method={{ ternary "postgres" "az-entra" (eq .Values.database.localDb true) }}
+        - --gateway-url={{ .Values.gatewayUrl }}
         - --client-id=@/secrets/service/client.id
         - --client-secret=@/secrets/service/client.secret
         - --client-scopes={{ .Values.clientScopes }}

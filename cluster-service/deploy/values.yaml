@@ -158,10 +158,6 @@ serviceKeyVaultName: ""
 tenantId: ""
 # The name of the secret that contains the first party application certificate bundle.
 fpaCertName: ""
-# If set to true the connection to the database is performed without TLS.
-databaseDisableTLS: "false"
-# Authentication method to use when connecting to the database. Accepted values are 'az-entra', 'postgres'
-databaseAuthMethod: "az-entra"
 # URL of the storage account blob service, e.g. https://<storage-account>.blob.core.windows.net/
 oidcIssuerBlobServiceUrl: ""
 # OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
@@ -200,20 +196,23 @@ clientId: "foo"
 clientSecret: "bar"
 # If true an in cluster database will be deployed.
 deployLocalDatabase: true
-# The name of the K8s secret where CS DB connection information is placed
-databaseK8sSecretName: "ocm-cs-db"
-# The hostname of the postgres server/service. It can be a K8s service name
-databaseHost: "ocm-cs-db"
-# Username for PostgreSQL user that will be used for accessing the database.
-databaseUser: "ocm"
-# Password for the PostgreSQL connection user.
-databasePassword: "TheBlurstOfTimes"
-# Name of the PostgreSQL database accessed.
-databaseName: "ocm-cs-db"
-# Host port
-databasePort: "5432"
 # The name of the managed identities data plane audience resource.
 managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
+
+# Database configuration
+database:
+  host: ""
+  name: ""
+  user: ""
+  port: "5432"
+  password: "TheBlurstOfTimes"
+  # Volume space available for data, e.g. 512Mi, 2Gi.
+  volumeCapacity: 512Mi
+  postgresqlVersion: ""
+  # The name of the K8s secret where CS DB connection information is placed
+  k8sSecretName: "ocm-cs-db"
+  localDb: false
+
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
   clusterApiAzure:

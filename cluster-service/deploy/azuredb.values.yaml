@@ -1,6 +1,0 @@
-databaseDisableTls: false
-databaseAuthMethod: az-entra
-deployLocalDatabase: false
-databaseName: clusters-service
-databaseUser: clusters-service
-databasePassword: ''
