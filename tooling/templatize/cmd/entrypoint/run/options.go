@@ -44,6 +44,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	}
 	cmd.Flags().StringVar(&opts.TopologyFile, "topology-config", opts.TopologyFile, "Path to the topology configuration file. The directory holding this file will become the root of the Ev2 content archive.")
 	cmd.Flags().StringVar(&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Name of the entrypoint to create Ev2 manifests for. Exclusive with --service-group.")
+	cmd.Flags().StringVar(&opts.ServiceGroup, "service-group", opts.ServiceGroup, "Name of the service group to create Ev2 manifests for. Exclusive with --entrypoint.")
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
@@ -62,6 +63,7 @@ type RawOptions struct {
 
 	TopologyFile string
 	Entrypoint   string
+	ServiceGroup string
 
 	DryRun                   bool
 	Persist                  bool
@@ -83,6 +85,7 @@ type ValidatedOptions struct {
 type completedOptions struct {
 	Topo       *topology.Topology
 	TopoDir    string
+	Service    *topology.Service
 	Entrypoint *topology.Entrypoint
 	Pipelines  map[string]*types.Pipeline
 
@@ -105,11 +108,18 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		value *string
 	}{
 		{flag: "topology-config", name: "topology configuration file", value: &o.TopologyFile},
-		{flag: "entrypoint", name: "entrypoint identifier", value: &o.Entrypoint},
 	} {
 		if item.value == nil || *item.value == "" {
 			return nil, fmt.Errorf("the %s must be provided with --%s", item.name, item.flag)
 		}
+	}
+
+	if o.ServiceGroup == "" && o.Entrypoint == "" {
+		return nil, fmt.Errorf("either --service-group or --entrypoint must be provided")
+	}
+
+	if o.ServiceGroup != "" && o.Entrypoint != "" {
+		return nil, fmt.Errorf("invalid to provide both --service-group and --entrypoint")
 	}
 
 	validated, err := o.RawRolloutOptions.Validate(ctx)
@@ -145,9 +155,19 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 		return nil, fmt.Errorf("failed to validate topology: %w", err)
 	}
 
-	root, err := t.Lookup(o.Entrypoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up entrypoint %s in topology: %w", o.Entrypoint, err)
+	var service *topology.Service
+	if o.Entrypoint != "" {
+		root, err := t.Lookup(o.Entrypoint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up entrypoint %s in topology: %w", o.ServiceGroup, err)
+		}
+		service = root
+	} else {
+		svc, err := t.Lookup(o.ServiceGroup)
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up service group %s in topology: %w", o.ServiceGroup, err)
+		}
+		service = svc
 	}
 
 	var e *topology.Entrypoint
@@ -156,12 +176,9 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			e = &option
 		}
 	}
-	if e == nil {
-		return nil, fmt.Errorf("no entrypoint found for service group %s", o.Entrypoint)
-	}
 
 	pipelines := map[string]*types.Pipeline{}
-	if err := LoadPipelines(root, filepath.Dir(o.TopologyFile), pipelines, completed.Config); err != nil {
+	if err := LoadPipelines(service, filepath.Dir(o.TopologyFile), pipelines, completed.Config); err != nil {
 		return nil, fmt.Errorf("failed to load pipelines from %s: %w", o.TopologyFile, err)
 	}
 
@@ -170,6 +187,7 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			Topo:       &t,
 			TopoDir:    filepath.Dir(o.TopologyFile),
 			Entrypoint: e,
+			Service:    service,
 			Pipelines:  pipelines,
 
 			RolloutOptions: completed,
@@ -205,7 +223,7 @@ func LoadPipelines(
 }
 
 func (o *Options) Run(ctx context.Context) error {
-	_, err := pipeline.RunEntrypoint(o.Topo, o.Entrypoint, o.Pipelines, ctx, &pipeline.PipelineRunOptions{
+	runOpts := &pipeline.PipelineRunOptions{
 		BaseRunOptions: pipeline.BaseRunOptions{
 			DryRun:                   o.DryRun,
 			Cloud:                    o.Cloud,
@@ -217,6 +235,13 @@ func (o *Options) Run(ctx context.Context) error {
 		Region:                o.Region,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
-	}, pipeline.RunStep)
+	}
+
+	if o.Entrypoint != nil {
+		_, err := pipeline.RunEntrypoint(o.Topo, o.Entrypoint, o.Pipelines, ctx, runOpts, pipeline.RunStep)
+		return err
+	}
+
+	_, err := pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
 	return err
 }
