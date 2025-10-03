@@ -271,6 +271,9 @@ resourceGroups:
     parameters: configurations/arobit-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
   - name: arobit
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
@@ -287,9 +290,6 @@ resourceGroups:
         resourceGroup: service
         step: arobit-output
         name: msiClientId
-    dependsOn:
-    - resourceGroup: service
-      step: cluster
     identityFrom:
       resourceGroup: global
       step: output

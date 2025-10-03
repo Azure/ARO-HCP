@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/go-logr/logr"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -36,6 +37,7 @@ func runArmStackStep(
 	step *types.ARMStackStep,
 	state *ExecutionState,
 ) (Output, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 
 	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
@@ -96,6 +98,21 @@ func runArmStackStep(
 		},
 	}
 
+	inputs := stackInputs{
+		Stack:           &stack,
+		DeploymentLevel: step.DeploymentLevel,
+		ResourceGroup:   executionTarget.GetResourceGroup(),
+		StepName:        step.StepName(),
+	}
+
+	skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
+	if err != nil {
+		return nil, err
+	}
+	if skip != nil {
+		return skip, nil
+	}
+
 	var output armdeploymentstacks.DeploymentStack
 	switch step.DeploymentLevel {
 	case "Subscription":
@@ -129,8 +146,15 @@ func runArmStackStep(
 			for k, v := range outputMap {
 				returnMap[k] = v
 			}
-			return returnMap, nil
+			return returnMap, commit(returnMap)
 		}
 	}
 	return nil, nil
+}
+
+type stackInputs struct {
+	Stack           *armdeploymentstacks.DeploymentStack
+	DeploymentLevel string
+	ResourceGroup   string
+	StepName        string
 }

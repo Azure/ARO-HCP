@@ -53,6 +53,7 @@ type BaseRunOptions struct {
 	Configuration            config.Configuration
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	StepCacheDir             string
 }
 
 type StepRunOptions struct {
@@ -137,6 +138,12 @@ func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pip
 }
 
 func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+	if options.StepCacheDir != "" {
+		if err := os.MkdirAll(options.StepCacheDir, 0755); err != nil {
+			return nil, err
+		}
+	}
+
 	state := &ExecutionState{
 		RWMutex:  &sync.RWMutex{},
 		Executed: sets.Set[graph.Identifier]{},
@@ -155,36 +162,36 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		defer func() {
 			close(queue)
 			producerWg.Done()
-			thisLogger.Info("Producer thread shutting down.")
+			thisLogger.V(4).Info("Producer thread shutting down.")
 		}()
 		for {
 			select {
 			case _, open := <-checkForStepsToExecute:
 				if !open {
-					thisLogger.Info("Done channel closed.")
+					thisLogger.V(4).Info("Done channel closed.")
 					return
 				}
-				thisLogger.Info("Processing queue after step finished executing.")
+				thisLogger.V(4).Info("Processing queue after step finished executing.")
 				state.RLock()
 				for _, node := range executionGraph.Nodes {
 					if state.Queued.Has(node.Identifier) {
 						continue
 					}
 					if state.Executed.HasAll(node.Parents...) {
-						thisLogger.Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
+						thisLogger.V(4).Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
 						state.Queued.Insert(node.Identifier)
 						queue <- node.Identifier
 					}
 				}
-				thisLogger.Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
+				thisLogger.V(4).Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
 				if len(state.Queued) == len(executionGraph.Nodes) {
-					thisLogger.Info("Queued all nodes.")
+					thisLogger.V(4).Info("Queued all nodes.")
 					state.RUnlock()
 					return
 				}
 				state.RUnlock()
 			case <-ctx.Done():
-				thisLogger.Info("Context cancelled.")
+				thisLogger.V(4).Info("Context cancelled.")
 				return
 			}
 		}
@@ -209,27 +216,27 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			thisLogger := logger.WithValues("routine", fmt.Sprintf("consumer-%d", i))
 			defer func() {
 				consumerWg.Done()
-				thisLogger.Info("Consumer thread shutting down.")
+				thisLogger.V(4).Info("Consumer thread shutting down.")
 			}()
 			for {
 				select {
 				case step, open := <-queue:
 					if !open {
-						thisLogger.Info("Queue channel closed.")
+						thisLogger.V(4).Info("Queue channel closed.")
 						return
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
-					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, executionGraph, step, consumerCtx, options, state); err != nil {
-						stepLogger.Info("Step errored.")
+					stepLogger.V(4).Info("Executing step.")
+					if err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state); err != nil {
+						stepLogger.V(4).Error(err, "Step errored.")
 						errs <- err
 						consumerCancel()
 						return
 					}
-					stepLogger.Info("Finished step.")
+					stepLogger.V(4).Info("Finished step.")
 					checkForStepsToExecute <- struct{}{}
 				case <-consumerCtx.Done():
-					thisLogger.Info("Context cancelled.")
+					thisLogger.V(4).Info("Context cancelled.")
 					return
 				}
 			}
@@ -239,15 +246,15 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	// bootstrap the process with a signal to queue
 	checkForStepsToExecute <- struct{}{}
 
-	logger.Info("Waiting for consumers to finish.")
+	logger.V(4).Info("Waiting for consumers to finish.")
 	consumerWg.Wait()
 
 	close(checkForStepsToExecute)
 	close(errs)
 
-	logger.Info("Waiting for execution to finish.")
+	logger.V(4).Info("Waiting for execution to finish.")
 	producerWg.Wait()
-	logger.Info("Execution finished.")
+	logger.V(4).Info("Execution finished.")
 	var executionErrors []error
 	for err := range errs {
 		if err != nil {
@@ -263,18 +270,12 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	return outputs, nil
 }
 
-func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	logger = logger.WithValues("serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
+func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
 	state.RUnlock()
 	if alreadyDone {
-		logger.Info("Skipping execution, as it has already happened.")
+		logger.V(4).Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
 		return nil
 	}
@@ -307,7 +308,7 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 		output = nil
 		stepRunErr = nil
 	} else {
-		output, stepRunErr = executor(step, ctx, target, &StepRunOptions{
+		output, stepRunErr = executor(step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 			BaseRunOptions:    options.BaseRunOptions,
 			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 		}, state)
@@ -318,7 +319,7 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 
 	state.Lock()
 	if output != nil {
-		logger.Info("Recording step output.")
+		logger.V(4).Info("Recording step output.")
 		if _, recorded := state.Outputs[node.ResourceGroup]; !recorded {
 			state.Outputs[node.ResourceGroup] = map[string]Output{}
 		}
@@ -331,12 +332,10 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 
 func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
-	fmt.Println("\n---------------------")
 	if options.DryRun {
-		fmt.Println("This is a dry run!")
+		logger.Info("This is a dry run!")
 	}
-	fmt.Println(s.Description())
-	fmt.Print("\n")
+	logger.Info("Running step.", "description", s.Description())
 
 	switch step := s.(type) {
 	case *types.ImageMirrorStep:
@@ -402,7 +401,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		}
 		return output, nil
 	default:
-		fmt.Println("No implementation for action type - skip", s.ActionType())
+		logger.Info("No implementation for action type - skip", "actionType", s.ActionType())
 		return nil, nil
 	}
 }

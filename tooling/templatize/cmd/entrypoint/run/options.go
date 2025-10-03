@@ -230,6 +230,7 @@ func (o *Options) Run(ctx context.Context) error {
 			Configuration:            o.Config,
 			NoPersist:                o.NoPersist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+			StepCacheDir:             o.StepCacheDir,
 		},
 		TopologyDir:           o.TopoDir,
 		Region:                o.Region,
