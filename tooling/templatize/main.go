@@ -85,10 +85,13 @@ func main() {
 }
 
 func createLogger(verbosity int) logr.Logger {
+	level := slog.Level(verbosity * -1)
 	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
-		Level:       slog.Level(verbosity * -1),
+		Level:       level,
 		AddSource:   false,
 		ReplaceAttr: nil,
 	})
+	slog.SetDefault(slog.New(prettyHandler))
+	slog.SetLogLoggerLevel(level)
 	return logr.FromSlogHandler(prettyHandler)
 }
