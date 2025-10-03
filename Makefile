@@ -234,28 +234,14 @@ generate-kiota:
 .PHONY: generate-kiota
 
 entrypoints = $(shell yq '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
-
+$(addprefix entrypoint/,$(entrypoints)):
 entrypoint/%:
 	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
-# n.b. we do not *need* explicit targets listed, as the wildcard rule above will work, but this enables good UX through auto-complete
-define make-entrypoint-target
-  entrypoint/$1:
-endef
-
-$(foreach element,$(entrypoints),$(eval $(call make-entrypoint-target,$(element))))
-
 pipelines = $(shell yq '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
-
+$(addprefix pipeline/,$(pipelines)):
 pipeline/%:
 	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
-
-# n.b. we do not *need* explicit targets listed, as the wildcard rule above will work, but this enables good UX through auto-complete
-define make-pipeline-target
-  pipeline/$1:
-endef
-
-$(foreach element,$(pipelines),$(eval $(call make-pipeline-target,$(element))))
 
 LOG_LEVEL ?= 5
 DRY_RUN ?= "false"

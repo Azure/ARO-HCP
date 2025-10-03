@@ -29,7 +29,8 @@ import (
 
 func DefaultRolloutOptions() *RawRolloutOptions {
 	return &RawRolloutOptions{
-		BaseOptions: DefaultOptions(),
+		BaseOptions:  DefaultOptions(),
+		StepCacheDir: ".step-cache",
 	}
 }
 
@@ -52,6 +53,7 @@ func BindRolloutOptions(opts *RawRolloutOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringToStringVar(&opts.ExtraVars, "extra-args", opts.ExtraVars, "Extra arguments to be used config templating")
 	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "File to load environment details from.")
 	cmd.Flags().StringVar(&opts.DevEnvironment, "dev-environment", opts.DevEnvironment, "Name of the developer environment to use.")
+	cmd.Flags().StringVar(&opts.StepCacheDir, "step-cache-dir", opts.StepCacheDir, "Directory where cached step outputs will be stored.")
 	cmd.Flags().IntVar(&opts.Concurrency, "concurrency", opts.Concurrency, "Number of concurrent routines to use when running the pipeline. If unset/set to 0, unbounded concurrency is used.")
 
 	for _, flag := range []string{
@@ -75,6 +77,8 @@ type RawRolloutOptions struct {
 	DevSettingsFile string
 	DevEnvironment  string
 
+	StepCacheDir string
+
 	Concurrency int
 }
 
@@ -96,6 +100,7 @@ type completedRolloutOptions struct {
 	Options       *Options
 	Config        config.Configuration
 	Subscriptions map[string]string
+	StepCacheDir  string
 }
 
 type RolloutOptions struct {
@@ -212,6 +217,7 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 			Options:                 completed,
 			Config:                  variables,
 			Subscriptions:           o.Subscriptions,
+			StepCacheDir:            o.StepCacheDir,
 		},
 	}, nil
 }
