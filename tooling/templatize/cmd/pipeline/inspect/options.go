@@ -134,6 +134,8 @@ func (o *InspectOptions) RunInspect(ctx context.Context) error {
 			Step:           o.PipelineOptions.Step,
 			Region:         o.PipelineOptions.RolloutOptions.Region,
 			Configuration:  o.PipelineOptions.RolloutOptions.Config,
+			TopologyDir:    o.PipelineOptions.TopologyDir,
+			Service:        o.PipelineOptions.Service,
 			OutputFile:     o.OutputFile,
 			Concurrency:    o.PipelineOptions.RolloutOptions.Concurrency,
 		},

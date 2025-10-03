@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -36,16 +37,27 @@ var DefaultDeploymentTimeoutSeconds = 30 * 60
 type subsciptionLookup func(context.Context, string) (string, error)
 
 type PipelineRunOptions struct {
+	BaseRunOptions
+
+	Step                  string
+	Region                string
+	SubsciptionLookupFunc subsciptionLookup
+
+	TopologyDir string
+	Concurrency int
+}
+
+type BaseRunOptions struct {
 	DryRun                   bool
-	Step                     string
-	Region                   string
 	Cloud                    string
 	Configuration            config.Configuration
-	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
-	PipelineFilePath         string
-	Concurrency              int
+}
+
+type StepRunOptions struct {
+	BaseRunOptions
+	PipelineDirectory string
 }
 
 type Output interface {
@@ -84,7 +96,7 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 // Outputs stores output values indexed by resource group name and step name.
 type Outputs map[string]map[string]Output
 
-type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error)
+type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error)
 
 type ExecutionState struct {
 	*sync.RWMutex
@@ -106,6 +118,25 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
+	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Generating execution graph.")
+	executionGraph, err := graph.ForEntrypoint(topo, entrypoint, pipelines)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
+	}
+
+	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	state := &ExecutionState{
 		RWMutex:  &sync.RWMutex{},
 		Executed: sets.Set[graph.Identifier]{},
@@ -269,9 +300,20 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 		resourceGroup:    resourceGroup.ResourceGroup,
 	}
 
-	output, err := executor(step, ctx, target, options, state)
-	if err != nil {
-		return err
+	var output Output
+	var stepRunErr error
+	if options.Step != "" && step.StepName() != options.Step {
+		// skip steps that don't match the specified step name
+		output = nil
+		stepRunErr = nil
+	} else {
+		output, stepRunErr = executor(step, ctx, target, &StepRunOptions{
+			BaseRunOptions:    options.BaseRunOptions,
+			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+		}, state)
+	}
+	if stepRunErr != nil {
+		return stepRunErr
 	}
 
 	state.Lock()
@@ -287,13 +329,8 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	if options.Step != "" && s.StepName() != options.Step {
-		// skip steps that don't match the specified step name
-		return nil, nil
-	}
 	fmt.Println("\n---------------------")
 	if options.DryRun {
 		fmt.Println("This is a dry run!")

@@ -17,7 +17,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
@@ -32,7 +31,7 @@ import (
 // https://github.com/Azure/azure-cli/blob/cf11272c36d2680a65bd775e10d338afa3a8b902/src/azure-cli/azure/cli/command_modules/resource/custom.py#L1396-L1405
 func runArmStackStep(
 	ctx context.Context,
-	options *PipelineRunOptions,
+	options *StepRunOptions,
 	executionTarget ExecutionTarget,
 	step *types.ARMStackStep,
 	state *ExecutionState,
@@ -62,7 +61,7 @@ func runArmStackStep(
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 
-	template, params, err := transformParameters(ctx, options.Configuration, inputValues, step.Parameters, filepath.Dir(options.PipelineFilePath))
+	template, params, err := transformParameters(ctx, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory)
 	if err != nil {
 		return nil, err
 	}

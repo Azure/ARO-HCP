@@ -54,7 +54,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -84,9 +84,9 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	maps.Copy(envVars, stepVars)
 	maps.Copy(envVars, dryRunVars)
 
-	workingDir := filepath.Dir(options.PipelineFilePath)
+	workingDir := options.PipelineDirectory
 	if s.WorkingDir != "" {
-		workingDir = filepath.Join(filepath.Dir(options.PipelineFilePath), s.WorkingDir)
+		workingDir = filepath.Join(options.PipelineDirectory, s.WorkingDir)
 	}
 	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
 	if skipCommand {
@@ -108,7 +108,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	return nil
 }
 
-func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *PipelineRunOptions) error {
+func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *StepRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("Skipping secret sync step for dry-run.")
@@ -120,7 +120,7 @@ func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *Pi
 		},
 		KeyVault:         s.KeyVault,
 		KeyEncryptionKey: s.EncryptionKey,
-		ConfigFile:       filepath.Join(filepath.Dir(options.PipelineFilePath), s.ConfigurationFile),
+		ConfigFile:       filepath.Join(options.PipelineDirectory, s.ConfigurationFile),
 	}
 	validated, err := syncOpts.Validate()
 	if err != nil {
@@ -133,7 +133,7 @@ func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *Pi
 	return completed.Populate(ctx)
 }
 
-func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
+func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("Skipping provider and feature registration step for dry-run.")
