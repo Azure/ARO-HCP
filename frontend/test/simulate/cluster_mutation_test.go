@@ -20,14 +20,12 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 func TestFrontendClusterMutation(t *testing.T) {
@@ -104,16 +102,7 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 
 	if tt.genericMutationTestInfo.isUpdateTest() {
 		require.NoError(t, mutationErr)
-
-		operationsIterator := tt.testInfo.DBClient.ListActiveOperationDocs(azcosmos.NewPartitionKeyString(tt.subscriptionID), nil)
-		for _, operation := range operationsIterator.Items(ctx) {
-			if operation.ExternalID.Name != ptr.Deref(toCreate.Name, "") {
-				continue
-			}
-			err := tt.testInfo.UpdateClusterOperationStatus(ctx, operation, arm.ProvisioningStateSucceeded, nil)
-			require.NoError(t, err)
-		}
-		require.NoError(t, operationsIterator.GetError())
+		require.NoError(t, MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
 
 		toUpdate := &hcpsdk20240610preview.HcpOpenShiftCluster{}
 		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))

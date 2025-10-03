@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,4 +211,62 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 	return cosmosDatabaseClient, nil
 
+}
+
+func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {
+	operationsIterator := dbClient.ListActiveOperationDocs(azcosmos.NewPartitionKeyString(subscriptionID), nil)
+	for _, operation := range operationsIterator.Items(ctx) {
+		if operation.ExternalID.Name != resourceName {
+			continue
+		}
+		err := UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil)
+		if err != nil {
+			return err
+		}
+	}
+	if operationsIterator.GetError() != nil {
+		return operationsIterator.GetError()
+	}
+	return nil
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func UpdateOperationStatus(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	err := patchOperationDocument(ctx, dbClient, operation, opStatus, opError)
+	if err != nil {
+		return err
+	}
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, operation.OperationID.Name)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetProvisioningState(opStatus)
+	if opStatus.IsTerminal() {
+		patchOperations.SetActiveOperationID(nil)
+	}
+
+	_, err = dbClient.PatchResourceDoc(ctx, operation.ExternalID, patchOperations)
+	return err
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func patchOperationDocument(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	var patchOperations database.OperationDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(time.Now())
+	patchOperations.SetStatus(opStatus)
+	if opError != nil {
+		patchOperations.SetError(opError)
+	}
+
+	operationPartitionKey := azcosmos.NewPartitionKeyString(operation.OperationID.SubscriptionID)
+	_, err := dbClient.PatchOperationDoc(ctx, operationPartitionKey, operation.OperationID.Name, patchOperations)
+	return err
 }
