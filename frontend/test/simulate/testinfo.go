@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -51,47 +50,6 @@ type SimulationTestInfo struct {
 	CosmosClient             *azcosmos.Client
 	DatabaseName             string
 	FrontendURL              string
-}
-
-// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
-func (s *SimulationTestInfo) UpdateClusterOperationStatus(ctx context.Context, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	err := s.patchOperationDocument(ctx, operation, opStatus, opError)
-	if err != nil {
-		return err
-	}
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
-	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, operation.OperationID.Name)
-
-	patchOperations.SetCondition(condition)
-	patchOperations.SetProvisioningState(opStatus)
-	if opStatus.IsTerminal() {
-		patchOperations.SetActiveOperationID(nil)
-	}
-
-	_, err = s.DBClient.PatchResourceDoc(ctx, operation.ExternalID, patchOperations)
-	return err
-}
-
-// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
-func (s *SimulationTestInfo) patchOperationDocument(ctx context.Context, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
-	var patchOperations database.OperationDocumentPatchOperations
-
-	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
-	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
-
-	patchOperations.SetCondition(condition)
-	patchOperations.SetLastTransitionTime(time.Now())
-	patchOperations.SetStatus(opStatus)
-	if opError != nil {
-		patchOperations.SetError(opError)
-	}
-
-	operationPartitionKey := azcosmos.NewPartitionKeyString(operation.OperationID.SubscriptionID)
-	_, err := s.DBClient.PatchOperationDoc(ctx, operationPartitionKey, operation.OperationID.Name, patchOperations)
-	return err
 }
 
 func (s *SimulationTestInfo) CosmosResourcesContainer() *azcosmos.ContainerClient {
