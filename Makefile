@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./tooling/templatize/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
@@ -232,29 +233,40 @@ generate-kiota:
 	$(MAKE) fmt
 .PHONY: generate-kiota
 
-entrypoint.global:
-	$(MAKE) run-entrypoint ENTRYPOINT=Global
+entrypoints = $(shell yq '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
 
-entrypoint.region:
-	$(MAKE) run-entrypoint ENTRYPOINT=Region
+entrypoint/%:
+	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
-entrypoint.svc:
-	$(MAKE) run-entrypoint ENTRYPOINT=Service.Infra
+# n.b. we do not *need* explicit targets listed, as the wildcard rule above will work, but this enables good UX through auto-complete
+define make-entrypoint-target
+  entrypoint/$1:
+endef
 
-entrypoint.mgmt:
-	$(MAKE) run-entrypoint ENTRYPOINT=Management.Infra
+$(foreach element,$(entrypoints),$(eval $(call make-entrypoint-target,$(element))))
+
+pipelines = $(shell yq '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+
+pipeline/%:
+	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+# n.b. we do not *need* explicit targets listed, as the wildcard rule above will work, but this enables good UX through auto-complete
+define make-pipeline-target
+  pipeline/$1:
+endef
+
+$(foreach element,$(pipelines),$(eval $(call make-pipeline-target,$(element))))
 
 LOG_LEVEL ?= 5
 DRY_RUN ?= "false"
 PERSIST ?= "false"
 
-run-entrypoint:
-	$(MAKE) -C tooling/templatize templatize
-	tooling/templatize/templatize entrypoint run --config-file config/config.yaml \
-	                                             --topology-config topology.yaml \
-	                                             --dev-settings-file tooling/templatize/settings.yaml \
-	                                             --dev-environment $(DEPLOY_ENV) \
-	                                             --entrypoint Microsoft.Azure.ARO.HCP.$(ENTRYPOINT) \
-	                                             --persist-tag=$(PERSIST) \
-	                                             --dry-run=$(DRY_RUN) \
-	                                             --verbosity=$(LOG_LEVEL)
+local-run: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint run --config-file config/config.yaml \
+	                             --topology-config topology.yaml \
+	                             --dev-settings-file tooling/templatize/settings.yaml \
+	                             --dev-environment $(DEPLOY_ENV) \
+	                             $(WHAT) \
+	                             --persist-tag=$(PERSIST) \
+	                             --dry-run=$(DRY_RUN) \
+	                             --verbosity=$(LOG_LEVEL)
