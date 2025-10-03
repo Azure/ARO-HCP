@@ -450,9 +450,8 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 
 	hcpCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		reportingErr := arm.NewResourceNotFoundError(resourceID)
-		logger.Error(reportingErr.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(reportingErr, resourceID, nil))
+		logger.Error(err.Error())
+		arm.WriteResourceNotFoundError(writer, resourceID)
 		return
 	}
 	if err != nil {
