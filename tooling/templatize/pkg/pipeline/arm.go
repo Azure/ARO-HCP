@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -110,7 +109,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, state *ExecutionState) (Output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, step *types.ARMStep, state *ExecutionState) (Output, error) {
 	// Ensure resourcegroup exists
 	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
 	if err != nil {
@@ -125,10 +124,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, state)
+		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, options.PipelineDirectory, options.Configuration, state)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, state)
+	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, options.PipelineDirectory, options.Configuration, state)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {

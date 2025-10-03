@@ -24,7 +24,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	tmpFile, err := os.CreateTemp("", "")

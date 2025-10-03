@@ -231,3 +231,30 @@ generate-kiota:
 	$(MAKE) licenses
 	$(MAKE) fmt
 .PHONY: generate-kiota
+
+entrypoint.global:
+	$(MAKE) run-entrypoint ENTRYPOINT=Global
+
+entrypoint.region:
+	$(MAKE) run-entrypoint ENTRYPOINT=Region
+
+entrypoint.svc:
+	$(MAKE) run-entrypoint ENTRYPOINT=Service.Infra
+
+entrypoint.mgmt:
+	$(MAKE) run-entrypoint ENTRYPOINT=Management.Infra
+
+LOG_LEVEL ?= 5
+DRY_RUN ?= "false"
+PERSIST ?= "false"
+
+run-entrypoint:
+	$(MAKE) -C tooling/templatize templatize
+	tooling/templatize/templatize entrypoint run --config-file config/config.yaml \
+	                                             --topology-config topology.yaml \
+	                                             --dev-settings-file tooling/templatize/settings.yaml \
+	                                             --dev-environment $(DEPLOY_ENV) \
+	                                             --entrypoint Microsoft.Azure.ARO.HCP.$(ENTRYPOINT) \
+	                                             --persist-tag=$(PERSIST) \
+	                                             --dry-run=$(DRY_RUN) \
+	                                             --verbosity=$(LOG_LEVEL)

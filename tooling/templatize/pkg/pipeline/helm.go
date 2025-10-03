@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
-func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
+func runHelmStep(step *types.HelmStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 	var namespaceFiles []string
 	for _, file := range step.NamespaceFiles {
 		tmpfile := filepath.Join(tmpdir, "namespaces", strings.ReplaceAll(file, string(filepath.Separator), "-"))
-		processed, err := process(filepath.Join(filepath.Dir(options.PipelineFilePath), file))
+		processed, err := process(filepath.Join(options.PipelineDirectory, file))
 		if err != nil {
 			return fmt.Errorf("failed to preprocess namespace manifest %s: %w", file, err)
 		}
@@ -98,7 +98,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 	}
 
 	values := filepath.Join(tmpdir, filepath.Base(step.ValuesFile))
-	processed, err := process(filepath.Join(filepath.Dir(options.PipelineFilePath), step.ValuesFile))
+	processed, err := process(filepath.Join(options.PipelineDirectory, step.ValuesFile))
 	if err != nil {
 		return fmt.Errorf("failed to preprocess Helm values %s: %w", step.ValuesFile, err)
 	}
@@ -111,7 +111,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 		NamespaceFiles:   namespaceFiles,
 		ReleaseName:      step.ReleaseName,
 		ReleaseNamespace: step.ReleaseNamespace,
-		ChartDir:         filepath.Join(filepath.Dir(options.PipelineFilePath), step.ChartDir),
+		ChartDir:         filepath.Join(options.PipelineDirectory, step.ChartDir),
 		ValuesFile:       values,
 		Timeout:          5 * time.Minute,
 		KubeconfigFile:   kubeconfig,

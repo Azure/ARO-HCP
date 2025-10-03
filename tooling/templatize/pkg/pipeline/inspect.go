@@ -42,6 +42,9 @@ type InspectOptions struct {
 	ScopeFunctions map[string]StepInspectScope
 	OutputFile     io.Writer
 	Concurrency    int
+
+	Service     *topology.Service
+	TopologyDir string
 }
 
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
@@ -106,18 +109,19 @@ func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *t
 	inputs := make(Outputs)
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
-			DryRun:                   true,
-			Configuration:            options.Configuration,
-			Region:                   options.Region,
-			Step:                     depStep,
-			SubsciptionLookupFunc:    LookupSubscriptionID(subscriptions),
-			NoPersist:                true,
-			DeploymentTimeoutSeconds: 60,
-			Concurrency:              options.Concurrency,
+			BaseRunOptions: BaseRunOptions{
+				DryRun:                   true,
+				Configuration:            options.Configuration,
+				NoPersist:                true,
+				DeploymentTimeoutSeconds: 60,
+			},
+			Region:                options.Region,
+			Step:                  depStep,
+			SubsciptionLookupFunc: LookupSubscriptionID(subscriptions),
+			Concurrency:           options.Concurrency,
+			TopologyDir:           options.TopologyDir,
 		}
-		outputs, err := RunPipeline(&topology.Service{
-			ServiceGroup: pipeline.ServiceGroup,
-		}, pipeline, ctx, runOptions, RunStep)
+		outputs, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
 		if err != nil {
 			return nil, err
 		}
