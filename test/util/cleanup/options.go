@@ -16,7 +16,6 @@ package cleanup
 
 import "time"
 
-const defaultTimeout = 20 * time.Minute
 const defaultInterruptTimeout = 30 * time.Minute
 const defaultVerbosity = 0
 
@@ -29,7 +28,6 @@ type BaseOptions struct {
 func NewBaseOptions() BaseOptions {
 	return BaseOptions{
 		Verbosity:        defaultVerbosity,
-		Timeout:          defaultTimeout,
 		InterruptTimeout: defaultInterruptTimeout,
 	}
 }

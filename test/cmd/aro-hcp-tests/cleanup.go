@@ -106,7 +106,6 @@ func createLogger(verbosity int) logr.Logger {
 func newCleanupContext(timeout time.Duration) context.Context {
 	ctx, cancelCause := context.WithCancelCause(context.Background())
 	abortCh := make(chan os.Signal, 2)
-	// signal.Notify(abortCh, syscall.SIGINT, syscall.SIGTERM)
 	signal.Notify(abortCh, os.Interrupt)
 
 	go func() {
