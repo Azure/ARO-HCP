@@ -1308,7 +1308,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for an external auth creation request.
-			cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedExternalAuth, versionedExternalAuth, nil, false)
+			cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedExternalAuth, versionedExternalAuth, false)
 
 		default:
 			// Disregard foreign resource types.

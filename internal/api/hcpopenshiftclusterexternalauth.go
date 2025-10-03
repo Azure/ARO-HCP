@@ -209,7 +209,7 @@ func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences
 	return errorDetails
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
+func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate() []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
 	errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)

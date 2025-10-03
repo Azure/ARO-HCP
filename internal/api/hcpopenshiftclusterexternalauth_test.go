@@ -379,12 +379,11 @@ func TestExternalAuthValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cluster := MinimumValidClusterTestCase()
 			resource := ExternalAuthTestCase(t, tt.tweaks)
 
 			actualErrors := ValidateRequest(validate, resource)
 			if len(actualErrors) == 0 {
-				actualErrors = resource.Validate(cluster)
+				actualErrors = resource.Validate()
 			}
 
 			// from hcpopenshiftcluster_test.go
