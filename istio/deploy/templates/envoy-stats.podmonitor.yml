@@ -2,6 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: envoy-stats
+  namespace: '{{ .Release.Namespace }}'
 spec:
   jobLabel: app
   # The following limits - labelLimit, labelNameLengthLimit and labelValueLengthLimit should exist in the pod monitor CR

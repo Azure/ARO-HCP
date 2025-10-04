@@ -2,6 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: istiod
+  namespace: '{{ .Release.Namespace }}'
 spec:
   jobLabel: app
   # The following limits - labelLimit, labelNameLengthLimit and labelValueLengthLimit should exist in the pod monitor CR
