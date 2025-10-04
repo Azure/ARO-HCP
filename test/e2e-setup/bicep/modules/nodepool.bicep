@@ -26,7 +26,6 @@ resource nodepool 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools@2024
   properties: {
     version: {
       id: openshiftVersionId
-      channelGroup: 'stable'
     }
     platform: {
       subnetId: hcp.properties.platform.subnetId
