@@ -626,16 +626,9 @@ defaults:
     # OCP Versions configuration
     ocpVersions:
       defaultVersion:
-        channelGroupName: stable
         version: 4.19.7
       channelGroups:
         stable:
-          enabled: true
-          url: https://api.openshift.com/api/upgrades_info/graph
-          minVersion: 4.19.0
-          maxVersion: 4.19.8
-        fast:
-          enabled: false
           url: https://api.openshift.com/api/upgrades_info/graph
           minVersion: 4.19.0
           maxVersion: 4.19.8

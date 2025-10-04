@@ -249,16 +249,9 @@ csDeploymentStrategy:
     maxUnavailable: 0
 ocpVersions:
   defaultVersion:
-    channelGroupName: ""
     version: ""
   channelGroups:
     stable:
-      enabled: false
-      url: ""
-      minVersion: ""
-      maxVersion: ""
-    fast:
-      enabled: false
       url: ""
       minVersion: ""
       maxVersion: ""

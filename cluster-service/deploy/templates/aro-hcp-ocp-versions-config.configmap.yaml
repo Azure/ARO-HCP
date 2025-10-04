@@ -6,22 +6,12 @@ metadata:
 data:
   aro-hcp-ocp-versions-config.yaml: |
     defaultVersion:
-      channelGroupName: {{ .Values.ocpVersions.defaultVersion.channelGroupName }}
+      channelGroupName: stable
       version: {{ .Values.ocpVersions.defaultVersion.version }}
     channelGroups:
-      {{- if .Values.ocpVersions.channelGroups.stable.enabled }}
       - url: {{ .Values.ocpVersions.channelGroups.stable.url }}
         channelGroupName: stable
         minVersion: {{ .Values.ocpVersions.channelGroups.stable.minVersion }}
         {{- if .Values.ocpVersions.channelGroups.stable.maxVersion }}
         maxVersion: {{ .Values.ocpVersions.channelGroups.stable.maxVersion }}
         {{- end }}
-      {{- end }}
-      {{- if .Values.ocpVersions.channelGroups.fast.enabled }}
-      - url: {{ .Values.ocpVersions.channelGroups.fast.url }}
-        channelGroupName: fast
-        minVersion: {{ .Values.ocpVersions.channelGroups.fast.minVersion }}
-        {{- if .Values.ocpVersions.channelGroups.fast.maxVersion }}
-        maxVersion: {{ .Values.ocpVersions.channelGroups.fast.maxVersion }}
-        {{- end }}
-      {{- end }}
