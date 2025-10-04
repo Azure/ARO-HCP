@@ -711,9 +711,6 @@
     "ocpVersionChannelGroupSpec": {
       "type": "object",
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
         "url": {
           "type": "string"
         },
@@ -726,7 +723,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "enabled",
         "url",
         "minVersion"
       ]
@@ -954,14 +950,11 @@
             "defaultVersion": {
               "type": "object",
               "properties": {
-                "channelGroupName": {
-                  "type": "string"
-                },
                 "version": {
                   "type": "string"
                 }
               },
-              "required": ["channelGroupName", "version"],
+              "required": ["version"],
               "additionalProperties": false
             },
             "channelGroups": {
@@ -969,12 +962,9 @@
               "properties": {
                 "stable": {
                   "$ref": "#/definitions/ocpVersionChannelGroupSpec"
-                },
-                "fast": {
-                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
                 }
               },
-              "required": ["stable", "fast"],
+              "required": ["stable"],
               "additionalProperties": false
             }
           },
