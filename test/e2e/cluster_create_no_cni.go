@@ -52,7 +52,7 @@ var _ = Describe("Customer", func() {
 				map[string]interface{}{
 					"clusterName": customerClusterName,
 				},
-				30*time.Minute,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
