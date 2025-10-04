@@ -7,7 +7,6 @@ metadata:
     containerImage: quay.io/app-sre/route-monitor-operator:latest
     description: Operator to monitor ingress route for OpenShift Clusters.
     package-operator.run/phase: deploy
-  creationTimestamp: null
   name: route-monitor-operator-controller-manager
   namespace: '{{ .Release.Namespace }}'
 spec:
@@ -22,7 +21,6 @@ spec:
     metadata:
       annotations:
         package-operator.run/phase: deploy
-      creationTimestamp: null
       labels:
         app: route-monitor-operator
         component: operator
@@ -47,14 +45,14 @@ spec:
         - name: LOG_LEVEL
           value: "1"
         - name: BLACKBOX_IMAGE
-          value: '{{ .Values.imageRegistryBlackbox }}/{{ .Values.imageRepositoryBlackbox }}@sha256:{{ .Values.imageDigestBlackbox }}'
+          value: '{{ .Values.imageRegistryBlackbox }}/{{ .Values.imageRepositoryBlackbox }}@{{ .Values.imageDigestBlackbox }}'
         - name: BLACKBOX_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
         - name: OPERATOR_IMAGE
-          value: '{{ .Values.imageRegistryOperator }}/{{ .Values.imageRepositoryOperator }}@sha256:{{ .Values.imageDigestOperator }}'
-        image: '{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}@sha256:{{ .Values.imageDigestManager }}'
+          value: '{{ .Values.imageRegistryOperator }}/{{ .Values.imageRepositoryOperator }}@{{ .Values.imageDigestOperator }}'
+        image: '{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}@{{ .Values.imageDigestManager }}'
         livenessProbe:
           httpGet:
             path: /healthz

@@ -1,0 +1,9 @@
+imageDigestBlackbox: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
+imageDigestManager: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+imageDigestOperator: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+imageRegistryBlackbox: quay.io
+imageRegistryManager: quay.io
+imageRegistryOperator: quay.io
+imageRepositoryBlackbox: prometheus/blackbox-exporter
+imageRepositoryManager: app-sre/route-monitor-operator
+imageRepositoryOperator: app-sre/route-monitor-operator
