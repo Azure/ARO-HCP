@@ -1,0 +1,5 @@
+{
+  "name": "missing-required-fields-auth",
+  "properties": {},
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuths"
+}
