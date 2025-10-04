@@ -108,6 +108,8 @@ spec:
         - --batch-processes-dry-run={{ .Values.batchProcessesDryRun }}
         - --batch-processes={{ .Values.batchProcesses }}
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
+        - --azure-first-party-application-client-id={{ .Values.azureFirstPartyApplicationClientId }}
+        - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
       containers:
       - name: service
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}'
