@@ -1,10 +1,12 @@
 import "@typespec/rest";
 import "@typespec/http";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -268,6 +270,11 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   outboundType?: OutboundType = OutboundType.LoadBalancer;
 
+  /** The cluster's load balancer configuration */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  loadBalancer?: LoadBalancerProfile;
+
   /** ResourceId for the NSG (network security group) attached to the cluster subnet
    *
    * Note that NSGs cannot be reused for other ARO-HCP clusters.
@@ -380,6 +387,38 @@ scalar UserAssignedIdentityResourceId
       type: "Microsoft.ManagedIdentity/userAssignedIdentities",
     }
   ]>;
+
+/** A representation of the cluster's public load balancer. */
+model LoadBalancerProfile {
+  /** The desired managed outbound IPs for the cluster's public load balancer */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  managedOutboundIps: ManagedOutboundIps;
+
+  /** The list of effective outbound IP addresses of the cluster's public load balancer */
+  @visibility(Lifecycle.Read)
+  effectiveOutboundIps: EffectiveOutboundIp[];
+}
+/** Represents an effective outbound IP resource of the cluster's public load balancer */
+model EffectiveOutboundIp {
+  /** The fully qualified Azure resource ID of an IP address resource */
+  id: PublicIpAddressResourceId
+}
+
+scalar PublicIpAddressResourceId
+  extends Azure.Core.armResourceIdentifier<[
+    {
+      type: "Microsoft.Network/publicIPAddresses",
+    }
+  ]>;
+
+/** Represents the desired managed outbound IPs for the cluster's public load balancer. */
+model ManagedOutboundIps {
+  /** Represents the desired number of IPv4 outbound addresses. */
+  @minValue(1)
+  @maxValue(20)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  count: int32 = 1;
+}
 
 /** A representation of a KeyVault Secret. */
 model KmsKey {

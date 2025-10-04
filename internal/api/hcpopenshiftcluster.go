@@ -87,6 +87,7 @@ type PlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
 	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"enum_outboundtype"`
+	LoadBalancer            LoadBalancerProfile            `json:"loadBalancer,omitempty"`
 	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required,resource_id=Microsoft.Network/networkSecurityGroups"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
@@ -136,6 +137,19 @@ type KmsKey struct {
 	Name      string `json:"name"      validate:"required,min=1,max=255"`
 	VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
 	Version   string `json:"version"   validate:"required,min=1,max=255"`
+}
+
+type LoadBalancerProfile struct {
+	ManagedOutboundIPs   ManagedOutboundIPs    `json:"managedOutboundIps" visibility:"read create update"`
+	EffectiveOutboundIPs []EffectiveOutboundIP `json:"effectiveOutboundIps" visibility:"read"`
+}
+
+type ManagedOutboundIPs struct {
+	Count int32 `json:"count" visibility:"read create update" validate:"min=9,max=9"` // temporarily restrict Count to the only supported number of outbound IPs until variable-count support is implemented
+}
+
+type EffectiveOutboundIP struct {
+	ID string `json:"id" visibility:"read" validate:"resource_id=Microsoft.Network/publicIPAddresses"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
