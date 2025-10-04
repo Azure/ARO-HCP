@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./tooling/templatize/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
@@ -231,3 +232,27 @@ generate-kiota:
 	$(MAKE) licenses
 	$(MAKE) fmt
 .PHONY: generate-kiota
+
+entrypoints = $(shell yq '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+$(addprefix entrypoint/,$(entrypoints)):
+entrypoint/%:
+	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+pipelines = $(shell yq '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+$(addprefix pipeline/,$(pipelines)):
+pipeline/%:
+	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+LOG_LEVEL ?= 5
+DRY_RUN ?= "false"
+PERSIST ?= "false"
+
+local-run: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint run --config-file config/config.yaml \
+	                             --topology-config topology.yaml \
+	                             --dev-settings-file tooling/templatize/settings.yaml \
+	                             --dev-environment $(DEPLOY_ENV) \
+	                             $(WHAT) \
+	                             --persist-tag=$(PERSIST) \
+	                             --dry-run=$(DRY_RUN) \
+	                             --verbosity=$(LOG_LEVEL)

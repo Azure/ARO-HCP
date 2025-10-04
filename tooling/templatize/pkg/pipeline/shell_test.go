@@ -353,7 +353,7 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &PipelineRunOptions{}, &ExecutionState{
+			err := runShellStep(tc.step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
 				RWMutex: &sync.RWMutex{},
 				Outputs: Outputs{},
 			}, &buf)
@@ -372,7 +372,7 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 
-	err := runShellStep(step, context.Background(), "", &PipelineRunOptions{}, &ExecutionState{
+	err := runShellStep(step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
 		RWMutex: &sync.RWMutex{},
 		Outputs: Outputs{},
 	}, &buf)

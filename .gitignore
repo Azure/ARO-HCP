@@ -22,3 +22,4 @@ tooling/bin
 CLAUDE.local.md
 .claude/*.local.json
 go.work.sum
+.step-cache

@@ -113,7 +113,7 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -249,7 +249,7 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
