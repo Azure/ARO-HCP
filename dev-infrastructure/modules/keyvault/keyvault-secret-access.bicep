@@ -11,6 +11,7 @@ param secretName string = ''
   'Key Vault Certificate User'
   'Key Vault Certificates Officer'
   'Key Vault Crypto Officer'
+  'Key Vault Reader'
   'Azure Service Deploy Release Management Key Vault Secrets User'
 ])
 param roleName string
@@ -46,6 +47,11 @@ var roleResourceIds = {
   'Key Vault Crypto Officer': subscriptionResourceId(
     'Microsoft.Authorization/roleDefinitions/',
     '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+  )
+  // Read metadata of key vaults and its certificates, keys, and secrets. Cannot read sensitive values such as secret contents or key material. Only works for key vaults that use the 'Azure role-based access control' permission model.
+  'Key Vault Reader': subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions/',
+    '21090545-7ca7-4776-b22c-e363652d74d2'
   )
   // Used for EV2 KeyVault access, i.e. geneva log access
   'Azure Service Deploy Release Management Key Vault Secrets User': subscriptionResourceId(
