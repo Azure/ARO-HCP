@@ -38,7 +38,7 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   resource dbAdmin 'principalAssignments' = {
     name: 'dbAdmin'
     properties: {
-      principalId: 'ARO-Application Developer'
+      principalId: 'aro-hcp-engineering-App Developer'
       principalType: 'Group'
       role: 'Admin'
       tenantId: tenant().tenantId
@@ -87,7 +87,7 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   resource dbAdmin 'principalAssignments' = {
     name: 'dbAdmin'
     properties: {
-      principalId: 'ARO-Application Developer'
+      principalId: 'aro-hcp-engineering-App Developer'
       principalType: 'Group'
       role: 'Admin'
       tenantId: tenant().tenantId
