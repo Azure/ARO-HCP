@@ -210,6 +210,21 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  actions:
+    allowedAcisExtensions: AzureRedHatHypershiftExtension
+    certificate:
+      issuer: OneCertV2-PrivateCA
+      manage: true
+      name: genevaAction
+    enabled: false
+    genevaActionsAppId: tbd
+    keyVault:
+      name: arohcpperf-geneva-kv
+      private: false
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: geneva-actions
+    serviceTag: GenevaActions
   logs:
     adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
@@ -241,8 +256,6 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
-genevaActions:
-  serviceTag: GenevaActionsNonProd
 global:
   billing:
     digest: placeholder
