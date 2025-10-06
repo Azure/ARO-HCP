@@ -60,6 +60,8 @@ deploy:
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageDigest=${IMAGE_DIGEST} \
 	  --set azureFirstPartyApplicationClientId=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
+	  --set batchProcessesDryRun=${BATCH_PROCESSES_DRY_RUN} \
+	  --set batchProcesses=${BATCH_PROCESSES} \
 	  --set fpaCertName=${FPA_CERT_NAME} \
 	  --set ocpAcrResourceId=${OCP_ACR_RESOURCE_ID} \
 	  --set ocpAcrUrl=${OCP_ACR_URL} \

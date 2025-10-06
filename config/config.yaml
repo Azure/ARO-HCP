@@ -758,6 +758,9 @@ clouds:
         name: firstPartyCert2
         issuer: Self
         manage: false
+      # batch processes
+      batchProcessesDryRun: false
+      batchProcesses: ""
       # Mock Managed Identities Service Princiapl
       miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96

@@ -86,6 +86,10 @@ resourceGroups:
       configRef: acr.ocp.name
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
       configRef: firstPartyAppClientId
+    - name: BATCH_PROCESSES_DRY_RUN
+      configRef: batchProcessesDryRun
+    - name: BATCH_PROCESSES
+      configRef: batchProcesses
     - name: FPA_CERT_NAME
       configRef: firstPartyAppCertificate.name
     - name: AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID

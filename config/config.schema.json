@@ -992,6 +992,13 @@
         "manage"
       ]
     },
+    "batchProcessesDryRun": {
+      "type": "boolean",
+      "description": "If true, batch processes will only log what they would do, without making any changes."
+    },
+    "batchProcesses": {
+      "type": "string"
+    },
     "miMockClientId": {
       "type": "string"
     },
