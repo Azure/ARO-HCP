@@ -92,8 +92,8 @@ defaults:
     forwarder:
       image:
         registry: mcr.microsoft.com
-        repository: oss/fluent/fluent-bit
-        digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+        repository: oss/v2/fluent/fluent-bit
+        digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
     mdsd:
       enabled: true
       image:
@@ -159,6 +159,8 @@ defaults:
   kusto:
     resourceGroup: ""
     cluster: ""
+    ingestionUrl: ""
+    environmentName: {{ .ctx.environment }}
   # Hypershift
   hypershift:
     image:
@@ -712,6 +714,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      kusto:
+        ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
       kubeEvents:
         enabled: false
       automationDryRun: false
