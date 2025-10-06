@@ -69,3 +69,4 @@ jobs:
         ./update.sh ${{ inputs.update-args }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        JOB_NAME: ${{ inputs.job-name }}
