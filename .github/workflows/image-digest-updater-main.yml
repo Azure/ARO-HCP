@@ -61,8 +61,7 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     - name: Azure Container Registry login
       run: |
-        # Login to dev ACR (used for images in config)
-        az acr login --name arohcpsvcdev || echo "Warning: Could not login to arohcpsvcdev ACR"
+        az acr login --name arohcpsvcdev
     - name: Run image updater
       run: |
         cd tooling/image-updater
