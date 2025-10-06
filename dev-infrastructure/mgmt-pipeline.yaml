@@ -30,6 +30,10 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
+      resourceGroup: service
+      step: cluster
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -57,16 +61,6 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: clusterServiceMIResourceId
-      input:
-        resourceGroup: service
-        step: output
-        name: cs
-    - name: msiRefresherMIResourceId
-      input:
-        resourceGroup: service
-        step: output
-        name: msiRefresher
     - name: logAnalyticsWorkspaceId
       input:
         resourceGroup: regional
@@ -80,6 +74,25 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
+  - name: cs-akv-permissions
+    action: ARM
+    template: templates/cs-mgmt-akv-permissions.bicep
+    parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterServiceMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: cs
+    - name: msiRefresherMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: msiRefresher
+    dependsOn:
+    - resourceGroup: management
+      step: infra
   - name: infra-output
     action: ARM
     template: templates/mgmt-infra-lookup.bicep
