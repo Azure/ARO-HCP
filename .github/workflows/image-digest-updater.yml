@@ -4,11 +4,11 @@ on:
   schedule:
   - cron: '0 0 * * 1,4'
 jobs:
-  update-all-except-frontend-backend:
+  twice-weekly:
     uses: ./.github/workflows/image-digest-updater-main.yml
     with:
       update-args: '--exclude-components arohcpfrontend,arohcpbackend'
-      job-name: 'update-all-except-frontend-backend'
+      job-name: 'twice-weekly'
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
