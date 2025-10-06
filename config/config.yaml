@@ -170,7 +170,7 @@ defaults:
         issuer: OneCertV2-PrivateCA
         manage: true
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
-      genevaActionsAppId: "tbd"
+      genevaActionsPrincipalId: ""
   kusto:
     resourceGroup: ""
     cluster: ""

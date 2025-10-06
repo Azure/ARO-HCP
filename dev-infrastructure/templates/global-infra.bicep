@@ -103,7 +103,7 @@ param svcDNSZoneName string
 param allowedAcisExtensions string
 
 @description('App ID for Geneva Actions')
-param genevaActionsAppId string
+param genevaActionsPrincipalId string
 
 @description('Should geneva actions be enabled')
 param genevaActionsEnabled bool
@@ -422,7 +422,7 @@ module genevaActions '../modules/genevaactions.bicep' = if (genevaActionsEnabled
     genevaCertificateManage: genevaCertificateManage
     svcDNSZoneName: svcDNSZoneName
     allowedAcisExtensions: allowedAcisExtensions
-    genevaActionsAppId: genevaActionsAppId
+    genevaActionsPrincipalId: genevaActionsPrincipalId
     globalMSIId: globalMSI.id
   }
 }

@@ -22,7 +22,7 @@ param svcDNSZoneName string
 @description('Name of geneva action extensions')
 param allowedAcisExtensions string
 @description('App ID for Geneva Actions')
-param genevaActionsAppId string
+param genevaActionsPrincipalId string
 @description('Global MSI ID')
 param globalMSIId string
 
@@ -62,20 +62,20 @@ module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (geneva
 }
 
 module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Secrets User', genevaActionsAppId)
+  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Secrets User', genevaActionsPrincipalId)
   params: {
     keyVaultName: genevaKv.outputs.kvName
     roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalId: genevaActionsAppId
+    managedIdentityPrincipalId: genevaActionsPrincipalId
   }
 }
 
 module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
-  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Reader', genevaActionsAppId)
+  name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Reader', genevaActionsPrincipalId)
   params: {
     keyVaultName: genevaKv.outputs.kvName
     roleName: 'Key Vault Reader'
-    managedIdentityPrincipalId: genevaActionsAppId
+    managedIdentityPrincipalId: genevaActionsPrincipalId
   }
 }
 

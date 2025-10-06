@@ -217,7 +217,7 @@ geneva:
       manage: true
       name: genevaAction
     enabled: false
-    genevaActionsAppId: tbd
+    genevaActionsPrincipalId: ""
     keyVault:
       name: arohcpperf-geneva-kv
       private: false

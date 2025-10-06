@@ -51,5 +51,5 @@ param genevaCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
 param genevaCertificateManage = {{ .geneva.actions.certificate.manage }}
 param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param allowedAcisExtensions = '{{ .geneva.actions.allowedAcisExtensions }}'
-param genevaActionsAppId = '{{ .geneva.actions.genevaActionsAppId }}'
+param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}'
 param genevaActionsEnabled = {{ .geneva.actions.enabled }}
