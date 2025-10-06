@@ -1,10 +1,12 @@
 import "@typespec/rest";
 import "@typespec/http";
+import "@typespec/versioning";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -75,6 +77,11 @@ model HcpOpenShiftClusterProperties {
   /** Shows the cluster API server profile */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
+  
+  /** Shows the cluster ingress profile */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  ingress?: IngressProfile;
 
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
@@ -231,14 +238,23 @@ model ApiProfile {
   authorizedCidrs?: string[];
 }
 
-/** The internet visibility of the OpenShift API server */
+/** Information about the Ingress of a cluster. */
+@added(Versions.v2025_12_23_preview)
+model IngressProfile {
+  /** The internet visibility of the OpenShift Ingress. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  visibility?: Visibility = Visibility.Public;
+}
+
+/** The internet visibility of OpenShift endpoints. */
 union Visibility {
   string,
 
-  /** The API server is visible from the internet. */
+  /** The endpoint is visible from the internet. */
   Public: "Public",
 
-  /** The API server is not visible from the internet. */
+  /** The endpoint is not visible from the internet. */
   Private: "Private",
 }
 
