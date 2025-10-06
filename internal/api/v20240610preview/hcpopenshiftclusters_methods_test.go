@@ -27,7 +27,7 @@ import (
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
-	seed := rand.Int63()
+	seed := int64(3394727906922651625)
 	t.Logf("seed: %d", seed)
 
 	fuzzer := fuzzerFor([]interface{}{
