@@ -21,6 +21,7 @@ var (
 	outputFormats   []string
 	envFilter       string
 	componentFilter string
+	showDiffOnly    bool
 )
 
 type Config struct {
@@ -113,6 +114,11 @@ directory are prefixed with 'left.' and from the second with 'right.'.`,
 			rows = filterByComponent(rows, componentFilter)
 		}
 
+		// Apply diff filter if specified
+		if showDiffOnly {
+			rows = filterByDiff(rows)
+		}
+
 		// Determine data structure and formatting
 		var dataStructure string = "standard" // standard, wide, narrow
 		var outputFormat string = "table"     // table, md, gs
@@ -192,6 +198,7 @@ func init() {
 	rootCmd.Flags().StringSliceVarP(&outputFormats, "output", "o", []string{"table"}, "Output format(s) (table|gs|narrow|md|wide)")
 	rootCmd.Flags().StringVarP(&envFilter, "envs", "e", "", "Comma-separated list of environments to show (e.g. dev,int,stg)")
 	rootCmd.Flags().StringVarP(&componentFilter, "component", "c", "", "Filter by component name(s) - comma-separated list (case-insensitive partial match)")
+	rootCmd.Flags().BoolVarP(&showDiffOnly, "diff", "d", false, "Show only images with different digests across environments")
 }
 
 func main() {
@@ -753,6 +760,43 @@ func filterByComponent(rows []TableRow, componentFilter string) []TableRow {
 				filteredRows = append(filteredRows, row)
 				break
 			}
+		}
+	}
+
+	return filteredRows
+}
+
+// filterByDiff filters table rows to only include images that have different digests across environments
+func filterByDiff(rows []TableRow) []TableRow {
+	// Group rows by component and image
+	imageGroups := make(map[string][]TableRow)
+
+	for _, row := range rows {
+		key := fmt.Sprintf("%s|%s", row.Component, row.Image)
+		imageGroups[key] = append(imageGroups[key], row)
+	}
+
+	// Filter out images where all digests are the same
+	var filteredRows []TableRow
+	for _, group := range imageGroups {
+		if len(group) == 0 {
+			continue
+		}
+
+		// Check if all digests in the group are identical
+		firstDigest := group[0].Digest
+		hasDifferences := false
+
+		for _, row := range group[1:] {
+			if row.Digest != firstDigest {
+				hasDifferences = true
+				break
+			}
+		}
+
+		// Only include this image if there are differences
+		if hasDifferences {
+			filteredRows = append(filteredRows, group...)
 		}
 	}
 
