@@ -24,7 +24,7 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - MSFT deployment environments
   - [MSIT INT](environments.md#msit-corp-tenant-msft-int-tenant)
 
-### Networking
+### Networking and DNS
 
 - [Ingress and Egress Concept](ingress-egress.md)
   - Service and management cluster ingress and egress
@@ -37,6 +37,9 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Network Security](network-security.md)
   - Private Links
   - Network Security Perimeter
+- [DNS](dns.md)
+  - Overview of the DNS hierarchies and how they are managed
+  - SVC and CX zones
 
 ### [Configuration Management](configuration.md)
 
