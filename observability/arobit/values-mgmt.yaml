@@ -5,7 +5,7 @@
 forwarder:
   clusterType: "mgmt"
   environment: "{{ .kusto.environmentName }}"
-  clusterName: "{{ .svc.aks.name }}"
+  clusterName: "{{ .mgmt.aks.name }}"
   region: "{{ .region }}"
   ## Enable forwarder daemonset
   ##
