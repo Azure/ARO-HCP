@@ -160,7 +160,7 @@ defaults:
     resourceGroup: ""
     cluster: ""
     ingestionUrl: ""
-    environmentName: {{ .ctx.environment }}
+    environmentName: '{{ .ctx.environment }}'
   # Hypershift
   hypershift:
     image:
