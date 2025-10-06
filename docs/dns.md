@@ -61,7 +61,7 @@ Example: `uksouthstaging.aroapp-hcp.io`
 
 DNS zones are created as part of the infrastructure deployment process:
 
-- **Parent zones**: Managed in `global-infra.bicep`, delegation from the parent-parent zones is managed through EV2
+- **Parent zones**: Managed in `global-infra.bicep`, delegation from the parent-parent zones is managed through the [DelegateChildZone](https://ev2docs.azure.net/features/service-artifacts/actions/http-extensions/shared-extensions/Microsoft.Azure.Networking.Dns.html#microsoftazurenetworkingdnsdelegatechildzoneextension) action in the `global-pipeline.yaml` pipeline
 - **Regional zones**: Created via `region.bicep` during regional deployment, delegation from parent zones is managed through `region.bicep`
 
 ## SVC DNS Zone
