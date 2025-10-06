@@ -20,14 +20,29 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	semver "github.com/hashicorp/go-version"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/api/validate/constraints"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
+
+func init() {
+	// we need some semantic equalities added for our types and this is the standard location
+	api.Must("",
+		equality.Semantic.AddFuncs(
+			func(a, b time.Time) bool {
+				return a.UTC().Equal(b.UTC())
+			},
+		),
+	)
+}
 
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
