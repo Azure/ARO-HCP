@@ -51,8 +51,8 @@ forwarder:
       pullPolicy: IfNotPresent
   kusto:
     ingestionUrl:
-    rpDatabase:
-    clusterLogsDatabase:
+    rpDatabase: HCPServiceLogs
+    clusterLogsDatabase: HCPCustomerLogs
   msiClientId: ""
   tenantId: ""
   secretProvider:

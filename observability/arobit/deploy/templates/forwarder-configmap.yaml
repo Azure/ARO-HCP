@@ -135,6 +135,13 @@ data:
         call   reassemble_cri
     
     [FILTER]
+        Name modify
+        Match kubernetes.var.log.containers.*
+        Add environment {{ .Values.forwarder.environment }}
+        Add region {{ .Values.forwarder.region }}
+        Add cluster {{ .Values.forwarder.clusterName }}
+
+    [FILTER]
         Name                kubernetes
         Alias               filter.kubernetes
         Match               kubernetes.var.log.containers.*
@@ -170,13 +177,6 @@ data:
         Preserve_Key On
         Reserve_Data On
   output.conf: |
-    [FILTER]
-        Name modify
-        Match *
-        Add environment {{ .Values.forwarder.environment }}
-        Add region {{ .Values.forwarder.region }}
-        Add cluster {{ .Values.forwarder.clusterName }}
-
 {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
         Match ocm.logs
@@ -185,8 +185,8 @@ data:
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
-        Database_Name {{ .Values.kusto.clusterLogsDatabase }}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionUrl }}
+        Database_Name {{ .Values.forwarder.kusto.clusterLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -198,8 +198,8 @@ data:
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
-        Database_Name {{ .Values.kusto.rpDatabase }}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionUrl }}
+        Database_Name {{ .Values.forwarder.kusto.rpDatabase }}
         Table_Name frontendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -211,8 +211,8 @@ data:
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
-        Database_Name {{ .Values.kusto.rpDatabase }}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionUrl }}
+        Database_Name {{ .Values.forwarder.kusto.rpDatabase }}
         Table_Name backendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -224,8 +224,8 @@ data:
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
-        Database_Name {{ .Values.kusto.rpDatabase }}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionUrl }}
+        Database_Name {{ .Values.forwarder.kusto.rpDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -237,8 +237,8 @@ data:
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ .Values.kusto.ingestionUrl }}
-        Database_Name {{ .Values.kusto.rpDatabase }}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionUrl }}
+        Database_Name {{ .Values.forwarder.kusto.rpDatabase }}
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
