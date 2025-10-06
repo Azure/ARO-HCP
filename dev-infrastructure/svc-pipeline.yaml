@@ -311,7 +311,7 @@ resourceGroups:
     - name: KUSTO_INGESTIONURL
       configRef: kusto.ingestionUrl
     - name: ENVIRONMENT
-      configRef: kusto.environmentName 
+      configRef: kusto.environmentName
     - name: CLUSTER_NAME
       configRef: svc.aks.name
     dependsOn:

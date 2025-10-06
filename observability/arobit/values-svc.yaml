@@ -56,7 +56,7 @@ forwarder:
     ingestionUrl: "{{ .kusto.ingestionUrl }}"
     rpDatabase: HCPServiceLogs
     clusterLogsDatabase: HCPCustomerLogs
-  msiClientId:  "__msiClientId__"
+  msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:
     keyVault: "{{ .serviceKeyVault.name }}"
