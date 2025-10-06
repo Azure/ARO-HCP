@@ -39,7 +39,7 @@ forwarder:
             storage.path              /var/log/flb-storage/
             # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
             # (default: 128)
-            storage.max_chunks_up     256
+            storage.max_chunks_up     128
             # This option configure a hint of maximum value of memory to use when processing the backlog data.
             # (default: 5M)
             storage.backlog.mem_limit 256M
