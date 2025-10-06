@@ -88,7 +88,8 @@ cleanup_previous_prs() {
 }
 
 create_update_branch() {
-    local branch_name="image-update-$(get_current_date)"
+    local job_suffix="${JOB_NAME:-default}"
+    local branch_name="image-update-${job_suffix}-$(get_current_date)"
     local current_branch
     current_branch=$(git branch --show-current)
 
