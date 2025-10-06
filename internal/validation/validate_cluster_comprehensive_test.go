@@ -526,14 +526,14 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - systemData",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Resource.SystemData = &arm.SystemData{
+				c.SystemData = &arm.SystemData{
 					LastModifiedAt: ptr.To(time.Now()),
 				}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Resource.SystemData = &arm.SystemData{
+				c.SystemData = &arm.SystemData{
 					LastModifiedAt: ptr.To(time.Now().Add(-1 * time.Hour)),
 				}
 				return c

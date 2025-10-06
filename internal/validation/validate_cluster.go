@@ -97,7 +97,6 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toResourceType))...)
 
 	//SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 	errs = append(errs, validateSystemData(ctx, op, fldPath.Child("systemData"), newObj.SystemData, safe.Field(oldObj, toResourceSystemData))...)
 
 	return errs
