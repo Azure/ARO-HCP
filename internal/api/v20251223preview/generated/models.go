@@ -332,6 +332,9 @@ type HcpOpenShiftClusterProperties struct {
 	// Configure ETCD.
 	Etcd *EtcdProfile
 
+	// Shows the cluster ingress profile
+	Ingress *IngressProfile
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -475,6 +478,12 @@ type HcpOperatorIdentityRoleSetProperties struct {
 
 	// REQUIRED; The role definitions required for the User-Assigned managed identities used by Data Plane operators on a cluster.
 	DataPlaneOperators []*OperatorIdentityRoles
+}
+
+// IngressProfile - Information about the Ingress of a cluster.
+type IngressProfile struct {
+	// The internet visibility of the OpenShift Ingress.
+	Visibility *Visibility
 }
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used

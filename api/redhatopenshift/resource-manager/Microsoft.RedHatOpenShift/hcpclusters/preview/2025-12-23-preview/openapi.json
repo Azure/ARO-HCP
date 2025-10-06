@@ -1434,12 +1434,12 @@
               {
                 "name": "Public",
                 "value": "Public",
-                "description": "The API server is visible from the internet."
+                "description": "The endpoint is visible from the internet."
               },
               {
                 "name": "Private",
                 "value": "Private",
-                "description": "The API server is not visible from the internet."
+                "description": "The endpoint is not visible from the internet."
               }
             ]
           },
@@ -2246,6 +2246,14 @@
             "create"
           ]
         },
+        "ingress": {
+          "$ref": "#/definitions/IngressProfile",
+          "description": "Shows the cluster ingress profile",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -2482,6 +2490,41 @@
         "controlPlaneOperators",
         "dataPlaneOperators"
       ]
+    },
+    "IngressProfile": {
+      "type": "object",
+      "description": "Information about the Ingress of a cluster.",
+      "properties": {
+        "visibility": {
+          "type": "string",
+          "description": "The internet visibility of the OpenShift Ingress.",
+          "default": "Public",
+          "enum": [
+            "Public",
+            "Private"
+          ],
+          "x-ms-enum": {
+            "name": "Visibility",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Public",
+                "value": "Public",
+                "description": "The endpoint is visible from the internet."
+              },
+              {
+                "name": "Private",
+                "value": "Private",
+                "description": "The endpoint is not visible from the internet."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
     },
     "KmsEncryptionProfile": {
       "type": "object",

@@ -399,9 +399,9 @@ func PossibleUsernameClaimPrefixPolicyValues() []UsernameClaimPrefixPolicy {
 type Visibility string
 
 const (
-	// VisibilityPrivate - The API server is not visible from the internet.
+	// VisibilityPrivate - The endpoint is not visible from the internet.
 	VisibilityPrivate Visibility = "Private"
-	// VisibilityPublic - The API server is visible from the internet.
+	// VisibilityPublic - The endpoint is visible from the internet.
 	VisibilityPublic Visibility = "Public"
 )
 
