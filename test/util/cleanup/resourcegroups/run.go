@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -45,9 +46,7 @@ func (o Options) Run(ctx context.Context) error {
 				return fmt.Errorf("failed listing resource groups: %w", err)
 			}
 			for _, rg := range page.Value {
-				if rg.Name != nil {
-					existingResourceGroups.Insert(*rg.Name)
-				}
+				existingResourceGroups.Insert(*rg.Name)
 			}
 		}
 
