@@ -43,6 +43,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 		name            string
 		wantLogAttrs    []slog.Attr
 		wantSpanAttrs   map[string]string
+		requestURL      string
 		setReqPathValue ReqPathModifier
 	}
 
@@ -56,6 +57,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			name:          "handles the common attributes and the attributes for the subscription_id segment path",
 			wantLogAttrs:  []slog.Attr{slog.String("subscription_id", api.TestSubscriptionID)},
 			wantSpanAttrs: map[string]string{"aro.subscription.id": api.TestSubscriptionID},
+			requestURL:    "/subscriptions/" + api.TestSubscriptionID,
 			setReqPathValue: func(req *http.Request) {
 				req.SetPathValue(PathSegmentSubscriptionID, api.TestSubscriptionID)
 			},
@@ -64,6 +66,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 			name:          "handles the common attributes and the attributes for the resourcegroupname path",
 			wantLogAttrs:  []slog.Attr{slog.String("resource_group", api.TestResourceGroupName)},
 			wantSpanAttrs: map[string]string{"aro.resource_group.name": api.TestResourceGroupName},
+			requestURL:    "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName,
 			setReqPathValue: func(req *http.Request) {
 				req.SetPathValue(PathSegmentResourceGroupName, api.TestResourceGroupName)
 			},
@@ -81,6 +84,7 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 				"aro.resource_group.name": api.TestResourceGroupName,
 				"aro.resource.name":       api.TestClusterName,
 			},
+			requestURL: "/subscriptions/" + api.TestSubscriptionID + "/resourceGroups/" + api.TestResourceGroupName + "providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + api.TestClusterName,
 			setReqPathValue: func(req *http.Request) {
 				// assuming the PathSegmentResourceName is present in the Path
 				req.SetPathValue(PathSegmentResourceName, api.TestClusterName)
@@ -104,9 +108,11 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 
 			ctx := ContextWithLogger(context.Background(), logger)
 			ctx, sr := initSpanRecorder(ctx)
-			req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
+			req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com"+tt.requestURL, nil)
 			assert.NoError(t, err)
-			tt.setReqPathValue(req)
+			if tt.setReqPathValue != nil {
+				tt.setReqPathValue(req)
+			}
 
 			next := func(w http.ResponseWriter, r *http.Request) {
 				logger := LoggerFromContext(r.Context())
@@ -115,13 +121,15 @@ func TestMiddlewareLoggingPostMux(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			MiddlewareLoggingPostMux(writer, req, next)
+			MiddlewareLogging(writer, req, func(w http.ResponseWriter, r *http.Request) {
+				MiddlewareLoggingPostMux(w, r, next)
+			})
 
 			// Check that the contextual logger has the expected attributes.
 			lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
-			require.Equal(t, 1, len(lines))
+			require.Equal(t, 3, len(lines))
 
-			line := string(lines[0])
+			line := string(lines[1])
 			for _, attr := range tt.wantLogAttrs {
 				assert.Contains(t, line, attr.String())
 			}
