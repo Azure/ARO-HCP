@@ -1,7 +1,8 @@
 # Configuration Management
-The ARO Tools Documentation explains in great detail about how the config templates are used. https://github.com/Azure/ARO-Tools/blob/main/pkg/config/README.md 
-It's important to note that these are **Go Templates** and won't render as YAML locally, this can be confusing with the .yaml file extensions, but is a very important as any misplaced linting would not catch the difference.
+The ARO Tools Documentation explains in greater detail about how the config templates are used. https://github.com/Azure/ARO-Tools/blob/main/pkg/config/README.md 
+It's important to note that these confirugation files are **Go Templates** and won't render as YAML locally, this can be confusing with the .yaml file extensions, but is a very important as any misplaced linting would not catch the difference. To render thesee files uer the aro-tools library. 
 
+## Purpose of configuration management strategy
 Managing configuration effectively is crucial for ensuring that deployments remain consistent and adaptable to various environments. Configuration data for every aspect of ARO HCP is stored in a configuration file and used for infrastructure and service deployments alike.
 
 Nested YAML structures, override layers, and region-agnostic templating of config values allow sharing common configuration elements across environments and regions. These mechanisms provide the flexibility to adapt settings for a specific cloud, environment, or region when necessary. The configuration structure is enforced by a schema, ensuring the correctness of the configuration while allowing for elaborate override scenarios.
