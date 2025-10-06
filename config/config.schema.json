@@ -633,6 +633,9 @@
         "databaseName": {
           "type": "string"
         },
+        "password": {
+          "type": "string"
+        },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },

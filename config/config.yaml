@@ -1024,6 +1024,7 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
@@ -1034,6 +1035,7 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
@@ -1087,6 +1089,7 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
@@ -1104,6 +1107,7 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
@@ -1188,6 +1192,7 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi
@@ -1198,6 +1203,7 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
                 pvcCapacity: 512Mi

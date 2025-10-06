@@ -131,6 +131,7 @@ clustersService:
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-dev-dbcs-usw3
+    password: ""
     private: false
     serverStorageSizeGB: 128
     serverVersion: "17"
@@ -358,6 +359,7 @@ maestro:
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-dev-dbmaestro-usw3
+    password: ""
     private: false
     serverStorageSizeGB: 32
     serverVersion: "15"
