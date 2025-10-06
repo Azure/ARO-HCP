@@ -2,6 +2,18 @@
 
 Automatically fetches the latest image digests from container registries and updates ARO-HCP configuration files.
 
+## Managed Images
+
+| Image Name | Image Reference |
+|------------|-----------------|
+| maestro | quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro |
+| hypershift | quay.io/acm-d/rhtap-hypershift-operator |
+| pko-package | quay.io/package-operator/package-operator-package |
+| pko-manager | quay.io/package-operator/package-operator-manager |
+| pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager |
+| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend |
+| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend |
+
 ## Usage
 
 ```bash
