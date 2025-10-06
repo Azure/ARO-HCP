@@ -52,8 +52,8 @@ type TableRow struct {
 	Cloud     string
 	Env       string
 	Image     string
-	Age       string
 	Digest    string
+	Age       string
 	Rev       string
 }
 
@@ -686,8 +686,8 @@ func createTableRows(allDigests []DigestInfo) []TableRow {
 			Cloud:     digest.Cloud,
 			Env:       digest.Environment,
 			Image:     digest.Name,
-			Age:       digest.MergeTime,
 			Digest:    cleanDigest,
+			Age:       digest.MergeTime,
 			Rev:       githubLink,
 		}
 		rows = append(rows, row)
@@ -861,7 +861,7 @@ func displayNarrow(rows []TableRow) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 	// Print header
-	fmt.Fprintln(w, "ENV\tIMAGE\tAGE\tDIGEST\tREV")
+	fmt.Fprintln(w, "ENV\tIMAGE\tDIGEST\tREV AGE\tREVISION")
 
 	// Print rows
 	for _, row := range rows {
@@ -885,7 +885,7 @@ func displayNarrow(rows []TableRow) {
 		}
 
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-			row.Env, row.Image, row.Age, shortDigest, shortRev)
+			row.Env, row.Image, shortDigest, row.Age, shortRev)
 	}
 
 	w.Flush()
@@ -893,8 +893,8 @@ func displayNarrow(rows []TableRow) {
 
 func displayNarrowMarkdown(rows []TableRow) {
 	// Print header
-	fmt.Println("| ENV | IMAGE | AGE | DIGEST | REV |")
-	fmt.Println("|-----|-------|-----|--------|-----|")
+	fmt.Println("| ENV | IMAGE | DIGEST | REV AGE | REVISION |")
+	fmt.Println("|-----|-------|--------|---------|----------|")
 
 	// Print rows
 	for _, row := range rows {
@@ -920,7 +920,7 @@ func displayNarrowMarkdown(rows []TableRow) {
 		revMarkdown := fmt.Sprintf("[%s](%s)", shortRev, row.Rev)
 
 		fmt.Printf("| %s | %s | %s | %s | %s |\n",
-			row.Env, row.Image, row.Age, shortDigest, revMarkdown)
+			row.Env, row.Image, shortDigest, row.Age, revMarkdown)
 	}
 }
 
@@ -929,7 +929,7 @@ func displayNarrowGS(rows []TableRow) {
 	defer writer.Flush()
 
 	// Write header
-	header := []string{"Env", "Image", "Age", "Digest", "Rev"}
+	header := []string{"Env", "Image", "Digest", "Rev Age", "Revision"}
 	writer.Write(header)
 
 	// Write rows
@@ -955,15 +955,15 @@ func displayNarrowGS(rows []TableRow) {
 		// Create hyperlink for Rev column
 		revHyperlink := fmt.Sprintf(`=HYPERLINK("%s","%s")`, row.Rev, shortRev)
 
-		record := []string{row.Env, row.Image, row.Age, shortDigest, revHyperlink}
+		record := []string{row.Env, row.Image, shortDigest, row.Age, revHyperlink}
 		writer.Write(record)
 	}
 }
 
 func displayMarkdown(rows []TableRow) {
 	// Print header
-	fmt.Println("| COMPONENT | CLOUD | ENV | IMAGE | AGE | DIGEST | REV |")
-	fmt.Println("|-----------|-------|-----|-------|-----|--------|-----|")
+	fmt.Println("| COMPONENT | CLOUD | ENV | IMAGE | DIGEST | REV AGE | REVISION |")
+	fmt.Println("|-----------|-------|-----|-------|--------|---------|----------|")
 
 	// Print rows
 	for _, row := range rows {
@@ -971,7 +971,7 @@ func displayMarkdown(rows []TableRow) {
 		revMarkdown := fmt.Sprintf("[%s](%s)", row.Digest[:10], row.Rev)
 
 		fmt.Printf("| %s | %s | %s | %s | %s | %s | %s |\n",
-			row.Component, row.Cloud, row.Env, row.Image, row.Age, row.Digest, revMarkdown)
+			row.Component, row.Cloud, row.Env, row.Image, row.Digest, row.Age, revMarkdown)
 	}
 }
 
@@ -979,12 +979,12 @@ func displayTable(rows []TableRow) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 	// Print header
-	fmt.Fprintln(w, "COMPONENT\tCLOUD\tENV\tIMAGE\tAGE\tDIGEST\tREV")
+	fmt.Fprintln(w, "COMPONENT\tCLOUD\tENV\tIMAGE\tDIGEST\tREV AGE\tREVISION")
 
 	// Print rows
 	for _, row := range rows {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			row.Component, row.Cloud, row.Env, row.Image, row.Age, row.Digest, row.Rev)
+			row.Component, row.Cloud, row.Env, row.Image, row.Digest, row.Age, row.Rev)
 	}
 
 	w.Flush()
@@ -995,14 +995,14 @@ func displayGS(rows []TableRow) {
 	defer writer.Flush()
 
 	// Write header
-	header := []string{"Component", "Cloud", "Env", "Image", "Age", "Digest"}
+	header := []string{"Component", "Cloud", "Env", "Image", "Digest", "Rev Age", "Revision"}
 	writer.Write(header)
 
 	// Write rows
 	for _, row := range rows {
-		// Create hyperlink from digest: =HYPERLINK("url", "display_text")
-		digestHyperlink := fmt.Sprintf(`=HYPERLINK("%s","%s")`, row.Rev, row.Digest)
-		record := []string{row.Component, row.Cloud, row.Env, row.Image, row.Age, digestHyperlink}
+		// Create hyperlink for revision: =HYPERLINK("url", "display_text")
+		revHyperlink := fmt.Sprintf(`=HYPERLINK("%s","%s")`, row.Rev, row.Digest[:10])
+		record := []string{row.Component, row.Cloud, row.Env, row.Image, row.Digest, row.Age, revHyperlink}
 		writer.Write(record)
 	}
 }
@@ -1088,7 +1088,7 @@ func displayWideTable(wideTable *WideTable) {
 	// Print header
 	fmt.Fprintf(w, "COMPONENT\tIMAGE")
 	for _, env := range wideTable.SortedEnvs {
-		fmt.Fprintf(w, "\t%s DIGEST\t%s AGE", strings.ToUpper(env), strings.ToUpper(env))
+		fmt.Fprintf(w, "\t%s DIGEST\t%s REV AGE\t%s REVISION", strings.ToUpper(env), strings.ToUpper(env), strings.ToUpper(env))
 	}
 	fmt.Fprintln(w)
 
@@ -1097,9 +1097,20 @@ func displayWideTable(wideTable *WideTable) {
 		fmt.Fprintf(w, "%s\t%s", wideRow.Component, wideRow.Image)
 		for _, env := range wideTable.SortedEnvs {
 			if data, exists := wideRow.EnvData[env]; exists {
-				fmt.Fprintf(w, "\t%s\t%s", data.Digest, data.Age)
+				// Extract short revision from URL
+				shortRev := data.Rev
+				if strings.Contains(shortRev, "/commit/") {
+					parts := strings.Split(shortRev, "/commit/")
+					if len(parts) > 1 {
+						commitHash := parts[1]
+						if len(commitHash) >= 10 {
+							shortRev = commitHash[:10]
+						}
+					}
+				}
+				fmt.Fprintf(w, "\t%s\t%s\t%s", data.Digest, data.Age, shortRev)
 			} else {
-				fmt.Fprintf(w, "\t-\t-")
+				fmt.Fprintf(w, "\t-\t-\t-")
 			}
 		}
 		fmt.Fprintln(w)
@@ -1113,8 +1124,8 @@ func displayWideMarkdown(wideTable *WideTable) {
 	header := "| COMPONENT | IMAGE"
 	separator := "|-----------|-------"
 	for _, env := range wideTable.SortedEnvs {
-		header += fmt.Sprintf(" | %s DIGEST | %s AGE", strings.ToUpper(env), strings.ToUpper(env))
-		separator += "|--------|-----"
+		header += fmt.Sprintf(" | %s DIGEST | %s REV AGE | %s REVISION", strings.ToUpper(env), strings.ToUpper(env), strings.ToUpper(env))
+		separator += "|--------|---------|-------"
 	}
 	header += " |"
 	separator += " |"
@@ -1127,11 +1138,22 @@ func displayWideMarkdown(wideTable *WideTable) {
 		row := fmt.Sprintf("| %s | %s", wideRow.Component, wideRow.Image)
 		for _, env := range wideTable.SortedEnvs {
 			if data, exists := wideRow.EnvData[env]; exists {
-				// Create markdown link for digest
-				digestLink := fmt.Sprintf("[%s](%s)", data.Digest[:10], data.Rev)
-				row += fmt.Sprintf(" | %s | %s", digestLink, data.Age)
+				// Extract short revision from URL
+				shortRev := data.Rev
+				if strings.Contains(shortRev, "/commit/") {
+					parts := strings.Split(shortRev, "/commit/")
+					if len(parts) > 1 {
+						commitHash := parts[1]
+						if len(commitHash) >= 10 {
+							shortRev = commitHash[:10]
+						}
+					}
+				}
+				// Create markdown link for revision
+				revLink := fmt.Sprintf("[%s](%s)", shortRev, data.Rev)
+				row += fmt.Sprintf(" | %s | %s | %s", data.Digest, data.Age, revLink)
 			} else {
-				row += " | - | -"
+				row += " | - | - | -"
 			}
 		}
 		row += " |"
@@ -1147,7 +1169,8 @@ func displayWideGS(wideTable *WideTable) {
 	header := []string{"Component", "Image"}
 	for _, env := range wideTable.SortedEnvs {
 		header = append(header, fmt.Sprintf("%s\nDigest", env))
-		header = append(header, fmt.Sprintf("%s\nAge", env))
+		header = append(header, fmt.Sprintf("%s\nRev Age", env))
+		header = append(header, fmt.Sprintf("%s\nRevision", env))
 	}
 	writer.Write(header)
 
@@ -1156,11 +1179,22 @@ func displayWideGS(wideTable *WideTable) {
 		record := []string{wideRow.Component, wideRow.Image}
 		for _, env := range wideTable.SortedEnvs {
 			if data, exists := wideRow.EnvData[env]; exists {
-				// Create hyperlink from digest: =HYPERLINK("url", "display_text")
-				digestHyperlink := fmt.Sprintf(`=HYPERLINK("%s","%s")`, data.Rev, data.Digest)
-				record = append(record, digestHyperlink, data.Age)
+				// Extract short revision from URL
+				shortRev := data.Rev
+				if strings.Contains(shortRev, "/commit/") {
+					parts := strings.Split(shortRev, "/commit/")
+					if len(parts) > 1 {
+						commitHash := parts[1]
+						if len(commitHash) >= 10 {
+							shortRev = commitHash[:10]
+						}
+					}
+				}
+				// Create hyperlink for revision: =HYPERLINK("url", "display_text")
+				revHyperlink := fmt.Sprintf(`=HYPERLINK("%s","%s")`, data.Rev, shortRev)
+				record = append(record, data.Digest, data.Age, revHyperlink)
 			} else {
-				record = append(record, "-", "-")
+				record = append(record, "-", "-", "-")
 			}
 		}
 		writer.Write(record)
