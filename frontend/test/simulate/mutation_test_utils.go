@@ -31,6 +31,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -44,6 +45,12 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		internalID := "/api/clusters_mgmt/v1/clusters/" + rand.String(10)
 		builder = builder.HREF(internalID)
 		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		// these values are normally looked up directly from azure inside of cluster-service.  For mocks we do it here.
+		ret, err = addFakeAzureIdentityData(ret)
 		if err != nil {
 			return nil, err
 		}
@@ -107,6 +114,62 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 	}).AnyTimes()
 }
 
+func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {
+	// the API is so hard to work with that we'll make it a map[string]any to manipulate it
+	inJSON, err := marshalClusterServiceAny(clusterServiceCluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
+	}
+	content := map[string]any{}
+	if err := json.Unmarshal(inJSON, &content); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cluster-service type: %w", err)
+	}
+
+	controlPlaneManagedIdentities, _, _ := unstructured.NestedMap(content, "azure", "operators_authentication", "managed_identities", "control_plane_operators_managed_identities")
+	if len(controlPlaneManagedIdentities) > 0 {
+		for key, clusterServiceManagedIdentityInfo := range controlPlaneManagedIdentities {
+			setFakeAzureIdentityFields(key, clusterServiceManagedIdentityInfo)
+		}
+		err := unstructured.SetNestedMap(content, controlPlaneManagedIdentities, "azure", "operators_authentication", "managed_identities", "control_plane_operators_managed_identities")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set nested map: %w", err)
+		}
+	}
+
+	dataPlaneManagedIdentities, _, _ := unstructured.NestedMap(content, "azure", "operators_authentication", "managed_identities", "data_plane_operators_managed_identities")
+	if len(dataPlaneManagedIdentities) > 0 {
+		for key, clusterServiceManagedIdentityInfo := range dataPlaneManagedIdentities {
+			setFakeAzureIdentityFields(key, clusterServiceManagedIdentityInfo)
+		}
+		err := unstructured.SetNestedMap(content, dataPlaneManagedIdentities, "azure", "operators_authentication", "managed_identities", "data_plane_operators_managed_identities")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set nested map: %w", err)
+		}
+	}
+
+	serviceManagedIdentity, _, _ := unstructured.NestedMap(content, "azure", "operators_authentication", "managed_identities", "service_managed_identity")
+	if serviceManagedIdentity != nil {
+		setFakeAzureIdentityFields("service-managed-identity", serviceManagedIdentity)
+		err = unstructured.SetNestedMap(content, serviceManagedIdentity, "azure", "operators_authentication", "managed_identities", "service_managed_identity")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set nested map: %w", err)
+		}
+	}
+
+	outJSON, err := json.MarshalIndent(content, "", "    ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
+	}
+	return csarhcpv1alpha1.UnmarshalCluster(outJSON)
+}
+
+func setFakeAzureIdentityFields(key string, uncastManagedIdentity any) any {
+	managedIdentity := uncastManagedIdentity.(map[string]any)
+	managedIdentity["client_id"] = key + "_fake-client-id"
+	managedIdentity["principal_id"] = key + "_fake-principal-id"
+	return managedIdentity
+}
+
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	// this looks insane, but cluster-service has some of the toughest API and client constructs to manage.
 	// we need to merge the history together, but the CS types resist that, so taking it all back to maps is easier.
@@ -164,6 +227,11 @@ func readGenericMutationTest(testDir fs.FS) (*genericMutationTest, error) {
 		return nil, fmt.Errorf("failed to read update.json: %w", err)
 	}
 
+	patchJSON, err := fs.ReadFile(testDir, "patch.json")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to read patch.json: %w", err)
+	}
+
 	expectedErrors := []expectedFieldError{}
 	expectedJSON, err := fs.ReadFile(testDir, "expected.json")
 	switch {
@@ -188,6 +256,7 @@ func readGenericMutationTest(testDir fs.FS) (*genericMutationTest, error) {
 		initialCosmosState: initialCosmosState,
 		createJSON:         createJSON,
 		updateJSON:         updateJSON,
+		patchJSON:          patchJSON,
 		expectedJSON:       expectedJSON,
 		expectedErrors:     expectedErrors,
 	}, nil
@@ -197,6 +266,7 @@ type genericMutationTest struct {
 	initialCosmosState fs.FS
 	createJSON         []byte
 	updateJSON         []byte
+	patchJSON          []byte
 	expectedJSON       []byte
 	expectedErrors     []expectedFieldError
 }
@@ -213,6 +283,10 @@ func (h *genericMutationTest) initialize(ctx context.Context, testInfo *Simulati
 
 func (h *genericMutationTest) isUpdateTest() bool {
 	return len(h.updateJSON) > 0
+}
+
+func (h *genericMutationTest) isPatchTest() bool {
+	return len(h.patchJSON) > 0
 }
 
 func (h *genericMutationTest) expectsResult() bool {
