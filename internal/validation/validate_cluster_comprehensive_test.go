@@ -18,8 +18,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -518,6 +520,24 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name:         "valid cluster update - no changes",
 			newCluster:   createValidCluster(),
 			oldCluster:   createValidCluster(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster update - systemData",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Resource.SystemData = &arm.SystemData{
+					LastModifiedAt: ptr.To(time.Now()),
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Resource.SystemData = &arm.SystemData{
+					LastModifiedAt: ptr.To(time.Now().Add(-1 * time.Hour)),
+				}
+				return c
+			}(),
 			expectErrors: []expectedError{},
 		},
 		{
