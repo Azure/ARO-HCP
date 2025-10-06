@@ -19,9 +19,9 @@
  [
    {"column":"timestamp","Properties":{"path":"$.timestamp"}},
    {"column":"log","Properties":{"path":"$.log.log"}},
-   {"column":"environment","Properties":{"path":"$.environment"}},
-   {"column":"region","Properties":{"path":"$.region"}},
-   {"column":"cluster","Properties":{"path":"$.cluster"}},
+   {"column":"environment","Properties":{"path":"$.log.environment"}},
+   {"column":"region","Properties":{"path":"$.log.region"}},
+   {"column":"cluster","Properties":{"path":"$.log.cluster"}},
    {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
    {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
    {"column":"containerImage","Properties":{"path":"$.log.kubernetes.container_image"}},
