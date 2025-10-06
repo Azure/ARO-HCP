@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -250,6 +251,11 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 				OutboundType(csOutboundType)).
+			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ManagedIdentitiesDataPlaneIdentityUrl(""))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
