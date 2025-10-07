@@ -229,11 +229,6 @@ defaults:
         automitigationEnabled: ""
   # Route Monitor Operator
   routeMonitorOperator:
-    # Bundle version is not used in runtime, it's used to generate
-    # the Helm chart for the route-monitor-operator
-    # WARNING: Keep this in sync with the image digests
-    bundleVersion: 0.1.744-gad53663
-    # Image refs
     operatorImage:
       registry: quay.io
       repository: app-sre/route-monitor-operator

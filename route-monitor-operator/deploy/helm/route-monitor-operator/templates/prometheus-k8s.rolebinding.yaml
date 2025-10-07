@@ -3,7 +3,6 @@ kind: RoleBinding
 metadata:
   annotations:
     package-operator.run/phase: prometheus
-  creationTimestamp: null
   name: prometheus-k8s
   namespace: '{{ .Release.Namespace }}'
 roleRef:
