@@ -282,11 +282,11 @@ func newSystemData(from *arm.SystemData) generated.SystemData {
 	}
 }
 
-func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) generated.ManagedServiceIdentity {
+func newManagedServiceIdentity(from *arm.ManagedServiceIdentity) *generated.ManagedServiceIdentity {
 	if from == nil {
-		return generated.ManagedServiceIdentity{}
+		return nil
 	}
-	return generated.ManagedServiceIdentity{
+	return &generated.ManagedServiceIdentity{
 		Type:                   api.PtrOrNil(generated.ManagedServiceIdentityType(from.Type)),
 		PrincipalID:            api.PtrOrNil(from.PrincipalID),
 		TenantID:               api.PtrOrNil(from.TenantID),
@@ -322,7 +322,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.Properties.Etcd)),
 			},
-			Identity: api.PtrOrNil(newManagedServiceIdentity(from.Identity)),
+			Identity: newManagedServiceIdentity(from.Identity),
 		},
 	}
 
