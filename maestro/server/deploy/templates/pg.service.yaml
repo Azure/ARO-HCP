@@ -1,4 +1,4 @@
-# {{- if .Values.database.containerizedDb }}
+# {{- if not .Values.database.azureDb }}
 apiVersion: v1
 kind: Service
 metadata:

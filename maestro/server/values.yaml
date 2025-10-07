@@ -22,6 +22,7 @@ database:
   user: "maestro-server"
   maxOpenConnections: 50
   debug: false
+  password: "TheBlurstOfTimes"
 maestro:
   serviceAccount: "{{ .maestro.server.k8s.serviceAccountName }}"
   httpReadTimeout: 60s
