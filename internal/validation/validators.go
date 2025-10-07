@@ -57,7 +57,7 @@ func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.
 	return nil
 }
 
-func OpenshiftVersion(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+func OpenshiftVersionWithoutMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
 	}
@@ -69,6 +69,12 @@ func OpenshiftVersion(_ context.Context, op operation.Operation, fldPath *field.
 	if err != nil {
 		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
 	}
+
+	// The version ID has already passed syntax validation so we know it's a valid semantic version.
+	if len(strings.SplitN(*value, ".", 3)) > 2 {
+		return field.ErrorList{field.Invalid(fldPath, value, "must be specified as MAJOR.MINOR; the PATCH value is managed")}
+	}
+
 	return nil
 }
 
@@ -169,6 +175,64 @@ func IPv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, 
 	}
 	if ip.To4() == nil {
 		return field.ErrorList{field.Invalid(fldPath, *value, "not IPv4")}
+	}
+
+	return nil
+}
+
+func ValidateUserAssignedIdentityLocation(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, clusterSubscriptionID, managedResourceGroupName string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+	errs = append(errs, SameSubscription(ctx, op, fldPath, value, nil, clusterSubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath, value, nil, managedResourceGroupName)...)
+
+	return errs
+}
+
+func DifferentResourceGroupNameFromResourceID(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, resourceGroupName string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+
+	if strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) {
+		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must not be the same resource group name: %q", resourceGroupName))}
+	}
+
+	return nil
+}
+
+func DifferentResourceGroupName(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, resourceGroupName string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	if strings.EqualFold(*value, resourceGroupName) {
+		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must not be the same resource group name: %q", resourceGroupName))}
+	}
+
+	return nil
+}
+
+func SameSubscription(ctx context.Context, op operation.Operation, fldPath *field.Path, value, _ *string, subscriptionID string) field.ErrorList {
+	if value == nil || len(*value) == 0 {
+		return nil
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
+	}
+
+	if !strings.EqualFold(resourceID.SubscriptionID, subscriptionID) {
+		return field.ErrorList{field.Invalid(fldPath, *value, fmt.Sprintf("must be in the same Azure subscription: %q", subscriptionID))}
 	}
 
 	return nil

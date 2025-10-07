@@ -16,10 +16,15 @@ package validation
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -53,6 +58,103 @@ func validateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 
 	// Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 	errs = append(errs, validateManagedServiceIdentity(ctx, op, field.NewPath("identity"), newCluster.Identity, safe.Field(oldCluster, toClusterIdentity))...)
+
+	// there several resourceIDs that must be verified with respect to this ID.  This is the only level of validation with access to both
+	errs = append(errs, validateResourceIDsAgainstClusterID(ctx, op, newCluster, oldCluster)...)
+
+	// there are pieces of clusterProperties that are dependent upon values in .identity
+	errs = append(errs, validateOperatorAuthenticationAgainstIdentities(ctx, op, newCluster, oldCluster)...)
+
+	return errs
+}
+
+func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op operation.Operation, newCluster, _ *api.HCPOpenShiftCluster) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Verify that every key in Identity.UserAssignedIdentities is referenced
+	// exactly once by either ControlPlaneOperators or ServiceManagedIdentity.
+
+	userAssignedIdentities := make(map[string]int)
+	if newCluster.Identity != nil {
+		for key := range newCluster.Identity.UserAssignedIdentities {
+			// Resource IDs are case-insensitive. Don't assume they
+			// have consistent casing, even within the same resource.
+			userAssignedIdentities[strings.ToLower(key)] = 0
+		}
+	}
+
+	tallyIdentity := func(identity string, fldPath *field.Path) {
+		key := strings.ToLower(identity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			userAssignedIdentities[key]++
+		} else {
+			errs = append(errs, field.Invalid(fldPath, identity, "identity is not assigned to this resource"))
+		}
+	}
+
+	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
+		tallyIdentity(operatorIdentity, fldPath)
+	}
+
+	if serviceManagedIdentity := newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; len(serviceManagedIdentity) != 0 {
+		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity")
+		tallyIdentity(serviceManagedIdentity, fldPath)
+	}
+
+	if newCluster.Identity != nil {
+		for identity := range newCluster.Identity.UserAssignedIdentities {
+			fldPath := field.NewPath("identity", "userAssignedIdentities").Key(identity)
+			key := strings.ToLower(identity)
+			if tally, ok := userAssignedIdentities[key]; ok {
+				switch tally {
+				case 0:
+					errs = append(errs, field.Invalid(fldPath, identity, "identity is assigned to this resource but not used"))
+				case 1:
+					// Valid: Identity is referenced once.
+				default:
+					errs = append(errs, field.Invalid(fldPath, identity, "identity is used multiple times"))
+				}
+			}
+		}
+	}
+
+	// Data-plane operator identities must not be assigned to this resource.
+	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
+		key := strings.ToLower(operatorIdentity)
+		if _, ok := userAssignedIdentities[key]; ok {
+			errs = append(errs, field.Invalid(fldPath, operatorIdentity, "cannot use identity assigned to this resource by .identities.userAssignedIdentities"))
+		}
+	}
+
+	return errs
+}
+
+func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *api.HCPOpenShiftCluster) field.ErrorList {
+	clusterResourceID, err := azcorearm.ParseResourceID(newCluster.ID)
+	if err != nil {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+
+	// Validate that managed resource group is different from cluster resource group
+	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("properties", "platform", "managedResourceGroup"), &newCluster.Properties.Platform.ManagedResourceGroup, nil, clusterResourceID.ResourceGroupName)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("properties", "platform", "subnetId"), &newCluster.Properties.Platform.SubnetID, nil, newCluster.Properties.Platform.ManagedResourceGroup)...)
+
+	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
+	}
+	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
+	}
+	errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op,
+		field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
+		&newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
+		clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
 
 	return errs
 }
@@ -89,6 +191,7 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 
 	//ID         string      `json:"id,omitempty"         visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toResourceID))...)
+	errs = append(errs, ResourceID(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toResourceID))...)
 
 	//Name       string      `json:"name,omitempty"       visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
@@ -194,9 +297,14 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 	if newObj.ChannelGroup != "stable" {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
-	errs = append(errs, OpenshiftVersion(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 
 	// ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
+	// XXX For now, "stable" is the only accepted value. In the future, we may
+	//     allow unlocking other channel groups through Azure Feature Exposure
+	//     Control (AFEC) flags or some other mechanism.
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable"))...)
 
 	return errs
 }
@@ -253,6 +361,28 @@ func validateNetworkProfile(ctx context.Context, op operation.Operation, fldPath
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, safe.Field(oldObj, toHostPrefix))...)
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, nil, 23)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("hostPrefix"), &newObj.HostPrefix, nil, 26)...)
+
+	// Just check for overlapping subnets. Defer subnet limits to Cluster Service.
+	_, podCIDR, _ := net.ParseCIDR(newObj.PodCIDR)
+	_, serviceCIDR, _ := net.ParseCIDR(newObj.ServiceCIDR)
+	_, machineCIDR, _ := net.ParseCIDR(newObj.MachineCIDR)
+
+	intersect := func(n1, n2 *net.IPNet) bool {
+		if n1 == nil || n2 == nil {
+			return false
+		}
+
+		return n2.Contains(n1.IP) || n1.Contains(n2.IP)
+	}
+	if intersect(machineCIDR, serviceCIDR) {
+		errs = append(errs, field.Invalid(fldPath, newObj.MachineCIDR, fmt.Sprintf("machine CIDR '%s' and service CIDR '%s' overlap", newObj.MachineCIDR, newObj.ServiceCIDR)))
+	}
+	if intersect(machineCIDR, podCIDR) {
+		errs = append(errs, field.Invalid(fldPath, newObj.MachineCIDR, fmt.Sprintf("machine CIDR '%s' and pod CIDR '%s' overlap", newObj.MachineCIDR, newObj.PodCIDR)))
+	}
+	if intersect(serviceCIDR, podCIDR) {
+		errs = append(errs, field.Invalid(fldPath, newObj.ServiceCIDR, fmt.Sprintf("service CIDR '%s' and pod CIDR '%s' overlap", newObj.ServiceCIDR, newObj.PodCIDR)))
+	}
 
 	return errs
 }
@@ -335,6 +465,7 @@ func validatePlatformProfile(ctx context.Context, op operation.Operation, fldPat
 	//SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required,resource_id=Microsoft.Network/virtualNetworks/subnets"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, safe.Field(oldObj, toPlatformSubnetID))...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("subnetId"), &newObj.SubnetID, nil, newObj.ManagedResourceGroup)...)
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"enum_outboundtype"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("outboundType"), &newObj.OutboundType, safe.Field(oldObj, toPlatformOutboundType))...)

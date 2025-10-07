@@ -67,7 +67,7 @@ func TestOpenshiftVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := OpenshiftVersion(ctx, op, fldPath, tt.value, nil)
+			errs := OpenshiftVersionWithoutMicro(ctx, op, fldPath, tt.value, nil)
 
 			if tt.expectErr && len(errs) == 0 {
 				t.Error("expected error but got none")
