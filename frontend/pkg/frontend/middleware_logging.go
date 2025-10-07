@@ -20,8 +20,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -71,13 +73,45 @@ func MiddlewareLogging(w http.ResponseWriter, r *http.Request, next http.Handler
 	logger = logger.With(
 		"request_method", r.Method,
 		"request_path", r.URL.Path,
+	)
+
+	// make a best attempt at parsing the resourceID. This will often fail because we have non-resource requests.
+	// we do this so that we can add subscription, resourceGroup, and hcpCluster to the logger context for future searching
+	// if possible.
+	// It's important to do before the second panic handler so that panics can be correlated easily.
+	// TODO are the value we find case sensitive or case insensitive.  They used to be case sensitive, so I have left that
+	if resourceID, err := azcorearm.ParseResourceID(r.URL.Path); err == nil {
+		logger = logger.With(
+			"subscription_id", resourceID.SubscriptionID,
+			"resource_group", resourceID.ResourceGroupName,
+		)
+
+		currID := resourceID
+		for currID != nil {
+			// TODO we have the option on recording each type.  I have no real preference
+			if currID.ResourceType.String() == strings.ToLower(api.ClusterResourceType.String()) {
+				logger.With(
+					"hcp_cluster_name", currID.Name,
+				)
+				break
+			}
+			currID = currID.Parent
+		}
+	}
+
+	// include the context values (logger.With) with every line so we can grep for them.
+	ctx = ContextWithLogger(ctx, logger)
+	r = r.WithContext(ctx)
+
+	logger.Info("read request",
 		"request_proto", r.Proto,
 		"request_query", r.URL.RawQuery,
+		// TODO referrer is under the client's control.  Printing it out could be huge.
 		"request_referer", r.Referer(),
 		"request_remote_addr", r.RemoteAddr,
-		"request_user_agent", r.UserAgent())
-
-	logger.Info("read request")
+		// TODO user agent is under the client's control.  Printing it out could be huge.
+		"request_user_agent", r.UserAgent(),
+	)
 
 	next(w, r)
 
@@ -130,14 +164,6 @@ func (a *attributes) resourceID() string {
 // on the wildcards from the matched pattern.
 func (a *attributes) extendLogger(logger *slog.Logger) *slog.Logger {
 	var attrs []slog.Attr
-
-	if a.subscriptionID != "" {
-		attrs = append(attrs, slog.String("subscription_id", a.subscriptionID))
-	}
-
-	if a.resourceGroup != "" {
-		attrs = append(attrs, slog.String("resource_group", a.resourceGroup))
-	}
 
 	if a.resourceName != "" {
 		attrs = append(attrs, slog.String("resource_name", a.resourceName))
