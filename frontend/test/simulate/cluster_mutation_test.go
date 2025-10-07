@@ -31,38 +31,36 @@ import (
 )
 
 func TestFrontendClusterMutation(t *testing.T) {
-	if false {
-		SkipIfNotSimulationTesting(t)
+	SkipIfNotSimulationTesting(t)
 
-		ctx := context.Background()
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-		frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
-		require.NoError(t, err)
-		defer testInfo.Cleanup(context.Background())
+	frontend, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
+	require.NoError(t, err)
+	defer testInfo.Cleanup(context.Background())
 
-		go frontend.Run(ctx, ctx.Done())
+	go frontend.Run(ctx, ctx.Done())
 
-		subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
-		resourceGroupName := "some-resource-group"
-		err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterMutation/initial-cosmos-state")))
-		require.NoError(t, err)
+	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
+	resourceGroupName := "some-resource-group"
+	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterMutation/initial-cosmos-state")))
+	require.NoError(t, err)
 
-		// create anything and round trip anything for cluster-service
-		trivialPassThroughClusterServiceMock(t, testInfo)
+	// create anything and round trip anything for cluster-service
+	trivialPassThroughClusterServiceMock(t, testInfo)
 
-		dirContent := api.Must(artifacts.ReadDir("artifacts/ClusterMutation"))
-		for _, dirEntry := range dirContent {
-			if dirEntry.Name() == "initial-cosmos-state" {
-				continue
-			}
-			createTestDir, err := fs.Sub(artifacts, "artifacts/ClusterMutation/"+dirEntry.Name())
-			require.NoError(t, err)
-			currTest, err := newClusterMutationTest(ctx, createTestDir, testInfo, subscriptionID, resourceGroupName)
-			require.NoError(t, err)
-			t.Run(dirEntry.Name(), currTest.runTest)
+	dirContent := api.Must(artifacts.ReadDir("artifacts/ClusterMutation"))
+	for _, dirEntry := range dirContent {
+		if dirEntry.Name() == "initial-cosmos-state" {
+			continue
 		}
+		createTestDir, err := fs.Sub(artifacts, "artifacts/ClusterMutation/"+dirEntry.Name())
+		require.NoError(t, err)
+		currTest, err := newClusterMutationTest(ctx, createTestDir, testInfo, subscriptionID, resourceGroupName)
+		require.NoError(t, err)
+		t.Run(dirEntry.Name(), currTest.runTest)
 	}
 }
 

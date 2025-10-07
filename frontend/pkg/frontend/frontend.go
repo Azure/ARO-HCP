@@ -35,6 +35,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/Azure/ARO-HCP/internal/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
@@ -643,40 +646,40 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 
 	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
-	//newValidationErr := func(prevValidationErr *arm.CloudError) *arm.CloudError {
-	//	newInternalCluster := &api.HCPOpenShiftCluster{}
-	//	versionedRequestCluster.Normalize(newInternalCluster)
-	//
-	//	var validationErrs field.ErrorList
-	//	if updating {
-	//		oldInternalCluster := &api.HCPOpenShiftCluster{}
-	//		versionedCurrentCluster.Normalize(oldInternalCluster)
-	//		validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
-	//
-	//	} else {
-	//		validationErrs = validation.ValidateClusterCreate(ctx, newInternalCluster)
-	//
-	//	}
-	//
-	//	switch {
-	//	case len(validationErrs) > 0 && prevValidationErr == nil:
-	//		logger.Error(fmt.Sprintf("new validation got errors, but old validation did not: newErrors=%v", validationErrs))
-	//		// TODO can we panic here?  do panics go to sentry or similar?
-	//	case len(validationErrs) == 0 && prevValidationErr != nil:
-	//		logger.Error(fmt.Sprintf("new validation missing errors, but old validation detected errors: oldEerrors=%v", prevValidationErr))
-	//		// TODO can we panic here?  do panics go to sentry or similar?
-	//	}
-	//
-	//	return arm.CloudErrorFromFieldErrors(validationErrs)
-	//
-	//}(cloudError)
+	newValidationErr := func(prevValidationErr *arm.CloudError) *arm.CloudError {
+		newInternalCluster := &api.HCPOpenShiftCluster{}
+		versionedRequestCluster.Normalize(newInternalCluster)
+
+		var validationErrs field.ErrorList
+		if updating {
+			oldInternalCluster := &api.HCPOpenShiftCluster{}
+			versionedCurrentCluster.Normalize(oldInternalCluster)
+			validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
+
+		} else {
+			validationErrs = validation.ValidateClusterCreate(ctx, newInternalCluster)
+
+		}
+
+		switch {
+		case len(validationErrs) > 0 && prevValidationErr == nil:
+			logger.Error(fmt.Sprintf("new validation got errors, but old validation did not: newErrors=%v", validationErrs))
+			// TODO can we panic here?  do panics go to sentry or similar?
+		case len(validationErrs) == 0 && prevValidationErr != nil:
+			logger.Error(fmt.Sprintf("new validation missing errors, but old validation detected errors: oldEerrors=%v", prevValidationErr))
+			// TODO can we panic here?  do panics go to sentry or similar?
+		}
+
+		return arm.CloudErrorFromFieldErrors(validationErrs)
+
+	}(cloudError)
 
 	// prefer new validation.  Have a fallback for old validation.
-	//if newValidationErr != nil {
-	//	logger.Error(newValidationErr.Error())
-	//	arm.WriteCloudError(writer, newValidationErr)
-	//	return
-	//}
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
+		return
+	}
 
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
