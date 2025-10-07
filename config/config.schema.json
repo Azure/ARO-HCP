@@ -885,6 +885,14 @@
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
+        "batchProcessesDryRun": {
+          "type": "boolean",
+          "description": "If true, batch processes will only log what they would do, without making any changes."
+        },
+        "batchProcesses": {
+          "type": "string",
+          "description": "A comma-separated list of batch processes to execute. If set to an empty string, no batch processes are executed."
+        },
         "postgres": {
           "$ref": "#/definitions/postgres"
         },
@@ -991,13 +999,6 @@
         "issuer",
         "manage"
       ]
-    },
-    "batchProcessesDryRun": {
-      "type": "boolean",
-      "description": "If true, batch processes will only log what they would do, without making any changes."
-    },
-    "batchProcesses": {
-      "type": "string"
     },
     "miMockClientId": {
       "type": "string"

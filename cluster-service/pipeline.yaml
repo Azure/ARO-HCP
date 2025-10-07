@@ -86,9 +86,9 @@ resourceGroups:
       configRef: acr.ocp.name
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
       configRef: firstPartyAppClientId
-    - name: BATCH_PROCESSES_DRY_RUN
+    - name: CS_BATCH_PROCESSES_DRY_RUN
       configRef: batchProcessesDryRun
-    - name: BATCH_PROCESSES
+    - name: CS_BATCH_PROCESSES
       configRef: batchProcesses
     - name: FPA_CERT_NAME
       configRef: firstPartyAppCertificate.name

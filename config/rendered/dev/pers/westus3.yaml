@@ -69,8 +69,6 @@ backplaneAPI:
     digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
     registry: quay.io
     repository: app-sre/backplane-api
-batchProcesses: ""
-batchProcessesDryRun: false
 billing:
   aub:
     accountName: ""
@@ -100,6 +98,8 @@ clustersService:
     roleSetName: dev
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  batchProcesses: ""
+  batchProcessesDryRun: false
   denyAssignments: disabled
   environment: arohcpdev
   image:
