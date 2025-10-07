@@ -44,9 +44,9 @@ func TestOpenshiftVersion(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "valid semver - valid",
+			name:      "semver with patch - invalid",
 			value:     ptr.To("4.15.1"),
-			expectErr: false,
+			expectErr: true,
 		},
 		{
 			name:      "valid major.minor - valid",

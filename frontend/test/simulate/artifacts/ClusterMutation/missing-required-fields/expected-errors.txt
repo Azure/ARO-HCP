@@ -9,3 +9,6 @@ InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.active
 InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Required value
 InvalidRequestContent: identity.type: identity.type: Required value
 InvalidRequestContent: identity.state: identity.state: Unsupported value: "": supported values: "None", "SystemAssigned", "SystemAssigned,UserAssigned", "UserAssigned"
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[]: Required value
+InvalidRequestContent: properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]: identity is not assigned to this resource

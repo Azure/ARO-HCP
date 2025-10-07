@@ -141,6 +141,7 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 
 	// Validate that managed resource group is different from cluster resource group
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("properties", "platform", "managedResourceGroup"), &newCluster.Properties.Platform.ManagedResourceGroup, nil, clusterResourceID.ResourceGroupName)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("properties", "platform", "subnetId"), &newCluster.Properties.Platform.SubnetID, nil, clusterResourceID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("properties", "platform", "subnetId"), &newCluster.Properties.Platform.SubnetID, nil, newCluster.Properties.Platform.ManagedResourceGroup)...)
 
 	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {

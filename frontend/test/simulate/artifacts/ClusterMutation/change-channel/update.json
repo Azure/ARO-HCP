@@ -37,9 +37,9 @@
     },
     "platform": {
       "managedResourceGroup": "managed-resource-group-name",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
       "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
     },
     "version": {
       "channelGroup": "updated-channel"
