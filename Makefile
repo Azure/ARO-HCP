@@ -233,17 +233,21 @@ generate-kiota:
 	$(MAKE) fmt
 .PHONY: generate-kiota
 
-entrypoints = $(shell yq '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+ifeq ($(wildcard $(YQ)),$(YQ))
+entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
 $(addprefix entrypoint/,$(entrypoints)):
+endif
 entrypoint/%:
 	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
-pipelines = $(shell yq '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+ifeq ($(wildcard $(YQ)),$(YQ))
+pipelines = $(shell $(YQ) '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
 $(addprefix pipeline/,$(pipelines)):
+endif
 pipeline/%:
 	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
-LOG_LEVEL ?= 5
+LOG_LEVEL ?= 3
 DRY_RUN ?= "false"
 PERSIST ?= "false"
 
