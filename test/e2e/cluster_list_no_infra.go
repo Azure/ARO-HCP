@@ -24,7 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
-	api "github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -70,7 +70,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("testing subscription-level cluster listing")
-			listOptions := &api.HcpOpenShiftClustersClientListBySubscriptionOptions{}
+			listOptions := &hcpsdk20240610preview.HcpOpenShiftClustersClientListBySubscriptionOptions{}
 			pager := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().NewListBySubscriptionPager(listOptions)
 
 			foundClusters := make(map[string]bool)
