@@ -62,6 +62,8 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: azureKeyvaultSecretsProviderIdentityClientId
+    - name: OPERATOR_ROLE_SET_NAME
+      configRef: clustersService.azureOperatorsManagedIdentities.roleSetName
     - name: REGION
       configRef: region
     - name: RESOURCEGROUP
@@ -108,24 +110,6 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     - name: DATABASE_SERVER_NAME
       configRef: clustersService.postgres.name
-    - name: OP_CLUSTER_API_AZURE_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.clusterApiAzure.roleNames
-    - name: OP_CONTROL_PLANE_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.controlPlane.roleNames
-    - name: OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.cloudControllerManager.roleNames
-    - name: OP_INGRESS_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.ingress.roleNames
-    - name: OP_DISK_CSI_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.diskCsiDriver.roleNames
-    - name: OP_FILE_CSI_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.fileCsiDriver.roleNames
-    - name: OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.imageRegistry.roleNames
-    - name: OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleNames
-    - name: OP_KMS_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.kms.roleNames
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: MI_NAME
