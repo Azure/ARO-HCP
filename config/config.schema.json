@@ -29,6 +29,10 @@
          }
        ]
     },
+    "semVer": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -730,25 +734,6 @@
         "key",
         "displayName"
       ]
-    },
-    "ocpVersionChannelGroupSpec": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string"
-        },
-        "minVersion": {
-          "type": "string"
-        },
-        "maxVersion": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "url",
-        "minVersion"
-      ]
     }
   },
   "properties": {
@@ -956,7 +941,7 @@
               "type": "object",
               "properties": {
                 "version": {
-                  "type": "string"
+                  "$ref": "#/definitions/semVer"
                 }
               },
               "required": ["version"],
@@ -966,7 +951,20 @@
               "type": "object",
               "properties": {
                 "stable": {
-                  "$ref": "#/definitions/ocpVersionChannelGroupSpec"
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "$ref": "#/definitions/semVer"
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        { "$ref": "#/definitions/semVer" },
+                        { "type": "string", "pattern": "^$" }
+                      ]
+                    }
+                  },
+                  "required": ["minVersion", "maxVersion"],
+                  "additionalProperties": false
                 }
               },
               "required": ["stable"],

@@ -155,8 +155,6 @@ resourceGroups:
       configRef: clustersService.provisionShardClusterLimit
     - name: OCP_VERSIONS_DEFAULT_VERSION_VERSION
       configRef: clustersService.ocpVersions.defaultVersion.version
-    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_URL
-      configRef: clustersService.ocpVersions.channelGroups.stable.url
     - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION
       configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
     - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
