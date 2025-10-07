@@ -94,10 +94,10 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 	}, nil
 }
 
-// Outputs stores output values indexed by resource group name and step name.
-type Outputs map[string]map[string]Output
+// Outputs stores output values indexed by service group, resource group and step name.
+type Outputs map[string]map[string]map[string]Output
 
-type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error)
+type Executor func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error)
 
 type ExecutionState struct {
 	*sync.RWMutex
@@ -308,7 +308,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		output = nil
 		stepRunErr = nil
 	} else {
-		output, stepRunErr = executor(step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+		output, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 			BaseRunOptions:    options.BaseRunOptions,
 			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 		}, state)
@@ -320,17 +320,20 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	state.Lock()
 	if output != nil {
 		logger.V(4).Info("Recording step output.")
-		if _, recorded := state.Outputs[node.ResourceGroup]; !recorded {
-			state.Outputs[node.ResourceGroup] = map[string]Output{}
+		if _, recorded := state.Outputs[node.ServiceGroup]; !recorded {
+			state.Outputs[node.ServiceGroup] = map[string]map[string]Output{}
 		}
-		state.Outputs[node.ResourceGroup][node.Step] = output
+		if _, recorded := state.Outputs[node.ServiceGroup][node.ResourceGroup]; !recorded {
+			state.Outputs[node.ServiceGroup][node.ResourceGroup] = map[string]Output{}
+		}
+		state.Outputs[node.ServiceGroup][node.ResourceGroup][node.Step] = output
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("This is a dry run!")
@@ -341,7 +344,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	case *types.ImageMirrorStep:
 		var buf bytes.Buffer
 
-		err := runImageMirrorStep(ctx, step, options, state, &buf)
+		err := runImageMirrorStep(id, ctx, step, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
 		}
@@ -362,7 +365,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		err = runShellStep(step, ctx, kubeconfigFile, options, state, &buf)
+		err = runShellStep(id, step, ctx, kubeconfigFile, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
@@ -380,7 +383,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		}
 		return nil, nil
 	case *types.HelmStep:
-		if err := runHelmStep(step, ctx, options, executionTarget, state); err != nil {
+		if err := runHelmStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
 		}
 		return nil, nil
@@ -389,13 +392,13 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		if err != nil {
 			return nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}
-		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, state)
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, nil
 	case *types.ARMStackStep:
-		output, err := runArmStackStep(ctx, options, executionTarget, step, state)
+		output, err := runArmStackStep(ctx, options, executionTarget, id, step, state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
@@ -406,11 +409,11 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 	}
 }
 
-func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
+func getInputValues(serviceGroup string, configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
-			value, err := resolveInput(*i.Input, inputs)
+			value, err := resolveInput(serviceGroup, *i.Input, inputs)
 			if err != nil {
 				return nil, err
 			}
@@ -428,8 +431,12 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 	return values, nil
 }
 
-func resolveInput(input types.Input, outputs Outputs) (any, error) {
-	group, exists := outputs[input.ResourceGroup]
+func resolveInput(serviceGroup string, input types.Input, outputs Outputs) (any, error) {
+	sg, exists := outputs[serviceGroup]
+	if !exists {
+		return nil, fmt.Errorf("variable invalid: refers to missing service group %q", serviceGroup)
+	}
+	group, exists := sg[input.ResourceGroup]
 	if !exists {
 		return nil, fmt.Errorf("variable invalid: refers to missing group %q", input.ResourceGroup)
 	}

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/helm"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/go-logr/logr"
@@ -32,7 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
-func runHelmStep(step *types.HelmStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
+func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -59,7 +60,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *StepRunOpti
 
 	replacements := map[string]string{}
 	for key, from := range step.InputVariables {
-		value, err := resolveInput(from, outputs)
+		value, err := resolveInput(id.ServiceGroup, from, outputs)
 		if err != nil {
 			return err
 		}

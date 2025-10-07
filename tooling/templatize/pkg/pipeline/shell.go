@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/registration"
 	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
 	"github.com/go-logr/logr"
@@ -58,7 +59,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -68,7 +69,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	if options.DryRun {
 		dryRun = &s.DryRun
 		state.RLock()
-		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, state.Outputs)
+		dryRunVars, err = mapStepVariables(id.ServiceGroup, dryRun.Variables, options.Configuration, state.Outputs)
 		state.RUnlock()
 		if err != nil {
 			return fmt.Errorf("failed to build dry run vars: %w", err)
@@ -77,7 +78,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 
 	// build ENV vars
 	state.RLock()
-	stepVars, err := mapStepVariables(s.Variables, options.Configuration, state.Outputs)
+	stepVars, err := mapStepVariables(id.ServiceGroup, s.Variables, options.Configuration, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
@@ -301,8 +302,8 @@ func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string)
 	}, nil
 }
 
-func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
-	values, err := getInputValues(vars, cfg, inputs)
+func mapStepVariables(serviceGroup string, vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
+	values, err := getInputValues(serviceGroup, vars, cfg, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}

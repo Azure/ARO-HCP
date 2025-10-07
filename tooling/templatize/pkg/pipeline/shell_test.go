@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
@@ -116,7 +117,7 @@ func TestCreateCommand(t *testing.T) {
 			if tc.dryRun {
 				dryRun = &tc.step.DryRun
 			}
-			dryRunVars, err := mapStepVariables(tc.step.DryRun.Variables, tc.configuration, Outputs{})
+			dryRunVars, err := mapStepVariables("Microsoft.Azure.ARO.Whatever", tc.step.DryRun.Variables, tc.configuration, Outputs{})
 			assert.NoError(t, err)
 			maps.Copy(tc.envVars, dryRunVars)
 
@@ -231,11 +232,13 @@ func TestMapStepVariables(t *testing.T) {
 				},
 			},
 			input: Outputs{
-				"rg": map[string]Output{
-					"step1": ArmOutput{
-						"output1": map[string]any{
-							"type":  "String",
-							"value": "bar",
+				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
+					"rg": map[string]Output{
+						"step1": ArmOutput{
+							"output1": map[string]any{
+								"type":  "String",
+								"value": "bar",
+							},
 						},
 					},
 				},
@@ -285,11 +288,13 @@ func TestMapStepVariables(t *testing.T) {
 				},
 			},
 			input: Outputs{
-				"rg": map[string]Output{
-					"step1": ArmOutput{
-						"anotheroutput": map[string]any{
-							"type":  "String",
-							"value": "bar",
+				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
+					"rg": map[string]Output{
+						"step1": ArmOutput{
+							"anotheroutput": map[string]any{
+								"type":  "String",
+								"value": "bar",
+							},
 						},
 					},
 				},
@@ -299,7 +304,7 @@ func TestMapStepVariables(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			envVars, err := mapStepVariables(tc.step.Variables, tc.cfg, tc.input)
+			envVars, err := mapStepVariables("Microsoft.Azure.ARO.Whatever", tc.step.Variables, tc.cfg, tc.input)
 			t.Log(envVars)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)
@@ -353,7 +358,13 @@ func TestRunShellStep(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := runShellStep(tc.step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
+			err := runShellStep(graph.Identifier{
+				ServiceGroup: "Microsoft.Azure.ARO.Whatever",
+				StepDependency: types.StepDependency{
+					ResourceGroup: "group",
+					Step:          "step",
+				},
+			}, tc.step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
 				RWMutex: &sync.RWMutex{},
 				Outputs: Outputs{},
 			}, &buf)
@@ -372,7 +383,13 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 	}
 	var buf bytes.Buffer
 
-	err := runShellStep(step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
+	err := runShellStep(graph.Identifier{
+		ServiceGroup: "Microsoft.Azure.ARO.Whatever",
+		StepDependency: types.StepDependency{
+			ResourceGroup: "group",
+			Step:          "step",
+		},
+	}, step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
 		RWMutex: &sync.RWMutex{},
 		Outputs: Outputs{},
 	}, &buf)

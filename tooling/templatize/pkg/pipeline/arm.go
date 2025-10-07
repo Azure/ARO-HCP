@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -109,7 +110,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, step *types.ARMStep, state *ExecutionState) (Output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, error) {
 	// Ensure resourcegroup exists
 	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
 	if err != nil {
@@ -124,10 +125,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
+		return doWaitForDeployment(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
+	return doDryRun(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -206,11 +207,11 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, cfg, state.Outputs)
+	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
@@ -302,11 +303,11 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, cfg, state.Outputs)
+	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)

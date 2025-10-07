@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -34,6 +35,7 @@ func runArmStackStep(
 	ctx context.Context,
 	options *StepRunOptions,
 	executionTarget ExecutionTarget,
+	id graph.Identifier,
 	step *types.ARMStackStep,
 	state *ExecutionState,
 ) (Output, error) {
@@ -57,7 +59,7 @@ func runArmStackStep(
 	}
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, options.Configuration, state.Outputs)
+	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
