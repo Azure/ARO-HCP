@@ -29,7 +29,6 @@ PROVISION_SHARDS_IDS_NAMESPACE_UUID=916f9976-e1c0-4afd-b84c-5d5c94fbeaed
 PROVISION_SHARD_ID=$$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${PROVISION_SHARDS_IDS_NAMESPACE_UUID}'), '${MGMT_AKS_NAME}'))")
 
 deploy:
-	@source ./generate_helm_set_flags.sh && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	IMAGE_PULLER_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query clientId -o tsv) && \
 	IMAGE_PULLER_MI_TENANT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n image-puller --query tenantId -o tsv) && \
@@ -92,7 +91,7 @@ deploy:
 	  --set ocpVersions.channelGroups.stable.url=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_URL} \
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
-	  "$${OP_HELM_SET_FLAGS[@]}"
+	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME}
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -149,24 +148,17 @@ personal-runtime-config:
 .PHONY: personal-runtime-config
 
 local-azure-operators-managed-identities-config:
-	@source ./generate_helm_set_flags.sh && \
 	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
-	  "$${OP_HELM_SET_FLAGS[@]}" \
+	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
 local-aro-hcp-ocp-versions-config:
 	helm template deploy \
-	--set ocpVersions.defaultVersion.channelGroupName=${OCP_VERSIONS_DEFAULT_VERSION_CHANNEL_GROUP_NAME} \
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
-	--set ocpVersions.channelGroups.stable.enabled=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_ENABLED} \
 	--set ocpVersions.channelGroups.stable.url=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_URL} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
-	--set ocpVersions.channelGroups.fast.enabled=${OCP_VERSIONS_CHANNEL_GROUPS_FAST_ENABLED} \
-	--set ocpVersions.channelGroups.fast.url=${OCP_VERSIONS_CHANNEL_GROUPS_FAST_URL} \
-	--set ocpVersions.channelGroups.fast.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_FAST_MIN_VERSION} \
-	--set ocpVersions.channelGroups.fast.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_FAST_MAX_VERSION} \
 	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config
 

@@ -891,45 +891,19 @@
         "azureOperatorsManagedIdentities": {
           "type": "object",
           "properties": {
-            "clusterApiAzure": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "controlPlane": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "cloudControllerManager": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "ingress": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "diskCsiDriver": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "fileCsiDriver": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "imageRegistry": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "cloudNetworkConfig": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "kms": {
-              "$ref": "#/definitions/operatorConfig"
+            "roleSetName": {
+              "type": "string",
+              "enum": [
+                "dev",
+                "public",
+                "ff"
+              ],
+              "description": "The role set name refers to a particular cloud specific set of operator role definitions, found in the CS values.yaml file"
             }
           },
           "additionalProperties": false,
           "required": [
-            "clusterApiAzure",
-            "controlPlane",
-            "cloudControllerManager",
-            "ingress",
-            "diskCsiDriver",
-            "fileCsiDriver",
-            "imageRegistry",
-            "cloudNetworkConfig",
-            "kms"
+            "roleSetName"
           ]
         },
         "azureRuntimeConfig" : {
