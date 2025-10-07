@@ -9,7 +9,7 @@ Nested YAML structures, override layers, and region-agnostic templating of confi
 
 ## Nested YAML Structure
 
-Once the temaplates are rendered ARO HCP configuration data is stored in YAML format, allowing for a structured representation of settings. The configuration supports nested structures, enabling hierarchical organization of properties and logical grouping of related settings.
+Once the templates are rendered ARO HCP configuration is available in YAML format, allowing for a structured representation of settings. The configuration supports nested structures, enabling hierarchical organization of properties and logical grouping of related settings.
 
 ```yaml
 ...
