@@ -259,4 +259,5 @@ local-run: $(TEMPLATIZE)
 	                             $(WHAT) \
 	                             --persist-tag=$(PERSIST) \
 	                             --dry-run=$(DRY_RUN) \
-	                             --verbosity=$(LOG_LEVEL)
+	                             --verbosity=$(LOG_LEVEL) \
+	                             --timing-output=timing.yaml

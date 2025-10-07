@@ -22,11 +22,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -45,6 +47,8 @@ type PipelineRunOptions struct {
 
 	TopologyDir string
 	Concurrency int
+
+	TimingOutputFile string
 }
 
 type BaseRunOptions struct {
@@ -105,6 +109,25 @@ type ExecutionState struct {
 	Executed sets.Set[graph.Identifier]
 	Queued   sets.Set[graph.Identifier]
 	Outputs  Outputs
+
+	Timing map[graph.Identifier]*ExecutionInfo
+}
+
+type ExecutionInfo struct {
+	QueuedAt   string `json:"queuedAt"`
+	StartedAt  string `json:"startedAt"`
+	FinishedAt string `json:"finishedAt"`
+}
+
+type NodeInfo struct {
+	Identifier Identifier    `json:"identifier"`
+	Info       ExecutionInfo `json:"info"`
+}
+
+type Identifier struct {
+	ServiceGroup  string `json:"serviceGroup"`
+	ResourceGroup string `json:"resourceGroup"`
+	Step          string `json:"step"`
 }
 
 func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
@@ -148,8 +171,15 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		RWMutex:  &sync.RWMutex{},
 		Executed: sets.Set[graph.Identifier]{},
 		Queued:   sets.Set[graph.Identifier]{},
+		Timing:   make(map[graph.Identifier]*ExecutionInfo),
 		Outputs:  make(Outputs),
 	}
+
+	state.Lock()
+	for _, node := range executionGraph.Nodes {
+		state.Timing[node.Identifier] = &ExecutionInfo{}
+	}
+	state.Unlock()
 
 	queue := make(chan graph.Identifier, len(executionGraph.Nodes))
 	checkForStepsToExecute := make(chan struct{}, len(executionGraph.Nodes))
@@ -180,6 +210,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					if state.Executed.HasAll(node.Parents...) {
 						thisLogger.V(4).Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
 						state.Queued.Insert(node.Identifier)
+						state.Timing[node.Identifier].QueuedAt = time.Now().Format(time.RFC3339)
 						queue <- node.Identifier
 					}
 				}
@@ -227,7 +258,14 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.V(4).Info("Executing step.")
-					if err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state); err != nil {
+					state.Lock()
+					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
+					state.Unlock()
+					err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					state.Lock()
+					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					state.Unlock()
+					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
 						errs <- err
 						consumerCancel()
@@ -266,7 +304,30 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	}
 	state.RLock()
 	outputs := state.Outputs
+	timing := state.Timing
 	state.RUnlock()
+
+	if options.TimingOutputFile != "" {
+		var times []NodeInfo
+		for id, info := range timing {
+			times = append(times, NodeInfo{
+				Identifier: Identifier{
+					ServiceGroup:  id.ServiceGroup,
+					ResourceGroup: id.ResourceGroup,
+					Step:          id.Step,
+				},
+				Info: *info,
+			})
+		}
+		encodedTiming, err := yaml.Marshal(times)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling timing: %v", err)
+		}
+		if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+			return nil, fmt.Errorf("error writing timing: %v", err)
+		}
+	}
+
 	return outputs, nil
 }
 

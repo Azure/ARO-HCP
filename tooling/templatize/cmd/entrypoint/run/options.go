@@ -46,6 +46,8 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Name of the entrypoint to create Ev2 manifests for. Exclusive with --service-group.")
 	cmd.Flags().StringVar(&opts.ServiceGroup, "service-group", opts.ServiceGroup, "Name of the service group to create Ev2 manifests for. Exclusive with --entrypoint.")
 
+	cmd.Flags().StringVar(&opts.TimingOutputFile, "timing-output", opts.TimingOutputFile, "Path to the file where timing outputs will be written.")
+
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
@@ -68,6 +70,8 @@ type RawOptions struct {
 	DryRun                   bool
 	Persist                  bool
 	DeploymentTimeoutSeconds int
+
+	TimingOutputFile string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -94,6 +98,8 @@ type completedOptions struct {
 	DryRun                   bool
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+
+	TimingOutputFile string
 }
 
 type Options struct {
@@ -195,6 +201,8 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			DryRun:                   o.DryRun,
 			NoPersist:                o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+
+			TimingOutputFile: o.TimingOutputFile,
 		},
 	}, nil
 }
@@ -236,6 +244,7 @@ func (o *Options) Run(ctx context.Context) error {
 		Region:                o.Region,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
+		TimingOutputFile:      o.TimingOutputFile,
 	}
 
 	if o.Entrypoint != nil {
