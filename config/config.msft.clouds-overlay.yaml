@@ -60,7 +60,7 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:685e63a880d6170073138dc70cc720eb41184944615ec1575ee531c17a803df9"
+              digest: "sha256:88df09347ac4e57c56a2efc7ef6ab9dd638706efd3ef5cc67f0a371e415d5c21"
             audit:
               connectSocket: true
           # RP Backend
