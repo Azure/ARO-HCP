@@ -98,6 +98,8 @@ clustersService:
     roleSetName: dev
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  batchProcesses: ""
+  batchProcessesDryRun: false
   denyAssignments: disabled
   environment: arohcpdev
   image:
