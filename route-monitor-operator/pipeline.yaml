@@ -84,6 +84,10 @@ resourceGroups:
       step: mirror-operator-image
     - resourceGroup: global
       step: mirror-blackbox-image
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+      resourceGroup: management
+      step: deploy
     shellIdentity:
       input:
         resourceGroup: global
