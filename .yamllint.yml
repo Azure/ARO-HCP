@@ -10,6 +10,7 @@ ignore:
 - 'istio/deploy/templates/istio-shared-configmap.yml'
 - 'cluster-service/deploy/templates/cs-keyvault.secret.yaml'
 - 'cluster-service/deploy/templates/deployment.yaml'
+- 'cluster-service/deploy/templates/azure-operators-managed-identities-config.configmap.yaml'
 - 'observability/prometheus/deploy/templates/prometheus.yaml'
 - 'secret-sync-controller/deploy/templates/*.yaml'
 - 'observability/arobit/deploy/templates/forwarder-clusterrolebinding.yaml'

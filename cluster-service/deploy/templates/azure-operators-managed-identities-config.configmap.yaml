@@ -1,4 +1,4 @@
-{{- $azureOperatorsMI := get .Values.azureOperatorsMI .Values.azureOperatorsMI.roleSetName }}
+{{- $azureOperatorsMI := get .Values.azureOperatorsMI .Values.azureOperatorsMI.roleSetName -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
