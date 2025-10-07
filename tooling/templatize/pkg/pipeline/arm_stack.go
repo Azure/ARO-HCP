@@ -17,11 +17,12 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/go-logr/logr"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -32,11 +33,13 @@ import (
 // https://github.com/Azure/azure-cli/blob/cf11272c36d2680a65bd775e10d338afa3a8b902/src/azure-cli/azure/cli/command_modules/resource/custom.py#L1396-L1405
 func runArmStackStep(
 	ctx context.Context,
-	options *PipelineRunOptions,
+	options *StepRunOptions,
 	executionTarget ExecutionTarget,
+	id graph.Identifier,
 	step *types.ARMStackStep,
 	state *ExecutionState,
 ) (Output, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 
 	cred, err := azauth.GetAzureTokenCredentials()
 	if err != nil {
@@ -56,13 +59,13 @@ func runArmStackStep(
 	}
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, options.Configuration, state.Outputs)
+	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 
-	template, params, err := transformParameters(ctx, options.Configuration, inputValues, step.Parameters, filepath.Dir(options.PipelineFilePath))
+	template, params, err := transformParameters(ctx, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +98,21 @@ func runArmStackStep(
 			Parameters: adaptedParams,
 			Template:   template,
 		},
+	}
+
+	inputs := stackInputs{
+		Stack:           &stack,
+		DeploymentLevel: step.DeploymentLevel,
+		ResourceGroup:   executionTarget.GetResourceGroup(),
+		StepName:        step.StepName(),
+	}
+
+	skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
+	if err != nil {
+		return nil, err
+	}
+	if skip != nil {
+		return skip, nil
 	}
 
 	var output armdeploymentstacks.DeploymentStack
@@ -130,8 +148,15 @@ func runArmStackStep(
 			for k, v := range outputMap {
 				returnMap[k] = v
 			}
-			return returnMap, nil
+			return returnMap, commit(returnMap)
 		}
 	}
 	return nil, nil
+}
+
+type stackInputs struct {
+	Stack           *armdeploymentstacks.DeploymentStack
+	DeploymentLevel string
+	ResourceGroup   string
+	StepName        string
 }

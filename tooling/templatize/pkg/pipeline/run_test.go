@@ -113,7 +113,7 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -249,7 +249,7 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
 			return nil, err
@@ -323,7 +323,7 @@ func TestPipelineRun(t *testing.T) {
 	}, RunStep)
 
 	assert.NoError(t, err)
-	oValue, err := output["test"]["step"].GetValue("output")
+	oValue, err := output[pipeline.ServiceGroup]["test"]["step"].GetValue("output")
 	assert.NoError(t, err)
 	assert.Equal(t, oValue.Value, "hello\n")
 }
@@ -354,11 +354,13 @@ func TestAddInputVars(t *testing.T) {
 		{
 			name: "output chaining",
 			input: Outputs{
-				"rg": map[string]Output{
-					"step1": ArmOutput{
-						"output1": map[string]any{
-							"type":  "String",
-							"value": "bar",
+				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
+					"rg": map[string]Output{
+						"step1": ArmOutput{
+							"output1": map[string]any{
+								"type":  "String",
+								"value": "bar",
+							},
 						},
 					},
 				},
@@ -382,11 +384,13 @@ func TestAddInputVars(t *testing.T) {
 		{
 			name: "output chaining missing step",
 			input: Outputs{
-				"rg": map[string]Output{
-					"step1": ArmOutput{
-						"output1": map[string]any{
-							"type":  "String",
-							"value": "bar",
+				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
+					"rg": map[string]Output{
+						"step1": ArmOutput{
+							"output1": map[string]any{
+								"type":  "String",
+								"value": "bar",
+							},
 						},
 					},
 				},
@@ -410,11 +414,13 @@ func TestAddInputVars(t *testing.T) {
 		{
 			name: "output chaining missing variable",
 			input: Outputs{
-				"rg": map[string]Output{
-					"step1": ArmOutput{
-						"output1": map[string]any{
-							"type":  "String",
-							"value": "bar",
+				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
+					"rg": map[string]Output{
+						"step1": ArmOutput{
+							"output1": map[string]any{
+								"type":  "String",
+								"value": "bar",
+							},
 						},
 					},
 				},
@@ -484,7 +490,7 @@ func TestAddInputVars(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := getInputValues(tc.stepVariables, tc.cfg, tc.input)
+			result, err := getInputValues("Microsoft.Azure.ARO.Whatever", tc.stepVariables, tc.cfg, tc.input)
 			t.Log(result)
 			if tc.err != "" {
 				assert.Error(t, err, tc.err)

@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./tooling/templatize/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
@@ -231,3 +232,32 @@ generate-kiota:
 	$(MAKE) licenses
 	$(MAKE) fmt
 .PHONY: generate-kiota
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+$(addprefix entrypoint/,$(entrypoints)):
+endif
+entrypoint/%:
+	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+pipelines = $(shell $(YQ) '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+$(addprefix pipeline/,$(pipelines)):
+endif
+pipeline/%:
+	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+LOG_LEVEL ?= 3
+DRY_RUN ?= "false"
+PERSIST ?= "false"
+
+local-run: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint run --config-file config/config.yaml \
+	                             --topology-config topology.yaml \
+	                             --dev-settings-file tooling/templatize/settings.yaml \
+	                             --dev-environment $(DEPLOY_ENV) \
+	                             $(WHAT) \
+	                             --persist-tag=$(PERSIST) \
+	                             --dry-run=$(DRY_RUN) \
+	                             --verbosity=$(LOG_LEVEL) \
+	                             --timing-output=timing.yaml

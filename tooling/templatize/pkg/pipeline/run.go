@@ -19,13 +19,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -36,16 +39,30 @@ var DefaultDeploymentTimeoutSeconds = 30 * 60
 type subsciptionLookup func(context.Context, string) (string, error)
 
 type PipelineRunOptions struct {
+	BaseRunOptions
+
+	Step                  string
+	Region                string
+	SubsciptionLookupFunc subsciptionLookup
+
+	TopologyDir string
+	Concurrency int
+
+	TimingOutputFile string
+}
+
+type BaseRunOptions struct {
 	DryRun                   bool
-	Step                     string
-	Region                   string
 	Cloud                    string
 	Configuration            config.Configuration
-	SubsciptionLookupFunc    subsciptionLookup
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
-	PipelineFilePath         string
-	Concurrency              int
+	StepCacheDir             string
+}
+
+type StepRunOptions struct {
+	BaseRunOptions
+	PipelineDirectory string
 }
 
 type Output interface {
@@ -81,10 +98,10 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 	}, nil
 }
 
-// Outputs stores output values indexed by resource group name and step name.
-type Outputs map[string]map[string]Output
+// Outputs stores output values indexed by service group, resource group and step name.
+type Outputs map[string]map[string]map[string]Output
 
-type Executor func(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error)
+type Executor func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error)
 
 type ExecutionState struct {
 	*sync.RWMutex
@@ -92,6 +109,25 @@ type ExecutionState struct {
 	Executed sets.Set[graph.Identifier]
 	Queued   sets.Set[graph.Identifier]
 	Outputs  Outputs
+
+	Timing map[graph.Identifier]*ExecutionInfo
+}
+
+type ExecutionInfo struct {
+	QueuedAt   string `json:"queuedAt"`
+	StartedAt  string `json:"startedAt"`
+	FinishedAt string `json:"finishedAt"`
+}
+
+type NodeInfo struct {
+	Identifier Identifier    `json:"identifier"`
+	Info       ExecutionInfo `json:"info"`
+}
+
+type Identifier struct {
+	ServiceGroup  string `json:"serviceGroup"`
+	ResourceGroup string `json:"resourceGroup"`
+	Step          string `json:"step"`
 }
 
 func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
@@ -106,12 +142,44 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
+	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+func RunEntrypoint(topo *topology.Topology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Generating execution graph.")
+	executionGraph, err := graph.ForEntrypoint(topo, entrypoint, pipelines)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
+	}
+
+	return runGraph(ctx, logger, executionGraph, options, executor)
+}
+
+func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+	if options.StepCacheDir != "" {
+		if err := os.MkdirAll(options.StepCacheDir, 0755); err != nil {
+			return nil, err
+		}
+	}
+
 	state := &ExecutionState{
 		RWMutex:  &sync.RWMutex{},
 		Executed: sets.Set[graph.Identifier]{},
 		Queued:   sets.Set[graph.Identifier]{},
+		Timing:   make(map[graph.Identifier]*ExecutionInfo),
 		Outputs:  make(Outputs),
 	}
+
+	state.Lock()
+	for _, node := range executionGraph.Nodes {
+		state.Timing[node.Identifier] = &ExecutionInfo{}
+	}
+	state.Unlock()
 
 	queue := make(chan graph.Identifier, len(executionGraph.Nodes))
 	checkForStepsToExecute := make(chan struct{}, len(executionGraph.Nodes))
@@ -124,36 +192,37 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 		defer func() {
 			close(queue)
 			producerWg.Done()
-			thisLogger.Info("Producer thread shutting down.")
+			thisLogger.V(4).Info("Producer thread shutting down.")
 		}()
 		for {
 			select {
 			case _, open := <-checkForStepsToExecute:
 				if !open {
-					thisLogger.Info("Done channel closed.")
+					thisLogger.V(4).Info("Done channel closed.")
 					return
 				}
-				thisLogger.Info("Processing queue after step finished executing.")
+				thisLogger.V(4).Info("Processing queue after step finished executing.")
 				state.RLock()
 				for _, node := range executionGraph.Nodes {
 					if state.Queued.Has(node.Identifier) {
 						continue
 					}
 					if state.Executed.HasAll(node.Parents...) {
-						thisLogger.Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
+						thisLogger.V(4).Info("Queueing step to run.", "serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
 						state.Queued.Insert(node.Identifier)
+						state.Timing[node.Identifier].QueuedAt = time.Now().Format(time.RFC3339)
 						queue <- node.Identifier
 					}
 				}
-				thisLogger.Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
+				thisLogger.V(4).Info("Execution status.", "nodes", len(executionGraph.Nodes), "queued", len(state.Queued), "executed", len(state.Executed))
 				if len(state.Queued) == len(executionGraph.Nodes) {
-					thisLogger.Info("Queued all nodes.")
+					thisLogger.V(4).Info("Queued all nodes.")
 					state.RUnlock()
 					return
 				}
 				state.RUnlock()
 			case <-ctx.Done():
-				thisLogger.Info("Context cancelled.")
+				thisLogger.V(4).Info("Context cancelled.")
 				return
 			}
 		}
@@ -178,27 +247,34 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 			thisLogger := logger.WithValues("routine", fmt.Sprintf("consumer-%d", i))
 			defer func() {
 				consumerWg.Done()
-				thisLogger.Info("Consumer thread shutting down.")
+				thisLogger.V(4).Info("Consumer thread shutting down.")
 			}()
 			for {
 				select {
 				case step, open := <-queue:
 					if !open {
-						thisLogger.Info("Queue channel closed.")
+						thisLogger.V(4).Info("Queue channel closed.")
 						return
 					}
 					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
-					stepLogger.Info("Executing step.")
-					if err := executeNode(executor, executionGraph, step, consumerCtx, options, state); err != nil {
-						stepLogger.Info("Step errored.")
+					stepLogger.V(4).Info("Executing step.")
+					state.Lock()
+					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
+					state.Unlock()
+					err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					state.Lock()
+					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					state.Unlock()
+					if err != nil {
+						stepLogger.V(4).Error(err, "Step errored.")
 						errs <- err
 						consumerCancel()
 						return
 					}
-					stepLogger.Info("Finished step.")
+					stepLogger.V(4).Info("Finished step.")
 					checkForStepsToExecute <- struct{}{}
 				case <-consumerCtx.Done():
-					thisLogger.Info("Context cancelled.")
+					thisLogger.V(4).Info("Context cancelled.")
 					return
 				}
 			}
@@ -208,15 +284,15 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	// bootstrap the process with a signal to queue
 	checkForStepsToExecute <- struct{}{}
 
-	logger.Info("Waiting for consumers to finish.")
+	logger.V(4).Info("Waiting for consumers to finish.")
 	consumerWg.Wait()
 
 	close(checkForStepsToExecute)
 	close(errs)
 
-	logger.Info("Waiting for execution to finish.")
+	logger.V(4).Info("Waiting for execution to finish.")
 	producerWg.Wait()
-	logger.Info("Execution finished.")
+	logger.V(4).Info("Execution finished.")
 	var executionErrors []error
 	for err := range errs {
 		if err != nil {
@@ -228,22 +304,39 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	}
 	state.RLock()
 	outputs := state.Outputs
+	timing := state.Timing
 	state.RUnlock()
+
+	if options.TimingOutputFile != "" {
+		var times []NodeInfo
+		for id, info := range timing {
+			times = append(times, NodeInfo{
+				Identifier: Identifier{
+					ServiceGroup:  id.ServiceGroup,
+					ResourceGroup: id.ResourceGroup,
+					Step:          id.Step,
+				},
+				Info: *info,
+			})
+		}
+		encodedTiming, err := yaml.Marshal(times)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling timing: %v", err)
+		}
+		if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+			return nil, fmt.Errorf("error writing timing: %v", err)
+		}
+	}
+
 	return outputs, nil
 }
 
-func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	logger = logger.WithValues("serviceGroup", node.ServiceGroup, "resourceGroup", node.ResourceGroup, "step", node.Step)
+func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
 	state.RUnlock()
 	if alreadyDone {
-		logger.Info("Skipping execution, as it has already happened.")
+		logger.V(4).Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
 		return nil
 	}
@@ -269,43 +362,50 @@ func executeNode(executor Executor, graphCtx *graph.Graph, node graph.Identifier
 		resourceGroup:    resourceGroup.ResourceGroup,
 	}
 
-	output, err := executor(step, ctx, target, options, state)
-	if err != nil {
-		return err
+	var output Output
+	var stepRunErr error
+	if options.Step != "" && step.StepName() != options.Step {
+		// skip steps that don't match the specified step name
+		output = nil
+		stepRunErr = nil
+	} else {
+		output, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+			BaseRunOptions:    options.BaseRunOptions,
+			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+		}, state)
+	}
+	if stepRunErr != nil {
+		return stepRunErr
 	}
 
 	state.Lock()
 	if output != nil {
-		logger.Info("Recording step output.")
-		if _, recorded := state.Outputs[node.ResourceGroup]; !recorded {
-			state.Outputs[node.ResourceGroup] = map[string]Output{}
+		logger.V(4).Info("Recording step output.")
+		if _, recorded := state.Outputs[node.ServiceGroup]; !recorded {
+			state.Outputs[node.ServiceGroup] = map[string]map[string]Output{}
 		}
-		state.Outputs[node.ResourceGroup][node.Step] = output
+		if _, recorded := state.Outputs[node.ServiceGroup][node.ResourceGroup]; !recorded {
+			state.Outputs[node.ServiceGroup][node.ResourceGroup] = map[string]Output{}
+		}
+		state.Outputs[node.ServiceGroup][node.ResourceGroup][node.Step] = output
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
 	return nil
 }
 
-func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *PipelineRunOptions, state *ExecutionState) (Output, error) {
+func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
-
-	if options.Step != "" && s.StepName() != options.Step {
-		// skip steps that don't match the specified step name
-		return nil, nil
-	}
-	fmt.Println("\n---------------------")
 	if options.DryRun {
-		fmt.Println("This is a dry run!")
+		logger.Info("This is a dry run!")
 	}
-	fmt.Println(s.Description())
-	fmt.Print("\n")
+	logger.Info("Running step.", "description", s.Description())
 
 	switch step := s.(type) {
 	case *types.ImageMirrorStep:
 		var buf bytes.Buffer
 
-		err := runImageMirrorStep(ctx, step, options, state, &buf)
+		err := runImageMirrorStep(id, ctx, step, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
 		}
@@ -326,7 +426,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		err = runShellStep(step, ctx, kubeconfigFile, options, state, &buf)
+		err = runShellStep(id, step, ctx, kubeconfigFile, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
@@ -344,7 +444,7 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		}
 		return nil, nil
 	case *types.HelmStep:
-		if err := runHelmStep(step, ctx, options, executionTarget, state); err != nil {
+		if err := runHelmStep(id, step, ctx, options, executionTarget, state); err != nil {
 			return nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
 		}
 		return nil, nil
@@ -353,28 +453,28 @@ func RunStep(s types.Step, ctx context.Context, executionTarget ExecutionTarget,
 		if err != nil {
 			return nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}
-		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), step, state)
+		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, nil
 	case *types.ARMStackStep:
-		output, err := runArmStackStep(ctx, options, executionTarget, step, state)
+		output, err := runArmStackStep(ctx, options, executionTarget, id, step, state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, nil
 	default:
-		fmt.Println("No implementation for action type - skip", s.ActionType())
+		logger.Info("No implementation for action type - skip", "actionType", s.ActionType())
 		return nil, nil
 	}
 }
 
-func getInputValues(configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
+func getInputValues(serviceGroup string, configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {
-			value, err := resolveInput(*i.Input, inputs)
+			value, err := resolveInput(serviceGroup, *i.Input, inputs)
 			if err != nil {
 				return nil, err
 			}
@@ -392,8 +492,12 @@ func getInputValues(configuredVariables []types.Variable, cfg config.Configurati
 	return values, nil
 }
 
-func resolveInput(input types.Input, outputs Outputs) (any, error) {
-	group, exists := outputs[input.ResourceGroup]
+func resolveInput(serviceGroup string, input types.Input, outputs Outputs) (any, error) {
+	sg, exists := outputs[serviceGroup]
+	if !exists {
+		return nil, fmt.Errorf("variable invalid: refers to missing service group %q", serviceGroup)
+	}
+	group, exists := sg[input.ResourceGroup]
 	if !exists {
 		return nil, fmt.Errorf("variable invalid: refers to missing group %q", input.ResourceGroup)
 	}

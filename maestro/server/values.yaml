@@ -19,10 +19,10 @@ database:
   host: "__databaseHost__"
   port: 5432
   name: "{{ .maestro.postgres.databaseName }}"
+  password: "{{ .maestro.postgres.password }}"
   user: "maestro-server"
   maxOpenConnections: 50
   debug: false
-  password: "TheBlurstOfTimes"
 maestro:
   serviceAccount: "{{ .maestro.server.k8s.serviceAccountName }}"
   httpReadTimeout: 60s

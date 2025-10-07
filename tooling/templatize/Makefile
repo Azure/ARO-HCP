@@ -1,3 +1,4 @@
+THIS_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 SHELL = /bin/bash
 
@@ -5,14 +6,9 @@ SHELL = /bin/bash
 BINARY = templatize
 
 # Define the source files
-SOURCES = $(shell find . -name '*.go' -o -name '*.json')
+SOURCES = $(shell find $(THIS_DIR) -name '*.go' -o -name '*.json')
 
 # Build the binary
-$(BINARY): $(SOURCES) $(MAKEFILE_LIST) go.mod go.sum
-	go build -o $(BINARY) .
-
-# Clean the build artifacts
-clean:
-	rm -f $(BINARY)
-
-.PHONY: clean
+TEMPLATIZE = $(THIS_DIR)templatize
+$(TEMPLATIZE): $(SOURCES) $(MAKEFILE_LIST) $(THIS_DIR)/go.mod $(THIS_DIR)/go.sum
+	cd $(THIS_DIR) && go build -o templatize .

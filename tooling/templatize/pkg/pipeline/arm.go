@@ -20,11 +20,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -110,7 +110,7 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions, rgName string, step *types.ARMStep, state *ExecutionState) (Output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, error) {
 	// Ensure resourcegroup exists
 	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
 	if err != nil {
@@ -125,10 +125,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *PipelineRunOptions,
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, state)
+		return doWaitForDeployment(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, rgName, deploymentName, step, filepath.Dir(options.PipelineFilePath), options.Configuration, state)
+	return doDryRun(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -207,11 +207,11 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, cfg, state.Outputs)
+	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
@@ -225,6 +225,20 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 	// Create the deployment
 	deployment := armresources.DeploymentWhatIf{
 		Properties: deploymentProperties,
+	}
+
+	inputs := whatIfInputs{
+		Properties:      deploymentProperties,
+		ResourceGroup:   rgName,
+		DeploymentLevel: step.DeploymentLevel,
+	}
+
+	skip, commit, err := checkSentinel(logger, inputs, stepCacheDir)
+	if err != nil {
+		return nil, err
+	}
+	if skip {
+		return nil, nil
 	}
 
 	if step.DeploymentLevel == "Subscription" {
@@ -251,7 +265,13 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, rgNam
 		}
 	}
 
-	return nil, nil
+	return nil, commit()
+}
+
+type whatIfInputs struct {
+	Properties      *armresources.DeploymentWhatIfProperties
+	ResourceGroup   string
+	DeploymentLevel string
 }
 
 func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutput, error) {
@@ -283,11 +303,11 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	inputValues, err := getInputValues(step.Variables, cfg, state.Outputs)
+	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
@@ -307,6 +327,22 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		Properties: deploymentProperties,
 	}
 
+	inputs := deploymentInputs{
+		Properties:      deploymentProperties,
+		ResourceGroup:   rgName,
+		DeploymentLevel: step.DeploymentLevel,
+	}
+
+	skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, stepCacheDir)
+	if err != nil {
+		return nil, err
+	}
+	if skip != nil {
+		return skip, nil
+	}
+
+	var output ArmOutput
+	var pollErr error
 	if step.DeploymentLevel == "Subscription" {
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
@@ -316,7 +352,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		}
 		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
-		return pollAndGetOutput(ctx, poller)
+		output, pollErr = pollAndGetOutput(ctx, poller)
 	} else {
 		poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
@@ -324,8 +360,19 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		}
 		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
-		return pollAndGetOutput(ctx, poller)
+		output, pollErr = pollAndGetOutput(ctx, poller)
 	}
+	if pollErr != nil {
+		return nil, fmt.Errorf("failed to poll deployment: %w", pollErr)
+	}
+
+	return output, commit(output)
+}
+
+type deploymentInputs struct {
+	Properties      *armresources.DeploymentProperties
+	ResourceGroup   string
+	DeploymentLevel string
 }
 
 // computeResourceGroupTags determines the final tags for a resource group based on existing tags and persist settings.
