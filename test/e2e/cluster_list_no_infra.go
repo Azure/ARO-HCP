@@ -40,14 +40,11 @@ var _ = Describe("Customer", func() {
 
 			var resourceGroups []*armresources.ResourceGroup
 			var clusterNames []string
-			const (
-				createClustersCount = 3
-				location            = "uksouth"
-			)
+			const createClustersCount = 3
 
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
-				resourceGroup, err := tc.NewResourceGroup(ctx, "cluster-listing", location)
+				resourceGroup, err := tc.NewResourceGroup(ctx, "cluster-listing", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 				resourceGroups = append(resourceGroups, resourceGroup)
 
