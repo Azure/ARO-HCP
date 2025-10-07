@@ -59,4 +59,4 @@ forwarder:
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:
-    keyVault: "{{ .serviceKeyVault.name }}"
+    keyVault: "{{ .mgmtKeyVault.name }}"
