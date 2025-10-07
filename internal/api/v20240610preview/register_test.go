@@ -154,7 +154,7 @@ func TestNodePoolVisibilityMap(t *testing.T) {
 }
 
 func TestExternalAuthVisibilityMap(t *testing.T) {
-	// This should include any nodePoolVisibilityMap
+	// This should include any externalAuthVisibilityMap
 	// overrides from the package's init() function.
 	expectedVisibility := map[string]api.VisibilityFlags{
 		"ID":                                                           api.VisibilityRead | api.VisibilityCaseInsensitive,
