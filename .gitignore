@@ -24,3 +24,5 @@ CLAUDE.local.md
 go.work.sum
 .step-cache
 timing.yaml
+.graph.dot
+.graph.svg
