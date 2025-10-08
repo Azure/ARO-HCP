@@ -1,4 +1,5 @@
 import { getLocationAvailabilityZonesCSV, csvToArray } from '../modules/common.bicep'
+import * as mi from '../modules/managed-identities.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -192,6 +193,47 @@ param genevaManageCertificates bool
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+//
+//   M A N A G E D   I D E N T I T I E S
+//
+
+var workloadIdentities = items({
+  maestro_wi: {
+    uamiName: maestroConsumerMIName
+    namespace: maestroConsumerNamespace
+    serviceAccountName: maestroConsumerServiceAccountName
+  }
+  logs_wi: {
+    uamiName: logsMSI
+    namespace: logsNamespace
+    serviceAccountName: logsServiceAccount
+  }
+  pko_wi: {
+    uamiName: 'package-operator'
+    namespace: 'package-operator-system'
+    serviceAccountName: 'package-operator'
+  }
+  prom_wi: {
+    uamiName: 'prometheus'
+    namespace: 'prometheus'
+    serviceAccountName: 'prometheus'
+  }
+})
+
+module managedIdentities '../modules/managed-identities.bicep' = {
+  name: 'managed-identities'
+  params: {
+    location: location
+    manageIdentityNames: [
+      for wi in workloadIdentities: wi.value.uamiName
+    ]
+  }
+}
+
+//
+//   A K S
+//
+
 resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'mgmt-cluster-node-nsg'
@@ -227,6 +269,33 @@ resource mgmtClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   }
 }
 
+var vnetName = 'aks-net'
+var nodeSubnetName = 'ClusterSubnet-001'
+
+module vnetCreation '../modules/network/vnet.bicep' = {
+  name: 'vnet-${vnetName}-creation'
+  params: {
+    location: location
+    vnetName: vnetName
+    vnetAddressPrefix: vnetAddressPrefix
+    enableSwift: aksEnableSwiftVnet
+    deploymentMsiId: globalMSIId
+  }
+}
+
+module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
+  name: 'subnet-${nodeSubnetName}-creation'
+  params: {
+    vnetName: vnetName
+    subnetName: nodeSubnetName
+    subnetNSGId: mgmtClusterNSG.id
+    subnetPrefix: subnetPrefix
+  }
+  dependsOn: [
+    vnetCreation
+  ]
+}
+
 module mgmtCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
@@ -240,33 +309,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksClusterOutboundIPAddressIPTags: aksClusterOutboundIPAddressIPTags
     deployIstio: false
     kubernetesVersion: kubernetesVersion
-    vnetAddressPrefix: vnetAddressPrefix
-    nodeSubnetNSGId: mgmtClusterNSG.id
-    subnetPrefix: subnetPrefix
+    vnetName: vnetName
+    nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'mgmt-cluster'
-    workloadIdentities: items({
-      maestro_wi: {
-        uamiName: maestroConsumerMIName
-        namespace: maestroConsumerNamespace
-        serviceAccountName: maestroConsumerServiceAccountName
-      }
-      logs_wi: {
-        uamiName: logsMSI
-        namespace: logsNamespace
-        serviceAccountName: logsServiceAccount
-      }
-      pko_wi: {
-        uamiName: 'package-operator'
-        namespace: 'package-operator-system'
-        serviceAccountName: 'package-operator'
-      }
-      prom_wi: {
-        uamiName: 'prometheus'
-        namespace: 'prometheus'
-        serviceAccountName: 'prometheus'
-      }
-    })
+    workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
@@ -302,9 +349,11 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
-    enableSwiftV2Vnet: aksEnableSwiftVnet
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
   }
+  dependsOn: [
+    managedIdentities
+  ]
 }
 
 output aksClusterName string = mgmtCluster.outputs.aksClusterName
@@ -333,21 +382,20 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     hcpAzureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     aksClusterName: aksClusterName
-    prometheusPrincipalId: filter(mgmtCluster.outputs.userAssignedIdentities, id => id.uamiName == 'prometheus')[0].uamiPrincipalID
+    prometheusPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus').uamiPrincipalID
   }
 }
 
 //
 // K E Y V A U L T S
 //
-var logsManagedIdentityPrincipalId = filter(mgmtCluster.outputs.userAssignedIdentities, id => id.uamiName == logsMSI)[0].uamiPrincipalID
 
 module logsMgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(mgmtKeyVaultName, logsMSI, 'certuser')
   params: {
     keyVaultName: mgmtKeyVaultName
     roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: logsManagedIdentityPrincipalId
+    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
   }
 }
 
@@ -424,10 +472,7 @@ var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain :
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
   params: {
-    maestroAgentManagedIdentityPrincipalId: filter(
-      mgmtCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == 'maestro-consumer'
-    )[0].uamiPrincipalID
+    maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'maestro-consumer').uamiPrincipalID
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
@@ -448,9 +493,9 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
-    subnetIds: [mgmtCluster.outputs.aksNodeSubnetId]
+    subnetIds: [nodeSubnetCreation.outputs.subnetId]
     privateLinkServiceId: maestroEventGridNamespaceId
-    vnetId: mgmtCluster.outputs.aksVnetId
+    vnetId: vnetCreation.outputs.vnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
   }

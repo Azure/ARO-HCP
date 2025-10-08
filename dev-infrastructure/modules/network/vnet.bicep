@@ -12,6 +12,20 @@ param vnetAddressPrefix string
 @description('The resource ID of the user-assigned managed identity that will be used to execute the script')
 param deploymentMsiId string
 
+// Network Contributor Role
+// https://www.azadvertizer.net/azrolesadvertizer/4d97b98b-1d4f-4787-a291-c67834d212e7.html
+var networkContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  '4d97b98b-1d4f-4787-a291-c67834d212e7'
+)
+
+// Tag Contributor Role
+// https://www.azadvertizer.net/azrolesadvertizer/4a9ae827-6dc8-4573-8ac7-8239d42aa03f.html
+var tagContributorRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions/',
+  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
+)
+
 // Enabling a VNET for Swift is a matter of placing the stampcreatorserviceinfo=true tag on it.
 // The tagging itself needs to be done by an identity that is registered with the Network/Swift RP.
 // All bicep code deployed via EV2 is executed by an EV2 identity that is not and cannot be registered
@@ -42,6 +56,26 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = if (!enableSwift)
 // for swift deployments we use a deployment script to create the VNET or just
 // tag it when it already exists. The identity used for this needs to be registered
 // for swift usage with the network RP.
+
+resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, networkContributorRoleId, resourceGroup().id)
+  properties: {
+    roleDefinitionId: networkContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup()
+  name: guid(deploymentMsiId, tagContributorRoleId, resourceGroup().id)
+  properties: {
+    roleDefinitionId: tagContributorRoleId
+    principalId: reference(deploymentMsiId, '2023-01-31').principalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-01' = if (enableSwift) {
   name: 'vnet-${vnetName}'
@@ -102,6 +136,17 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
       }
     ]
   }
+  dependsOn: [
+    deploymentMsiNetworkContributorRoleAssignment
+    deploymentMsiTagContributorRoleAssignment
+  ]
 }
 
-output vnetName string = vnetName
+resource provisionedSwiftVnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = if (enableSwift) {
+  name: vnetName
+  dependsOn: [
+    vnetWithSwiftDeployment
+  ]
+}
+
+output vnetId string = enableSwift ? provisionedSwiftVnet.id : vnet.id
