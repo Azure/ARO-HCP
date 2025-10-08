@@ -92,10 +92,10 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: deploy
-    # externalDependsOn:
-    # - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
-    #   resourceGroup: service
-    #   step: deploy
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+      resourceGroup: service
+      step: deploy
     identityFrom:
       resourceGroup: global
       step: output
