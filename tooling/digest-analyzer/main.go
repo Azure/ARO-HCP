@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -321,13 +322,27 @@ func parseConfigFile(filepath string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// Preprocess template variables to make YAML parseable
+	processedData := preprocessTemplateVars(data)
+
 	var config map[string]interface{}
-	err = yaml.Unmarshal(data, &config)
+	err = yaml.Unmarshal(processedData, &config)
 	if err != nil {
 		return nil, err
 	}
 
 	return config, nil
+}
+
+// preprocessTemplateVars replaces Go template variables with placeholder values
+func preprocessTemplateVars(data []byte) []byte {
+	content := string(data)
+
+	// Replace {{ .ctx.* }} template variables with placeholder strings
+	re := regexp.MustCompile(`{{\s*\.ctx\.\w+\s*}}`)
+	content = re.ReplaceAllString(content, "PLACEHOLDER")
+
+	return []byte(content)
 }
 
 // getNestedValue retrieves a nested value from a map using dot notation
