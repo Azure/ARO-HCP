@@ -283,4 +283,4 @@ graph: $(TEMPLATIZE)
 	                               --topology-config topology.yaml \
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
-	                               $(WHAT)
+	                               $(WHAT) > .graph.dot
