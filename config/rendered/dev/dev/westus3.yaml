@@ -308,6 +308,7 @@ kubeEvents:
     repository: ""
 kusto:
   cluster: ""
+  enabled: true
   environmentName: dev
   ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
   resourceGroup: ""

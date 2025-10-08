@@ -56,6 +56,7 @@ forwarder:
     ingestionUrl: "{{ .kusto.ingestionUrl }}"
     rpDatabase: HCPServiceLogs
     clusterLogsDatabase: HCPCustomerLogs
+    enabled: {{ .kusto.enabled }}
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:

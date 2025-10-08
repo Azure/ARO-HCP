@@ -1416,6 +1416,9 @@
         },
         "environmentName": {
           "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
