@@ -131,8 +131,8 @@ func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource
 
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
 	if p.Component != nil {
-		out.Component.Name = *p.Component.Name
-		out.Component.AuthClientNamespace = *p.Component.AuthClientNamespace
+		out.Component.Name = ptr.Deref(p.Component.Name, "")
+		out.Component.AuthClientNamespace = ptr.Deref(p.Component.AuthClientNamespace, "")
 	}
 	if p.ClientID != nil {
 		out.ClientID = *p.ClientID
