@@ -79,6 +79,16 @@ clouds:
               sidecar:
                 image:
                   digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
+          # ACM
+          acm:
+            operator:
+              version: "2.14.1"
+              bundle:
+                digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d # v2.14.1-214
+            mce:
+              version: "2.9.1"
+              bundle:
+                digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912 # v2.9.1-37-pre-release
           # OCP image sync
           imageSync:
             ocMirror:
