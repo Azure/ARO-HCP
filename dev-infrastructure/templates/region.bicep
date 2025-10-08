@@ -155,3 +155,15 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     purpose: 'hcps'
   }
 }
+
+// Grant Grafana permissions to query Log Analytics workspace
+// This enables Grafana to visualize AFD logs and metrics from Log Analytics
+module grafanaObservabilityPermissions '../modules/grafana/observability-permissions.bicep' = if (enableLogAnalytics) {
+  name: 'grafana-observability-permissions'
+  params: {
+    grafanaResourceId: grafanaResourceId
+    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
+    // AFD permissions will be granted in svc-cluster.bicep where AFD resource ID is available
+    frontDoorProfileId: ''
+  }
+}

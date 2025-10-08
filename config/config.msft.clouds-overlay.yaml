@@ -5,6 +5,10 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
+          # Logs - disabled for MSFT environments (use centralized logging infrastructure)
+          logs:
+            loganalytics:
+              enable: false
           # E2E
           e2e:
             regionTest:
@@ -108,6 +112,10 @@ clouds:
       stg:
         # this is the MSFT STAGE environment
         defaults:
+          # Logs - disabled for MSFT environments (use centralized logging infrastructure)
+          logs:
+            loganalytics:
+              enable: false
           # E2E
           e2e:
             regionTest:
