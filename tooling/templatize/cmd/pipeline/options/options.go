@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"

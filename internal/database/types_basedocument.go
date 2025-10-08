@@ -15,8 +15,9 @@
 package database
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/google/uuid"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // BaseDocument includes fields common to all container items.

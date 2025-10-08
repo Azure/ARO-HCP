@@ -18,12 +18,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/go-logr/logr"
-	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )

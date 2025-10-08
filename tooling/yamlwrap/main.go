@@ -21,10 +21,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Azure/ARO-Tools/pkg/yamlwrap"
 	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-Tools/pkg/yamlwrap"
 )
 
 func main() {

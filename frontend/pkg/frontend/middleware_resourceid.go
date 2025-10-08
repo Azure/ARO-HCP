@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"net/http"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"go.opentelemetry.io/otel/trace"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/tracing"
 )

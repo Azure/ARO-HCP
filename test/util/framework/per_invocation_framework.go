@@ -25,12 +25,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/onsi/ginkgo/v2/types"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
-	"github.com/onsi/ginkgo/v2/types"
 )
 
 type perBinaryInvocationTestContext struct {

@@ -18,8 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/aks"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/utils"

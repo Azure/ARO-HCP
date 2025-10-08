@@ -234,15 +234,15 @@ func TestCopyReadOnlyValues(t *testing.T) {
 			PrincipalID: Ptr(testPrincipalID),
 			TenantID:    Ptr(TestTenantID),
 			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
-				userAssignedIdentity2: &generated.UserAssignedIdentity{
+				userAssignedIdentity2: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},
-				userAssignedIdentity3: &generated.UserAssignedIdentity{
+				userAssignedIdentity3: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},
-				userAssignedIdentity4: &generated.UserAssignedIdentity{
+				userAssignedIdentity4: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},
@@ -258,8 +258,8 @@ func TestCopyReadOnlyValues(t *testing.T) {
 			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
 				userAssignedIdentity1: nil,
 				userAssignedIdentity2: nil,
-				userAssignedIdentity3: &generated.UserAssignedIdentity{},
-				userAssignedIdentity4: &generated.UserAssignedIdentity{
+				userAssignedIdentity3: {},
+				userAssignedIdentity4: {
 					ClientID:    nil,
 					PrincipalID: nil,
 				},
@@ -283,15 +283,15 @@ func TestCopyReadOnlyValues(t *testing.T) {
 			Type:        Ptr(generated.ManagedServiceIdentityTypeSystemAssignedUserAssigned),
 			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
 				userAssignedIdentity1: nil,
-				userAssignedIdentity2: &generated.UserAssignedIdentity{
+				userAssignedIdentity2: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},
-				userAssignedIdentity3: &generated.UserAssignedIdentity{
+				userAssignedIdentity3: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},
-				userAssignedIdentity4: &generated.UserAssignedIdentity{
+				userAssignedIdentity4: {
 					ClientID:    Ptr(testClientID),
 					PrincipalID: Ptr(testPrincipalID),
 				},

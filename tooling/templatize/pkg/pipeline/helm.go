@@ -24,11 +24,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/helm"
 	"github.com/Azure/ARO-Tools/pkg/types"
-	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )

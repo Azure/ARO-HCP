@@ -18,8 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-Tools/pkg/graph"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 )

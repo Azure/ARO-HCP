@@ -22,7 +22,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
+
 	prowgangway "sigs.k8s.io/prow/pkg/gangway"
 
 	"github.com/Azure/ARO-HCP/test/pkg/prowjob"
