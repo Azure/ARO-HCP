@@ -1,0 +1,10 @@
+shard:
+  id: ""
+  region: "westus3"
+  consumerName: ""
+  zoneResourceId: ""
+  cxSecretsKeyVaultUrl: ""
+  cxMiKeyVaultUrl: ""
+  cxSecretsKeyVaultMiClientId: ""
+  maestroRestUrl: ""
+  maestroGrpUrl: ""

@@ -181,16 +181,6 @@ azureMiMockServicePrincipalCertName: ""
 azureMiMockServicePrincipalClientId: ""
 # The principal id of the mock managed identities service principal.
 azureMiMockServicePrincipalPrincipalId: ""
-# Details for a provisioning shard
-shard:
-  Id: ""
-  consumerName: ""
-  zoneResourceId: ""
-  cxSecretsKeyVaultUrl: ""
-  cxMiKeyVaultUrl: ""
-  cxSecretsKeyVaultMiClientId: ""
-  maestroRestUrl: ""
-  maestroGrpUrl: ""
 # ocm client id
 clientId: "foo"
 # ocm secret
