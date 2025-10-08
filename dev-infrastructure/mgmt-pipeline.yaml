@@ -30,10 +30,10 @@ resourceGroups:
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-    # externalDependsOn:
-    # - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
-    #   resourceGroup: service
-    #   step: cluster
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
+      resourceGroup: service
+      step: cluster
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -76,6 +76,7 @@ resourceGroups:
       step: rpRegistration
   - name: cs-akv-permissions
     action: ARM
+    omitFromServiceGroupCompletion: true
     template: templates/cs-mgmt-akv-permissions.bicep
     parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup
