@@ -136,6 +136,12 @@ const (
 	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
 )
 
+var (
+	ValidTokenValidationRuleTypes = sets.New[TokenValidationRuleType](
+		TokenValidationRuleTypeRequiredClaim,
+	)
+)
+
 type ExternalAuthClientType string
 
 const (
@@ -143,6 +149,13 @@ const (
 	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
 	// ExternalAuthClientTypePublic - the client is public.
 	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
+)
+
+var (
+	ValidExternalAuthClientTypes = sets.New[ExternalAuthClientType](
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	)
 )
 
 type ExternalAuthConditionType string
@@ -156,6 +169,14 @@ const (
 	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
 )
 
+var (
+	ValidExternalAuthConditionTypes = sets.New[ExternalAuthConditionType](
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	)
+)
+
 type ConditionStatusType string
 
 const (
@@ -167,6 +188,14 @@ const (
 	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
 )
 
+var (
+	ValidConditionStatusTypes = sets.New[ConditionStatusType](
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeUnknown,
+	)
+)
+
 type UsernameClaimPrefixPolicy string
 
 const (
@@ -176,4 +205,12 @@ const (
 	UsernameClaimPrefixPolicyNoPrefix UsernameClaimPrefixPolicy = "NoPrefix"
 	// UsernameClaimPrefixPolicyNone - let the platform choose an appropriate prefix.
 	UsernameClaimPrefixPolicyNone UsernameClaimPrefixPolicy = "None"
+)
+
+var (
+	ValidUsernameClaimPrefixPolicies = sets.New[UsernameClaimPrefixPolicy](
+		UsernameClaimPrefixPolicyPrefix,
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
+	)
 )
