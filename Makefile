@@ -233,15 +233,19 @@ generate-kiota:
 	$(MAKE) fmt
 .PHONY: generate-kiota
 
+
 ifeq ($(wildcard $(YQ)),$(YQ))
 entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+pipelines = $(shell $(YQ) '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
+endif
+
+ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix entrypoint/,$(entrypoints)):
 endif
 entrypoint/%:
 	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
-pipelines = $(shell $(YQ) '.services[] | .. | select(key == "serviceGroup") | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
 $(addprefix pipeline/,$(pipelines)):
 endif
 pipeline/%:
@@ -261,3 +265,22 @@ local-run: $(TEMPLATIZE)
 	                             --dry-run=$(DRY_RUN) \
 	                             --verbosity=$(LOG_LEVEL) \
 	                             --timing-output=timing.yaml
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix graph/entrypoint/,$(entrypoints)):
+endif
+graph/entrypoint/%:
+	$(MAKE) graph WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix graph/pipeline/,$(pipelines)):
+endif
+graph/pipeline/%:
+	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+graph: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint graph --config-file config/config.yaml \
+	                               --topology-config topology.yaml \
+	                               --dev-settings-file tooling/templatize/settings.yaml \
+	                               --dev-environment $(DEPLOY_ENV) \
+	                               $(WHAT)

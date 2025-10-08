@@ -12,39 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package entrypoint
+package graph
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/graph"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 
 func NewCommand() (*cobra.Command, error) {
+	opts := DefaultOptions()
 	cmd := &cobra.Command{
-		Use:              "entrypoint",
-		Short:            "Operate over entrypoints in the local environment.",
-		SilenceUsage:     true,
-		SilenceErrors:    true,
-		TraverseChildren: true,
-		CompletionOptions: cobra.CompletionOptions{
-			HiddenDefaultCmd: true,
+		Use:           "graph",
+		Short:         "Graph the execution path of steps under an entrypoint.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return OutputGraph(cmd.Context(), opts)
 		},
 	}
-
-	commands := []func() (*cobra.Command, error){
-		run.NewCommand,
-		graph.NewCommand,
+	if err := BindOptions(opts, cmd); err != nil {
+		return nil, err
 	}
-	for _, newCmd := range commands {
-		c, err := newCmd()
-		if err != nil {
-			return nil, err
-		}
-		cmd.AddCommand(c)
-	}
-
 	return cmd, nil
+}
+
+func OutputGraph(ctx context.Context, opts *RawOptions) error {
+	validated, err := opts.Validate(ctx)
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run(ctx)
 }

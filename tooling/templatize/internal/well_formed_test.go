@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 )
@@ -94,7 +94,7 @@ func TestStepsWellFormed(t *testing.T) {
 	}
 
 	pipelines := map[string]*types.Pipeline{}
-	if err := run.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
+	if err := entrypointutils.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
 		t.Fatalf("failed to load pipelines: %v", err)
 	}
 

@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package run
+package graph
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		RawOptions:               entrypointutils.DefaultOptions(),
-		DeploymentTimeoutSeconds: pipeline.DefaultDeploymentTimeoutSeconds,
+		RawOptions: entrypointutils.DefaultOptions(),
 	}
 }
 
@@ -35,23 +35,11 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 		return err
 	}
 
-	cmd.Flags().StringVar(&opts.TimingOutputFile, "timing-output", opts.TimingOutputFile, "Path to the file where timing outputs will be written.")
-
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
-	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
-	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
-
 	return nil
 }
 
 type RawOptions struct {
 	*entrypointutils.RawOptions
-
-	DryRun                   bool
-	Persist                  bool
-	DeploymentTimeoutSeconds int
-
-	TimingOutputFile string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -68,12 +56,6 @@ type ValidatedOptions struct {
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
 	*entrypointutils.Options
-
-	DryRun                   bool
-	NoPersist                bool
-	DeploymentTimeoutSeconds int
-
-	TimingOutputFile string
 }
 
 type Options struct {
@@ -104,38 +86,26 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	return &Options{
 		completedOptions: &completedOptions{
 			Options: completed,
-
-			DryRun:                   o.DryRun,
-			NoPersist:                o.Persist,
-			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
-
-			TimingOutputFile: o.TimingOutputFile,
 		},
 	}, nil
 }
 
 func (o *Options) Run(ctx context.Context) error {
-	runOpts := &pipeline.PipelineRunOptions{
-		BaseRunOptions: pipeline.BaseRunOptions{
-			DryRun:                   o.DryRun,
-			Cloud:                    o.Cloud,
-			Configuration:            o.Config,
-			NoPersist:                o.NoPersist,
-			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
-			StepCacheDir:             o.StepCacheDir,
-		},
-		TopologyDir:           o.TopoDir,
-		Region:                o.Region,
-		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
-		Concurrency:           o.Concurrency,
-		TimingOutputFile:      o.TimingOutputFile,
-	}
-
+	var executionGraph *graph.Graph
+	var err error
 	if o.Entrypoint != nil {
-		_, err := pipeline.RunEntrypoint(o.Topo, o.Entrypoint, o.Pipelines, ctx, runOpts, pipeline.RunStep)
+		executionGraph, err = graph.ForEntrypoint(o.Topo, o.Entrypoint, o.Pipelines)
+	} else {
+		executionGraph, err = graph.ForPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup])
+	}
+	if err != nil {
 		return err
 	}
 
-	_, err := pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
-	return err
+	raw, err := graph.MarshalDOT(executionGraph.Nodes, executionGraph.ServiceValidationSteps)
+	if err != nil {
+		return fmt.Errorf("unable to marshal graph to DOT: %w", err)
+	}
+	fmt.Println(string(raw))
+	return nil
 }
