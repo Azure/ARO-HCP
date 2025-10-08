@@ -56,10 +56,11 @@ resourceGroups:
       step: output
       name: globalMSIId
   - name: infra
-    action: ARM
+    action: ARMStack
     template: templates/mgmt-infra.bicep
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: logAnalyticsWorkspaceId
       input:
@@ -151,10 +152,11 @@ resourceGroups:
       value: OneCertV2-PublicCA
   # Build the MC
   - name: cluster
-    action: ARM
+    action: ARMStack
     template: templates/mgmt-cluster.bicep
     parameters: configurations/mgmt-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: ocpAcrResourceId
       input:
@@ -199,10 +201,11 @@ resourceGroups:
     - resourceGroup: management
       step: oncert-public-kv-issuer
   - name: nsp
-    action: ARM
+    action: ARMStack
     template: templates/mgmt-nsp.bicep
     parameters: configurations/mgmt-nsp.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
     variables:
     - name: serviceClusterSubscriptionId
       input:
