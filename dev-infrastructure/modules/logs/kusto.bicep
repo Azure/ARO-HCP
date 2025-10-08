@@ -40,7 +40,7 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   location: location
   name: 'HCPServiceLogs'
   kind: 'ReadWrite'
-  
+
   properties: {
     hotCachePeriod: hotCachePeriod
     softDeletePeriod: softDeletePeriod
