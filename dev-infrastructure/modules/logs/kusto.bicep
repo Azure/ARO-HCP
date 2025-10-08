@@ -15,6 +15,12 @@ param location string = resourceGroup().location
 @maxValue(3)
 param capacity int = 1
 
+@description('Soft delete period for the database (ISO 8601 duration)')
+param softDeletePeriod string = 'P7D'
+
+@description('Hot cache period for the database (ISO 8601 duration)')
+param hotCachePeriod string = 'P2D'
+
 resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' = {
   name: clusterName
   location: location
@@ -34,6 +40,11 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   location: location
   name: 'HCPServiceLogs'
   kind: 'ReadWrite'
+  
+  properties: {
+    hotCachePeriod: hotCachePeriod
+    softDeletePeriod: softDeletePeriod
+  }
 
   resource dbAdmin 'principalAssignments' = {
     name: 'dbAdmin'
@@ -83,6 +94,11 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
   location: location
   name: 'HCPCustomerLogs'
   kind: 'ReadWrite'
+
+  properties: {
+    hotCachePeriod: hotCachePeriod
+    softDeletePeriod: softDeletePeriod
+  }
 
   resource dbAdmin 'principalAssignments' = {
     name: 'dbAdmin'
