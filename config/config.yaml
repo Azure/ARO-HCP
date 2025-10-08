@@ -484,6 +484,7 @@ defaults:
       dstsGroups:
       - name: ""
         description: ""
+      vmUsageStaleThreshold: ""
     eventHub:
       namespace: ""
       subscriptionId: ""

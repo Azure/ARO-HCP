@@ -1145,7 +1145,6 @@
             "cloudName"
           ]
         },
-
         "kusto": {
           "type": "object",
           "properties": {
@@ -1166,13 +1165,18 @@
               "items": {
                 "$ref": "#/definitions/dstsGroups"
               }
+            },
+            "vmUsageStaleThreshold": {
+              "type": "string",
+              "description": "If the latest VM usage event in kusto is older than this threshold compared to the current time, skip deletion checks for billing documents. 0 to disable this check."
             }
           },
           "required": [
             "sku",
             "clusterName",
             "clusterPrincipals",
-            "dstsGroups"
+            "dstsGroups",
+            "vmUsageStaleThreshold"
           ]
         },
         "eventHub": {
