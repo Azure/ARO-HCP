@@ -20,6 +20,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/Azure/ARO-HCP/internal/validation"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -128,6 +131,10 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			successStatusCode = http.StatusAccepted
+		default:
+			logger.Error("Unsupported method")
+			arm.WriteInternalServerError(writer)
+			return
 		}
 	} else {
 		operationRequest = database.OperationRequestCreate
@@ -147,6 +154,10 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			// PATCH requests never create a new resource.
 			logger.Error("Resource not found")
 			arm.WriteResourceNotFoundError(writer, resourceID)
+			return
+		default:
+			logger.Error("Unsupported method")
+			arm.WriteInternalServerError(writer)
 			return
 		}
 
@@ -169,6 +180,27 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	cloudError = api.ValidateVersionedHCPOpenShiftClusterExternalAuth(versionedRequestExternalAuth, versionedCurrentExternalAuth, updating)
+	newInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
+	versionedRequestExternalAuth.Normalize(newInternalAuth)
+
+	var validationErrs field.ErrorList
+	if updating {
+		oldInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
+		versionedCurrentExternalAuth.Normalize(oldInternalAuth)
+		validationErrs = validation.ValidateExternalAuthUpdate(ctx, newInternalAuth, oldInternalAuth)
+
+	} else {
+		validationErrs = validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
+
+	}
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+
+	// prefer new validation.  Have a fallback for old validation.
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
+		return
+	}
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)
