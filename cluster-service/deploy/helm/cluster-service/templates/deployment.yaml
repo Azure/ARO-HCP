@@ -22,7 +22,7 @@ spec:
         checksum/operatorcfg: '{{ include (print $.Template.BasePath "/azure-operators-managed-identities-config.configmap.yaml") . | sha256sum }}'
         checksum/ocpversionscfg: '{{ include (print $.Template.BasePath "/aro-hcp-ocp-versions-config.configmap.yaml") . | sha256sum }}'
         checksum/cskv: '{{ include (print $.Template.BasePath "/cs-keyvault.secret.yaml") . | sha256sum }}'
-        checksum/provisionshard: '{{ include (print $.Template.BasePath "/provisioning-shards.secret.yaml") . | sha256sum }}'
+        checksum/provisionshard: '{{ (lookup "v1" "Secret" .Release.Namespace "provision-shards").data.config | default "" | sha256sum }}'
         checksum/cs: '{{ include (print $.Template.BasePath "/clusters-service.secret.yaml") . | sha256sum }}'
         checksum/runtime: '{{ include (print $.Template.BasePath "/azure-runtime-config.configmap.yaml") . | sha256sum }}'
         checksum/cloudres: '{{ include (print $.Template.BasePath "/cloud-resources-config.configmap.yaml") . | sha256sum }}'
