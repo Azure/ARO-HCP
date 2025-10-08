@@ -89,6 +89,7 @@ billing:
     - description: ""
       name: ""
     sku: ""
+    vmUsageStaleThreshold: ""
   pav2:
     cloudName: ""
   rg: placeholder
