@@ -76,6 +76,7 @@ resourceGroups:
       step: rpRegistration
   - name: cs-akv-permissions
     action: ARM
+    omitFromServiceGroupCompletion: true
     template: templates/cs-mgmt-akv-permissions.bicep
     parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup

@@ -60,6 +60,7 @@ resourceGroups:
         name: globalMSIId
   - name: add-svc-grafana-datasource
     action: Shell
+    omitFromServiceGroupCompletion: true
     command: ./add-grafana-datasource.sh
     workingDir: ./scripts
     variables:
@@ -85,6 +86,7 @@ resourceGroups:
         name: globalMSIId
   - name: add-hcp-grafana-datasource
     action: Shell
+    omitFromServiceGroupCompletion: true
     command: ./add-grafana-datasource.sh
     workingDir: ./scripts
     variables:
