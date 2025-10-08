@@ -70,13 +70,13 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareCorrelationData,
 		newMiddlewareAudit(f.auditClient).handleRequest,
 		MiddlewareTracing,
+		MiddlewareLowercase,
 		MiddlewareLogging,
 		// NOTE: register panic middleware twice.
 		// Making sure we can capture panicked requests in our trace data.
 		// But we also can recover if the tracing or logging middleware caused a panic.
 		MiddlewarePanic,
 		MiddlewareBody,
-		MiddlewareLowercase,
 		MiddlewareSystemData,
 		MiddlewareValidateStatic,
 	)
