@@ -40,9 +40,9 @@
     },
     "platform": {
       "managedResourceGroup": "illegal-change",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/illegal-change",
+      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/illegal-change",
       "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
+      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
     },
     "version": {
       "id": "illegal-change",

@@ -50,12 +50,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "valid cluster with identity - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Identity = &arm.ManagedServiceIdentity{
-					Type: arm.ManagedServiceIdentityTypeUserAssigned,
-					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity": {},
-					},
-				}
+				// The helper already sets up a valid identity, so just return it
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -469,6 +464,273 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "Unsupported value", fieldPath: "properties.api.visiblity"},
 			},
 		},
+		// Tests for validateOperatorAuthenticationAgainstIdentities
+		{
+			name: "identity assigned but not used - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				unusedIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity"
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						unusedIdentityID: {},
+					},
+				}
+				// Don't reference the identity in operators
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unused-identity]"},
+			},
+		},
+		{
+			name: "identity used but not assigned - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type:                   arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{},
+				}
+				// Reference an identity that's not assigned
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+					"test-operator": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unassigned-identity",
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+			},
+		},
+		{
+			name: "identity used multiple times - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						identityID: {},
+					},
+				}
+				// Use the same identity in multiple places
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+					"operator1": identityID,
+					"operator2": identityID,
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "identity is used multiple times", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+			},
+		},
+		{
+			name: "data plane operator uses assigned identity - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity"
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						identityID: {},
+					},
+				}
+				// Data plane operators cannot use assigned identities
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
+					"dataplane-operator": identityID,
+				}
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity]"},
+			},
+		},
+		{
+			name: "service managed identity used correctly - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						identityID: {},
+					},
+				}
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityID
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "case insensitive identity matching - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				lowerCaseID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourcegroups/some-resource-group/providers/microsoft.managedidentity/userassignedidentities/test-identity"
+				upperCaseID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						lowerCaseID: {},
+					},
+				}
+				// Reference with different casing should work
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+					"test-operator": upperCaseID,
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		// Tests for validateResourceIDsAgainstClusterID
+		{
+			name: "managed resource group same as cluster resource group - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Managed resource group cannot be the same as the cluster's resource group
+				c.Properties.Platform.ManagedResourceGroup = "some-resource-group"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must not be the same resource group name", fieldPath: "properties.platform.managedResourceGroup"},
+			},
+		},
+		{
+			name: "subnet in different subscription - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Subnet in different subscription should fail
+				c.Properties.Platform.SubnetID = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.subnetId"},
+			},
+		},
+		{
+			name: "control plane operator identity in wrong location - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Identity in different subscription
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+					"test-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+			},
+		},
+		{
+			name: "data plane operator identity validation - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Data plane operator identity validation
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
+					"dataplane-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity",
+				}
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+			},
+		},
+		{
+			name: "service managed identity validation - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Service managed identity validation
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
+			},
+		},
+		// Tests for network CIDR overlap validation
+		{
+			name: "machine CIDR overlaps with service CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.Network.MachineCIDR = "10.0.0.0/16"
+				c.Properties.Network.ServiceCIDR = "10.0.1.0/24" // Overlaps with machine CIDR
+				c.Properties.Network.PodCIDR = "10.128.0.0/14"   // No overlap
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "machine CIDR '10.0.0.0/16' and service CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+			},
+		},
+		{
+			name: "machine CIDR overlaps with pod CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.Network.MachineCIDR = "10.0.0.0/16"
+				c.Properties.Network.PodCIDR = "10.0.1.0/24"       // Overlaps with machine CIDR
+				c.Properties.Network.ServiceCIDR = "172.30.0.0/16" // No overlap
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+			},
+		},
+		{
+			name: "service CIDR overlaps with pod CIDR - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.Properties.Network.MachineCIDR = "192.168.0.0/16" // No overlap
+				c.Properties.Network.ServiceCIDR = "10.0.0.0/16"
+				c.Properties.Network.PodCIDR = "10.0.1.0/24" // Overlaps with service CIDR
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "service CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+			},
+		},
+		{
+			name: "multiple CIDR overlaps - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// All CIDRs overlap with each other
+				c.Properties.Network.MachineCIDR = "10.0.0.0/14"
+				c.Properties.Network.ServiceCIDR = "10.0.0.0/16"
+				c.Properties.Network.PodCIDR = "10.1.0.0/16"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "machine CIDR '10.0.0.0/14' and service CIDR '10.0.0.0/16' overlap", fieldPath: "properties.network"},
+				{message: "machine CIDR '10.0.0.0/14' and pod CIDR '10.1.0.0/16' overlap", fieldPath: "properties.network"},
+			},
+		},
+		{
+			name: "non-overlapping CIDRs - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// No overlaps between any CIDRs
+				c.Properties.Network.MachineCIDR = "192.168.0.0/16"
+				c.Properties.Network.ServiceCIDR = "172.30.0.0/16"
+				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "invalid machine CIDR format - no overlap check - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				// Invalid CIDR format - overlap check should not crash
+				c.Properties.Network.MachineCIDR = "invalid-cidr"
+				c.Properties.Network.ServiceCIDR = "172.30.0.0/16"
+				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "invalid CIDR address", fieldPath: "properties.network.machineCidr"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -597,7 +859,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
-			name: "valid cluster update - allow identity changes",
+			name: "identity cannot change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.Identity = &arm.ManagedServiceIdentity{
@@ -606,6 +868,10 @@ func TestValidateClusterUpdate(t *testing.T) {
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity":  {},
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2": {},
 					},
+				}
+				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+					"test-operator":   "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
+					"test-operator-2": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2",
 				}
 				return c
 			}(),
@@ -619,7 +885,14 @@ func TestValidateClusterUpdate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "properties.platform"},
+				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication"},
+				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities"},
+				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
+			},
 		},
 		{
 			name: "immutable provisioning state - update",
@@ -1093,15 +1366,26 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")))
 
 	// Set required fields that are not in the default
-	cluster.Location = "eastus" // Required for TrackedResource validation
-	cluster.Properties.Version.ID = "4.15.1"
+	cluster.Location = "eastus"            // Required for TrackedResource validation
+	cluster.Properties.Version.ID = "4.15" // Use MAJOR.MINOR format
 	cluster.Properties.DNS.BaseDomainPrefix = "test-cluster"
-	cluster.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
+	// Use different resource group for subnet to ensure same subscription validation
+	cluster.Properties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+	cluster.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
+	cluster.Properties.Platform.ManagedResourceGroup = "managed-rg" // Different from cluster resource group
 
-	// Set up user assigned identities for valid testing
+	// Set up user assigned identities for valid testing with matching subscription and location
+	identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
 	cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
-		"test-operator": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
+		"test-operator": identityID,
+	}
+
+	// Add the identity to the cluster's identity section so it's properly assigned
+	cluster.Identity = &arm.ManagedServiceIdentity{
+		Type: arm.ManagedServiceIdentityTypeUserAssigned,
+		UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+			identityID: {},
+		},
 	}
 
 	return cluster

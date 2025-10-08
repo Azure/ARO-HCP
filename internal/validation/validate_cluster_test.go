@@ -44,9 +44,9 @@ func TestOpenshiftVersion(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "valid semver - valid",
+			name:      "semver with patch - invalid",
 			value:     ptr.To("4.15.1"),
-			expectErr: false,
+			expectErr: true,
 		},
 		{
 			name:      "valid major.minor - valid",
@@ -67,7 +67,7 @@ func TestOpenshiftVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := OpenshiftVersion(ctx, op, fldPath, tt.value, nil)
+			errs := OpenshiftVersionWithoutMicro(ctx, op, fldPath, tt.value, nil)
 
 			if tt.expectErr && len(errs) == 0 {
 				t.Error("expected error but got none")
