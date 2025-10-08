@@ -31,7 +31,7 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ./internal/mocks
 .PHONY: mocks
 
-install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK)
+install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
 	$(BINGO) get
 .PHONY: install-tools
 
