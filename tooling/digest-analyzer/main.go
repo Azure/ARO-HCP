@@ -743,8 +743,18 @@ func filterByEnvironments(rows []TableRow, envFilter string) []TableRow {
 	// Filter rows to only include specified environments
 	var filteredRows []TableRow
 	for _, row := range rows {
+		// Check exact match first
 		if envs[row.Env] {
 			filteredRows = append(filteredRows, row)
+			continue
+		}
+
+		// Check suffix match for prefixed environments (e.g., "stg" matches "left.stg", "right.stg")
+		for env := range envs {
+			if strings.HasSuffix(row.Env, "."+env) {
+				filteredRows = append(filteredRows, row)
+				break
+			}
 		}
 	}
 
