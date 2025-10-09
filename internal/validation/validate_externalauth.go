@@ -151,7 +151,6 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	//)...)
 
 	//CA        string   `json:"ca"        validate:"omitempty,pem_certificates"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("ca"), &newObj.CA, safe.Field(oldObj, toTokenIssuerProfileCA))...)
 	errs = append(errs, ValidatePEM(ctx, op, fldPath.Child("ca"), &newObj.CA, safe.Field(oldObj, toTokenIssuerProfileCA))...)
 
 	return errs

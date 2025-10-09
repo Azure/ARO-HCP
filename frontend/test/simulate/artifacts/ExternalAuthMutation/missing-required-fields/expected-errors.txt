@@ -1,9 +1,17 @@
-InvalidRequestContent: properties.issuer.url: Missing required field 'url'
-InvalidRequestContent: properties.claim.mappings.username.claim: Missing required field 'claim'
-InvalidRequestContent: properties.clients[0].component: Missing required field 'component'
-InvalidRequestContent: properties.clients[0].clientId: Missing required field 'clientId'
-InvalidRequestContent: properties.clients[0].type: Missing required field 'type'
-InvalidRequestContent: properties.claim.mappings.groups.claim: Missing required field 'claim'
-InvalidRequestContent: properties.clients[1].component: Missing required field 'component'
-InvalidRequestContent: properties.clients[1].clientId: Missing required field 'clientId'
-InvalidRequestContent: properties.clients[1].type: Missing required field 'type'
+InvalidRequestContent: properties.issuer.url: properties.issuer.url: Required value
+InvalidRequestContent: properties.issuer.audiences: properties.issuer.audiences: Invalid value: 0: must have at least 1 items
+InvalidRequestContent: properties.claim.mappings.username.claim: properties.claim.mappings.username.claim: Required value
+InvalidRequestContent: properties.clients[0].component: properties.clients[0].component: Required value
+InvalidRequestContent: properties.clients[0].clientId: properties.clients[0].clientId: Required value
+InvalidRequestContent: properties.clients[0].type: properties.clients[0].type: Required value
+InvalidRequestContent: properties.claim.mappings.groups.claim: properties.claim.mappings.groups.claim: Required value
+InvalidRequestContent: properties.clients[1].component: properties.clients[1].component: Required value
+InvalidRequestContent: properties.clients[1].clientId: properties.clients[1].clientId: Required value
+InvalidRequestContent: properties.clients[1].type: properties.clients[1].type: Required value
+
+InvalidRequestContent: properties.clients[0].component.name: properties.clients[0].component.name: Required value
+InvalidRequestContent: properties.clients[0].component.authClientNamespace: properties.clients[0].component.authClientNamespace: Required value
+InvalidRequestContent: properties.clients[0].type: properties.clients[0].type: Unsupported value: "": supported values: "Confidential", "Public"
+InvalidRequestContent: properties.clients[1].component.name: properties.clients[1].component.name: Required value
+InvalidRequestContent: properties.clients[1].component.authClientNamespace: properties.clients[1].component.authClientNamespace: Required value
+InvalidRequestContent: properties.clients[1].type: properties.clients[1].type: Unsupported value: "": supported values: "Confidential", "Public"

@@ -605,6 +605,10 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			successStatusCode = http.StatusAccepted
+		default:
+			logger.Error("Unsupported method")
+			arm.WriteInternalServerError(writer)
+			return
 		}
 	} else {
 		operationRequest = database.OperationRequestCreate
@@ -624,6 +628,10 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 			// PATCH requests never create a new resource.
 			logger.Error("Resource not found")
 			arm.WriteResourceNotFoundError(writer, resourceID)
+			return
+		default:
+			logger.Error("Unsupported method")
+			arm.WriteInternalServerError(writer)
 			return
 		}
 
@@ -646,33 +654,20 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 
 	cloudError = api.ValidateVersionedHCPOpenShiftCluster(versionedRequestCluster, versionedCurrentCluster, updating)
-	newValidationErr := func(prevValidationErr *arm.CloudError) *arm.CloudError {
-		newInternalCluster := &api.HCPOpenShiftCluster{}
-		versionedRequestCluster.Normalize(newInternalCluster)
+	newInternalCluster := &api.HCPOpenShiftCluster{}
+	versionedRequestCluster.Normalize(newInternalCluster)
 
-		var validationErrs field.ErrorList
-		if updating {
-			oldInternalCluster := &api.HCPOpenShiftCluster{}
-			versionedCurrentCluster.Normalize(oldInternalCluster)
-			validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
+	var validationErrs field.ErrorList
+	if updating {
+		oldInternalCluster := &api.HCPOpenShiftCluster{}
+		versionedCurrentCluster.Normalize(oldInternalCluster)
+		validationErrs = validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
 
-		} else {
-			validationErrs = validation.ValidateClusterCreate(ctx, newInternalCluster)
+	} else {
+		validationErrs = validation.ValidateClusterCreate(ctx, newInternalCluster)
 
-		}
-
-		switch {
-		case len(validationErrs) > 0 && prevValidationErr == nil:
-			logger.Error(fmt.Sprintf("new validation got errors, but old validation did not: newErrors=%v", validationErrs))
-			// TODO can we panic here?  do panics go to sentry or similar?
-		case len(validationErrs) == 0 && prevValidationErr != nil:
-			logger.Error(fmt.Sprintf("new validation missing errors, but old validation detected errors: oldEerrors=%v", prevValidationErr))
-			// TODO can we panic here?  do panics go to sentry or similar?
-		}
-
-		return arm.CloudErrorFromFieldErrors(validationErrs)
-
-	}(cloudError)
+	}
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
 
 	// prefer new validation.  Have a fallback for old validation.
 	if newValidationErr != nil {
@@ -680,7 +675,6 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
-
 	if cloudError != nil {
 		logger.Error(cloudError.Error())
 		arm.WriteCloudError(writer, cloudError)

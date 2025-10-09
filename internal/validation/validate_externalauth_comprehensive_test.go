@@ -54,7 +54,6 @@ func TestValidateExternalAuth(t *testing.T) {
 			op:     operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{field: "properties.issuer.url", message: "Required value"},
-				{field: "properties.issuer.ca", message: "Required value"},
 			},
 		},
 		{
