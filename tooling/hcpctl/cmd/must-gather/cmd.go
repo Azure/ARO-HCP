@@ -27,8 +27,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var ServicesLogDirectory = "serviceLogs"
-var CustomerLogDirectory = "customerLogs"
+var ServicesLogDirectory = "service"
+var HostedControlPlaneLogDirectory = "host-control-plane"
 
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -119,13 +119,13 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	if opts.SkipCustomerLogs {
-		fmt.Println("Skipping customer logs")
+	if opts.SkipHostedControlePlaneLogs {
+		fmt.Println("Skipping hosted control plane logs")
 	} else {
-		fmt.Println("Executing customer logs")
-		err := executeCustomerLogsQuery(ctx, opts.Client, opts, opts.QueryOptions)
+		fmt.Println("Executing hosted control plane logs")
+		err := executeHostedControlPlaneLogsQuery(ctx, opts.Client, opts, opts.QueryOptions)
 		if err != nil {
-			return fmt.Errorf("failed to execute customer logs query: %w", err)
+			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
 		}
 	}
 
@@ -193,15 +193,15 @@ func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *Mus
 	return executeContainerLogsQueries(ctx, client, opts, queries, outputChannel)
 }
 
-func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) error {
-	query := getCustomerLogsQuery(queryOpts)
+func executeHostedControlPlaneLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) error {
+	query := getHostedControlPlaneLogsQuery(queryOpts)
 
 	outputChannel := make(chan any)
 	defer close(outputChannel)
 
 	var err error
 	go func() {
-		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, CustomerLogDirectory)
+		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, HostedControlPlaneLogDirectory)
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to write container logs to file: %w", err)

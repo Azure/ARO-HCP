@@ -55,7 +55,7 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	return queries
 }
 
-func getCustomerLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
+func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
 		query := kusto.NewConfigurableQuery("customerLogs", customerLogsDatabase).
