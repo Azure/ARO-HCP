@@ -546,6 +546,26 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "imageArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adoProject": {
+          "type": "string"
+        },
+        "artifactName": {
+          "type": "string"
+        },
+        "buildId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adoProject",
+        "artifactName",
+        "buildId"
+      ]
+    },
     "zoneRedundantMode": {
       "type": "string",
       "enum": [
@@ -1197,6 +1217,9 @@
             "subscriptionId",
             "resourceGroupName"
           ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
         }
       },
       "additionalProperties": false,
@@ -1205,7 +1228,8 @@
         "aub",
         "pav2",
         "kusto",
-        "eventHub"
+        "eventHub",
+        "imageArtifact"
       ]
     },
     "ev2": {
@@ -1524,6 +1548,9 @@
             "commonName",
             "sanDnsNames"
           ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
         }
       },
       "additionalProperties": false,
@@ -1532,7 +1559,8 @@
         "k8s",
         "image",
         "certificate",
-        "earlyRefreshFrequency"
+        "earlyRefreshFrequency",
+        "imageArtifact"
       ]
     },
     "global": {

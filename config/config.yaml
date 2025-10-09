@@ -489,6 +489,10 @@ defaults:
       namespace: ""
       subscriptionId: ""
       resourceGroupName: ""
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   # Mise
   mise:
     deploy: false
@@ -524,6 +528,10 @@ defaults:
       commonName: ""
       sanDnsNames: []
     earlyRefreshFrequency: "0"
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   # Maestro
   maestro:
     server:

@@ -77,6 +77,10 @@ billing:
     namespace: ""
     resourceGroupName: ""
     subscriptionId: ""
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
   kusto:
     clusterName: ""
     clusterPrincipals:
@@ -538,6 +542,10 @@ msiCredentialsRefresher:
     digest: ""
     registry: empty-sentinel
     repository: empty-sentinel
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
   k8s:
     namespace: msi-credential-refresher
     serviceAccountName: msi-credential-refresher
