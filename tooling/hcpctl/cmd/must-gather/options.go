@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/common"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
@@ -134,14 +135,19 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 			ResourceGroupName: o.ResourceGroup,
 			TimestampMin:      o.TimestampMin,
 			TimestampMax:      o.TimestampMax,
-			Limit:             10000,
+			Limit:             o.Limit,
 		},
 	}, nil
 }
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
-	err := os.MkdirAll(path.Join(o.OutputPath, "serviceLogs"), 0755)
+	client, err := kusto.NewClient(o.KustoEndpoint, o.KustoDebug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
+	}
+
+	err = os.MkdirAll(path.Join(o.OutputPath, "serviceLogs"), 0755)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
 	}
@@ -163,10 +169,12 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
+		Client:                     client,
 	}, nil
 }
 
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
+	Client *kusto.Client
 }

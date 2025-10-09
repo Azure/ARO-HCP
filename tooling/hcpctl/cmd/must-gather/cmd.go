@@ -16,6 +16,7 @@ package mustgather
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -90,24 +91,24 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		return err
 	}
 
-	client, err := kusto.NewClient(opts.KustoEndpoint, opts.KustoDebug)
-	if err != nil {
-		return fmt.Errorf("failed to create Kusto client: %w", err)
-	}
 	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
+		if closeErr := completed.Client.Close(); closeErr != nil {
 			fmt.Printf("Warning: failed to close Kusto client: %v\n", closeErr)
 		}
 	}()
 
-	clusterIds, err := executeClusterIdQuery(ctx, client, completed, completed.QueryOptions)
+	clusterIds, err := executeClusterIdQuery(ctx, completed.Client, completed, completed.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
 	completed.QueryOptions.ClusterIds = clusterIds
+	err = writeQueryOptionsToFile(completed.OutputPath, completed.QueryOptions)
+	if err != nil {
+		return fmt.Errorf("failed to write query options to file: %w", err)
+	}
 
-	err = executeServicesQueries(ctx, client, completed, completed.QueryOptions)
+	err = executeServicesQueries(ctx, completed.Client, completed, completed.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -116,7 +117,7 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		fmt.Println("Skipping customer logs")
 	} else {
 		fmt.Println("Executing customer logs")
-		err := executeCustomerLogsQuery(ctx, client, completed, completed.QueryOptions)
+		err := executeCustomerLogsQuery(ctx, completed.Client, completed, completed.QueryOptions)
 		if err != nil {
 			return fmt.Errorf("failed to execute customer logs query: %w", err)
 		}
@@ -191,18 +192,41 @@ func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *M
 	return executeContainerLogsQueries(ctx, client, opts, query, outputChannel)
 }
 
+func writeQueryOptionsToFile(outputPath string, queryOptions QueryOptions) error {
+	fileName := fmt.Sprintf("query-options.json")
+	file, err := os.Create(path.Join(outputPath, fileName))
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(queryOptions)
+}
+
+func writeQueryResultToFile(outputPath string, queryName string, result *kusto.QueryResult) error {
+	fileName := fmt.Sprintf("%s.json", queryName)
+	file, err := os.Create(path.Join(outputPath, fileName))
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(result)
+}
+
 func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery, outputChannel chan any) error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
 	for i, query := range queries {
 		go func(query *kusto.ConfigurableQuery) error {
 			defer wg.Done()
-			_, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ContainerLogsRow{}, opts.QueryTimeout)
+			result, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ContainerLogsRow{}, opts.QueryTimeout)
 			if err != nil {
 				fmt.Printf("Query %d failed: %v\n", i+1, err)
 				return fmt.Errorf("failed to execute query: %w", err)
 			}
-
+			err = writeQueryResultToFile(opts.OutputPath, query.Name, result)
+			if err != nil {
+				return fmt.Errorf("failed to write query result to file: %w", err)
+			}
 			return nil
 		}(query)
 	}

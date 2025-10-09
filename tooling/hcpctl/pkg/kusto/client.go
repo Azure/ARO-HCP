@@ -78,16 +78,12 @@ func NewClient(endpoint string, debug bool) (*Client, error) {
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-// This is to execute queries bundled with this package. Not to be used for custom queries.
 func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*QueryResult, error) {
-	// Create a context with timeout
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	fmt.Printf("Executing query: %s on database %s\n", query.Name, query.Database)
 
-	// Execute the query using kql.Builder with AddUnsafe for dynamic queries
-	// This allows us to use dynamic query strings
 	if c.Debug {
 		fmt.Printf("Query: %s\n", query.Query.String())
 		fmt.Printf("Parameters: %v\n", query.Parameters.ToParameterCollection())
