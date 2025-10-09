@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/common"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
@@ -32,10 +31,10 @@ import (
 type RawMustGatherOptions struct {
 	BaseOptions      *base.RawBaseOptions
 	KustoDebug       bool          // Print debug information
-	KustoEndpoint    string        // Azure Data Explorer cluster endpoint
+	Kusto            string        // Name of the Azure Data Explorer cluster
+	Region           string        // Region of the Azure Data Explorer cluster
 	OutputPath       string        // Path to write the output file
 	QueryTimeout     time.Duration // Timeout for query execution
-	OutputFormat     string        // Output format (json, csv, table)
 	SubscriptionID   string        // Subscription ID
 	ResourceGroup    string        // Resource group
 	SkipCustomerLogs bool          // Skip customer logs
@@ -49,7 +48,6 @@ func DefaultMustGatherOptions() *RawMustGatherOptions {
 	return &RawMustGatherOptions{
 		BaseOptions:  base.DefaultBaseOptions(),
 		QueryTimeout: 5 * time.Minute,
-		OutputFormat: "json",
 	}
 }
 
@@ -64,7 +62,8 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	}
 
 	// Add must-gather specific flags
-	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", opts.KustoEndpoint, "Azure Data Explorer cluster endpoint (required)")
+	cmd.Flags().StringVar(&opts.Kusto, "kusto", opts.Kusto, "Azure Data Explorer cluster name (required)")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure Data Explorer cluster region (required)")
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "timeout for query execution")
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
@@ -76,8 +75,17 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
-	if err := cmd.MarkFlagRequired("kusto-endpoint"); err != nil {
-		return fmt.Errorf("failed to mark kusto-endpoint as required: %w", err)
+	if err := cmd.MarkFlagRequired("kusto"); err != nil {
+		return fmt.Errorf("failed to mark kusto as required: %w", err)
+	}
+	if err := cmd.MarkFlagRequired("region"); err != nil {
+		return fmt.Errorf("failed to mark region as required: %w", err)
+	}
+	if err := cmd.MarkFlagRequired("subscription-id"); err != nil {
+		return fmt.Errorf("failed to mark subscription-id as required: %w", err)
+	}
+	if err := cmd.MarkFlagRequired("resource-group"); err != nil {
+		return fmt.Errorf("failed to mark resource-group as required: %w", err)
 	}
 
 	return nil
@@ -86,7 +94,6 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 // ValidatedMustGatherOptions represents must-gather configuration that has passed validation.
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
-	OutputFormat common.OutputFormat
 	QueryOptions QueryOptions
 }
 
@@ -98,14 +105,12 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	}
 
 	// Validate kusto name
-	if o.KustoEndpoint == "" {
-		return nil, fmt.Errorf("kusto-endpoint is required")
+	if o.Kusto == "" {
+		return nil, fmt.Errorf("kusto is required")
 	}
-
-	// Validate output format
-	outputFormat, err := common.ValidateOutputFormat(o.OutputFormat)
-	if err != nil {
-		return nil, fmt.Errorf("invalid output format '%s': %w", o.OutputFormat, err)
+	// Validate region
+	if o.Region == "" {
+		return nil, fmt.Errorf("region is required")
 	}
 
 	// Validate query timeout
@@ -129,7 +134,6 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
-		OutputFormat:         outputFormat,
 		QueryOptions: QueryOptions{
 			SubscriptionId:    o.SubscriptionID,
 			ResourceGroupName: o.ResourceGroup,
@@ -142,7 +146,13 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
-	client, err := kusto.NewClient(o.KustoEndpoint, o.KustoDebug)
+	// Set default output path if not specified
+	if o.OutputPath == "" {
+		o.OutputPath = fmt.Sprintf("must-gather-%s", time.Now().Format("20060102-150405"))
+	}
+
+	endpoint := fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region)
+	client, err := kusto.NewClient(endpoint, o.KustoDebug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -157,14 +167,6 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
 		}
-	}
-
-	// Set default output path if not specified
-	if o.OutputPath == "" {
-		o.OutputPath = fmt.Sprintf("must-gather-%s-%s.%s",
-			o.KustoEndpoint,
-			time.Now().Format("20060102-150405"),
-			o.OutputFormat)
 	}
 
 	return &MustGatherOptions{

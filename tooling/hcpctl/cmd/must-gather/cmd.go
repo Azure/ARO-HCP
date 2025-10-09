@@ -30,7 +30,6 @@ import (
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "must-gather",
-		Aliases: []string{"mg"},
 		Short:   "Azure Data Explorer must-gather operations",
 		GroupID: group,
 		Long: `must-gather provides data collection operations for Azure Data Explorer clusters.

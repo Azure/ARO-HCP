@@ -55,7 +55,7 @@ type QueryStats struct {
 // NewClient creates a new Azure Data Explorer client
 func NewClient(endpoint string, debug bool) (*Client, error) {
 	if endpoint == "" {
-		return nil, fmt.Errorf("cluster name is required")
+		return nil, fmt.Errorf("cluster endpoint is required")
 	}
 
 	// Create connection string builder
