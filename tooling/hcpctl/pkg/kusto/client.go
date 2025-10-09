@@ -35,7 +35,6 @@ type Client struct {
 
 // QueryResult represents the result of a Kusto query execution
 type QueryResult struct {
-	Data       []any
 	Columns    []Column
 	QueryStats QueryStats
 }
@@ -80,7 +79,7 @@ func NewClient(endpoint string, debug bool) (*Client, error) {
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
 // This is to execute queries bundled with this package. Not to be used for custom queries.
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, rowType any, timeout time.Duration) (*QueryResult, error) {
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*QueryResult, error) {
 	// Create a context with timeout
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -100,7 +99,6 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	defer iter.Stop()
 
 	// Process results
-	var data []any
 	var columns []Column
 	var totalRows int
 	var dataSize int64
@@ -131,11 +129,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		if err != nil {
 			return fmt.Errorf("failed to convert row to struct: %w", err)
 		}
-		// from the docs https://pkg.go.dev/github.com/Azure/azure-kusto-go#readme-query-into-structs
-		if row.Replace {
-			data = data[:0]
-		}
-		data = append(data, rowData)
+		outputChannel <- rowData
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row.Values)))
 
@@ -151,7 +145,6 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	fmt.Printf("Query '%s' completed: %d rows in %v\n", query.Name, totalRows, executionTime)
 
 	return &QueryResult{
-		Data:    data,
 		Columns: columns,
 		QueryStats: QueryStats{
 			ExecutionTime: executionTime,

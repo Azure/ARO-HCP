@@ -17,6 +17,8 @@ package mustgather
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -139,6 +141,18 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 
 // Complete performs final initialization to create fully usable MustGatherOptions.
 func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherOptions, error) {
+	err := os.MkdirAll(path.Join(o.OutputPath, "serviceLogs"), 0755)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
+	}
+
+	if !o.SkipCustomerLogs {
+		err = os.MkdirAll(path.Join(o.OutputPath, "customerLogs"), 0755)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
+		}
+	}
+
 	// Set default output path if not specified
 	if o.OutputPath == "" {
 		o.OutputPath = fmt.Sprintf("must-gather-%s-%s.%s",

@@ -58,7 +58,6 @@ func newQueryCommand() (*cobra.Command, error) {
 
 	cmd := &cobra.Command{
 		Use:              "query",
-		Aliases:          []string{"q"},
 		Short:            "Execute default queries against Azure Data Explorer",
 		Long:             `Execute preconfigured queries against Azure Data Explorer clusters.`,
 		Args:             cobra.NoArgs,
@@ -81,19 +80,16 @@ func newQueryCommand() (*cobra.Command, error) {
 }
 
 func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
-	// Validate options
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Complete options
 	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Create Kusto client
 	client, err := kusto.NewClient(opts.KustoEndpoint, opts.KustoDebug)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
@@ -111,42 +107,28 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
 	completed.QueryOptions.ClusterIds = clusterIds
 
-	// Execute the query operation
-	data, err := executeServicesQueries(ctx, client, completed, completed.QueryOptions)
+	err = executeServicesQueries(ctx, client, completed, completed.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	// Write the data to the output file
-	for _, rows := range data {
-		if err := writeServiceLogsToFile(rows, opts.OutputPath, "serviceLogs"); err != nil {
-			return fmt.Errorf("failed to write data to output file: %w", err)
-		}
 	}
 
 	if opts.SkipCustomerLogs {
 		fmt.Println("Skipping customer logs")
 	} else {
 		fmt.Println("Executing customer logs")
-		customerLogs, err := executeCustomerLogsQuery(ctx, client, completed, completed.QueryOptions)
+		err := executeCustomerLogsQuery(ctx, client, completed, completed.QueryOptions)
 		if err != nil {
 			return fmt.Errorf("failed to execute customer logs query: %w", err)
-		}
-		for _, rows := range customerLogs {
-			if err := writeServiceLogsToFile(rows, opts.OutputPath, "customerLogs"); err != nil {
-				return fmt.Errorf("failed to write data to output file: %w", err)
-			}
 		}
 	}
 
 	return nil
 }
 
-func writeServiceLogsToFile(data []ContainerLogsRow, outputPath string, directory string) error {
-	os.MkdirAll(path.Join(outputPath, directory), 0755)
+func writeContainerLogsToFile(outputChannel chan any, outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
-	for _, row := range data {
-		fileName := fmt.Sprintf("%s-%s-%s.log", row.Cluster, row.Namespace, row.ContainerName)
+	for row := range outputChannel {
+		fileName := fmt.Sprintf("%s-%s-%s.log", row.(*ContainerLogsRow).Cluster, row.(*ContainerLogsRow).Namespace, row.(*ContainerLogsRow).ContainerName)
 
 		file, ok := openedFiles[fileName]
 		if !ok {
@@ -157,7 +139,7 @@ func writeServiceLogsToFile(data []ContainerLogsRow, outputPath string, director
 			openedFiles[fileName] = file
 		}
 		defer file.Close()
-		fmt.Fprintf(openedFiles[fileName], "%s\n", string(row.Log))
+		fmt.Fprintf(openedFiles[fileName], "%s\n", string(row.(*ContainerLogsRow).Log))
 	}
 	return nil
 }
@@ -165,62 +147,66 @@ func writeServiceLogsToFile(data []ContainerLogsRow, outputPath string, director
 func executeClusterIdQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([]string, error) {
 	query := getClusterIdQuery(queryOpts.SubscriptionId, queryOpts.ResourceGroupName)
 
-	result, err := client.ExecutePreconfiguredQuery(ctx, query, ClusterIdRow{}, opts.QueryTimeout)
+	outputChannel := make(chan any)
+	allClusterIds := make([]string, 0)
+
+	go func() {
+		for row := range outputChannel {
+			clusterId := row.(*ClusterIdRow).ClusterId
+			if clusterId != "" {
+				allClusterIds = append(allClusterIds, clusterId)
+			}
+		}
+	}()
+
+	_, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ClusterIdRow{}, opts.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
+	close(outputChannel)
 
-	allClusterIds := make([]string, 0)
-	for _, row := range result.Data {
-		clusterId := row.(*ClusterIdRow).ClusterId
-		if clusterId != "" {
-			allClusterIds = append(allClusterIds, clusterId)
-		}
-	}
 	return allClusterIds, nil
 }
 
 // executeQuery performs the actual query execution against Azure Data Explorer
-func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([][]ContainerLogsRow, error) {
+func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) error {
 	queries := getServicesQueries(queryOpts)
-	return executeContainerLogsQueries(ctx, client, opts, queries)
+
+	outputChannel := make(chan any)
+	defer close(outputChannel)
+
+	go writeContainerLogsToFile(outputChannel, opts.OutputPath, "serviceLogs")
+
+	return executeContainerLogsQueries(ctx, client, opts, queries, outputChannel)
 }
 
-func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([][]ContainerLogsRow, error) {
+func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) error {
 	query := getCustomerLogsQuery(queryOpts)
-	return executeContainerLogsQueries(ctx, client, opts, query)
+
+	outputChannel := make(chan any)
+	defer close(outputChannel)
+
+	go writeContainerLogsToFile(outputChannel, opts.OutputPath, "customerLogs")
+
+	return executeContainerLogsQueries(ctx, client, opts, query, outputChannel)
 }
 
-func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery) ([][]ContainerLogsRow, error) {
-	var data [][]ContainerLogsRow = make([][]ContainerLogsRow, 0)
-
-	results := make(chan *kusto.QueryResult, len(queries))
+func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery, outputChannel chan any) error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
 	for i, query := range queries {
 		go func(query *kusto.ConfigurableQuery) error {
 			defer wg.Done()
-			result, err := client.ExecutePreconfiguredQuery(ctx, query, ContainerLogsRow{}, opts.QueryTimeout)
+			_, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ContainerLogsRow{}, opts.QueryTimeout)
 			if err != nil {
 				fmt.Printf("Query %d failed: %v\n", i+1, err)
 				return fmt.Errorf("failed to execute query: %w", err)
 			}
 
-			results <- result
 			return nil
 		}(query)
 	}
 	wg.Wait()
-	close(results)
 
-	for result := range results {
-
-		allRows := make([]ContainerLogsRow, 0)
-		for _, row := range result.Data {
-			allRows = append(allRows, *row.(*ContainerLogsRow))
-		}
-		data = append(data, allRows)
-	}
-
-	return data, nil
+	return nil
 }
