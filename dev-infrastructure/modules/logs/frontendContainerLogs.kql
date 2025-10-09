@@ -30,7 +30,6 @@
     unmatched: dynamic
 )
 
-
 .create-or-alter table frontendContainerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
@@ -49,18 +48,20 @@
    {"column":"level","Properties":{"path":"$.log.level"}},
    {"column":"msg","Properties":{"path":"$.log.msg"}},
    {"column":"requestId","Properties":{"path":"$.log.request_id"}},
-   {"column":"clientRequestId","Properties":{"path":"$.log.clientRequestId"}},
-   {"column":"correlationRequestId","Properties":{"path":"$.log.correlationRequestId"}},
-   {"column":"requestMethod","Properties":{"path":"$.log.requestMethod"}},
-   {"column":"requestPath","Properties":{"path":"$.log.requestPath"}},
-   {"column":"requestProto","Properties":{"path":"$.log.requestProto"}},
-   {"column":"requestQuery","Properties":{"path":"$.log.requestQuery"}},
-   {"column":"requestReferer","Properties":{"path":"$.log.requestReferer"}},
-   {"column":"requestRemoteAddr","Properties":{"path":"$.log.requestRemoteAddr"}},
-   {"column":"requestUserAgent","Properties":{"path":"$.log.requestUserAgent"}},
-   {"column":"bodyReadBytes","Properties":{"path":"$.log.bodyReadBytes"}},
-   {"column":"bodyWrittenBytes","Properties":{"path":"$.log.bodyWrittenBytes"}},
-   {"column":"responseStatusCode","Properties":{"path":"$.log.responseStatusCode"}},
+   {"column":"clientRequestId","Properties":{"path":"$.log.client_request_id"}},
+   {"column":"correlationRequestId","Properties":{"path":"$.log.correlation_request_id"}},
+   {"column":"subscriptionId", "Properties": {"path":"$log.subscription_id"}},
+   {"column":"resourceGroup", "Properties": {"path":"$log.resource_group"}},
+   {"column":"requestMethod","Properties":{"path":"$.log.request_method"}},
+   {"column":"requestPath","Properties":{"path":"$.log.request_path"}},
+   {"column":"requestProto","Properties":{"path":"$.log.request_proto"}},
+   {"column":"requestQuery","Properties":{"path":"$.log.request_query"}},
+   {"column":"requestReferer","Properties":{"path":"$.log.request_referer"}},
+   {"column":"requestRemoteAddr","Properties":{"path":"$.log.request_remote_addr"}},
+   {"column":"requestUserAgent","Properties":{"path":"$.log.request_user_agent"}},
+   {"column":"bodyReadBytes","Properties":{"path":"$.log.body_read_bytes"}},
+   {"column":"bodyWrittenBytes","Properties":{"path":"$.log.body_written_bytes"}},
+   {"column":"responseStatusCode","Properties":{"path":"$.log.response_status_code"}},
    {"column":"duration","Properties":{"path":"$.log.duration"}},
    {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]

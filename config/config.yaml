@@ -734,6 +734,7 @@ clouds:
     defaults:
       kusto:
         ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
+        enabled: false
       kubeEvents:
         enabled: false
       automationDryRun: false
@@ -926,6 +927,8 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
+          kusto:
+            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
@@ -961,6 +964,8 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          kusto:
+            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           # Service Key Vault
           serviceKeyVault:
@@ -1014,6 +1019,8 @@ clouds:
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
+          kusto:
+            enabled: true
           regionRG: "{{ .ctx.region }}-shared-resources"
           serviceKeyVault:
             name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
