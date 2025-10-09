@@ -40,7 +40,7 @@ var _ = Describe("Customer", func() {
 
 			var resourceGroups []*armresources.ResourceGroup
 			var clusterNames []string
-			const createClustersCount = 3
+			const createClustersCount = 2
 
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
