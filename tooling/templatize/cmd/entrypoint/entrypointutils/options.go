@@ -20,10 +20,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
+	"sigs.k8s.io/yaml"
+
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
-	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 
 	rollout "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )

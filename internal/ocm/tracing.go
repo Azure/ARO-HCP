@@ -17,9 +17,10 @@ package ocm
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/tracing"
 )

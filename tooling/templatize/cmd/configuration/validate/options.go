@@ -26,12 +26,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
 	"k8s.io/apimachinery/pkg/util/rand"
+
 	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/render"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"

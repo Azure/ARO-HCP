@@ -20,9 +20,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 )
 

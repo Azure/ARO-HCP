@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/davecgh/go-spew/spew"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outputName string) (string, error) {

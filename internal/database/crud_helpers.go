@@ -20,10 +20,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"k8s.io/utils/ptr"
 )
 
 func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, completeResourceID *azcorearm.ResourceID) (*T, error) {

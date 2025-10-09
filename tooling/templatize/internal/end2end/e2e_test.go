@@ -21,11 +21,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"

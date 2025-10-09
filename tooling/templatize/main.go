@@ -21,17 +21,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration"
-
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/ev2lookup"
-
-	"github.com/dusted-go/logging/prettylog"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/inspect"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline"

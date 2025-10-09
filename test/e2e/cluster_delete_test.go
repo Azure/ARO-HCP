@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
-
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 

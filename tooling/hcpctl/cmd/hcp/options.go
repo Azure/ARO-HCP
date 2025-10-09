@@ -21,11 +21,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
 	authenticationv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/base"

@@ -95,7 +95,7 @@ func TestClusterRequired(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						NewTestUserAssignedIdentity("MyManagedIdentity"): &arm.UserAssignedIdentity{},
+						NewTestUserAssignedIdentity("MyManagedIdentity"): {},
 					},
 				},
 			},
@@ -117,7 +117,7 @@ func TestClusterRequired(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						"wrong/Pattern/Of/ResourceID": &arm.UserAssignedIdentity{},
+						"wrong/Pattern/Of/ResourceID": {},
 					},
 				},
 			},
@@ -616,8 +616,8 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						strings.ToUpper(managedIdentity1): &arm.UserAssignedIdentity{},
-						strings.ToUpper(managedIdentity2): &arm.UserAssignedIdentity{},
+						strings.ToUpper(managedIdentity1): {},
+						strings.ToUpper(managedIdentity2): {},
 					},
 				},
 			},
@@ -640,7 +640,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity3: &arm.UserAssignedIdentity{},
+						managedIdentity3: {},
 					},
 				},
 			},
@@ -678,7 +678,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity1: &arm.UserAssignedIdentity{},
+						managedIdentity1: {},
 					},
 				},
 			},
@@ -706,7 +706,7 @@ func TestClusterValidate(t *testing.T) {
 				Identity: &arm.ManagedServiceIdentity{
 					Type: arm.ManagedServiceIdentityTypeUserAssigned,
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
-						managedIdentity1: &arm.UserAssignedIdentity{},
+						managedIdentity1: {},
 					},
 				},
 			},

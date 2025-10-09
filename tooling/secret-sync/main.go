@@ -21,10 +21,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	secretsync "github.com/Azure/ARO-Tools/pkg/secret-sync"
 	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	secretsync "github.com/Azure/ARO-Tools/pkg/secret-sync"
 )
 
 func main() {

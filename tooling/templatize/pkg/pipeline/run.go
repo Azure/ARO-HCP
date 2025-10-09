@@ -24,13 +24,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 

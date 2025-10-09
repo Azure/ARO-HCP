@@ -135,7 +135,7 @@ func (f *Frontend) CancelActiveOperations(ctx context.Context, transaction datab
 
 	iterator := f.dbClient.ListActiveOperationDocs(transaction.GetPartitionKey(), opts)
 
-	for operationID, _ := range iterator.Items(ctx) {
+	for operationID := range iterator.Items(ctx) {
 		var patchOperations database.OperationDocumentPatchOperations
 
 		patchOperations.SetLastTransitionTime(now)

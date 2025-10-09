@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	abstractions "github.com/microsoft/kiota-abstractions-go"
 	kiotahttp "github.com/microsoft/kiota-http-go"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk"
 )

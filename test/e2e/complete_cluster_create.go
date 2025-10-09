@@ -22,10 +22,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/ARO-HCP/test/util/verifiers"
-
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 //go:embed test-artifacts

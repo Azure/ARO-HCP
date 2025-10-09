@@ -37,7 +37,7 @@ func TestSubscriptionCollector(t *testing.T) {
 	logger := api.NewTestLogger()
 	nosubs := maps.All(map[string]*arm.Subscription{})
 	subs := maps.All(map[string]*arm.Subscription{
-		"00000000-0000-0000-0000-000000000000": &arm.Subscription{
+		"00000000-0000-0000-0000-000000000000": {
 			State:            arm.SubscriptionStateRegistered,
 			RegistrationDate: api.Ptr(time.Now().String()),
 		},

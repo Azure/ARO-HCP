@@ -17,10 +17,9 @@ package pipeline
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/validate"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/inspect"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/validate"
 )
 
 func NewCommand() (*cobra.Command, error) {
