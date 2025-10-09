@@ -94,11 +94,12 @@ directory are prefixed with 'left.' and from the second with 'right.'.`,
 		if len(args) == 1 {
 			// Single config directory - original behavior
 			configDir := args[0]
-			allDigests = parseAllEnvironments(configDir, "")
+			allDigests = parseAllEnvironments(configDir, "", configDir)
 		} else {
 			// Two config directories - parse both with prefixes
-			leftDigests := parseAllEnvironments(args[0], "left")
-			rightDigests := parseAllEnvironments(args[1], "right")
+			// Each directory uses its own git context
+			leftDigests := parseAllEnvironments(args[0], "left", args[0])
+			rightDigests := parseAllEnvironments(args[1], "right", args[1])
 			allDigests = append(leftDigests, rightDigests...)
 		}
 
@@ -209,7 +210,7 @@ func main() {
 }
 
 // parseAllEnvironments parses all required environments with proper precedence
-func parseAllEnvironments(configDir string, prefix string) []DigestInfo {
+func parseAllEnvironments(configDir string, prefix string, gitRepoDir string) []DigestInfo {
 	var allDigests []DigestInfo
 
 	// Define environment configurations with proper precedence order
@@ -263,7 +264,7 @@ func parseAllEnvironments(configDir string, prefix string) []DigestInfo {
 
 	// Process each environment
 	for _, envConfig := range envConfigs {
-		envDigests := parseEnvironment(configDir, envConfig, prefix)
+		envDigests := parseEnvironment(configDir, envConfig, prefix, gitRepoDir)
 		allDigests = append(allDigests, envDigests...)
 	}
 
@@ -271,7 +272,7 @@ func parseAllEnvironments(configDir string, prefix string) []DigestInfo {
 }
 
 // parseEnvironment parses a single environment with proper precedence
-func parseEnvironment(configDir string, envConfig EnvConfig, prefix string) []DigestInfo {
+func parseEnvironment(configDir string, envConfig EnvConfig, prefix string, gitRepoDir string) []DigestInfo {
 	// Parse base config files
 	configs := make(map[string]map[string]interface{})
 	for _, source := range envConfig.Sources {
@@ -306,9 +307,8 @@ func parseEnvironment(configDir string, envConfig EnvConfig, prefix string) []Di
 
 	// Add merge time and commit hash information
 	for i := range digests {
-		// Use relative path from current working directory to config files
-		filePath := filepath.Join(configDir, digests[i].SourceFile)
-		mergeTime, commitHash := getDigestMergeInfo(digests[i].Digest, filePath)
+		// Use source file path relative to git repo directory
+		mergeTime, commitHash := getDigestMergeInfo(digests[i].Digest, digests[i].SourceFile, gitRepoDir)
 		digests[i].MergeTime = mergeTime
 		digests[i].CommitHash = commitHash
 	}
@@ -1226,9 +1226,10 @@ func displayWideGS(wideTable *WideTable) {
 	}
 }
 
-func getDigestMergeInfo(digest, filePath string) (string, string) {
+func getDigestMergeInfo(digest, sourceFile, gitRepoDir string) (string, string) {
 	// Use git blame to find when this specific line was last modified
-	cmd := exec.Command("git", "blame", filePath)
+	// Run git commands in the context of gitRepoDir
+	cmd := exec.Command("git", "-C", gitRepoDir, "blame", sourceFile)
 	output, err := cmd.Output()
 	if err != nil {
 		return "unknown", "unknown"
@@ -1250,7 +1251,7 @@ func getDigestMergeInfo(digest, filePath string) (string, string) {
 			}
 
 			// Get timestamp for this commit
-			cmd = exec.Command("git", "show", "-s", "--format=%ct", commitHash)
+			cmd = exec.Command("git", "-C", gitRepoDir, "show", "-s", "--format=%ct", commitHash)
 			timestampOutput, err := cmd.Output()
 			if err != nil {
 				return "unknown", commitHash
