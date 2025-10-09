@@ -98,13 +98,21 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 	clusterClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewHcpOpenShiftClustersClient()
 	_, mutationErr := clusterClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, *toCreate.Name, *toCreate, nil)
 
-	if tt.genericMutationTestInfo.isUpdateTest() {
+	if tt.genericMutationTestInfo.isUpdateTest() || tt.genericMutationTestInfo.isPatchTest() {
 		require.NoError(t, mutationErr)
 		require.NoError(t, MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+	}
 
+	switch {
+	case tt.genericMutationTestInfo.isUpdateTest():
 		toUpdate := &hcpsdk20240610preview.HcpOpenShiftCluster{}
 		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))
 		_, mutationErr = clusterClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, *toUpdate.Name, *toUpdate, nil)
+
+	case tt.genericMutationTestInfo.isPatchTest():
+		toPatch := &hcpsdk20240610preview.HcpOpenShiftClusterUpdate{}
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.patchJSON, toPatch))
+		_, mutationErr = clusterClient.BeginUpdate(ctx, tt.resourceGroupName, *toCreate.Name, *toPatch, nil)
 
 	}
 

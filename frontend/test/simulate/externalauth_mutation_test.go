@@ -101,14 +101,21 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 	externalAuthClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewExternalAuthsClient()
 	_, mutationErr := externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toCreate, nil)
 
-	if tt.genericMutationTestInfo.isUpdateTest() {
+	if tt.genericMutationTestInfo.isUpdateTest() || tt.genericMutationTestInfo.isPatchTest() {
 		require.NoError(t, mutationErr)
 		require.NoError(t, MarkOperationsCompleteForName(ctx, tt.testInfo.DBClient, tt.subscriptionID, ptr.Deref(toCreate.Name, "")))
+	}
 
+	switch {
+	case tt.genericMutationTestInfo.isUpdateTest():
 		toUpdate := &hcpsdk20240610preview.ExternalAuth{}
 		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))
 		_, mutationErr = externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toUpdate.Name, *toUpdate, nil)
 
+	case tt.genericMutationTestInfo.isPatchTest():
+		toPatch := &hcpsdk20240610preview.ExternalAuthUpdate{}
+		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.patchJSON, toPatch))
+		_, mutationErr = externalAuthClient.BeginUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toPatch, nil)
 	}
 
 	tt.genericMutationTestInfo.verifyActualError(t, mutationErr)

@@ -2,13 +2,7 @@
   "id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
   "identity": {
     "principalId": "the-principal",
-    "tenantId": "the-tenant",
-    "userAssignedIdentities": {
-      "": {
-        "clientId": "",
-        "principalId": ""
-      }
-    }
+    "tenantId": "the-tenant"
   },
   "location": "globals-are-evil",
   "name": "some-hcp-cluster",
@@ -35,12 +29,6 @@
     },
     "platform": {
       "managedResourceGroup": "aro-hcp-cluster-managed-rg",
-      "operatorsAuthentication": {
-        "userAssignedIdentities": {
-          "controlPlaneOperators": {},
-          "dataPlaneOperators": {}
-        }
-      },
       "outboundType": "LoadBalancer"
     },
     "version": {
