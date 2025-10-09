@@ -25,6 +25,11 @@ import (
 	"github.com/Azure/azure-kusto-go/kusto/data/table"
 )
 
+type KustoClient interface {
+	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*QueryResult, error)
+	Close() error
+}
+
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
 	Debug       bool
@@ -32,6 +37,8 @@ type Client struct {
 	Endpoint    string
 	kustoClient *kusto.Client
 }
+
+var _ KustoClient = &Client{}
 
 // QueryResult represents the result of a Kusto query execution
 type QueryResult struct {

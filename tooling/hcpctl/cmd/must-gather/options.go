@@ -157,13 +157,13 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
 
-	err = os.MkdirAll(path.Join(o.OutputPath, "serviceLogs"), 0755)
+	err = os.MkdirAll(path.Join(o.OutputPath, ServicesLogDirectory), 0755)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service logs directory: %w", err)
 	}
 
 	if !o.SkipCustomerLogs {
-		err = os.MkdirAll(path.Join(o.OutputPath, "customerLogs"), 0755)
+		err = os.MkdirAll(path.Join(o.OutputPath, CustomerLogDirectory), 0755)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create customer logs directory: %w", err)
 		}

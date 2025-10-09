@@ -27,6 +27,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var ServicesLogDirectory = "serviceLogs"
+var CustomerLogDirectory = "customerLogs"
+
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "must-gather",
@@ -65,7 +68,7 @@ func newQueryCommand() (*cobra.Command, error) {
 		SilenceErrors:    true,
 		TraverseChildren: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runQuery(cmd.Context(), opts)
+			return opts.Run(cmd.Context())
 		},
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
@@ -79,7 +82,7 @@ func newQueryCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
+func (opts *RawMustGatherOptions) Run(ctx context.Context) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
@@ -90,24 +93,28 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		return err
 	}
 
+	return completed.Run(ctx)
+}
+
+func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	defer func() {
-		if closeErr := completed.Client.Close(); closeErr != nil {
+		if closeErr := opts.Client.Close(); closeErr != nil {
 			fmt.Printf("Warning: failed to close Kusto client: %v\n", closeErr)
 		}
 	}()
 
-	clusterIds, err := executeClusterIdQuery(ctx, completed.Client, completed, completed.QueryOptions)
+	clusterIds, err := executeClusterIdQuery(ctx, opts.Client, opts, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
-	completed.QueryOptions.ClusterIds = clusterIds
-	err = writeQueryOptionsToFile(completed.OutputPath, completed.QueryOptions)
+	opts.QueryOptions.ClusterIds = clusterIds
+	err = writeQueryOptionsToFile(opts.OutputPath, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to write query options to file: %w", err)
 	}
 
-	err = executeServicesQueries(ctx, completed.Client, completed, completed.QueryOptions)
+	err = executeServicesQueries(ctx, opts.Client, opts, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -116,7 +123,7 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		fmt.Println("Skipping customer logs")
 	} else {
 		fmt.Println("Executing customer logs")
-		err := executeCustomerLogsQuery(ctx, completed.Client, completed, completed.QueryOptions)
+		err := executeCustomerLogsQuery(ctx, opts.Client, opts, opts.QueryOptions)
 		if err != nil {
 			return fmt.Errorf("failed to execute customer logs query: %w", err)
 		}
@@ -177,7 +184,7 @@ func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *Mus
 
 	var err error
 	go func() {
-		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, "serviceLogs")
+		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, ServicesLogDirectory)
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to write container logs to file: %w", err)
@@ -194,7 +201,7 @@ func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *M
 
 	var err error
 	go func() {
-		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, "customerLogs")
+		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, CustomerLogDirectory)
 	}()
 	if err != nil {
 		return fmt.Errorf("failed to write container logs to file: %w", err)
@@ -222,18 +229,18 @@ func writeQueryResultToFile(outputPath string, queryName string, result *kusto.Q
 	return json.NewEncoder(file).Encode(result)
 }
 
-func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery, outputChannel chan any) error {
+func executeContainerLogsQueries(ctx context.Context, client kusto.KustoClient, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery, outputChannel chan any) error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
 
-	errorCh := make(chan error)
+	errorCh := make(chan error, len(queries))
 
 	for i, query := range queries {
-		go func(query *kusto.ConfigurableQuery) {
+		go func(query *kusto.ConfigurableQuery, queryIndex int) {
 			defer wg.Done()
 			result, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ContainerLogsRow{}, opts.QueryTimeout)
 			if err != nil {
-				fmt.Printf("Query %d failed: %v\n", i+1, err)
+				fmt.Printf("Query %d failed: %v\n", queryIndex+1, err)
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}
@@ -241,10 +248,11 @@ func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts
 			if err != nil {
 				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
 			}
-		}(query)
+		}(query, i)
 	}
-	close(errorCh)
+
 	wg.Wait()
+	close(errorCh)
 
 	allErrors := []error{}
 	for err := range errorCh {
