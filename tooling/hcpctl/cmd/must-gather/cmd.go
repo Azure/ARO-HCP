@@ -175,7 +175,13 @@ func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *Mus
 	outputChannel := make(chan any)
 	defer close(outputChannel)
 
-	go writeContainerLogsToFile(outputChannel, opts.OutputPath, "serviceLogs")
+	var err error
+	go func() {
+		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, "serviceLogs")
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to write container logs to file: %w", err)
+	}
 
 	return executeContainerLogsQueries(ctx, client, opts, queries, outputChannel)
 }
@@ -186,14 +192,19 @@ func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *M
 	outputChannel := make(chan any)
 	defer close(outputChannel)
 
-	go writeContainerLogsToFile(outputChannel, opts.OutputPath, "customerLogs")
+	var err error
+	go func() {
+		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, "customerLogs")
+	}()
+	if err != nil {
+		return fmt.Errorf("failed to write container logs to file: %w", err)
+	}
 
 	return executeContainerLogsQueries(ctx, client, opts, query, outputChannel)
 }
 
 func writeQueryOptionsToFile(outputPath string, queryOptions QueryOptions) error {
-	fileName := fmt.Sprintf("query-options.json")
-	file, err := os.Create(path.Join(outputPath, fileName))
+	file, err := os.Create(path.Join(outputPath, "query-options.json"))
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
@@ -214,22 +225,35 @@ func writeQueryResultToFile(outputPath string, queryName string, result *kusto.Q
 func executeContainerLogsQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery, outputChannel chan any) error {
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
+
+	errorCh := make(chan error)
+
 	for i, query := range queries {
-		go func(query *kusto.ConfigurableQuery) error {
+		go func(query *kusto.ConfigurableQuery) {
 			defer wg.Done()
 			result, err := client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ContainerLogsRow{}, opts.QueryTimeout)
 			if err != nil {
 				fmt.Printf("Query %d failed: %v\n", i+1, err)
-				return fmt.Errorf("failed to execute query: %w", err)
+				errorCh <- fmt.Errorf("failed to execute query: %w", err)
+				return
 			}
 			err = writeQueryResultToFile(opts.OutputPath, query.Name, result)
 			if err != nil {
-				return fmt.Errorf("failed to write query result to file: %w", err)
+				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
 			}
-			return nil
 		}(query)
 	}
+	close(errorCh)
 	wg.Wait()
+
+	allErrors := []error{}
+	for err := range errorCh {
+		allErrors = append(allErrors, err)
+	}
+
+	if len(allErrors) > 0 {
+		return fmt.Errorf("failed to execute queries: %v", allErrors)
+	}
 
 	return nil
 }

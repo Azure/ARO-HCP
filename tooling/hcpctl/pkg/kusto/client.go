@@ -138,7 +138,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	executionTime := time.Since(startTime)
 
-	fmt.Printf("Query '%s' completed: %d rows in %v\n", query.Name, totalRows, executionTime)
+	fmt.Printf("Query '%s' completed: %d rows with %d KB in %v\n", query.Name, totalRows, dataSize/1024, executionTime)
 
 	return &QueryResult{
 		Columns: columns,
