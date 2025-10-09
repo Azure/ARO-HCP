@@ -2,6 +2,7 @@ package kusto
 
 import (
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-kusto-go/kusto/kql"
 )
@@ -40,6 +41,13 @@ func (q *ConfigurableQuery) WithClusterId(clusterId string) *ConfigurableQuery {
 
 func (q *ConfigurableQuery) WithLimit(limit int) *ConfigurableQuery {
 	q.Query.AddLiteral("\n| limit ").AddInt(int32(limit))
+	return q
+}
+
+func (q *ConfigurableQuery) WithTimestampMinAndMax(timestampMin time.Time, timestampMax time.Time) *ConfigurableQuery {
+	q.Query.AddLiteral("\n| where timestamp >= timestampMin and timestamp <= timestampMax")
+	q.Parameters.AddDateTime("timestampMin", timestampMin)
+	q.Parameters.AddDateTime("timestampMax", timestampMax)
 	return q
 }
 

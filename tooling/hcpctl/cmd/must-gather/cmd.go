@@ -50,13 +50,6 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 	}
 	cmd.AddCommand(queryCmd)
 
-	// Add show-builtin-queries subcommand
-	showBuiltinQueriesCmd, err := showBuiltinQueries()
-	if err != nil {
-		return nil, err
-	}
-	cmd.AddCommand(showBuiltinQueriesCmd)
-
 	return cmd, nil
 }
 
@@ -87,38 +80,6 @@ func newQueryCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func showBuiltinQueries() (*cobra.Command, error) {
-	opts := DefaultMustGatherOptions()
-
-	cmd := &cobra.Command{
-		Use:     "show-builtin-queries",
-		Aliases: []string{"sbq"},
-		Short:   "Show builtin queries",
-		Long:    `Show builtin queries`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowBuiltinQueries(cmd.Context(), opts)
-		},
-		CompletionOptions: cobra.CompletionOptions{
-			HiddenDefaultCmd: true,
-		},
-	}
-
-	return cmd, nil
-}
-
-func runShowBuiltinQueries(_ context.Context, _ *RawMustGatherOptions) error {
-	queries := getServicesQueries([]string{"cid"}, "subscription", "rg")
-
-	for _, query := range queries {
-		fmt.Printf("Query %s:\n", query.Name)
-		fmt.Printf("--------------------------------\n")
-		fmt.Printf("%s\n", query.Query)
-		fmt.Printf("--------------------------------\n")
-	}
-
-	return nil
-}
-
 func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 	// Validate options
 	validated, err := opts.Validate(ctx)
@@ -133,7 +94,7 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 	}
 
 	// Create Kusto client
-	client, err := kusto.NewClient(opts.KustoEndpoint)
+	client, err := kusto.NewClient(opts.KustoEndpoint, opts.KustoDebug)
 	if err != nil {
 		return fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -143,14 +104,15 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		}
 	}()
 
-	clusterIds, err := executeClusterIdQuery(ctx, client, completed)
+	clusterIds, err := executeClusterIdQuery(ctx, client, completed, completed.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
 	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
+	completed.QueryOptions.ClusterIds = clusterIds
 
 	// Execute the query operation
-	data, err := executeServicesQueries(ctx, client, completed, clusterIds)
+	data, err := executeServicesQueries(ctx, client, completed, completed.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -162,13 +124,18 @@ func runQuery(ctx context.Context, opts *RawMustGatherOptions) error {
 		}
 	}
 
-	customerLogs, err := executeCustomerLogsQuery(ctx, client, completed, clusterIds)
-	if err != nil {
-		return fmt.Errorf("failed to execute customer logs query: %w", err)
-	}
-	for _, rows := range customerLogs {
-		if err := writeServiceLogsToFile(rows, opts.OutputPath, "customerLogs"); err != nil {
-			return fmt.Errorf("failed to write data to output file: %w", err)
+	if opts.SkipCustomerLogs {
+		fmt.Println("Skipping customer logs")
+	} else {
+		fmt.Println("Executing customer logs")
+		customerLogs, err := executeCustomerLogsQuery(ctx, client, completed, completed.QueryOptions)
+		if err != nil {
+			return fmt.Errorf("failed to execute customer logs query: %w", err)
+		}
+		for _, rows := range customerLogs {
+			if err := writeServiceLogsToFile(rows, opts.OutputPath, "customerLogs"); err != nil {
+				return fmt.Errorf("failed to write data to output file: %w", err)
+			}
 		}
 	}
 
@@ -195,8 +162,8 @@ func writeServiceLogsToFile(data []ContainerLogsRow, outputPath string, director
 	return nil
 }
 
-func executeClusterIdQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions) ([]string, error) {
-	query := getClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup)
+func executeClusterIdQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([]string, error) {
+	query := getClusterIdQuery(queryOpts.SubscriptionId, queryOpts.ResourceGroupName)
 
 	result, err := client.ExecutePreconfiguredQuery(ctx, query, ClusterIdRow{}, opts.QueryTimeout)
 	if err != nil {
@@ -214,13 +181,13 @@ func executeClusterIdQuery(ctx context.Context, client *kusto.Client, opts *Must
 }
 
 // executeQuery performs the actual query execution against Azure Data Explorer
-func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, clusterIds []string) ([][]ContainerLogsRow, error) {
-	queries := getServicesQueries(clusterIds, opts.SubscriptionID, opts.ResourceGroup)
+func executeServicesQueries(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([][]ContainerLogsRow, error) {
+	queries := getServicesQueries(queryOpts)
 	return executeContainerLogsQueries(ctx, client, opts, queries)
 }
 
-func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, clusterIds []string) ([][]ContainerLogsRow, error) {
-	query := getCustomerLogsQuery(clusterIds)
+func executeCustomerLogsQuery(ctx context.Context, client *kusto.Client, opts *MustGatherOptions, queryOpts QueryOptions) ([][]ContainerLogsRow, error) {
+	query := getCustomerLogsQuery(queryOpts)
 	return executeContainerLogsQueries(ctx, client, opts, query)
 }
 

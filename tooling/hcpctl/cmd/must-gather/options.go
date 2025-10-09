@@ -27,13 +27,18 @@ import (
 
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
 type RawMustGatherOptions struct {
-	BaseOptions    *base.RawBaseOptions
-	KustoEndpoint  string        // Azure Data Explorer cluster endpoint
-	OutputPath     string        // Path to write the output file
-	QueryTimeout   time.Duration // Timeout for query execution
-	OutputFormat   string        // Output format (json, csv, table)
-	SubscriptionID string        // Subscription ID
-	ResourceGroup  string        // Resource group
+	BaseOptions      *base.RawBaseOptions
+	KustoDebug       bool          // Print debug information
+	KustoEndpoint    string        // Azure Data Explorer cluster endpoint
+	OutputPath       string        // Path to write the output file
+	QueryTimeout     time.Duration // Timeout for query execution
+	OutputFormat     string        // Output format (json, csv, table)
+	SubscriptionID   string        // Subscription ID
+	ResourceGroup    string        // Resource group
+	SkipCustomerLogs bool          // Skip customer logs
+	TimestampMin     time.Time     // Timestamp minimum
+	TimestampMax     time.Time     // Timestamp maximum
+	Limit            int           // Limit the number of results
 }
 
 // DefaultMustGatherOptions returns a new RawMustGatherOptions struct initialized with sensible defaults.
@@ -61,6 +66,11 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
 	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
+	cmd.Flags().BoolVar(&opts.SkipCustomerLogs, "skip-customer-logs", opts.SkipCustomerLogs, "Do not gather customer (ocm namespaces) logs")
+	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
+	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
+	cmd.Flags().BoolVar(&opts.KustoDebug, "kusto-debug", opts.KustoDebug, "print debug information")
+	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
 	if err := cmd.MarkFlagRequired("kusto-endpoint"); err != nil {
@@ -74,6 +84,7 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 type ValidatedMustGatherOptions struct {
 	*RawMustGatherOptions
 	OutputFormat common.OutputFormat
+	QueryOptions QueryOptions
 }
 
 // Validate performs comprehensive validation of all must-gather input parameters.
@@ -116,6 +127,13 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
 		OutputFormat:         outputFormat,
+		QueryOptions: QueryOptions{
+			SubscriptionId:    o.SubscriptionID,
+			ResourceGroupName: o.ResourceGroup,
+			TimestampMin:      o.TimestampMin,
+			TimestampMax:      o.TimestampMax,
+			Limit:             10000,
+		},
 	}, nil
 }
 

@@ -27,6 +27,7 @@ import (
 
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
+	Debug       bool
 	ClusterName string
 	Endpoint    string
 	kustoClient *kusto.Client
@@ -53,7 +54,7 @@ type QueryStats struct {
 }
 
 // NewClient creates a new Azure Data Explorer client
-func NewClient(endpoint string) (*Client, error) {
+func NewClient(endpoint string, debug bool) (*Client, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("cluster name is required")
 	}
@@ -71,6 +72,7 @@ func NewClient(endpoint string) (*Client, error) {
 	}
 
 	return &Client{
+		Debug:       debug,
 		Endpoint:    endpoint,
 		kustoClient: kustoClient,
 	}, nil
@@ -87,6 +89,10 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	// Execute the query using kql.Builder with AddUnsafe for dynamic queries
 	// This allows us to use dynamic query strings
+	if c.Debug {
+		fmt.Printf("Query: %s\n", query.Query.String())
+		fmt.Printf("Parameters: %v\n", query.Parameters.ToParameterCollection())
+	}
 	iter, err := c.kustoClient.Query(queryCtx, query.Database, query.Query, kusto.QueryParameters(query.Parameters))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)

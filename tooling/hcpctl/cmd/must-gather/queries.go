@@ -31,28 +31,40 @@ type ClusterIdRow struct {
 	ClusterId string `kusto:"cid"`
 }
 
-func getServicesQueries(clusterIds []string, subscriptionId, resourceGroupName string) []*kusto.ConfigurableQuery {
+type QueryOptions struct {
+	ClusterIds        []string
+	SubscriptionId    string
+	ResourceGroupName string
+	TimestampMin      time.Time
+	TimestampMax      time.Time
+	Limit             int
+}
+
+func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, table := range servicesTables {
 		query := kusto.NewConfigurableQuery(table, servicesDatabase).
 			WithTable(table).
-			WithDefaultFields().
-			WithClusterIdOrSubscriptionAndResourceGroup(clusterIds, subscriptionId, resourceGroupName)
+			WithDefaultFields()
 
+		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
+		query.WithLimit(opts.Limit)
 		queries = append(queries, query)
 	}
 	return queries
 }
 
-func getCustomerLogsQuery(clusterIds []string) []*kusto.ConfigurableQuery {
+func getCustomerLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
-	for _, clusterId := range clusterIds {
+	for _, clusterId := range opts.ClusterIds {
 		query := kusto.NewConfigurableQuery("customerLogs", customerLogsDatabase).
 			WithTable(containerLogsTable).
-			WithDefaultFields().
-			WithClusterId(clusterId).
-			WithLimit(10000)
+			WithDefaultFields()
 
+		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+		query.WithClusterId(clusterId)
+		query.WithLimit(opts.Limit)
 		queries = append(queries, query)
 	}
 	return queries
@@ -60,4 +72,14 @@ func getCustomerLogsQuery(clusterIds []string) []*kusto.ConfigurableQuery {
 
 func getClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
 	return kusto.NewClusterIdQuery(containerLogsTable, subscriptionId, resourceGroupName)
+}
+
+func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {
+	if timestampMin.IsZero() {
+		timestampMin = time.Now().Add(-24 * time.Hour)
+	}
+	if timestampMax.IsZero() {
+		timestampMax = time.Now()
+	}
+	return timestampMin, timestampMax
 }
