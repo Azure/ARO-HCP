@@ -3,6 +3,10 @@ on:
   pull_request:
     branches:
     - main
+    paths-ignore:
+    - '**/CLAUDE.md'
+    - '**/GEMINI.md'
+    - '**/AGENTS.md'
 permissions:
   contents: read
 jobs:
