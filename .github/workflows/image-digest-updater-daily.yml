@@ -1,0 +1,15 @@
+name: Image Digest Updater (Daily - Frontend/Backend)
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: '0 0 * * *'
+jobs:
+  daily:
+    uses: ./.github/workflows/image-digest-updater-main.yml
+    with:
+      update-args: '--components arohcpfrontend,arohcpbackend'
+      job-name: 'daily'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
