@@ -79,7 +79,7 @@ ARO HCP also relies on global Azure resources to provide **efficient, scalable**
 - **Azure Container Registry (ACR) with Regional Replication**
   - Stores all container images required by ARO HCP.
   - **SVC ACR**: Contains all images for ARO HCP services.
-  - **OCP ACR**: Mirrors OpenShift images from quay.io
+  - **OCP ACR**: Mirrors OpenShift images from quay.io using a cache rule.
   - Images only need to be mirrored once and are automatically replicated across required regions (see [here](acrs-and-images.md) for information about image mirroring).
 
 - **Azure Front Door Global Deployment**
