@@ -172,6 +172,7 @@ defaults:
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
       genevaActionsPrincipalId: ""
   kusto:
+    enabled: false
     resourceGroup: ""
     cluster: ""
     ingestionUrl: ""
@@ -742,7 +743,6 @@ clouds:
     defaults:
       kusto:
         ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        enabled: false
       kubeEvents:
         enabled: false
       automationDryRun: false
