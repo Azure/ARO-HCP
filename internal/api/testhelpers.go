@@ -135,6 +135,10 @@ func NewTestValidator() *validator.Validate {
 		VisibilityPublic,
 		VisibilityPrivate,
 	))
+	validate.RegisterAlias("enum_persistence", EnumValidateTag(
+		PersistenceTypePersistent,
+		PersistenceTypeEphemeral,
+	))
 
 	return validate
 }

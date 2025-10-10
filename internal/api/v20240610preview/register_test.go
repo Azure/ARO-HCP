@@ -126,6 +126,7 @@ func TestNodePoolVisibilityMap(t *testing.T) {
 		"Properties.Platform.OSDisk.SizeGiB":                api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.OSDisk.DiskStorageAccountType": api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.OSDisk.EncryptionSetID":        api.VisibilityRead | api.VisibilityCreate,
+		"Properties.Platform.OSDisk.Persistence":            api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Platform.AvailabilityZone":              api.VisibilityRead | api.VisibilityCreate,
 		"Properties.Replicas":                               api.VisibilityRead | api.VisibilityCreate | api.VisibilityUpdate,
 		"Properties.AutoRepair":                             api.VisibilityRead | api.VisibilityCreate,
@@ -153,7 +154,7 @@ func TestNodePoolVisibilityMap(t *testing.T) {
 }
 
 func TestExternalAuthVisibilityMap(t *testing.T) {
-	// This should include any nodePoolVisibilityMap
+	// This should include any externalAuthVisibilityMap
 	// overrides from the package's init() function.
 	expectedVisibility := map[string]api.VisibilityFlags{
 		"ID":                                                           api.VisibilityRead | api.VisibilityCaseInsensitive,
