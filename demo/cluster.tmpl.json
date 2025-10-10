@@ -1,10 +1,6 @@
 {
   "location": "$location",
   "properties": {
-    "version": {
-      "id": "4.19",
-      "channelGroup": "stable"
-    },
     "dns": {},
     "network": {
       "networkType": "OVNKubernetes",
