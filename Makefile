@@ -189,11 +189,11 @@ services_svc_pipelines = backend frontend cluster-service maestro.server observa
 services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent observability.tracing route-monitor-operator
 %.deploy_pipeline: $(ORAS_LINK)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p $(shell yq .serviceGroup ./$(dirname)/pipeline.yaml) -P run
+	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
 
 %.dry_run: $(ORAS_LINK)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
-	./templatize.sh $(DEPLOY_ENV) -p $(shell yq .serviceGroup ./$(dirname)/pipeline.yaml) -P run -d
+	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run -d
 
 svc.deployall: $(ORAS_LINK) $(addsuffix .deploy_pipeline, $(services_svc_pipelines)) $(addsuffix .deploy, $(services_svc))
 mgmt.deployall: $(ORAS_LINK) $(addsuffix .deploy, $(services_mgmt)) $(addsuffix .deploy_pipeline, $(services_mgmt_pipelines))
@@ -212,7 +212,7 @@ rebase:
 
 validate-config-pipelines:
 	$(MAKE) -C tooling/templatize templatize
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell yq '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
+	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
