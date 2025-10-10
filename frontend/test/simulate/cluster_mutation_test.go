@@ -47,7 +47,8 @@ func TestFrontendClusterMutation(t *testing.T) {
 	require.NoError(t, err)
 
 	// create anything and round trip anything for cluster-service
-	trivialPassThroughClusterServiceMock(t, testInfo)
+	err = trivialPassThroughClusterServiceMock(t, testInfo, nil)
+	require.NoError(t, err)
 
 	dirContent := api.Must(artifacts.ReadDir("artifacts/ClusterMutation"))
 	for _, dirEntry := range dirContent {
