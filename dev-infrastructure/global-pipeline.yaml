@@ -152,37 +152,3 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-  # mirror oc-mirror image
-  - name: mirror-oc-mirror-image
-    action: ImageMirror
-    targetACR:
-      configRef: 'acr.svc.name'
-    sourceRegistry:
-      configRef: imageSync.ocMirror.image.registry
-    repository:
-      configRef: imageSync.ocMirror.image.repository
-    digest:
-      configRef: imageSync.ocMirror.image.digest
-    pullSecretKeyVault:
-      configRef: global.keyVault.name
-    pullSecretName:
-      configRef: imageSync.ondemandSync.pullSecretName
-    dependsOn:
-    - resourceGroup: global
-      step: acrs
-    - resourceGroup: global
-      step: decrypt-and-ingest-secrets
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-  # deploys the image mirror for the ACRs
-  - name: imagemirror
-    action: ARM
-    template: templates/global-image-sync.bicep
-    parameters: configurations/global-image-sync.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    dependsOn:
-    - resourceGroup: global
-      step: mirror-oc-mirror-image

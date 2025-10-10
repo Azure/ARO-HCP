@@ -36,8 +36,6 @@ jobs:
             - 'pko/**'
             - 'acm/**'
             - 'hypershiftoperator/**'
-            - 'image-sync/**/'
-            - 'tooling/image-sync/**'
             - 'tooling/templatize/**'
             - 'config/*'
   is_running_on_fork:

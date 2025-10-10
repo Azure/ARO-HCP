@@ -33,7 +33,6 @@ on:
     - 'pko/**'
     - 'acm/**'
     - 'hypershiftoperator/**'
-    - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
     types:

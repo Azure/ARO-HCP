@@ -291,18 +291,8 @@ hypershift:
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
 imageSync:
-  environmentName: aro-hcp-image-sync
-  ocMirror:
-    enabled: true
-    image:
-      digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
-      registry: arohcpsvcdev.azurecr.io
-      repository: image-sync/oc-mirror
-    jobNamePrefix: swft-
-    pullSecretName: ocmirror-pull-secret
   ondemandSync:
     pullSecretName: component-sync-pull-secret
-  outboundServiceTags: ""
 keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false

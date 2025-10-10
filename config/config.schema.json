@@ -1654,12 +1654,6 @@
     "imageSync": {
       "type": "object",
       "properties": {
-        "environmentName": {
-          "type": "string"
-        },
-        "outboundServiceTags": {
-          "$ref": "#/definitions/keyColonValueCSV"
-        },
         "ondemandSync": {
           "type": "object",
           "properties": {
@@ -1671,37 +1665,11 @@
           "required": [
             "pullSecretName"
           ]
-        },
-        "ocMirror": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "jobNamePrefix": {
-              "type": "string"
-            },
-            "image": {
-              "$ref": "#/definitions/containerImage"
-            },
-            "pullSecretName": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "enabled",
-            "image",
-            "pullSecretName"
-          ]
         }
       },
       "additionalProperties": false,
       "required": [
-        "environmentName",
-        "outboundServiceTags",
-        "ondemandSync",
-        "ocMirror"
+        "ondemandSync"
       ]
     },
     "arobit": {
