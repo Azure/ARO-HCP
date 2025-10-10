@@ -49,15 +49,13 @@ param ipZones array
 param kubernetesVersion string
 param deployIstio bool
 param istioVersions array = []
-param vnetAddressPrefix string
-param subnetPrefix string
+param vnetName string
+param nodeSubnetId string
 param podSubnetPrefix string
 param clusterType string
 param workloadIdentities array
-param nodeSubnetNSGId string
 param networkDataplane string
 param networkPolicy string
-param enableSwiftV2Vnet bool
 param enableSwiftV2Nodepools bool
 
 @description('Istio Ingress Gateway Public IP Address resource name')
@@ -119,13 +117,6 @@ var aksClusterAdminRBACRoleId = subscriptionResourceId(
 var networkContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions/',
   '4d97b98b-1d4f-4787-a291-c67834d212e7'
-)
-
-// Tag Contributor Role
-// https://www.azadvertizer.net/azrolesadvertizer/4a9ae827-6dc8-4573-8ac7-8239d42aa03f.html
-var tagContributorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions/',
-  '4a9ae827-6dc8-4573-8ac7-8239d42aa03f'
 )
 
 import * as res from '../modules/resource.bicep'
@@ -190,75 +181,8 @@ resource aks_keyvault_crypto_user 'Microsoft.Authorization/roleAssignments@2022-
 //   N E T W O R K
 //
 
-resource deploymentMsiNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: resourceGroup()
-  name: guid(deploymentMsiId, networkContributorRoleId, resourceGroup().id)
-  properties: {
-    roleDefinitionId: networkContributorRoleId
-    principalId: reference(deploymentMsiId, '2023-01-31').principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource deploymentMsiTagContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: resourceGroup()
-  name: guid(deploymentMsiId, tagContributorRoleId, resourceGroup().id)
-  properties: {
-    roleDefinitionId: tagContributorRoleId
-    principalId: reference(deploymentMsiId, '2023-01-31').principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-var vnetName = 'aks-net'
-
-module vnetCreation '../modules/network/vnet.bicep' = {
-  name: 'vnet-${vnetName}-creation'
-  params: {
-    location: location
-    vnetName: vnetName
-    vnetAddressPrefix: vnetAddressPrefix
-    enableSwift: enableSwiftV2Vnet
-    deploymentMsiId: deploymentMsiId
-  }
-  dependsOn: [
-    deploymentMsiNetworkContributorRoleAssignment
-    deploymentMsiTagContributorRoleAssignment
-  ]
-}
-
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
   name: vnetName
-  dependsOn: [
-    vnetCreation
-  ]
-}
-
-resource aksNodeSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
-  parent: vnet
-  name: 'ClusterSubnet-001'
-  properties: {
-    addressPrefix: subnetPrefix
-    privateEndpointNetworkPolicies: 'Disabled'
-    serviceEndpoints: [
-      {
-        service: 'Microsoft.AzureCosmosDB'
-      }
-      {
-        service: 'Microsoft.ContainerRegistry'
-      }
-      {
-        service: 'Microsoft.Storage'
-      }
-      {
-        service: 'Microsoft.KeyVault'
-      }
-    ]
-    defaultOutboundAccess: false
-    networkSecurityGroup: {
-      id: nodeSubnetNSGId
-    }
-  }
 }
 
 resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
@@ -282,9 +206,6 @@ resource aksPodSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = {
       }
     ]
   }
-  dependsOn: [
-    aksNodeSubnet
-  ]
 }
 
 //
@@ -298,7 +219,7 @@ resource aksClusterUserDefinedManagedIdentity 'Microsoft.ManagedIdentity/userAss
 
 resource aksNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: vnet
-  name: guid(aksClusterUserDefinedManagedIdentity.id, networkContributorRoleId, aksNodeSubnet.id)
+  name: guid(aksClusterUserDefinedManagedIdentity.id, networkContributorRoleId, nodeSubnetId)
   properties: {
     roleDefinitionId: networkContributorRoleId
     principalId: aksClusterUserDefinedManagedIdentity.properties.principalId
@@ -428,7 +349,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
         upgradeSettings: {
           maxSurge: '10%'
         }
-        vnetSubnetID: aksNodeSubnet.id
+        vnetSubnetID: nodeSubnetId
         podSubnetID: aksPodSubnet.id
         maxPods: 100
         availabilityZones: systemPoolZonesArray
@@ -571,7 +492,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     maxCount: userAgentMaxCount
     vmSize: userAgentVMSize
     osDiskSizeGB: userOsDiskSizeGB
-    vnetSubnetId: aksNodeSubnet.id
+    vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: userZoneRedundantMode
     maxPods: 225
@@ -591,7 +512,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     maxCount: infraAgentMaxCount
     vmSize: infraAgentVMSize
     osDiskSizeGB: infraOsDiskSizeGB
-    vnetSubnetId: aksNodeSubnet.id
+    vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: infraZoneRedundantMode
     maxPods: 225
@@ -625,9 +546,12 @@ module acrPullRole 'acr/acr-permissions.bicep' = [
   }
 ]
 
-resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [
+//
+//   W O R K L O A D   I D E N T I T I E S
+//
+
+resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = [
   for wi in workloadIdentities: {
-    location: location
     name: wi.value.uamiName
   }
 ]
@@ -695,16 +619,6 @@ resource aroDevopsMSIClusterAdmin 'Microsoft.Authorization/roleAssignments@2022-
 }
 
 // Outputs
-output userAssignedIdentities array = [
-  for i in range(0, length(workloadIdentities)): {
-    uamiID: uami[i].id
-    uamiName: workloadIdentities[i].value.uamiName
-    uamiClientID: uami[i].properties.clientId
-    uamiPrincipalID: uami[i].properties.principalId
-  }
-]
-output aksVnetId string = vnet.id
-output aksNodeSubnetId string = aksNodeSubnet.id
 output aksOidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
 output aksClusterName string = aksClusterName
 output aksClusterKeyVaultSecretsProviderPrincipalId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
