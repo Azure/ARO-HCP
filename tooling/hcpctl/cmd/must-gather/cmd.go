@@ -54,6 +54,13 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 	}
 	cmd.AddCommand(queryCmd)
 
+	// Add clean subcommand
+	cleanCmd, err := newCleanCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(cleanCmd)
+
 	return cmd, nil
 }
 
