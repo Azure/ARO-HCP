@@ -75,7 +75,7 @@ clustersService:
 
 ### oc-mirror
 
-[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. It is now only in user for ACM images. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
+[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. It is now only in use for ACM images. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
 
 ## Building ARO HCP Images
 
