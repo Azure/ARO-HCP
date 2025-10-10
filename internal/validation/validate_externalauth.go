@@ -108,9 +108,32 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 		nil, nil,
 		validateExternalAuthClientProfile,
 	)...)
+	errs = append(errs, validate.Unique(
+		ctx, op, fldPath.Child("clients"),
+		newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients),
+		func(lhs api.ExternalAuthClientProfile, rhs api.ExternalAuthClientProfile) bool {
+			return lhs.Component == rhs.Component
+		},
+	)...)
 
 	//Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"       validate:"required"`
 	errs = append(errs, validateExternalAuthClaimProfile(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toExternalAuthPropertiesClaim))...)
+
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("clients"),
+		newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients),
+		nil, nil,
+		func(ctx context.Context, op operation.Operation, fldPath *field.Path, newValue, oldValue *api.ExternalAuthClientProfile) field.ErrorList {
+			for _, audience := range newObj.Issuer.Audiences {
+				if audience == newValue.ClientID {
+					return nil
+				}
+			}
+			return field.ErrorList{
+				field.Invalid(fldPath, newValue, "must match an audience in issuer audiences"),
+			}
+		},
+	)...)
 
 	return errs
 }
