@@ -621,6 +621,9 @@ defaults:
       repository: app-sre/uhc-clusters-service
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
+    # batch processes
+    batchProcessesDryRun: true
+    batchProcesses: ""
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""

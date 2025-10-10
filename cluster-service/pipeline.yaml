@@ -89,6 +89,10 @@ resourceGroups:
       configRef: clustersService.image.digest
     - name: ACR_NAME
       configRef: acr.svc.name
+    - name: CS_BATCH_PROCESSES_DRY_RUN
+      configRef: clustersService.batchProcessesDryRun
+    - name: CS_BATCH_PROCESSES
+      configRef: clustersService.batchProcesses
     - name: OCP_ACR_NAME
       configRef: acr.ocp.name
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
