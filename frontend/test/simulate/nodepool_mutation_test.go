@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-func TestFrontendExternalAuthMutation(t *testing.T) {
+func TestFrontendNodePoolMutation(t *testing.T) {
 	SkipIfNotSimulationTesting(t)
 
 	ctx := context.Background()
@@ -44,27 +44,28 @@ func TestFrontendExternalAuthMutation(t *testing.T) {
 
 	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
 	resourceGroupName := "some-resource-group"
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ExternalAuthMutation/initial-cosmos-state")))
+	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cosmos-state")))
 	require.NoError(t, err)
 
-	// create anything and round trip anything for externalAuth-service
-	err = trivialPassThroughClusterServiceMock(t, testInfo, nil)
+	// create anything and round trip anything for nodePool-service
+	// this happens here because the mock is associated with frontend. it's a little awkward to add instances, but we'll deal
+	err = trivialPassThroughClusterServiceMock(t, testInfo, api.Must(fs.Sub(artifacts, "artifacts/NodePoolMutation/initial-cluster-service-state")))
 	require.NoError(t, err)
 
-	dirContent := api.Must(artifacts.ReadDir("artifacts/ExternalAuthMutation"))
+	dirContent := api.Must(artifacts.ReadDir("artifacts/NodePoolMutation"))
 	for _, dirEntry := range dirContent {
-		if dirEntry.Name() == "initial-cosmos-state" {
+		if dirEntry.Name() == "initial-cosmos-state" || dirEntry.Name() == "initial-cluster-service-state" {
 			continue
 		}
-		createTestDir, err := fs.Sub(artifacts, "artifacts/ExternalAuthMutation/"+dirEntry.Name())
+		createTestDir, err := fs.Sub(artifacts, "artifacts/NodePoolMutation/"+dirEntry.Name())
 		require.NoError(t, err)
-		currTest, err := newExternalAuthMutationTest(ctx, createTestDir, testInfo, subscriptionID, resourceGroupName)
+		currTest, err := newNodePoolMutationTest(ctx, createTestDir, testInfo, subscriptionID, resourceGroupName)
 		require.NoError(t, err)
 		t.Run(dirEntry.Name(), currTest.runTest)
 	}
 }
 
-type externalAuthMutationTest struct {
+type nodePoolMutationTest struct {
 	ctx               context.Context
 	testDir           fs.FS
 	testInfo          *SimulationTestInfo
@@ -74,13 +75,13 @@ type externalAuthMutationTest struct {
 	genericMutationTestInfo *genericMutationTest
 }
 
-func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *SimulationTestInfo, subscriptionID, resourceGroupName string) (*externalAuthMutationTest, error) {
+func newNodePoolMutationTest(ctx context.Context, testDir fs.FS, testInfo *SimulationTestInfo, subscriptionID, resourceGroupName string) (*nodePoolMutationTest, error) {
 	genericMutationTestInfo, err := readGenericMutationTest(testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	return &externalAuthMutationTest{
+	return &nodePoolMutationTest{
 		ctx:                     ctx,
 		testDir:                 testDir,
 		testInfo:                testInfo,
@@ -90,17 +91,17 @@ func newExternalAuthMutationTest(ctx context.Context, testDir fs.FS, testInfo *S
 	}, nil
 }
 
-func (tt *externalAuthMutationTest) runTest(t *testing.T) {
+func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 	ctx := tt.ctx
 
 	require.NoError(t, tt.genericMutationTestInfo.initialize(ctx, tt.testInfo))
 
 	// better solutions welcome to be coded. This is simple and works for the moment.
 	hcpClusterName := strings.Split(t.Name(), "/")[1]
-	toCreate := &hcpsdk20240610preview.ExternalAuth{}
+	toCreate := &hcpsdk20240610preview.NodePool{}
 	require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.createJSON, toCreate))
-	externalAuthClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewExternalAuthsClient()
-	_, mutationErr := externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toCreate, nil)
+	nodePoolClient := tt.testInfo.Get20240610ClientFactory(tt.subscriptionID).NewNodePoolsClient()
+	_, mutationErr := nodePoolClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toCreate, nil)
 
 	if tt.genericMutationTestInfo.isUpdateTest() || tt.genericMutationTestInfo.isPatchTest() {
 		require.NoError(t, mutationErr)
@@ -109,14 +110,14 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 
 	switch {
 	case tt.genericMutationTestInfo.isUpdateTest():
-		toUpdate := &hcpsdk20240610preview.ExternalAuth{}
+		toUpdate := &hcpsdk20240610preview.NodePool{}
 		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.updateJSON, toUpdate))
-		_, mutationErr = externalAuthClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toUpdate.Name, *toUpdate, nil)
+		_, mutationErr = nodePoolClient.BeginCreateOrUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toUpdate.Name, *toUpdate, nil)
 
 	case tt.genericMutationTestInfo.isPatchTest():
-		toPatch := &hcpsdk20240610preview.ExternalAuthUpdate{}
+		toPatch := &hcpsdk20240610preview.NodePoolUpdate{}
 		require.NoError(t, json.Unmarshal(tt.genericMutationTestInfo.patchJSON, toPatch))
-		_, mutationErr = externalAuthClient.BeginUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toPatch, nil)
+		_, mutationErr = nodePoolClient.BeginUpdate(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, *toPatch, nil)
 	}
 
 	tt.genericMutationTestInfo.verifyActualError(t, mutationErr)
@@ -126,7 +127,7 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 
 	// polling the result will never complete because we aren't actually working on the operation.  We want to do a GET to see
 	// if the data we read back matches what we expect.
-	actualCreated, err := externalAuthClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
+	actualCreated, err := nodePoolClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
 	require.NoError(t, err)
 	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
 }

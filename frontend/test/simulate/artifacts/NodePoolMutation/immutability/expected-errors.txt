@@ -1,0 +1,5 @@
+    InvalidRequestContent: properties.platform.vmSize: Field 'vmSize' cannot be updated
+    InvalidRequestContent: properties.platform.availabilityZone: Field 'availabilityZone' cannot be updated
+    InvalidRequestContent: properties.platform.enableEncryptionAtHost: Field 'enableEncryptionAtHost' cannot be updated
+    InvalidRequestContent: properties.platform.osDisk.diskStorageAccountType: Field 'diskStorageAccountType' cannot be updated
+    InvalidRequestContent: properties.platform.osDisk.sizeGiB: Field 'sizeGiB' cannot be updated
