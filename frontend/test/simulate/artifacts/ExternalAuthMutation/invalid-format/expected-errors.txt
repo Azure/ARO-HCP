@@ -165,3 +165,27 @@ InvalidRequestContent: properties.claim.validationRules[0].requiredClaim.claim: 
 InvalidRequestContent: properties.claim.validationRules[0].requiredClaim.requiredValue: properties.claim.validationRules[0].requiredClaim.requiredValue: Required value
 InvalidRequestContent: properties.claim.validationRules[1].requiredClaim.claim: properties.claim.validationRules[1].requiredClaim.claim: Required value
 InvalidRequestContent: properties.claim.validationRules[1].requiredClaim.requiredValue: properties.claim.validationRules[1].requiredClaim.requiredValue: Required value
+InvalidRequestContent: properties.clients[3]: properties.clients[3]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[4]: properties.clients[4]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[5]: properties.clients[5]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[6]: properties.clients[6]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[7]: properties.clients[7]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[8]: properties.clients[8]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[9]: properties.clients[9]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[10]: properties.clients[10]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[11]: properties.clients[11]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[12]: properties.clients[12]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[13]: properties.clients[13]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[14]: properties.clients[14]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[15]: properties.clients[15]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[16]: properties.clients[16]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[17]: properties.clients[17]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[18]: properties.clients[18]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[19]: properties.clients[19]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[20]: properties.clients[20]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[21]: properties.clients[21]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[22]: properties.clients[22]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[23]: properties.clients[23]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[24]: properties.clients[24]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[25]: properties.clients[25]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
+InvalidRequestContent: properties.clients[26]: properties.clients[26]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}

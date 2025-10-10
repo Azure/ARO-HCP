@@ -1,0 +1,1 @@
+InvalidRequestContent: properties.clients[0]: properties.clients[0]: Invalid value: {"component":{"name":"console","authClientNamespace":"openshift-console"},"clientId":"mismatched-client-id","extraScopes":[],"type":"Confidential"}: must match an audience in issuer audiences

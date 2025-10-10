@@ -27,10 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type expectedError struct {
-	field   string
-	message string
-}
+// expectedError is defined in validate_cluster_test.go
 
 func TestValidateExternalAuth(t *testing.T) {
 	ctx := context.Background()
@@ -49,11 +46,57 @@ func TestValidateExternalAuth(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
+			name: "valid external auth with multiple unique clients",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"client1", "client2", "client3"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1",
+							AuthClientNamespace: "namespace1",
+						},
+						ClientID: "client1",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component2",
+							AuthClientNamespace: "namespace2",
+						},
+						ClientID: "client2",
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1", // Same name but different namespace is OK
+							AuthClientNamespace: "namespace3",
+						},
+						ClientID: "client3",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+				}
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
+			name: "valid external auth without CA certificate",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.CA = "" // CA is optional
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
 			name:   "missing required issuer URL",
 			newObj: createMinimalExternalAuth(),
 			op:     operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.issuer.url", message: "Required value"},
+				{fieldPath: "properties.issuer.url", message: "Required value"},
 			},
 		},
 		{
@@ -65,7 +108,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.issuer.url", message: "must be https URL"},
+				{fieldPath: "properties.issuer.url", message: "must be https URL"},
 			},
 		},
 		{
@@ -78,7 +121,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.issuer.audiences", message: "must have at least 1 items"},
+				{fieldPath: "properties.issuer.audiences", message: "must have at least 1 items"},
 			},
 		},
 		{
@@ -94,7 +137,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.issuer.audiences", message: "must have at most 10 items"},
+				{fieldPath: "properties.issuer.audiences", message: "must have at most 10 items"},
 			},
 		},
 		{
@@ -108,7 +151,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.issuer.ca", message: "not a valid PEM"},
+				{fieldPath: "properties.issuer.ca", message: "not a valid PEM"},
 			},
 		},
 		{
@@ -132,7 +175,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.clients", message: "must have at most 20 items"},
+				{fieldPath: "properties.clients", message: "must have at most 20 items"},
 			},
 		},
 		{
@@ -155,7 +198,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.clients[0].component.name", message: "Required value"},
+				{fieldPath: "properties.clients[0].component.name", message: "Required value"},
 			},
 		},
 		{
@@ -171,7 +214,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.clients[0].component.name", message: "may not be more than 256 bytes"},
+				{fieldPath: "properties.clients[0].component.name", message: "may not be more than 256 bytes"},
 			},
 		},
 		{
@@ -187,7 +230,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.groups.claim", message: "may not be more than 256 bytes"},
+				{fieldPath: "properties.claim.mappings.groups.claim", message: "may not be more than 256 bytes"},
 			},
 		},
 		{
@@ -199,7 +242,89 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.username.claim", message: "Required value"},
+				{fieldPath: "properties.claim.mappings.username.claim", message: "Required value"},
+			},
+		},
+		{
+			name: "duplicate client components (unique validation)",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "same-component",
+							AuthClientNamespace: "same-namespace",
+						},
+						ClientID: "client1",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "same-component", // Same component name and namespace
+							AuthClientNamespace: "same-namespace",
+						},
+						ClientID: "client2",
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "properties.clients[1]", message: "Duplicate value"},
+			},
+		},
+		{
+			name: "client ID not matching any issuer audience",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "test-component",
+							AuthClientNamespace: "test-namespace",
+						},
+						ClientID: "nonexistent-client", // This doesn't match any audience
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "properties.clients[0]", message: "must match an audience in issuer audiences"},
+			},
+		},
+		{
+			name: "multiple clients with mismatched audiences",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"audience1"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1",
+							AuthClientNamespace: "namespace1",
+						},
+						ClientID: "audience1", // This matches
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component2",
+							AuthClientNamespace: "namespace2",
+						},
+						ClientID: "bad-audience", // This doesn't match
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{fieldPath: "properties.clients[1]", message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -211,7 +336,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{field: "properties.clients[0].type", message: "supported values"},
+				{fieldPath: "properties.clients[0].type", message: "supported values"},
 			},
 		},
 		{
@@ -232,7 +357,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Update},
 			expectErrors: []expectedError{
-				{field: "properties.provisioningState", message: "field is immutable"},
+				{fieldPath: "properties.provisioningState", message: "field is immutable"},
 			},
 		},
 	}
@@ -257,7 +382,7 @@ func TestValidateExternalAuth(t *testing.T) {
 					found := false
 					for _, err := range errs {
 						// Match the field exactly and check if the error message contains the expected text
-						fieldMatches := err.Field == expectedErr.field
+						fieldMatches := err.Field == expectedErr.fieldPath
 						messageMatches := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
 
 						if fieldMatches && messageMatches {
@@ -266,7 +391,7 @@ func TestValidateExternalAuth(t *testing.T) {
 						}
 					}
 					if !found {
-						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.field, expectedErr.message, errs)
+						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.fieldPath, expectedErr.message, errs)
 					}
 				}
 			}
@@ -331,7 +456,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
+				{fieldPath: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -345,7 +470,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.username.prefix", message: "must be specified when `prefixPolicy` is \"Prefix\""},
+				{fieldPath: "properties.claim.mappings.username.prefix", message: "must be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -377,7 +502,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.validationRules[0].requiredClaim", message: "must be specified when `type` is \"RequiredClaim\""},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim", message: "must be specified when `type` is \"RequiredClaim\""},
 			},
 		},
 		{
@@ -396,7 +521,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.validationRules[0].requiredClaim.claim", message: "Required value"},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim.claim", message: "Required value"},
 			},
 		},
 		{
@@ -415,7 +540,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.validationRules[0].requiredClaim.requiredValue", message: "Required value"},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", message: "Required value"},
 			},
 		},
 		{
@@ -430,7 +555,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
+				{fieldPath: "properties.claim.mappings.username.prefix", message: "may only be specified when `prefixPolicy` is \"Prefix\""},
 			},
 		},
 		{
@@ -444,7 +569,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.mappings.username.prefixPolicy", message: "supported values"},
+				{fieldPath: "properties.claim.mappings.username.prefixPolicy", message: "supported values"},
 			},
 		},
 		{
@@ -463,7 +588,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 				return obj
 			},
 			expectErrors: []expectedError{
-				{field: "properties.claim.validationRules[0].type", message: "supported values"},
+				{fieldPath: "properties.claim.validationRules[0].type", message: "supported values"},
 			},
 		},
 	}
@@ -484,7 +609,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 					found := false
 					for _, err := range errs {
 						// Match the field exactly and check if the error message contains the expected text
-						fieldMatches := err.Field == expectedErr.field
+						fieldMatches := err.Field == expectedErr.fieldPath
 						messageMatches := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
 
 						if fieldMatches && messageMatches {
@@ -493,7 +618,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 						}
 					}
 					if !found {
-						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.field, expectedErr.message, errs)
+						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.fieldPath, expectedErr.message, errs)
 					}
 				}
 			}
@@ -546,7 +671,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []expectedError{
-				{field: "", message: "ClientID 'nonexistent-client' in clients[0] must match an audience in TokenIssuerProfile"},
+				{fieldPath: "", message: "ClientID 'nonexistent-client' in clients[0] must match an audience in TokenIssuerProfile"},
 			},
 		},
 		{
@@ -602,7 +727,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []expectedError{
-				{field: "", message: "External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace"},
+				{fieldPath: "", message: "External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace"},
 			},
 		},
 	}
