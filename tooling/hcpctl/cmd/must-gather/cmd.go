@@ -23,8 +23,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 var ServicesLogDirectory = "service"

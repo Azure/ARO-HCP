@@ -22,8 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
 // mockKustoClient is a mock implementation of the KustoClient interface
