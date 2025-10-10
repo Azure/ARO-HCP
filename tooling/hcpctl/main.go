@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/hcp"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/kubelogin"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/mc"
+	mustgather "github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/sc"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/version"
 )
@@ -83,6 +84,7 @@ and hosted control plane services for operational and emergency scenarios.`,
 		mc.NewCommand,
 		sc.NewCommand,
 		hcp.NewCommand,
+		mustgather.NewCommand,
 	}
 	for _, newCmd := range mainCommands {
 		c, err := newCmd(mainGroupID)
