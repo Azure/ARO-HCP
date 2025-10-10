@@ -16,7 +16,6 @@ package validation
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/operation"
@@ -27,8 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
-
-// expectedError is defined in validate_cluster_test.go
 
 func TestValidateExternalAuth(t *testing.T) {
 	ctx := context.Background()
@@ -372,30 +369,7 @@ func TestValidateExternalAuth(t *testing.T) {
 				errs = ValidateExternalAuthUpdate(ctx, tt.newObj, tt.oldObj)
 			}
 
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors, got %d: %v", len(errs), errs)
-			}
-			if len(tt.expectErrors) > 0 && len(errs) == 0 {
-				t.Errorf("expected %d errors, got none", len(tt.expectErrors))
-			}
-			if len(tt.expectErrors) > 0 {
-				for _, expectedErr := range tt.expectErrors {
-					found := false
-					for _, err := range errs {
-						// Match the field exactly and check if the error message contains the expected text
-						fieldMatches := err.Field == expectedErr.fieldPath
-						messageMatches := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-
-						if fieldMatches && messageMatches {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.fieldPath, expectedErr.message, errs)
-					}
-				}
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -598,31 +572,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			obj := tt.setupObject()
 			errs := ValidateExternalAuthCreate(ctx, obj)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors, got %d: %v", len(errs), errs)
-			}
-			if len(tt.expectErrors) > 0 && len(errs) == 0 {
-				t.Errorf("expected %d errors, got none", len(tt.expectErrors))
-			}
-			if len(tt.expectErrors) > 0 {
-				for _, expectedErr := range tt.expectErrors {
-					found := false
-					for _, err := range errs {
-						// Match the field exactly and check if the error message contains the expected text
-						fieldMatches := err.Field == expectedErr.fieldPath
-						messageMatches := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-
-						if fieldMatches && messageMatches {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("expected error with field %q and message containing %q not found in errors: %v", expectedErr.fieldPath, expectedErr.message, errs)
-					}
-				}
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -738,36 +688,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := ValidateExternalAuthCreate(ctx, tt.newObj)
-			customErrs := tt.newObj.Validate()
-
-			if len(tt.expectErrors) == 0 && (len(errs) > 0 || len(customErrs) > 0) {
-				t.Errorf("expected no errors, got validation errors: %v, custom errors: %v", errs, customErrs)
-			}
-			if len(tt.expectErrors) > 0 && len(errs) == 0 && len(customErrs) == 0 {
-				t.Errorf("expected %d errors, got none", len(tt.expectErrors))
-			}
-			if len(tt.expectErrors) > 0 {
-				allErrors := make([]string, 0, len(errs)+len(customErrs))
-				for _, err := range errs {
-					allErrors = append(allErrors, err.Error())
-				}
-				for _, err := range customErrs {
-					allErrors = append(allErrors, err.Message)
-				}
-
-				for _, expectedErr := range tt.expectErrors {
-					found := false
-					for _, errMsg := range allErrors {
-						if strings.Contains(errMsg, expectedErr.message) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("expected error message containing %q not found in errors: %v", expectedErr.message, allErrors)
-					}
-				}
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
