@@ -26,9 +26,10 @@ Each environment (DEV, INT, STAGE, PROD) maintains dedicated service and OCP ACR
 
 Image mirroring ensures ARO HCP environments maintain current OpenShift releases and service components while adhering to Microsoft's private registry requirements. This section covers continuous mirroring of OCP and operator images via oc-mirror, and on-demand synchronization of service components during deployments.
 
-### oc-mirror
+### ACR Cache Rules
 
-[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
+ACR Cache copies images from a connected registry over upon requesting the image the first time. It is configured for OCP Images in the corresponding bicep: [global-acr.bicep](..dev-infrastructure/templates/global-acr.bicep)
+We rely on `quay.io/openshift-release-dev/*` images in all environments. 
 
 ### On-demand Sync
 
@@ -71,6 +72,10 @@ clustersService:
           step: output
           name: globalMSIId
 ```
+
+### oc-mirror
+
+[oc-mirror](https://github.com/openshift/oc-mirror) is a Red Hat tool built for mirroring OCP release payloads and OLM operator bundles between registries. It is now only in use for ACM images. This tool runs within Azure Container App Cronjobs and continuously brings in new images as they appear in the source registries. `oc-mirror` runs within the global scope of the respective target environment and selectively mirrors images. The mirroring setup can be found in the [global-image-sync.bicep](../dev-infrastructure/templates/global-image-sync.bicep) template.
 
 ## Building ARO HCP Images
 
