@@ -7,7 +7,6 @@ metadata:
     containerImage: quay.io/app-sre/route-monitor-operator:latest
     description: Operator to monitor ingress route for OpenShift Clusters.
     package-operator.run/phase: deploy
-  creationTimestamp: null
   name: route-monitor-operator-controller-manager
   namespace: '{{ .Release.Namespace }}'
 spec:
@@ -22,7 +21,6 @@ spec:
     metadata:
       annotations:
         package-operator.run/phase: deploy
-      creationTimestamp: null
       labels:
         app: route-monitor-operator
         component: operator
@@ -41,6 +39,11 @@ spec:
         - --zap-log-level=debug
         - --blackbox-image=$(BLACKBOX_IMAGE)
         - --blackbox-namespace=$(BLACKBOX_NAMESPACE)
+        - --probe-api-url=$(PROBE_API_URL)
+        - --oidc-client-id=$(OIDC_CLIENT_ID)
+        - --oidc-client-secret=$(OIDC_CLIENT_SECRET)
+        - --oidc-issuer-url=$(OIDC_ISSUER_URL)
+        - --only-public-clusters=$(ONLY_PUBLIC_CLUSTERS)
         command:
         - /manager
         env:
@@ -52,6 +55,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: PROBE_API_URL
+        - name: OIDC_CLIENT_ID
+        - name: OIDC_CLIENT_SECRET
+        - name: OIDC_ISSUER_URL
+        - name: ONLY_PUBLIC_CLUSTERS
+          value: "false"
         - name: OPERATOR_IMAGE
           value: '{{ .Values.imageRegistryOperator }}/{{ .Values.imageRepositoryOperator }}@sha256:{{ .Values.imageDigestOperator }}'
         image: '{{ .Values.imageRegistryManager }}/{{ .Values.imageRepositoryManager }}@sha256:{{ .Values.imageDigestManager }}'

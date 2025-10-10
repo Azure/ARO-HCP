@@ -233,12 +233,12 @@ defaults:
     # Bundle version is not used in runtime, it's used to generate
     # the Helm chart for the route-monitor-operator
     # WARNING: Keep this in sync with the image digests
-    bundleVersion: 0.1.744-gad53663
+    bundleVersion: 0.1.848-g208c6eb
     # Image refs
     operatorImage:
       registry: quay.io
       repository: app-sre/route-monitor-operator
-      digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+      digest: sha256:006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
     blackboxExporterImage:
       registry: quay.io
       repository: prometheus/blackbox-exporter
