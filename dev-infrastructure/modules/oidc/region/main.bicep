@@ -23,7 +23,7 @@ var zoneNameReplacedDots = replace(zoneName, '\\.', '\\\\.')
 var zoneNameReplacedHyphensDots = replace(zoneNameReplacedDots, '\\-', '\\\\-')
 
 // Storage deployment
-module storageAccount 'storage.bicep' = {
+module storageAccount '../../storage/account.bicep' = {
   name: 'storage'
   params: {
     accountName: storageAccountName
