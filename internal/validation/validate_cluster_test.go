@@ -144,9 +144,9 @@ func TestMaxItems(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
-			name:    "over limit - invalid",
-			value:   []string{"a", "b", "c", "d", "e", "f"},
-			maxLen:  5,
+			name:   "over limit - invalid",
+			value:  []string{"a", "b", "c", "d", "e", "f"},
+			maxLen: 5,
 			expectErrors: []expectedError{
 				{fieldPath: "items", message: "must have at most 5 items"},
 			},
@@ -211,9 +211,9 @@ func TestMaxLen(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
-			name:    "over limit - invalid",
-			value:   ptr.To("12345678901"),
-			maxLen:  10,
+			name:   "over limit - invalid",
+			value:  ptr.To("12345678901"),
+			maxLen: 10,
 			expectErrors: []expectedError{
 				{fieldPath: "field", message: "may not be more than 10 bytes"},
 			},
