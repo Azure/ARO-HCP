@@ -205,7 +205,7 @@ geneva:
     allowedAcisExtensions: AzureRedHatHypershiftExtension
     certificate:
       issuer: OneCertV2-PrivateCA
-      manage: true
+      manage: false
       name: genevaAction
     enabled: false
     genevaActionsPrincipalId: ""
