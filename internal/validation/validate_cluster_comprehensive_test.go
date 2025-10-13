@@ -1219,6 +1219,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.principalId"},
+				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1247,6 +1249,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.tenantId"},
+				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1277,6 +1281,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
+				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1307,6 +1313,8 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
+				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
 		{
@@ -1327,6 +1335,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "properties.version.id"},
+				{message: "must be specified as MAJOR.MINOR; the PATCH value is managed", fieldPath: "properties.version.id"},
 				{message: "field is immutable", fieldPath: "properties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "properties.api.visiblity"},
 			},

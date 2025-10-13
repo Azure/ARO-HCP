@@ -478,6 +478,8 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.claim.validationRules[0].requiredClaim", message: "must be specified when `type` is \"RequiredClaim\""},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim.claim", message: "Required value"},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim.requiredValue", message: "Required value"},
 			},
 		},
 		{
@@ -564,6 +566,7 @@ func TestValidateExternalAuthDiscriminatedUnions(t *testing.T) {
 			},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.claim.validationRules[0].type", message: "supported values"},
+				{fieldPath: "properties.claim.validationRules[0].requiredClaim", message: "may only be specified when `type` is \"RequiredClaim\""},
 			},
 		},
 	}
@@ -622,7 +625,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []expectedError{
-				{fieldPath: "", message: `Invalid value: "nonexistent-client": must match an audience in issuer audiences`},
+				{fieldPath: "properties.clients[0]", message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
