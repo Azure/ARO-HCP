@@ -972,6 +972,9 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
+          clustersService:
+            batchProcessesDryRun: true
+            batchProcesses: "ARO-20736"
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:

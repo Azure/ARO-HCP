@@ -6,7 +6,7 @@ clouds:
           westus3: 668c3ce15a0e04c033818f12748a33fd05cbd31599d053a88686e9417a9cce29
       dev:
         regions:
-          westus3: 462ed1c10ea9ccb8d6e784399673e99c2a0ea13c35d3aa039c46b9ad8583e411
+          westus3: 2b9e578623dd0105f741c4d9df276b177cbc9ca995efd6e2846acfe35e8177e3
       ntly:
         regions:
           uksouth: a8b66fcb2943058ad0f7108cbb10808a29c846dbe6c9a873ff8294a2382da939
