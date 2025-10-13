@@ -168,7 +168,7 @@ defaults:
       certificate:
         name: genevaAction
         issuer: OneCertV2-PrivateCA
-        manage: true
+        manage: false
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
       genevaActionsPrincipalId: ""
   kusto:
