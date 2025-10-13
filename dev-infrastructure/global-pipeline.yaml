@@ -60,13 +60,13 @@ resourceGroups:
     issuer:
       value: OneCertV2-PrivateCA
   - name: geneva-certificates
-  action: ARM
-  template: templates/genevaactions-cert.bicep
-  parameters: configurations/genevaactions-cert.tmpl.bicepparam
-  deploymentLevel: ResourceGroup
-  dependsOn:
-  - resourceGroup: global
-    step: geneva-kv-private-issuer
+    action: ARM
+    template: templates/genevaactions-cert.bicep
+    parameters: configurations/genevaactions-cert.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: global
+      step: geneva-kv-private-issuer
   - name: certificates
     action: ARM
     template: templates/global-certificates.bicep

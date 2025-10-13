@@ -42,13 +42,6 @@ module genevaKv '../modules/keyvault/keyvault.bicep' = {
 
 output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
 
-resource genevaCertificate 'Microsoft.KeyVault/vaults/certificates@2021-10-01' existing = {
-  name: '${genevaKeyVaultName}/${genevaCertificateName}'
-  dependsOn: [
-    genevaKv
-  ]
-}
-
 module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Secrets User', genevaActionsPrincipalId)
   params: {
