@@ -407,6 +407,11 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 	case *types.ImageMirrorStep:
 		var buf bytes.Buffer
 
+		if step.CopyFrom == "oci-layout" {
+			logger.Info("OCI layout image copy is not supported for run step, skipping")
+			return nil, nil
+		}
+
 		err := runImageMirrorStep(id, ctx, step, options, state, &buf)
 		if err != nil {
 			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
