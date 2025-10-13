@@ -295,7 +295,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[0]", message: "must match an audience in issuer audiences"},
+				{fieldPath: "properties.clients[0].clientId", message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -325,7 +325,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
-				{fieldPath: "properties.clients[1]", message: "must match an audience in issuer audiences"},
+				{fieldPath: "properties.clients[1].clientId", message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
@@ -672,7 +672,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []expectedError{
-				{fieldPath: "", message: "ClientID 'nonexistent-client' in clients[0] must match an audience in TokenIssuerProfile"},
+				{fieldPath: "", message: `Invalid value: "nonexistent-client": must match an audience in issuer audiences`},
 			},
 		},
 		{
@@ -728,7 +728,9 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 				return obj
 			}(),
 			expectErrors: []expectedError{
-				{fieldPath: "", message: "External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace"},
+				{fieldPath: "properties.clients[1]", message: "Duplicate value"},
+				{fieldPath: "properties.clients[0].clientId", message: "must match an audience in issuer audiences"},
+				{fieldPath: "properties.clients[1].clientId", message: `Invalid value: "client1-b": must match an audience in issuer audiences`},
 			},
 		},
 	}

@@ -130,7 +130,7 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 				}
 			}
 			return field.ErrorList{
-				field.Invalid(fldPath, newValue, "must match an audience in issuer audiences"),
+				field.Invalid(fldPath.Child("clientId"), newValue.ClientID, "must match an audience in issuer audiences"),
 			}
 		},
 	)...)
