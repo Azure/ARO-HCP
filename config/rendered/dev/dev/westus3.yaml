@@ -103,7 +103,7 @@ clustersService:
     roleSetName: dev
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
-  batchProcesses: ""
+  batchProcesses: ARO-20736
   batchProcessesDryRun: true
   denyAssignments: disabled
   environment: arohcpdev
