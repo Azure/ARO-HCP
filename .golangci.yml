@@ -38,8 +38,18 @@ linters:
       - "github.com/onsi/gomega"
 formatters:
   enable:
-  - goimports
+  - gci
+  - gofmt
   settings:
-    goimports:
-      local-prefixes:
-      - github.com/Azure/ARO-HCP
+    gci:
+      custom-order: true
+      sections:
+      - standard
+      - blank
+      - dot
+      - default
+      - prefix(k8s.io)
+      - prefix(sigs.k8s.io)
+      - prefix(github.com/Azure)
+      - prefix(github.com/openshift)
+      - prefix(github.com/Azure/ARO-HCP)

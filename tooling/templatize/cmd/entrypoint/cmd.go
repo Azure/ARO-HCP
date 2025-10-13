@@ -18,7 +18,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/graph"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 

@@ -26,13 +26,16 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
+	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"

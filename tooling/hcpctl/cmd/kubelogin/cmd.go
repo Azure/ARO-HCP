@@ -15,8 +15,9 @@
 package kubelogin
 
 import (
-	"github.com/Azure/kubelogin/pkg/cmd"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/kubelogin/pkg/cmd"
 )
 
 func NewCommand(group string) (*cobra.Command, error) {

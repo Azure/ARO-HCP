@@ -21,14 +21,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
-	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/testr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
@@ -355,7 +355,7 @@ func TestAddInputVars(t *testing.T) {
 			name: "output chaining",
 			input: Outputs{
 				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
-					"rg": map[string]Output{
+					"rg": {
 						"step1": ArmOutput{
 							"output1": map[string]any{
 								"type":  "String",
@@ -385,7 +385,7 @@ func TestAddInputVars(t *testing.T) {
 			name: "output chaining missing step",
 			input: Outputs{
 				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
-					"rg": map[string]Output{
+					"rg": {
 						"step1": ArmOutput{
 							"output1": map[string]any{
 								"type":  "String",
@@ -415,7 +415,7 @@ func TestAddInputVars(t *testing.T) {
 			name: "output chaining missing variable",
 			input: Outputs{
 				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
-					"rg": map[string]Output{
+					"rg": {
 						"step1": ArmOutput{
 							"output1": map[string]any{
 								"type":  "String",

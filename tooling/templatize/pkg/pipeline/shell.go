@@ -28,13 +28,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
+	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/registration"
 	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
-	"github.com/go-logr/logr"
-
-	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"

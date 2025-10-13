@@ -20,17 +20,18 @@ import (
 	"log"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	yaml "sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/customize"
 	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/olm"
 	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/rukpak/convert"
-
-	"github.com/google/go-containerregistry/pkg/crane"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	yaml "sigs.k8s.io/yaml"
 )
 
 var (

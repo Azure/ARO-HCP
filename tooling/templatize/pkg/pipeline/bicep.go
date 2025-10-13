@@ -24,10 +24,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	"github.com/Azure/ARO-Tools/pkg/config"
 )
 
 func modeFromString(mode string) armresources.DeploymentMode {

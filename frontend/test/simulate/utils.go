@@ -27,25 +27,26 @@ import (
 	"testing"
 	"time"
 
+	// register the APIs.
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/mock/gomock"
+
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/mock/gomock"
-	"k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
-
-	// register the APIs.
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 )
 
 func SkipIfNotSimulationTesting(t *testing.T) {

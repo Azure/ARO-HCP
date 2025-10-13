@@ -20,9 +20,11 @@ import (
 	"reflect"
 	"testing"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/go-cmp/cmp"
+
 	"sigs.k8s.io/randfill"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"

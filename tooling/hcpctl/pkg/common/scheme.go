@@ -17,9 +17,10 @@ package common
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var globalScheme *runtime.Scheme
