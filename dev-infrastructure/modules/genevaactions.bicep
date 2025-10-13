@@ -42,20 +42,8 @@ module genevaKv '../modules/keyvault/keyvault.bicep' = {
 
 output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
 
-var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
-
-module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
-  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
-  params: {
-    keyVaultName: genevaKeyVaultName
-    subjectName: 'CN=${genevaCertificateSNI}'
-    certName: genevaCertificateName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      genevaCertificateSNI
-    ]
-    issuerName: genevaCertificateIssuer
-  }
+resource genevaCertificate 'Microsoft.KeyVault/vaults/certificates@2021-10-01' existing = {
+  name: '${genevaKeyVaultName}/${genevaCertificateName}'
   dependsOn: [
     genevaKv
   ]
