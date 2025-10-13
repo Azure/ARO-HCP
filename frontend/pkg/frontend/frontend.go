@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -600,7 +601,14 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
-			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
+
+			// read-only values are an internal concern since they're the source, so we convert.
+			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
+			newTemporaryInternal := &api.HCPOpenShiftCluster{}
+			versionedRequestCluster.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyClusterValues(newTemporaryInternal, hcpCluster)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(newTemporaryInternal)
+
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)

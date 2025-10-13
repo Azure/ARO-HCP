@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -133,7 +134,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
-			api.CopyReadOnlyValues(versionedCurrentNodePool, versionedRequestNodePool)
+
+			// read-only values are an internal concern since they're the source, so we convert.
+			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
+			newTemporaryInternal := &api.HCPOpenShiftClusterNodePool{}
+			versionedRequestNodePool.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyNodePoolValues(newTemporaryInternal, hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(newTemporaryInternal)
+
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
