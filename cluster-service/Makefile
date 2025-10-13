@@ -39,11 +39,8 @@ deploy:
 	OIDC_ISSUER_BASE_ENDPOINT=$(shell ./oidc-base-endpoint.sh ${OIDC_STORAGE_ACCOUNT} ${REGIONAL_RESOURCEGROUP} ${AFD_OIDC_BASE_ENDPOINT}) && \
 	DB_HOST=$$(if [ "${USE_AZURE_DB}" = "true" ]; then az postgres flexible-server show -g ${REGIONAL_RESOURCEGROUP} -n ${DATABASE_SERVER_NAME} --query fullyQualifiedDomainName -o tsv; else echo "ocm-cs-db"; fi) && \
 	OVERRIDES=$$(if [ "${USE_AZURE_DB}" = "true" ]; then echo "azuredb.values.yaml"; else echo "containerdb.values.yaml"; fi) && \
-	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
-	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
-	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
-	  -f deploy/$${OVERRIDES} \
+	../hack/helm.sh cluster-service deploy/helm/cluster-service ${NAMESPACE} \
+	  -f deploy/helm/cluster-service/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
@@ -65,14 +62,6 @@ deploy:
 	  --set fpaCertName=${FPA_CERT_NAME} \
 	  --set ocpAcrResourceId=${OCP_ACR_RESOURCE_ID} \
 	  --set ocpAcrUrl=${OCP_ACR_URL} \
-	  --set shard.consumerName="${CONSUMER_NAME}" \
-	  --set shard.zoneResourceId="$${ZONE_RESOURCE_ID}" \
-	  --set shard.cxSecretsKeyVaultUrl="$${CX_SECRETS_KV_URL}" \
-	  --set shard.cxMiKeyVaultUrl="$${CX_MI_KV_URL}" \
-	  --set shard.cxSecretsKeyVaultMiClientId="${CX_SECRETS_KV_MI_CLIENT_ID}" \
-	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
-	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
-	  --set shard.Id=$(PROVISION_SHARD_ID) \
 	  --set databaseHost=$${DB_HOST} \
 	  --set azureMiMockServicePrincipalPrincipalId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} \
 	  --set azureMiMockServicePrincipalClientId=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
@@ -94,6 +83,24 @@ deploy:
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME}
+
+register-shard:
+	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
+	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
+	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
+	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
+	HELM_ADOPT="true" && \
+	../hack/helm.sh register-shard deploy/helm/shard-registration ${NAMESPACE} \
+	  --set shard.id=$(PROVISION_SHARD_ID) \
+	  --set shard.consumerName=${CONSUMER_NAME} \
+	  --set shard.zoneResourceId=$${ZONE_RESOURCE_ID} \
+	  --set shard.cxSecretsKeyVaultUrl=$${CX_SECRETS_KV_URL} \
+	  --set shard.cxMiKeyVaultUrl=$${CX_MI_KV_URL} \
+	  --set shard.cxSecretsKeyVaultMiClientId=${CX_SECRETS_KV_MI_CLIENT_ID} \
+	  --set shard.maestroRestUrl="http://maestro.maestro.svc.cluster.local:8000" \
+	  --set shard.maestroGrpUrl="maestro-grpc.maestro.svc.cluster.local:8090" \
+	  --set shard.region=${REGION}
+.PHONY: register-shard
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
