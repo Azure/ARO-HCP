@@ -48,16 +48,6 @@ func (m *mockKustoClient) Close() error {
 }
 
 // Test helpers
-func createTestOptions(tempDir string) *MustGatherOptions {
-	return &MustGatherOptions{
-		ValidatedMustGatherOptions: &ValidatedMustGatherOptions{
-			RawMustGatherOptions: &RawMustGatherOptions{
-				OutputPath:   tempDir,
-				QueryTimeout: 30 * time.Second,
-			},
-		},
-	}
-}
 
 func createTestQueries(names ...string) []*kusto.ConfigurableQuery {
 	queries := make([]*kusto.ConfigurableQuery, len(names))
@@ -70,8 +60,15 @@ func createTestQueries(names ...string) []*kusto.ConfigurableQuery {
 	return queries
 }
 
-func createMockClient(executeFunc func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error)) *mockKustoClient {
-	return &mockKustoClient{executeQueryFunc: executeFunc}
+func createMockClient(tmpDir string, executeFunc func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error)) *QueryClient {
+	return &QueryClient{
+		Client: &mockKustoClient{
+			executeQueryFunc: executeFunc,
+			closeFunc:        func() error { return nil },
+		},
+		OutputPath:   tmpDir,
+		QueryTimeout: 0 * time.Second,
+	}
 }
 
 func createTestLogRow(log string) *ContainerLogsRow {
@@ -103,12 +100,11 @@ func createQueryResult(executionTime time.Duration, totalRows int, dataSize int)
 
 func TestExecuteContainerLogsQueries(t *testing.T) {
 	tempDir := t.TempDir()
-	opts := createTestOptions(tempDir)
 
 	tests := []struct {
 		name        string
 		queries     []*kusto.ConfigurableQuery
-		setupClient func() *mockKustoClient
+		setupClient func() *QueryClient
 		expectError bool
 		rowCount    int
 		errorMsg    string
@@ -117,8 +113,8 @@ func TestExecuteContainerLogsQueries(t *testing.T) {
 		{
 			name:    "successful execution with multiple queries",
 			queries: createTestQueries("test-query-1", "test-query-2"),
-			setupClient: func() *mockKustoClient {
-				return createMockClient(func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
+			setupClient: func() *QueryClient {
+				return createMockClient(tempDir, func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
 					outputChannel <- createTestLogRow("test log entry")
 					return createQueryResult(100*time.Millisecond, 1, 100), nil
 				})
@@ -129,8 +125,8 @@ func TestExecuteContainerLogsQueries(t *testing.T) {
 		{
 			name:    "handles query execution errors",
 			queries: createTestQueries("failing-query", "successful-query"),
-			setupClient: func() *mockKustoClient {
-				return createMockClient(func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
+			setupClient: func() *QueryClient {
+				return createMockClient(tempDir, func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
 					if query.Name == "failing-query" {
 						return nil, fmt.Errorf("query execution failed")
 					}
@@ -144,8 +140,8 @@ func TestExecuteContainerLogsQueries(t *testing.T) {
 		{
 			name:    "handles file writing errors",
 			queries: createTestQueries("test-query"),
-			setupClient: func() *mockKustoClient {
-				return createMockClient(func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
+			setupClient: func() *QueryClient {
+				return createMockClient("/invalid/path/that/does/not/exist", func(ctx context.Context, query *kusto.ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*kusto.QueryResult, error) {
 					outputChannel <- createTestLogRow("test log")
 					return createQueryResult(50*time.Millisecond, 1, 50), nil
 				})
@@ -156,7 +152,7 @@ func TestExecuteContainerLogsQueries(t *testing.T) {
 		{
 			name:        "handles empty queries list",
 			queries:     []*kusto.ConfigurableQuery{},
-			setupClient: func() *mockKustoClient { return &mockKustoClient{} },
+			setupClient: func() *QueryClient { return &QueryClient{Client: &mockKustoClient{}} },
 		},
 	}
 
@@ -164,23 +160,12 @@ func TestExecuteContainerLogsQueries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			outputChannel := make(chan any, 10)
 
-			mockClient := tt.setupClient()
+			queryClient := tt.setupClient()
 			ctx := context.Background()
 
 			// Use invalid path for file writing error test
-			testOpts := opts
-			if tt.name == "handles file writing errors" {
-				testOpts = &MustGatherOptions{
-					ValidatedMustGatherOptions: &ValidatedMustGatherOptions{
-						RawMustGatherOptions: &RawMustGatherOptions{
-							OutputPath:   "/invalid/path/that/does/not/exist",
-							QueryTimeout: 30 * time.Second,
-						},
-					},
-				}
-			}
 
-			err := executeContainerLogsQueries(ctx, mockClient, testOpts, tt.queries, outputChannel)
+			err := queryClient.concurrentQueries(ctx, tt.queries, ContainerLogsRow{}, outputChannel)
 			close(outputChannel)
 
 			if tt.expectError {

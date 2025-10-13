@@ -51,6 +51,24 @@ func DefaultMustGatherOptions() *RawMustGatherOptions {
 	}
 }
 
+func (opts *RawMustGatherOptions) Run(ctx context.Context, runLegacy bool) error {
+	validated, err := opts.Validate(ctx)
+	if err != nil {
+		return err
+	}
+
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
+	}
+
+	if runLegacy {
+		return completed.RunLegacy(ctx)
+	}
+
+	return completed.Run(ctx)
+}
+
 // BindMustGatherOptions configures cobra command flags for must-gather specific options.
 func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error {
 	// Bind base options first
@@ -171,12 +189,16 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
-		Client:                     client,
+		QueryClient: &QueryClient{
+			Client:       client,
+			QueryTimeout: o.QueryTimeout,
+			OutputPath:   o.OutputPath,
+		},
 	}, nil
 }
 
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
-	Client *kusto.Client
+	QueryClient *QueryClient
 }
