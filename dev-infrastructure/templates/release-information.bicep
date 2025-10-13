@@ -7,9 +7,9 @@ resource relasePublisher 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   location: location
 }
 
-// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
-// Storage Blob Data Contributor: Grants access to Read, write, and delete Azure Storage containers and blobs
-var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+// https://www.azadvertizer.net/azrolesadvertizer/b7e6dc6d-f1e8-4753-8033-0f276bb0955b.html
+// Storage Blob Data Owner: Allows for full access to Azure Storage blob containers and data, including assigning POSIX access control.
+var storageBlobDataOwnerRole = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   location: location
@@ -45,11 +45,11 @@ resource releaseInfoContainer 'Microsoft.Storage/storageAccounts/blobServices/co
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, relasePublisher.id, storageBlobDataContributorRole)
+  name: guid(storageAccount.id, relasePublisher.id, storageBlobDataOwnerRole)
   scope: storageAccount
   properties: {
     principalId: relasePublisher.properties.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataOwnerRole)
   }
 }
