@@ -37,6 +37,13 @@ func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.
 
 	// Check that each expected error message and field path is found
 	for _, expectedErr := range expectedErrors {
+		if len(strings.TrimSpace(expectedErr.fieldPath)) == 0 {
+			t.Errorf("expected error with path %s to be non-empty", expectedErr.fieldPath)
+		}
+		if len(strings.TrimSpace(expectedErr.message)) == 0 {
+			t.Errorf("expected error with msg %s to be non-empty", expectedErr.message)
+		}
+
 		found := false
 		for _, err := range errs {
 			messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
