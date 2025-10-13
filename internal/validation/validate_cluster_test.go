@@ -74,15 +74,6 @@ func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.
 	}
 }
 
-func containsError(errs field.ErrorList, expectedErr expectedError) bool {
-	for _, err := range errs {
-		if strings.Contains(err.Field, expectedErr.fieldPath) && strings.Contains(err.Detail, expectedErr.message) {
-			return true
-		}
-	}
-	return false
-}
-
 func TestOpenshiftVersion(t *testing.T) {
 	ctx := context.Background()
 	op := operation.Operation{Type: operation.Create}
