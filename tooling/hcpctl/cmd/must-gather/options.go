@@ -30,7 +30,6 @@ import (
 // RawMustGatherOptions represents the initial, unvalidated configuration for must-gather operations.
 type RawMustGatherOptions struct {
 	BaseOptions                 *base.RawBaseOptions
-	KustoDebug                  bool          // Print debug information
 	Kusto                       string        // Name of the Azure Data Explorer cluster
 	Region                      string        // Region of the Azure Data Explorer cluster
 	OutputPath                  string        // Path to write the output file
@@ -49,6 +48,24 @@ func DefaultMustGatherOptions() *RawMustGatherOptions {
 		BaseOptions:  base.DefaultBaseOptions(),
 		QueryTimeout: 5 * time.Minute,
 	}
+}
+
+func (opts *RawMustGatherOptions) Run(ctx context.Context, runLegacy bool) error {
+	validated, err := opts.Validate(ctx)
+	if err != nil {
+		return err
+	}
+
+	completed, err := validated.Complete(ctx)
+	if err != nil {
+		return err
+	}
+
+	if runLegacy {
+		return completed.RunLegacy(ctx)
+	}
+
+	return completed.Run(ctx)
 }
 
 // BindMustGatherOptions configures cobra command flags for must-gather specific options.
@@ -71,7 +88,6 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().BoolVar(&opts.SkipHostedControlePlaneLogs, "skip-hcp-logs", opts.SkipHostedControlePlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
-	cmd.Flags().BoolVar(&opts.KustoDebug, "kusto-debug", opts.KustoDebug, "print debug information")
 	cmd.Flags().IntVar(&opts.Limit, "limit", opts.Limit, "limit the number of results")
 
 	// Mark required flags
@@ -152,7 +168,7 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 	}
 
 	endpoint := fmt.Sprintf("https://%s.%s.kusto.windows.net", o.Kusto, o.Region)
-	client, err := kusto.NewClient(endpoint, o.KustoDebug)
+	client, err := kusto.NewClient(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kusto client: %w", err)
 	}
@@ -171,12 +187,16 @@ func (o *ValidatedMustGatherOptions) Complete(ctx context.Context) (*MustGatherO
 
 	return &MustGatherOptions{
 		ValidatedMustGatherOptions: o,
-		Client:                     client,
+		QueryClient: &QueryClient{
+			Client:       client,
+			QueryTimeout: o.QueryTimeout,
+			OutputPath:   o.OutputPath,
+		},
 	}, nil
 }
 
 // MustGatherOptions represents the final, fully validated and initialized configuration for must-gather operations.
 type MustGatherOptions struct {
 	*ValidatedMustGatherOptions
-	Client *kusto.Client
+	QueryClient *QueryClient
 }

@@ -94,3 +94,48 @@ func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup st
 		Parameters: parameters,
 	}
 }
+
+// NewKubeSystemQuery creates a new KQL query for the kubesystem table
+// This is part of legacy support for the kubesystem table
+func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *ConfigurableQuery {
+	builder := kql.New("").AddTable("kubesystem")
+	parameters := kql.NewParameters()
+
+	if len(clusterIds) != 0 {
+		builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName or log has_any (clusterId)")
+		parameters.AddString("clusterId", strings.Join(clusterIds, ","))
+	} else {
+		builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
+	}
+	builder.AddLiteral("\n| project log, Role, namespace_name, container_name, timestamp, kubernetes ")
+
+	parameters.AddString("subscriptionId", subscriptionId)
+	parameters.AddString("resourceGroupName", resourceGroupName)
+
+	return &ConfigurableQuery{
+		Name:       "KubeSystem Service Logs",
+		Database:   "HCPServiceLogs",
+		Query:      builder,
+		Parameters: parameters,
+	}
+}
+
+// NewCustomerKubeSystemQuery creates a new KQL query for the customerLogs table
+func NewCustomerKubeSystemQuery(clusterId string, limit int) *ConfigurableQuery {
+	builder := kql.New("").AddTable("kubesystem")
+	parameters := kql.NewParameters()
+
+	builder.AddLiteral("\n| where log has clusterId or kubernetes has clusterId")
+	parameters.AddString("clusterId", clusterId)
+
+	builder.AddLiteral("\n| project log, Role, namespace_name, container_name, timestamp, kubernetes ")
+	if limit > 0 {
+		builder.AddLiteral("\n| limit ").AddInt(int32(limit))
+	}
+	return &ConfigurableQuery{
+		Name:       "KubeSystem Hosted Control Plane Logs",
+		Database:   "HCPCustomerLogs",
+		Query:      builder,
+		Parameters: parameters,
+	}
+}

@@ -107,6 +107,25 @@ hcpctl hcp breakglass /subscriptions/sub-id/resourceGroups/rg/providers/Microsof
 hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc --privileged
 ```
 
+## Gather logs from Kusto
+
+You can gather logs for a managed cluster from Kusto. You need to be logged into Azure to access Kusto. You need to set kusto and region to point to the Kusto instance containing the desired logs.
+
+```bash
+hcpctl must-gather  legacy-query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
+```
+
+If you get an error like, limit execeeded try reducing the amount of data by setting either limit or timestamps, i.e.:
+
+Set `--limit` fetch the first `$limit` number of rows.
+
+```bash
+hcpctl must-gather  legacy-query \
+    --kusto aroint --region eastus \
+    --subscription-id $subscription_id --resource-group $resource_group
+    --limit 10000
+```
+
 ## TODO
 
 - use the Hypershift generated clientsets instead of dedicated schema registration

@@ -31,15 +31,6 @@ var servicesTables = []string{
 
 var containerLogsTable = servicesTables[0]
 
-// Row represents a row in the query result
-type ContainerLogsRow struct {
-	Log           []byte    `kusto:"log"`
-	Cluster       string    `kusto:"cluster"`
-	Namespace     string    `kusto:"namespace"`
-	ContainerName string    `kusto:"containerName"`
-	Timestamp     time.Time `kusto:"timestamp"`
-}
-
 // RowWithClusterId represents a row in the query result with a cluster id
 type ClusterIdRow struct {
 	ClusterId string `kusto:"cid"`
@@ -96,4 +87,34 @@ func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) 
 		timestampMax = time.Now()
 	}
 	return timestampMin, timestampMax
+}
+
+// --------------------------------------------------------------------------------------------------
+// Legacy single table queries
+
+// Row represents a row in the query result
+type KubesystemLogsRow struct {
+	Log           string `kusto:"log"`
+	Cluster       string `kusto:"Role"`
+	Namespace     string `kusto:"namespace_name"`
+	ContainerName string `kusto:"container_name"`
+	Timestamp     string `kusto:"timestamp"`
+	Kubernetes    string `kusto:"kubernetes"`
+}
+
+func getKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
+	return kusto.NewClusterIdQuery("kubesystem", subscriptionId, resourceGroupName)
+}
+
+func getKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
+	return kusto.NewKubeSystemQuery(subscriptionId, resourceGroupName, clusterIds)
+}
+
+func getKubeSystemHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
+	queries := []*kusto.ConfigurableQuery{}
+	for _, clusterId := range opts.ClusterIds {
+		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
+		queries = append(queries, query)
+	}
+	return queries
 }
