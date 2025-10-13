@@ -516,7 +516,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 
 	//ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("controlPlaneOperators"), newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators))...)
-	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("controlPlaneOperators"),
+	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("controlPlaneOperators"),
 		newObj.ControlPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesControlPlaneOperators),
 		validate.RequiredValue,
 	)...)
@@ -534,7 +534,7 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 
 	//DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("dataPlaneOperators"), newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators))...)
-	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("dataPlaneOperators"),
+	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("dataPlaneOperators"),
 		newObj.DataPlaneOperators, safe.Field(oldObj, toUserAssignedIdentitiesDataPlaneOperators),
 		validate.RequiredValue,
 	)...)
@@ -737,11 +737,11 @@ func validateManagedServiceIdentity(ctx context.Context, op operation.Operation,
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("state"), &newObj.Type, safe.Field(oldObj, toManagedServiceIdentityType), arm.ValidManagedServiceIdentityTypes)...)
 
 	//UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"                   validate:"dive,keys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities,endkeys"`
-	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
+	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
 		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),
 		validate.RequiredValue,
 	)...)
-	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
+	errs = append(errs, EachMapKey(ctx, op, fldPath.Child("userAssignedIdentities"),
 		newObj.UserAssignedIdentities, safe.Field(oldObj, toManagedServiceIdentityUserAssignedIdentities),
 		newRestrictedResourceID("Microsoft.ManagedIdentity/userAssignedIdentities"),
 	)...)
