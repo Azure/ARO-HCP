@@ -18,16 +18,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	// If using ginkgo, import your tests here
+	_ "github.com/Azure/ARO-HCP/test/e2e"
 
-	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/spf13/cobra"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	// If using ginkgo, import your tests here
-	_ "github.com/Azure/ARO-HCP/test/e2e"
+	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
 func main() {

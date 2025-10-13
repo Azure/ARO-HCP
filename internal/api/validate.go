@@ -20,10 +20,12 @@ import (
 	"reflect"
 	"strings"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/go-playground/validator/v10"
 	semver "github.com/hashicorp/go-version"
+
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )

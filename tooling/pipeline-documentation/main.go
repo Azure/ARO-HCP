@@ -21,10 +21,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/dusted-go/logging/prettylog"
 
 	"github.com/Azure/ARO-HCP/tooling/pipeline-documentation/cmd/overview"
 )

@@ -23,11 +23,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
@@ -233,7 +233,7 @@ func TestMapStepVariables(t *testing.T) {
 			},
 			input: Outputs{
 				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
-					"rg": map[string]Output{
+					"rg": {
 						"step1": ArmOutput{
 							"output1": map[string]any{
 								"type":  "String",
@@ -289,7 +289,7 @@ func TestMapStepVariables(t *testing.T) {
 			},
 			input: Outputs{
 				"Microsoft.Azure.ARO.Whatever": map[string]map[string]Output{
-					"rg": map[string]Output{
+					"rg": {
 						"step1": ArmOutput{
 							"anotheroutput": map[string]any{
 								"type":  "String",

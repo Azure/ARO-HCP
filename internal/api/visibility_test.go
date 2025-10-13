@@ -462,7 +462,7 @@ func TestValidateVisibility(t *testing.T) {
 			name: "Add map key with read-only value to nil map is accepted for zero value",
 			v: TestModelType{
 				E: map[string]*TestModelSubtype{
-					"1up": &TestModelSubtype{},
+					"1up": {},
 				},
 			},
 			w:              TestModelType{},
@@ -486,7 +486,7 @@ func TestValidateVisibility(t *testing.T) {
 			name: "Add map key with read-only value to existing map is accepted for zero value",
 			v: TestModelType{
 				E: map[string]*TestModelSubtype{
-					"1up": &TestModelSubtype{},
+					"1up": {},
 				},
 			},
 			w: TestModelType{

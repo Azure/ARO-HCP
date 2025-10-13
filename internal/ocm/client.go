@@ -17,7 +17,6 @@ package ocm
 import (
 	"context"
 	"fmt"
-
 	"strings"
 
 	sdk "github.com/openshift-online/ocm-sdk-go"

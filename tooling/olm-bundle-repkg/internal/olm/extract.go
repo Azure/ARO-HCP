@@ -28,12 +28,12 @@ import (
 
 	containerregistrypkgv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"pkg.package-operator.run/cardboard/kubeutils/kubemanifests"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"pkg.package-operator.run/cardboard/kubeutils/kubemanifests"
-
-	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/tooling/olm-bundle-repkg/internal/rukpak/convert"
 )

@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"sync"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/go-playground/validator/v10"
+
 	"k8s.io/utils/set"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )

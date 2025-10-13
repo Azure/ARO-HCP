@@ -20,9 +20,10 @@ import (
 	"io/fs"
 	"testing"
 
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"

@@ -18,9 +18,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
-	"github.com/spf13/cobra"
 )
 
 func NewDefaultRawProwTokenOptions() *RawProwTokenOptions {

@@ -23,16 +23,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 type armClient struct {

@@ -21,17 +21,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
 	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/pkg/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	cmdopts "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 	pipelineopts "github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/options"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	"github.com/Azure/ARO-Tools/pkg/types"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
