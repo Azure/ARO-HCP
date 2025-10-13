@@ -377,6 +377,18 @@ monitoring.what-if:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run -d
 .PHONY: monitoring.what-if
 
+# Release Information
+
+release-information:
+	az deployment group create \
+		--name release-information \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/release-information.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/release-information.bicepparam
+.PHONY: release-information
+
 # ACR DEV customizations
 
 acr: acr-svc-cfg
