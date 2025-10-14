@@ -1,9 +1,8 @@
 using '../templates/genevaactions-cert.bicep'
 
-param genevaKeyVaultName = '{{ .geneva.action.keyVault.name }}'
-param genevaCertificateDomain = '{{ .geneva.action.certificate.domain }}'
-param genevaCertificateHostName = '{{ .geneva.action.certificate.hostName }}'
-param genevaCertificateIssuer = '{{ .geneva.action.certificate.issuer }}'
-param genevaCertificateName = '{{ .geneva.action.certificate.name }}'
-param manageGenevaCertificates = {{ .geneva.action.certificate.manage }}
+param genevaKeyVaultName = '{{ .geneva.actions.keyVault.name }}'
+param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
+param genevaCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
+param genevaCertificateName = '{{ .geneva.actions.certificate.name }}'
+param manageGenevaCertificates = {{ .geneva.actions.certificate.manage }}
 param ev2MsiName = '{{ .global.globalMSIName }}'

@@ -46,10 +46,6 @@ param genevaKeyVaultSoftDelete = {{ .geneva.actions.keyVault.softDelete }}
 param genevaKeyVaultTagKey = '{{ .geneva.actions.keyVault.tagKey }}'
 param genevaKeyVaultTagValue = '{{ .geneva.actions.keyVault.tagValue }}'
 
-param genevaCertificateName = '{{ .geneva.actions.certificate.name }}'
-param genevaCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
-param genevaCertificateManage = {{ .geneva.actions.certificate.manage }}
-param svcDNSZoneName = '{{ .dns.svcParentZoneName }}'
 param allowedAcisExtensions = '{{ .geneva.actions.allowedAcisExtensions }}'
 param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}'
 param genevaActionsEnabled = {{ .geneva.actions.enabled }}
