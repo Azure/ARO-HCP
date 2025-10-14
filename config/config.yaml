@@ -973,7 +973,7 @@ clouds:
               private: false
               zoneRedundantMode: 'Disabled'
           clustersService:
-            batchProcessesDryRun: true
+            batchProcessesDryRun: false
             batchProcesses: "ARO-20736"
       cspr:
         # this is the cluster service PR check and full cycle test environment
