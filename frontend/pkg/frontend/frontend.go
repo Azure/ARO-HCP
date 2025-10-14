@@ -1272,7 +1272,10 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedNodePool, versionedNodePool, nil, false)
+			newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+			versionedNodePool.Normalize(newInternalNodePool)
+			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
 			// This is just "preliminary" validation to ensure all the base resource
