@@ -8,5 +8,3 @@ param grafanaName = '{{ .monitoring.grafanaName }}'
 param azureFrontDoorProfileName = '{{ .oidc.frontdoor.name }}'
 param globalMSIName = '{{ .global.globalMSIName }}'
 param globalKVName = '{{ .global.keyVault.name }}'
-param genevaActionsKVName = '{{ .geneva.actions.keyVault.name }}'
-param genevaActionsEnabled = {{ .geneva.actions.enabled }}
