@@ -735,3 +735,120 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
     ]
   }
 }
+
+resource routeMonitorOperatorHealth 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'route-monitor-operator-health'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'route-monitor-operator-Down'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'route-monitor-operator-Down/{{ $labels.cluster }}'
+          description: 'The Route Monitor Operator has no available replicas. This will impact monitoring capabilities across hosted control planes.'
+          runbook_url: 'TBD'
+          title: 'The Route Monitor Operator has no available replicas. This will impact monitoring capabilities across hosted control planes.'
+        }
+        expression: 'kube_deployment_status_replicas_available{namespace="openshift-route-monitor-operator",deployment="route-monitor-operator-controller-manager"} == 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'route-monitor-operator-HighRestartCount'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'route-monitor-operator-HighRestartCount/{{ $labels.cluster }}'
+          description: 'The Route Monitor Operator is experiencing frequent restarts, which may indicate resource constraints or configuration issues.'
+          runbook_url: 'TBD'
+          title: 'The Route Monitor Operator is experiencing frequent restarts, which may indicate resource constraints or configuration issues.'
+        }
+        expression: 'increase(kube_pod_container_status_restarts_total{namespace="openshift-route-monitor-operator",container="manager"}[1h]) > 3'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'route-monitor-operator-HighMemoryUsage'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'route-monitor-operator-HighMemoryUsage/{{ $labels.cluster }}'
+          description: 'The Route Monitor Operator is approaching its memory limit, which may cause performance issues or OOM kills.'
+          runbook_url: 'TBD'
+          title: 'The Route Monitor Operator is approaching its memory limit, which may cause performance issues or OOM kills.'
+        }
+        expression: '(container_memory_working_set_bytes{namespace="openshift-route-monitor-operator",container="manager"} / container_spec_memory_limit_bytes{namespace="openshift-route-monitor-operator",container="manager"}) * 100 > 80'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'route-monitor-operator-HighCPUUsage'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'route-monitor-operator-HighCPUUsage/{{ $labels.cluster }}'
+          description: 'The Route Monitor Operator is approaching its CPU limit, which may cause performance degradation.'
+          runbook_url: 'TBD'
+          title: 'The Route Monitor Operator is approaching its CPU limit, which may cause performance degradation.'
+        }
+        expression: '(rate(container_cpu_usage_seconds_total{namespace="openshift-route-monitor-operator",container="manager"}[5m]) / container_spec_cpu_quota{namespace="openshift-route-monitor-operator",container="manager"} * container_spec_cpu_period{namespace="openshift-route-monitor-operator",container="manager"}) * 100 > 80'
+        for: 'PT10M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

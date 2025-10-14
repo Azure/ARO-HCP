@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: route-monitor-operator
+    app.kubernetes.io/part-of: route-monitor-operator
+    prometheus: k8s
+    role: alert-rules
+  name: route-monitor-operator-monitoring-rules
+  namespace: openshift-route-monitor-operator
+spec:
+  groups:
+  - name: route-monitor-operator-health
+    rules:
+    - alert: route-monitor-operator-Down
+      expr: |
+        kube_deployment_status_replicas_available{namespace="openshift-route-monitor-operator",deployment="route-monitor-operator-controller-manager"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: route-monitor-operator
+      annotations:
+        description: "The Route Monitor Operator has no available replicas. This will impact monitoring capabilities across hosted control planes."
+        runbook_url: TBD
+    - alert: route-monitor-operator-HighRestartCount
+      expr: |
+        increase(kube_pod_container_status_restarts_total{namespace="openshift-route-monitor-operator",container="manager"}[1h]) > 3
+      for: 5m
+      labels:
+        severity: warning
+        component: route-monitor-operator
+      annotations:
+        description: "The Route Monitor Operator is experiencing frequent restarts, which may indicate resource constraints or configuration issues."
+        runbook_url: TBD
+    - alert: route-monitor-operator-HighMemoryUsage
+      expr: |
+        (container_memory_working_set_bytes{namespace="openshift-route-monitor-operator",container="manager"} / container_spec_memory_limit_bytes{namespace="openshift-route-monitor-operator",container="manager"}) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+        component: route-monitor-operator
+      annotations:
+        description: "The Route Monitor Operator is approaching its memory limit, which may cause performance issues or OOM kills."
+        runbook_url: TBD
+    - alert: route-monitor-operator-HighCPUUsage
+      expr: |
+        (rate(container_cpu_usage_seconds_total{namespace="openshift-route-monitor-operator",container="manager"}[5m]) / container_spec_cpu_quota{namespace="openshift-route-monitor-operator",container="manager"} * container_spec_cpu_period{namespace="openshift-route-monitor-operator",container="manager"}) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+        component: route-monitor-operator
+      annotations:
+        description: "The Route Monitor Operator is approaching its CPU limit, which may cause performance degradation."
+        runbook_url: TBD

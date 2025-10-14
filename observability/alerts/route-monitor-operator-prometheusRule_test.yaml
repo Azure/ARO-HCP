@@ -1,0 +1,42 @@
+rule_files:
+- route-monitor-operator-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# route-monitor-operator-health group tests
+# Test route-monitor-operator-Down alert
+- interval: 1m
+  input_series:
+  - series: 'kube_deployment_status_replicas_available{namespace="openshift-route-monitor-operator",deployment="route-monitor-operator-controller-manager"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: route-monitor-operator-Down
+    exp_alerts:
+    - exp_labels:
+        alertname: route-monitor-operator-Down
+        component: route-monitor-operator
+        namespace: openshift-route-monitor-operator
+        deployment: route-monitor-operator-controller-manager
+        severity: critical
+      exp_annotations:
+        description: "The Route Monitor Operator has no available replicas. This will impact monitoring capabilities across hosted control planes."
+        runbook_url: TBD
+# Test route-monitor-operator-HighRestartCount alert
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_restarts_total{namespace="openshift-route-monitor-operator",container="manager",pod="route-monitor-operator-controller-manager-abc123"}'
+    values: "0+0x59 60"
+  alert_rule_test:
+  - eval_time: 1h5m
+    alertname: route-monitor-operator-HighRestartCount
+    exp_alerts:
+    - exp_labels:
+        alertname: route-monitor-operator-HighRestartCount
+        component: route-monitor-operator
+        namespace: openshift-route-monitor-operator
+        container: manager
+        pod: route-monitor-operator-controller-manager-abc123
+        severity: warning
+      exp_annotations:
+        description: "The Route Monitor Operator is experiencing frequent restarts, which may indicate resource constraints or configuration issues."
+        runbook_url: TBD
