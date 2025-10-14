@@ -16,7 +16,6 @@ param allowedAcisExtensions string
 @description('App ID for Geneva Actions')
 param genevaActionsPrincipalId string
 
-
 //   G E N E V A    K V
 
 module genevaKv '../modules/keyvault/keyvault.bicep' = {
