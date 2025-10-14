@@ -50,6 +50,52 @@ func TestValidateExternalAuth(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
+			name: "valid external auth with multiple unique clients",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"client1", "client2", "client3"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1",
+							AuthClientNamespace: "namespace1",
+						},
+						ClientID: "client1",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component2",
+							AuthClientNamespace: "namespace2",
+						},
+						ClientID: "client2",
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1", // Same name but different namespace is OK
+							AuthClientNamespace: "namespace3",
+						},
+						ClientID: "client3",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+				}
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
+			name: "valid external auth without CA certificate",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.CA = "" // CA is optional
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
 			name:   "missing required issuer URL",
 			newObj: createMinimalExternalAuth(),
 			op:     operation.Operation{Type: operation.Create},
@@ -201,6 +247,88 @@ func TestValidateExternalAuth(t *testing.T) {
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{field: "properties.claim.mappings.username.claim", message: "Required value"},
+			},
+		},
+		{
+			name: "duplicate client components (unique validation)",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"client1", "client2"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "same-component",
+							AuthClientNamespace: "same-namespace",
+						},
+						ClientID: "client1",
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "same-component", // Same component name and namespace
+							AuthClientNamespace: "same-namespace",
+						},
+						ClientID: "client2",
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{field: "properties.clients[1]", message: "Duplicate value"},
+			},
+		},
+		{
+			name: "client ID not matching any issuer audience",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"audience1", "audience2"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "test-component",
+							AuthClientNamespace: "test-namespace",
+						},
+						ClientID: "nonexistent-client", // This doesn't match any audience
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{field: "properties.clients[0]", message: "must match an audience in issuer audiences"},
+			},
+		},
+		{
+			name: "multiple clients with mismatched audiences",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Issuer.Audiences = []string{"audience1"}
+				obj.Properties.Clients = []api.ExternalAuthClientProfile{
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component1",
+							AuthClientNamespace: "namespace1",
+						},
+						ClientID: "audience1", // This matches
+						Type:     api.ExternalAuthClientTypeConfidential,
+					},
+					{
+						Component: api.ExternalAuthClientComponentProfile{
+							Name:                "component2",
+							AuthClientNamespace: "namespace2",
+						},
+						ClientID: "bad-audience", // This doesn't match
+						Type:     api.ExternalAuthClientTypePublic,
+					},
+				}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []expectedError{
+				{field: "properties.clients[1]", message: "must match an audience in issuer audiences"},
 			},
 		},
 		{
