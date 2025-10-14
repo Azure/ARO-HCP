@@ -388,6 +388,7 @@ func TestDeploymentPreflight(t *testing.T) {
 					},
 					"platform": map[string]any{
 						"vmSize": "Standard_D8s_v3",
+						"osDisk": "Persistent",
 					},
 				},
 			},
@@ -405,7 +406,7 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
-						// 1 missing required field
+						// 2 missing required field
 					},
 					"autoScaling": map[string]any{
 						// 1 invalid field
@@ -421,7 +422,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 4,
+			expectErrors: 5,
 		},
 	}
 
