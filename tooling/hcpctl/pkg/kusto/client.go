@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-kusto-go/kusto"
 	kustoErrors "github.com/Azure/azure-kusto-go/kusto/data/errors"
 	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	"github.com/go-logr/logr"
 )
 
 type KustoClient interface {
@@ -32,7 +33,6 @@ type KustoClient interface {
 
 // Client represents an Azure Data Explorer client for executing queries
 type Client struct {
-	Debug       bool
 	ClusterName string
 	Endpoint    string
 	kustoClient *kusto.Client
@@ -60,7 +60,7 @@ type QueryStats struct {
 }
 
 // NewClient creates a new Azure Data Explorer client
-func NewClient(endpoint string, debug bool) (*Client, error) {
+func NewClient(endpoint string) (*Client, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("cluster endpoint is required")
 	}
@@ -78,7 +78,6 @@ func NewClient(endpoint string, debug bool) (*Client, error) {
 	}
 
 	return &Client{
-		Debug:       debug,
 		Endpoint:    endpoint,
 		kustoClient: kustoClient,
 	}, nil
@@ -89,12 +88,13 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	fmt.Printf("Executing query: %s on database %s\n", query.Name, query.Database)
+	logger := logr.FromContextOrDiscard(ctx)
 
-	if c.Debug {
-		fmt.Printf("Query: %s\n", query.Query.String())
-		fmt.Printf("Parameters: %v\n", query.Parameters.ToParameterCollection())
-	}
+	logger.V(1).Info("Executing query on database", "queryName", query.Name, "database", query.Database)
+
+	logger.V(2).Info("Query", "query", query.Query.String())
+	logger.V(2).Info("Parameters", "parameters", query.Parameters.ToParameterCollection())
+
 	iter, err := c.kustoClient.Query(queryCtx, query.Database, query.Query, kusto.QueryParameters(query.Parameters))
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
@@ -145,7 +145,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	executionTime := time.Since(startTime)
 
-	fmt.Printf("Query '%s' completed: %d rows with %d KB in %v\n", query.Name, totalRows, dataSize/1024, executionTime)
+	logger.V(1).Info("Query competed", "query", query.Name, "rows", totalRows, "KiloBytes", dataSize/1024, "executionTime", executionTime)
 
 	return &QueryResult{
 		Columns: columns,

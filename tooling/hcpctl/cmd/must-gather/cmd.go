@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
@@ -81,6 +82,7 @@ func (q *QueryClient) writeQueryResultToFile(queryName string, result *kusto.Que
 }
 
 func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputRowType any, outputChannel chan any) error {
+	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
 
@@ -91,7 +93,7 @@ func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.Co
 			defer wg.Done()
 			result, err := q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel, outputRowType, q.QueryTimeout)
 			if err != nil {
-				fmt.Printf("Query %d failed: %v\n", queryIndex+1, err)
+				logger.Error(err, "Query failed", "name", query.Name)
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}

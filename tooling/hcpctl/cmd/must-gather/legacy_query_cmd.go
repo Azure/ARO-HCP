@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
@@ -34,11 +35,12 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 }
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
 	clusterIds, err := executeClusterIdQuery(ctx, opts, getKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
-	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
+	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
 	err = writeQueryOptionsToFile(opts.OutputPath, opts.QueryOptions)
 	if err != nil {
@@ -51,7 +53,7 @@ func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	}
 
 	if opts.SkipHostedControlePlaneLogs {
-		fmt.Println("Skipping hosted control plane logs")
+		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
 		err = executeKubeSystemHostedControlPlaneLogsQuery(ctx, opts, opts.QueryOptions)
 		if err != nil {

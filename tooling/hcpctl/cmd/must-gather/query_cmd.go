@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
@@ -39,9 +40,10 @@ func newQueryCommand() (*cobra.Command, error) {
 }
 
 func (opts *MustGatherOptions) Run(ctx context.Context) error {
+	logger := logr.FromContextOrDiscard(ctx)
 	defer func() {
 		if closeErr := opts.QueryClient.Close(); closeErr != nil {
-			fmt.Printf("Warning: failed to close Kusto client: %v\n", closeErr)
+			logger.Error(closeErr, "Warning: failed to close Kusto client")
 		}
 	}()
 
@@ -49,7 +51,7 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to execute cluster id query: %w", err)
 	}
-	fmt.Printf("Cluster IDs: %s\n", strings.Join(clusterIds, ", "))
+	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
 	err = writeQueryOptionsToFile(opts.OutputPath, opts.QueryOptions)
 	if err != nil {
@@ -62,9 +64,9 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	}
 
 	if opts.SkipHostedControlePlaneLogs {
-		fmt.Println("Skipping hosted control plane logs")
+		logger.V(2).Info("Skipping hosted control plane logs")
 	} else {
-		fmt.Println("Executing hosted control plane logs")
+		logger.V(1).Info("Executing hosted control plane logs")
 		err := executeHostedControlPlaneLogsQuery(ctx, opts, opts.QueryOptions)
 		if err != nil {
 			return fmt.Errorf("failed to execute hosted control plane logs query: %w", err)
