@@ -22,12 +22,6 @@ param globalMSIName string
 @description('The name of the global KV')
 param globalKVName string
 
-@description('The name of the geneva actions KV')
-param genevaActionsKVName string
-
-@description('Should geneva actions be enabled')
-param genevaActionsEnabled bool
-
 //
 //   A C R
 //
@@ -99,13 +93,3 @@ resource globalKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
 }
 
 output globalKeyVaultUrl string = globalKV.properties.vaultUri
-
-//
-//   G E N E V A   A C T I O N S   KV
-//
-
-resource genevaActionsKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = if (genevaActionsEnabled) {
-  name: genevaActionsKVName
-}
-
-output genevaActionKeyVaultUrl string = genevaActionsEnabled ? genevaActionsKV.properties.vaultUri : ''
