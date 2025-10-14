@@ -390,11 +390,3 @@ func ValidateRequest[T any](validate *validator.Validate, resource T) []arm.Clou
 
 	return errorDetails
 }
-
-// ValidateSubscription validates a subscription request payload.
-func ValidateSubscription(subscription *arm.Subscription) *arm.CloudError {
-	errorDetails := ValidateRequest(NewValidator(), subscription)
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
-}
