@@ -187,11 +187,11 @@ services_all = $(join services_svc,services_mgmt)
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
 services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent observability.tracing route-monitor-operator
-%.deploy_pipeline: $(ORAS_LINK)
+%.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
 
-%.dry_run: $(ORAS_LINK)
+%.dry_run: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run -d
 
@@ -210,7 +210,7 @@ rebase:
 	hack/rebase-n-materialize.sh
 .PHONY: rebase
 
-validate-config-pipelines:
+validate-config-pipelines: $(YQ)
 	$(MAKE) -C tooling/templatize templatize
 	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
