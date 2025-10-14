@@ -4,6 +4,7 @@ deploy:
 
 grafana:
 	python3 grafana/grafana.py
+.PHONY: grafana
 
 kubernetesControlPlane-prometheusRule:
 	PROMETHEUS_OPERATOR_REF=$(shell yq -r '.prometheusRules.prometheusOperatorVersion' observability.yaml) && \
