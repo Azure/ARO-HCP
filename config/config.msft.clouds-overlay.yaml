@@ -60,13 +60,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:0dce4b28f56d6d7aeaa938f915fa3e09c79e0a5c738f23da8cb96622931bd02d"
+              digest: "sha256:f5f0d0741c67be3ba842126d3aa6bb67c8bbfb344af869072e77aaacdbad841d"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:648fb8c8da731ac41d154b971e7ab37cc07136949484828bb3cc7cb07c4a5f89"
+              digest: "sha256:68463d04a949d9429506de09addc9117e27459a985bb13e85a0a3b693a14ed32"
           # Hypershift
           hypershift:
             image:
