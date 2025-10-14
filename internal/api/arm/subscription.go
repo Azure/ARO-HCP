@@ -18,8 +18,6 @@ import (
 	"iter"
 	"slices"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -84,16 +82,6 @@ const (
 	SubscriptionStateWarned       SubscriptionState = "Warned"
 	SubscriptionStateDeleted      SubscriptionState = "Deleted"
 	SubscriptionStateSuspended    SubscriptionState = "Suspended"
-)
-
-var (
-	ValidSubscriptionStates = sets.New(
-		SubscriptionStateRegistered,
-		SubscriptionStateUnregistered,
-		SubscriptionStateWarned,
-		SubscriptionStateDeleted,
-		SubscriptionStateSuspended,
-	)
 )
 
 // ListSubscriptionStates returns an iterator that yields all recognized
