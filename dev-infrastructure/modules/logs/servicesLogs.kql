@@ -1,5 +1,3 @@
-.execute database script with (ThrowOnErrors=true)
-<|
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
@@ -18,6 +16,7 @@
    {"column":"unmatched", "DataType":"dynamic", "Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
  ```
+ // kubernetesEvents Table
  .create-or-alter table kubernetesEvents ingestion json mapping 'ingestionMapping'
  ```
  [
@@ -48,6 +47,7 @@
    {"column":"unmatched","DataType":"dynamic", "Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
  ```
+ // frontendContainerLogs Table
  .create-or-alter table frontendContainerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
@@ -84,6 +84,7 @@
    {"column":"unmatched", "DataType":"dynamic", "Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
  ```
+ // backendContainerLogs Table
 .create-or-alter table backendContainerLogs ingestion json mapping 'ingestionMapping'
  ```
  [
