@@ -25,12 +25,15 @@ import (
 	"time"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
 
 var ServicesLogDirectory = "service"
 var HostedControlPlaneLogDirectory = "host-control-plane"
+
+var OptionsOutputFile = "options.json"
 
 func NewCommand(group string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
@@ -65,23 +68,22 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 	return cmd, nil
 }
 
+// NormalizedLogLine represents a as expected for output
+type NormalizedLogLine struct {
+	Log           []byte    `kusto:"log"`
+	Cluster       string    `kusto:"cluster"`
+	Namespace     string    `kusto:"namespace"`
+	ContainerName string    `kusto:"containerName"`
+	Timestamp     time.Time `kusto:"timestamp"`
+}
+
 type QueryClient struct {
 	Client       kusto.KustoClient
 	QueryTimeout time.Duration
 	OutputPath   string
 }
 
-func (q *QueryClient) writeQueryResultToFile(queryName string, result *kusto.QueryResult) error {
-	fileName := fmt.Sprintf("%s.json", queryName)
-	file, err := os.Create(path.Join(q.OutputPath, fileName))
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer file.Close()
-	return json.NewEncoder(file).Encode(result)
-}
-
-func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputRowType any, outputChannel chan any) error {
+func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.ConfigurableQuery, outputChannel chan *table.Row) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(len(queries))
@@ -91,13 +93,13 @@ func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.Co
 	for i, query := range queries {
 		go func(query *kusto.ConfigurableQuery, queryIndex int) {
 			defer wg.Done()
-			result, err := q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel, outputRowType, q.QueryTimeout)
+			result, err := q.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel, q.QueryTimeout)
 			if err != nil {
 				logger.Error(err, "Query failed", "name", query.Name)
 				errorCh <- fmt.Errorf("failed to execute query: %w", err)
 				return
 			}
-			err = q.writeQueryResultToFile(query.Name, result)
+			err = serializeOutputToFile(q.OutputPath, fmt.Sprintf("%s.json", query.Name), result)
 			if err != nil {
 				errorCh <- fmt.Errorf("failed to write query result to file: %w", err)
 			}
@@ -116,4 +118,13 @@ func (q *QueryClient) concurrentQueries(ctx context.Context, queries []*kusto.Co
 
 func (q *QueryClient) Close() error {
 	return q.Client.Close()
+}
+
+func serializeOutputToFile(outputPath string, outputFile string, output any) error {
+	file, err := os.Create(path.Join(outputPath, outputFile))
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(output)
 }

@@ -121,7 +121,7 @@ func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []s
 }
 
 // NewCustomerKubeSystemQuery creates a new KQL query for the customerLogs table
-func NewCustomerKubeSystemQuery(clusterId string) *ConfigurableQuery {
+func NewCustomerKubeSystemQuery(clusterId string, limit int) *ConfigurableQuery {
 	builder := kql.New("").AddTable("kubesystem")
 	parameters := kql.NewParameters()
 
@@ -129,7 +129,9 @@ func NewCustomerKubeSystemQuery(clusterId string) *ConfigurableQuery {
 	parameters.AddString("clusterId", clusterId)
 
 	builder.AddLiteral("\n| project log, Role, namespace_name, container_name, timestamp, kubernetes ")
-
+	if limit > 0 {
+		builder.AddLiteral("\n| limit ").AddInt(int32(limit))
+	}
 	return &ConfigurableQuery{
 		Name:       "KubeSystem Hosted Control Plane Logs",
 		Database:   "HCPCustomerLogs",

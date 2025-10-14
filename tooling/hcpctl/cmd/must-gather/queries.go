@@ -31,15 +31,6 @@ var servicesTables = []string{
 
 var containerLogsTable = servicesTables[0]
 
-// Row represents a row in the query result
-type ContainerLogsRow struct {
-	Log           []byte    `kusto:"log"`
-	Cluster       string    `kusto:"cluster"`
-	Namespace     string    `kusto:"namespace"`
-	ContainerName string    `kusto:"containerName"`
-	Timestamp     time.Time `kusto:"timestamp"`
-}
-
 // RowWithClusterId represents a row in the query result with a cluster id
 type ClusterIdRow struct {
 	ClusterId string `kusto:"cid"`
@@ -122,7 +113,7 @@ func getKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []s
 func getKubeSystemHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewCustomerKubeSystemQuery(clusterId)
+		query := kusto.NewCustomerKubeSystemQuery(clusterId, opts.Limit)
 		queries = append(queries, query)
 	}
 	return queries

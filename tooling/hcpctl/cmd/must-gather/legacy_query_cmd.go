@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +41,7 @@ func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
-	err = writeQueryOptionsToFile(opts.OutputPath, opts.QueryOptions)
+	err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to write query options to file: %w", err)
 	}
@@ -86,61 +85,33 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 	return nil
 }
 
-func writeKubesystemLogsToFile(outputChannel chan any, outputPath string, directory string) error {
-	openedFiles := make(map[string]*os.File)
-	for rowAsAny := range outputChannel {
-		row := rowAsAny.(*KubesystemLogsRow)
-		err := processKubesystemLogsRow(row)
-		if err != nil {
-			return fmt.Errorf("failed to process kubesystem logs row: %w", err)
-		}
-		fileName := fmt.Sprintf("%s-%s-%s.log", row.Cluster, row.Namespace, row.ContainerName)
-
-		file, ok := openedFiles[fileName]
-		if !ok {
-			file, err := os.Create(path.Join(outputPath, directory, fileName))
-			if err != nil {
-				return fmt.Errorf("failed to create output file: %w", err)
-			}
-			openedFiles[fileName] = file
-		}
-		defer file.Close()
-		fmt.Fprintf(openedFiles[fileName], "%s\n", string(row.Log))
-	}
-	return nil
-}
-
 func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
 	query := getKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
-
-	outputChannel := make(chan any)
-	defer close(outputChannel)
-
-	var err error
-
-	go func() {
-		err = writeKubesystemLogsToFile(outputChannel, opts.OutputPath, ServicesLogDirectory)
-	}()
-	if err != nil {
-		return fmt.Errorf("failed to write kubesystem logs to file: %w", err)
-	}
-
-	return opts.QueryClient.concurrentQueries(ctx, []*kusto.ConfigurableQuery{query}, KubesystemLogsRow{}, outputChannel)
+	return castQueryAndWriteToFile(ctx, opts, []*kusto.ConfigurableQuery{query})
 }
 
 func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
 	query := getKubeSystemHostedControlPlaneLogsQuery(queryOpts)
+	return castQueryAndWriteToFile(ctx, opts, query)
+}
 
-	outputChannel := make(chan any)
-	defer close(outputChannel)
-
-	var err error
-	go func() {
-		err = writeKubesystemLogsToFile(outputChannel, opts.OutputPath, HostedControlPlaneLogDirectory)
-	}()
-	if err != nil {
-		return fmt.Errorf("failed to write container logs to file: %w", err)
+func castQueryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery) error {
+	castFunction := func(input *table.Row) (*NormalizedLogLine, error) {
+		// can directly cast, cause the row is already normalized
+		legacyLogLine := &KubesystemLogsRow{}
+		if err := input.ToStruct(legacyLogLine); err != nil {
+			return nil, fmt.Errorf("failed to convert row to struct: %w", err)
+		}
+		err := processKubesystemLogsRow(legacyLogLine)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process kubesystem logs row: %w", err)
+		}
+		return &NormalizedLogLine{
+			Log:           []byte(legacyLogLine.Log),
+			Cluster:       legacyLogLine.Cluster,
+			Namespace:     legacyLogLine.Namespace,
+			ContainerName: legacyLogLine.ContainerName,
+		}, nil
 	}
-
-	return opts.QueryClient.concurrentQueries(ctx, query, KubesystemLogsRow{}, outputChannel)
+	return queryAndWriteToFile(ctx, opts, castFunction, queries)
 }

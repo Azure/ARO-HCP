@@ -17,7 +17,6 @@ package kusto
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/Azure/azure-kusto-go/kusto"
@@ -27,7 +26,7 @@ import (
 )
 
 type KustoClient interface {
-	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*QueryResult, error)
+	ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row, timeout time.Duration) (*QueryResult, error)
 	Close() error
 }
 
@@ -84,7 +83,7 @@ func NewClient(endpoint string) (*Client, error) {
 }
 
 // ExecutePreconfiguredQuery executes a KQL query against the Azure Data Explorer cluster
-func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- any, rowType any, timeout time.Duration) (*QueryResult, error) {
+func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *ConfigurableQuery, outputChannel chan<- *table.Row, timeout time.Duration) (*QueryResult, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -109,6 +108,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 
 	// Process rows using DoOnRowOrError
 	err = iter.DoOnRowOrError(func(row *table.Row, e *kustoErrors.Error) error {
+		logger.V(8).Info("Processing row", "row", row)
 		if e != nil {
 			return fmt.Errorf("failed to process row: %w", e)
 		}
@@ -127,12 +127,7 @@ func (c *Client) ExecutePreconfiguredQuery(ctx context.Context, query *Configura
 		}
 
 		// Convert row to struct
-		rowData := reflect.New(reflect.TypeOf(rowType)).Interface()
-		err := row.ToStruct(rowData)
-		if err != nil {
-			return fmt.Errorf("failed to convert row to struct: %w", err)
-		}
-		outputChannel <- rowData
+		outputChannel <- row
 		totalRows++
 		dataSize += int64(len(fmt.Sprintf("%v", row.Values)))
 

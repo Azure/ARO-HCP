@@ -2,13 +2,16 @@ package mustgather
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/azure-kusto-go/kusto/data/table"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 )
@@ -53,7 +56,7 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
-	err = writeQueryOptionsToFile(opts.OutputPath, opts.QueryOptions)
+	err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to write query options to file: %w", err)
 	}
@@ -76,43 +79,58 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 	return nil
 }
 
-func writeContainerLogsToFile(outputChannel chan any, outputPath string, directory string) error {
+func writeContainerLogsToFile(outputChannel chan *table.Row, castFunction func(input *table.Row) (*NormalizedLogLine, error), outputPath string, directory string) error {
 	openedFiles := make(map[string]*os.File)
+	var allErrors error
 	for row := range outputChannel {
-		fileName := fmt.Sprintf("%s-%s-%s.log", row.(*ContainerLogsRow).Cluster, row.(*ContainerLogsRow).Namespace, row.(*ContainerLogsRow).ContainerName)
+		normalizedRow, err := castFunction(row)
+		if err != nil {
+			return fmt.Errorf("failed to cast row: %w", err)
+		}
+		fileName := fmt.Sprintf("%s-%s-%s.log", normalizedRow.Cluster, normalizedRow.Namespace, normalizedRow.ContainerName)
 
 		file, ok := openedFiles[fileName]
 		if !ok {
 			file, err := os.Create(path.Join(outputPath, directory, fileName))
 			if err != nil {
-				return fmt.Errorf("failed to create output file: %w", err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("failed to create output file: %w", err))
+				return allErrors
 			}
 			openedFiles[fileName] = file
 		}
 		defer file.Close()
-		fmt.Fprintf(openedFiles[fileName], "%s\n", string(row.(*ContainerLogsRow).Log))
+		fmt.Fprintf(openedFiles[fileName], "%s\n", string(normalizedRow.Log))
 	}
-	return nil
+	return allErrors
 }
 
 func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *kusto.ConfigurableQuery) ([]string, error) {
-	outputChannel := make(chan any)
+	outputChannel := make(chan *table.Row)
 	allClusterIds := make([]string, 0)
 
-	go func() {
+	g := new(errgroup.Group)
+	g.Go(func() error {
 		for row := range outputChannel {
-			clusterId := row.(*ClusterIdRow).ClusterId
-			if clusterId != "" {
-				allClusterIds = append(allClusterIds, clusterId)
+			cidRow := &ClusterIdRow{}
+			if err := row.ToStruct(cidRow); err != nil {
+				return fmt.Errorf("failed to convert row to struct: %w", err)
+			}
+			if cidRow.ClusterId != "" {
+				allClusterIds = append(allClusterIds, cidRow.ClusterId)
 			}
 		}
-	}()
+		return nil
+	})
 
-	_, err := opts.QueryClient.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel, ClusterIdRow{}, opts.QueryTimeout)
+	_, err := opts.QueryClient.Client.ExecutePreconfiguredQuery(ctx, query, outputChannel, opts.QueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	close(outputChannel)
+
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
 
 	return allClusterIds, nil
 }
@@ -120,43 +138,47 @@ func executeClusterIdQuery(ctx context.Context, opts *MustGatherOptions, query *
 // executeQuery performs the actual query execution against Azure Data Explorer
 func executeServicesQueries(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
 	queries := getServicesQueries(queryOpts)
-
-	outputChannel := make(chan any)
-	defer close(outputChannel)
-
-	var err error
-	go func() {
-		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, ServicesLogDirectory)
-	}()
-	if err != nil {
-		return fmt.Errorf("failed to write container logs to file: %w", err)
-	}
-
-	return opts.QueryClient.concurrentQueries(ctx, queries, ContainerLogsRow{}, outputChannel)
+	return queryCastContainerLogAndWriteToFile(ctx, opts, queries)
 }
 
 func executeHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
-	query := getHostedControlPlaneLogsQuery(queryOpts)
-
-	outputChannel := make(chan any)
-	defer close(outputChannel)
-
-	var err error
-	go func() {
-		err = writeContainerLogsToFile(outputChannel, opts.OutputPath, HostedControlPlaneLogDirectory)
-	}()
-	if err != nil {
-		return fmt.Errorf("failed to write container logs to file: %w", err)
-	}
-
-	return opts.QueryClient.concurrentQueries(ctx, query, ContainerLogsRow{}, outputChannel)
+	queries := getHostedControlPlaneLogsQuery(queryOpts)
+	return queryCastContainerLogAndWriteToFile(ctx, opts, queries)
 }
 
-func writeQueryOptionsToFile(outputPath string, queryOptions QueryOptions) error {
-	file, err := os.Create(path.Join(outputPath, "query-options.json"))
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+func queryCastContainerLogAndWriteToFile(ctx context.Context, opts *MustGatherOptions, queries []*kusto.ConfigurableQuery) error {
+	castFunction := func(input *table.Row) (*NormalizedLogLine, error) {
+		// can directly cast, cause the row is already normalized
+		normalizedLogLine := &NormalizedLogLine{}
+		if err := input.ToStruct(normalizedLogLine); err != nil {
+			return nil, fmt.Errorf("failed to convert row to struct: %w", err)
+		}
+		return normalizedLogLine, nil
 	}
-	defer file.Close()
-	return json.NewEncoder(file).Encode(queryOptions)
+
+	return queryAndWriteToFile(ctx, opts, castFunction, queries)
+}
+
+func queryAndWriteToFile(ctx context.Context, opts *MustGatherOptions, castFunction func(input *table.Row) (*NormalizedLogLine, error), queries []*kusto.ConfigurableQuery) error {
+	// logger := logr.FromContextOrDiscard(ctx)
+	queryOutputChannel := make(chan *table.Row)
+
+	queryGroup := new(errgroup.Group)
+	queryGroup.Go(func() error {
+		return opts.QueryClient.concurrentQueries(ctx, queries, queryOutputChannel)
+	})
+
+	consumerGroup := new(errgroup.Group)
+	consumerGroup.Go(func() error {
+		return writeContainerLogsToFile(queryOutputChannel, castFunction, opts.OutputPath, ServicesLogDirectory)
+	})
+
+	if err := queryGroup.Wait(); err != nil {
+		return fmt.Errorf("Error during query execution: %w", err)
+	}
+	close(queryOutputChannel)
+	if err := consumerGroup.Wait(); err != nil {
+		return fmt.Errorf("Error during query data transformation: %w", err)
+	}
+	return nil
 }
