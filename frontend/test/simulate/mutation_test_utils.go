@@ -41,8 +41,51 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo) {
+func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo, initialDataDir fs.FS) error {
 	internalIDToCluster := map[string][]any{}
+	internalIDToExternalAuth := map[string][]any{}
+	internalIDToNodePool := map[string][]any{}
+
+	if initialDataDir != nil {
+		// TODO a full directory scan would probably make some kinds of testing easier
+
+		dirContent, err := fs.ReadDir(initialDataDir, ".")
+		if err != nil {
+			return fmt.Errorf("failed to read dir: %w", err)
+		}
+
+		for _, dirEntry := range dirContent {
+			if dirEntry.IsDir() {
+				return fmt.Errorf("dir %s is not a file", dirEntry.Name())
+			}
+			fileReader, err := initialDataDir.Open(dirEntry.Name())
+			if err != nil {
+				return fmt.Errorf("failed to open file %s: %w", dirEntry.Name(), err)
+			}
+			fileContent, err := io.ReadAll(fileReader)
+			if err != nil {
+				return fmt.Errorf("failed to read file %s: %w", dirEntry.Name(), err)
+			}
+
+			switch {
+			case strings.HasSuffix(dirEntry.Name(), "-cluster.json"):
+				obj, err := arohcpv1alpha1.UnmarshalCluster(fileContent)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal cluster: %w", err)
+				}
+				if _, exists := internalIDToCluster[obj.HREF()]; exists {
+					return fmt.Errorf("duplicate cluster: %s", obj.HREF())
+				}
+				internalIDToCluster[obj.HREF()] = []any{obj}
+
+			case strings.HasSuffix(dirEntry.Name(), "-external-auth.json"):
+			case strings.HasSuffix(dirEntry.Name(), "-node-pool.json"):
+			default:
+				return fmt.Errorf("unknown file %s", dirEntry.Name())
+			}
+		}
+	}
+
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
 	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, builder *csarhcpv1alpha1.ClusterBuilder) (*csarhcpv1alpha1.Cluster, error) {
 		internalID := "/api/clusters_mgmt/v1/clusters/" + rand.String(10)
@@ -82,7 +125,6 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		return csarhcpv1alpha1.UnmarshalCluster(mergedJSON)
 	}).AnyTimes()
 
-	internalIDToExternalAuth := map[string][]any{}
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_externalAuths", internalIDToExternalAuth))
 	testInfo.MockClusterServiceClient.EXPECT().PostExternalAuth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
 		externalAuthInternalID := clusterID.String() + "/external_auth_config/external_auths/" + rand.String(10)
@@ -115,6 +157,41 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		}
 		return csarhcpv1alpha1.UnmarshalExternalAuth(mergedJSON)
 	}).AnyTimes()
+
+	require.NoError(t, testInfo.AddMockData(t.Name()+"_nodePools", internalIDToNodePool))
+	testInfo.MockClusterServiceClient.EXPECT().PostNodePool(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
+		nodePoolInternalID := clusterID.String() + "/node_pools/" + rand.String(10)
+		builder = builder.HREF(nodePoolInternalID)
+		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToNodePool[nodePoolInternalID] = append(internalIDToNodePool[nodePoolInternalID], ret)
+		return ret, nil
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().UpdateNodePool(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
+		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToNodePool[id.String()] = append(internalIDToNodePool[id.String()], ret)
+		return ret, nil
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().GetNodePool(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.NodePool, error) {
+		history := internalIDToNodePool[id.String()]
+		if len(history) == 0 {
+			return nil, fmt.Errorf("not found: %q", id.String())
+		}
+		mergedJSON, err := mergeClusterServiceReturn(history)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
+		}
+		return csarhcpv1alpha1.UnmarshalNodePool(mergedJSON)
+	}).AnyTimes()
+
+	return nil
 }
 
 func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {
