@@ -104,7 +104,7 @@ clustersService:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   batchProcesses: ARO-20736
-  batchProcessesDryRun: true
+  batchProcessesDryRun: false
   denyAssignments: disabled
   environment: arohcpdev
   image:
