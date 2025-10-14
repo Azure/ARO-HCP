@@ -55,35 +55,11 @@ resource serviceLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
       tenantId: tenant().tenantId
     }
   }
-  resource containerLogs 'scripts' = {
-    name: 'containerLogs'
+  resource servicesLogs 'scripts' = {
+    name: 'servicesLogs'
     properties: {
       #disable-next-line use-secure-value-for-secure-inputs
-      scriptContent: loadTextContent('containerLogs.kql')
-      continueOnErrors: false
-    }
-  }
-  resource frontendContainerLogs 'scripts' = {
-    name: 'frontendContainerLogs'
-    properties: {
-      #disable-next-line use-secure-value-for-secure-inputs
-      scriptContent: loadTextContent('frontendContainerLogs.kql')
-      continueOnErrors: false
-    }
-  }
-  resource backendContainerLogs 'scripts' = {
-    name: 'backendContainerLogs'
-    properties: {
-      #disable-next-line use-secure-value-for-secure-inputs
-      scriptContent: loadTextContent('backendContainerLogs.kql')
-      continueOnErrors: false
-    }
-  }
-  resource kubernetesEvents 'scripts' = {
-    name: 'kubernetesEvents'
-    properties: {
-      #disable-next-line use-secure-value-for-secure-inputs
-      scriptContent: loadTextContent('kubernetesEvents.kql')
+      scriptContent: loadTextContent('servicesLogs.kql')
       continueOnErrors: false
     }
   }
@@ -110,11 +86,11 @@ resource customerLogs 'Microsoft.Kusto/clusters/databases@2024-04-13' = {
     }
   }
 
-  resource containerLogs 'scripts' = {
-    name: 'containerLogs'
+  resource customerLogs 'scripts' = {
+    name: 'customerLogs'
     properties: {
       #disable-next-line use-secure-value-for-secure-inputs
-      scriptContent: loadTextContent('containerLogs.kql')
+      scriptContent: loadTextContent('customerLogs.kql')
       continueOnErrors: false
     }
   }
