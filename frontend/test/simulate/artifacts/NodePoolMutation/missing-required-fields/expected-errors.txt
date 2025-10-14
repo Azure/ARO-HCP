@@ -1,1 +1,1 @@
-InvalidRequestContent: properties.replicas: Field 'replicas' must be 0 when 'autoScaling' is specified
+InvalidRequestContent: properties.replicas: Invalid value: 1: must be equal to 0

@@ -2,4 +2,3 @@
 2. labels silently overwrite duplicate keys without errors
 3. empty keys for labels should be disallowed
 4. nodeDrainTimeoutminutes is allowed to be negative
-5. channel group validation is skipped

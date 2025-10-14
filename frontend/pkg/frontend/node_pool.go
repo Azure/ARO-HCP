@@ -19,8 +19,9 @@ import (
 	"maps"
 	"net/http"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -218,10 +219,29 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedRequestNodePool, versionedCurrentNodePool, hcpCluster, updating)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
+	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+	versionedRequestNodePool.Normalize(newInternalNodePool)
+
+	var validationErrs field.ErrorList
+	if updating {
+		oldInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+		versionedCurrentNodePool.Normalize(oldInternalNodePool)
+		validationErrs = validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
+		// in addition to static validation, we have validation based on the state of the hcp cluster
+		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
+
+	} else {
+		validationErrs = validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+		// in addition to static validation, we have validation based on the state of the hcp cluster
+		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
+
+	}
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+
+	// prefer new validation.  Have a fallback for old validation.
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
 
