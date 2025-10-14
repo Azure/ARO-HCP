@@ -796,7 +796,7 @@ clouds:
       # ACR Pull
       acrPull:
         image:
-          digest: sha256:8535e678398d0c15bccc6e4383483f15ab9e248405c0fc1ce587e3999b39e664 #v0.1.18
+          digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d #v0.1.20
       # Secret Sync Controller
       secretSyncController:
         image:
