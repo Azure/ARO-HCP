@@ -1,0 +1,19 @@
+.create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
+ ```
+ [
+   {"column":"timestamp", "DataType":"datetime", "Properties":{"path":"$.timestamp"}},
+   {"column":"log", "DataType":"dynamic", "Properties":{"path":"$.log.log"}},
+   {"column":"environment", "DataType":"string", "Properties":{"path":"$.log.environment"}},
+   {"column":"region", "DataType":"string", "Properties":{"path":"$.log.region"}},
+   {"column":"cluster", "DataType":"string", "Properties":{"path":"$.log.cluster"}},
+   {"column":"host", "DataType":"string", "Properties":{"path":"$.log.kubernetes.host"}},
+   {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
+   {"column":"containerImage", "DataType":"string", "Properties":{"path":"$.log.kubernetes.container_image"}},
+   {"column":"namespace", "DataType":"string", "Properties":{"path":"$.log.kubernetes.namespace_name"}},
+   {"column":"labels", "DataType":"string", "Properties":{"path":"$.log.kubernetes.labels"}},
+   {"column":"podName", "DataType":"string", "Properties":{"path":"$.log.kubernetes.pod_name"}},
+   {"column":"tag", "DataType":"string", "Properties":{"path":"$.tag"}},
+   {"column":"unmatched", "DataType":"dynamic", "Properties":{"path":"$", "Transform":"DropMappedFields" }}
+ ]
+ ```
+ 
