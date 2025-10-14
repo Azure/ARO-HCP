@@ -16,4 +16,3 @@
    {"column":"unmatched", "DataType":"dynamic", "Properties":{"path":"$", "Transform":"DropMappedFields" }}
  ]
  ```
- 
