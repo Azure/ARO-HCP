@@ -425,16 +425,6 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	}
 }
 
-func (c *HcpOpenShiftCluster) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := clusterVisibilityMap[path]
-	return flags, ok
-}
-
-func (c *HcpOpenShiftCluster) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftCluster], updating bool) []arm.CloudErrorBody {
-	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftCluster]()
-	return api.ValidateVisibility(c, current.(*HcpOpenShiftCluster), clusterVisibilityMap, structTagMap, updating)
-}
-
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	if p.ID != nil {
 		out.ID = *p.ID

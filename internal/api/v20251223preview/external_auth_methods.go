@@ -119,16 +119,6 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	}
 }
 
-func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := externalAuthVisibilityMap[path]
-	return flags, ok
-}
-
-func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
-	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
-	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
-}
-
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
 	if p.Component != nil {
 		out.Component.Name = ptr.Deref(p.Component.Name, "")
