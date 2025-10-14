@@ -806,7 +806,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:28574667a937d23eff68c2f7bc21874e5818952e343d4906bbbe2ca30bfe512f
+          digest: sha256:1b5433dbe4b5022c330b3c5cacedc5d4fe63592ab93f0884bcf960ee125fa090
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
