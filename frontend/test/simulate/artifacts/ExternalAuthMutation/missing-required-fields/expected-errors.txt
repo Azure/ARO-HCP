@@ -16,5 +16,5 @@ InvalidRequestContent: properties.clients[1].component.name: properties.clients[
 InvalidRequestContent: properties.clients[1].component.authClientNamespace: properties.clients[1].component.authClientNamespace: Required value
 InvalidRequestContent: properties.clients[1].type: properties.clients[1].type: Unsupported value: "": supported values: "Confidential", "Public"
 InvalidRequestContent: properties.clients[1]: properties.clients[1]: Duplicate value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}
-InvalidRequestContent: properties.clients[0]: properties.clients[0]: Invalid value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}: must match an audience in issuer audiences
-InvalidRequestContent: properties.clients[1]: properties.clients[1]: Invalid value: {"component":{"name":"","authClientNamespace":""},"clientId":"","extraScopes":[],"type":""}: must match an audience in issuer audiences
+InvalidRequestContent: properties.clients[0].clientId: properties.clients[0].clientId: Invalid value: "": must match an audience in issuer audiences
+InvalidRequestContent: properties.clients[1].clientId: properties.clients[1].clientId: Invalid value: "": must match an audience in issuer audiences

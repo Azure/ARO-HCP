@@ -81,34 +81,6 @@ type Version interface {
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 }
 
-func ValidateVersionedHCPOpenShiftCluster(incoming, current VersionedHCPOpenShiftCluster, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = incoming.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftCluster
-
-		incoming.Normalize(&normalized)
-
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate()
-		}
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
-}
-
 func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
 	var errorDetails []arm.CloudErrorBody
 
@@ -130,34 +102,6 @@ func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCP
 		// becoming overwhelming.
 		if len(errorDetails) == 0 {
 			errorDetails = normalized.Validate(cluster)
-		}
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
-}
-
-func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current VersionedHCPOpenShiftClusterExternalAuth, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = incoming.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftClusterExternalAuth
-
-		incoming.Normalize(&normalized)
-
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate()
 		}
 	}
 

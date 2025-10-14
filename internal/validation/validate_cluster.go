@@ -173,6 +173,7 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 	errs = append(errs, validateResource(ctx, op, fldPath.Child("resource"), &newObj.Resource, safe.Field(oldObj, toTrackedResourceResource))...)
 
 	//Location string            `json:"location,omitempty" visibility:"read create"        validate:"required"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("location"), &newObj.Location, safe.Field(oldObj, toTrackedResourceLocation))...)
 
 	//Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
