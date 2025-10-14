@@ -19,10 +19,11 @@ import (
 	"maps"
 	"net/http"
 
-	"github.com/Azure/ARO-HCP/internal/admission"
-	"github.com/Azure/ARO-HCP/internal/validation"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/Azure/ARO-HCP/internal/admission"
+	"github.com/Azure/ARO-HCP/internal/validation"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
