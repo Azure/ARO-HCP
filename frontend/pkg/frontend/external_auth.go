@@ -26,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -124,9 +125,17 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		case http.MethodPut:
 			// Initialize versionedRequestExternalAuth to include both
 			// non-zero default values and current read-only values.
+
 			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
-			api.CopyReadOnlyValues(versionedCurrentExternalAuth, versionedRequestExternalAuth)
+
+			// read-only values are an internal concern since they're the source, so we convert.
+			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
+			newTemporaryInternal := &api.HCPOpenShiftClusterExternalAuth{}
+			versionedRequestExternalAuth.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyExternalAuthValues(newTemporaryInternal, hcpExternalAuth)
+			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(newTemporaryInternal)
+
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)

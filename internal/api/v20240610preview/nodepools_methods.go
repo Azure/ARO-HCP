@@ -207,16 +207,6 @@ func normalizeOSDiskProfile(p *generated.OsDiskProfile, out *api.OSDiskProfile) 
 	}
 }
 
-func (h *NodePool) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := nodePoolVisibilityMap[path]
-	return flags, ok
-}
-
-func (h *NodePool) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterNodePool], updating bool) []arm.CloudErrorBody {
-	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterNodePool]()
-	return api.ValidateVisibility(h, current.(*NodePool), nodePoolVisibilityMap, structTagMap, updating)
-}
-
 type NodePoolVersionProfile struct {
 	generated.NodePoolVersionProfile
 }

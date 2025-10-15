@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
+	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -600,7 +601,14 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
 			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(reqCluster)
-			api.CopyReadOnlyValues(versionedCurrentCluster, versionedRequestCluster)
+
+			// read-only values are an internal concern since they're the source, so we convert.
+			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
+			newTemporaryInternal := &api.HCPOpenShiftCluster{}
+			versionedRequestCluster.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyClusterValues(newTemporaryInternal, hcpCluster)
+			versionedRequestCluster = versionedInterface.NewHCPOpenShiftCluster(newTemporaryInternal)
+
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentCluster = versionedInterface.NewHCPOpenShiftCluster(hcpCluster)
@@ -1096,10 +1104,11 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	cloudError := api.ValidateSubscription(&subscription)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
+	validationErrs := validation.ValidateSubscriptionCreate(ctx, &subscription)
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
 
@@ -1176,7 +1185,6 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 		return
 	}
 
-	validate := api.NewValidator()
 	preflightErrors := []arm.CloudErrorBody{}
 
 	availableAROHCPVersions := f.apiRegistry.ListVersions()
@@ -1221,17 +1229,6 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 		switch strings.ToLower(preflightResource.Type) {
 		case strings.ToLower(api.ClusterResourceType.String()):
-			// This is just "preliminary" validation to ensure all the base resource
-			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, preflightResource)
-			if len(resourceErrors) > 0 {
-				// Preflight is best-effort: a malformed resource is not a validation failure.
-				logger.Warn(
-					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
-					"details", resourceErrors)
-				continue
-			}
-
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedCluster := versionedInterface.NewHCPOpenShiftCluster(nil)
@@ -1249,17 +1246,6 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):
-			// This is just "preliminary" validation to ensure all the base resource
-			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, preflightResource)
-			if len(resourceErrors) > 0 {
-				// Preflight is best-effort: a malformed resource is not a validation failure.
-				logger.Warn(
-					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
-					"details", resourceErrors)
-				continue
-			}
-
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(nil)
@@ -1272,20 +1258,12 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 			}
 
 			// Perform static validation as if for a node pool creation request.
-			cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedNodePool, versionedNodePool, nil, false)
+			newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+			versionedNodePool.Normalize(newInternalNodePool)
+			validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.ExternalAuthResourceType.String()):
-			// This is just "preliminary" validation to ensure all the base resource
-			// fields are present and the API version is valid.
-			resourceErrors := api.ValidateRequest(validate, preflightResource)
-			if len(resourceErrors) > 0 {
-				// Preflight is best-effort: a malformed resource is not a validation failure.
-				logger.Warn(
-					fmt.Sprintf("Resource #%d failed preliminary validation (see details)", index+1),
-					"details", resourceErrors)
-				continue
-			}
-
 			// API version is already validated by this point.
 			versionedInterface, _ := f.apiRegistry.Lookup(preflightResource.APIVersion)
 			versionedExternalAuth := versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)

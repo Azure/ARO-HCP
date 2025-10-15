@@ -12,31 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v20240610preview
+package conversion
 
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type version struct {
-}
+func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAuth) {
+	// the old code appeared to shallow copies only
 
-func NewVersion() version {
-	return version{}
-}
+	dest.ID = src.ID
+	dest.Name = src.Name
+	dest.Type = src.Type
+	dest.SystemData = src.SystemData
 
-// String returns the api-version parameter value for this API.
-func (v version) String() string {
-	return "2024-06-10-preview"
-}
-
-var (
-	versionedInterface = NewVersion()
-)
-
-func RegisterVersion(apiRegistry api.APIRegistry) error {
-	if err := apiRegistry.Register(versionedInterface); err != nil {
-		return err
-	}
-	return nil
+	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
+	dest.Properties.Condition = src.Properties.Condition
 }
