@@ -26,19 +26,13 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
-// ImageUpdate represents a successful image update
-type ImageUpdate struct {
-	Name      string
-	NewDigest string
-}
-
 // Updater contains all pre-created resources needed for execution
 type Updater struct {
 	Config          *config.Config
 	DryRun          bool
 	RegistryClients map[string]clients.RegistryClient
 	YAMLEditors     map[string]*yaml.Editor
-	Updates         []ImageUpdate
+	Updates         map[string][]yaml.Update
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
@@ -48,11 +42,11 @@ func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.Reg
 		DryRun:          dryRun,
 		RegistryClients: registryClients,
 		YAMLEditors:     yamlEditors,
-		Updates:         []ImageUpdate{},
+		Updates:         make(map[string][]yaml.Update),
 	}
 }
 
-// UpdateImages processes all images in the configuration using pre-created resources
+// UpdateImages processes all images in the configuration
 func (u *Updater) UpdateImages(ctx context.Context) error {
 	for name, imageConfig := range u.Config.Images {
 		digest, err := u.fetchLatestDigest(imageConfig.Source)
@@ -61,13 +55,24 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		}
 
 		for _, target := range imageConfig.Targets {
-			if err := u.updateImage(ctx, name, digest, target); err != nil {
+			if err := u.ProcessImageUpdates(ctx, name, digest, target); err != nil {
 				return fmt.Errorf("failed to update image %s: %w", name, err)
 			}
 		}
 	}
 
 	if !u.DryRun && len(u.Updates) > 0 {
+		for filePath, updates := range u.Updates {
+			editor, exists := u.YAMLEditors[filePath]
+			if !exists {
+				return fmt.Errorf("no YAML editor available for %s", filePath)
+			}
+
+			if err := editor.ApplyUpdates(updates); err != nil {
+				return fmt.Errorf("failed to apply updates to %s: %w", filePath, err)
+			}
+		}
+
 		commitMsg := u.GenerateCommitMessage()
 		if commitMsg != "" {
 			fmt.Println(commitMsg)
@@ -92,8 +97,8 @@ func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 	return client.GetLatestDigest(repository, source.TagPattern)
 }
 
-// updateImage processes a single image update
-func (u *Updater) updateImage(ctx context.Context, name string, latestDigest string, target config.Target) error {
+// ProcessImageUpdates sets up the updates needed for a specific image and target
+func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, latestDigest string, target config.Target) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	logger.Info("Processing image", "name", name, "latestDigest", latestDigest)
@@ -103,7 +108,7 @@ func (u *Updater) updateImage(ctx context.Context, name string, latestDigest str
 		return fmt.Errorf("no YAML editor available for %s", target.FilePath)
 	}
 
-	currentDigest, err := editor.GetValue(target.JsonPath)
+	line, currentDigest, err := editor.GetUpdate(target.JsonPath)
 	if err != nil {
 		return fmt.Errorf("failed to get current digest at path %s: %w", target.JsonPath, err)
 	}
@@ -122,44 +127,34 @@ func (u *Updater) updateImage(ctx context.Context, name string, latestDigest str
 			"name", name,
 			"jsonPath", target.JsonPath,
 			"filePath", target.FilePath,
+			"line", line,
 			"from", currentDigest,
 			"to", latestDigest)
 		return nil
 	}
 
-	if err := editor.SetValue(target.JsonPath, latestDigest); err != nil {
-		return fmt.Errorf("failed to set new digest: %w", err)
-	}
-
-	if err := editor.Save(); err != nil {
-		return fmt.Errorf("failed to save file: %w", err)
-	}
-
-	u.Updates = append(u.Updates, ImageUpdate{
+	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
 		Name:      name,
 		NewDigest: latestDigest,
+		OldDigest: currentDigest,
+		JsonPath:  target.JsonPath,
+		FilePath:  target.FilePath,
+		Line:      line,
 	})
 
-	logger.Info("Updated file successfully", "name", name, "filePath", target.FilePath)
 	return nil
 }
 
 // GenerateCommitMessage creates a commit message for the updated images
 func (u *Updater) GenerateCommitMessage() string {
-	if len(u.Updates) == 0 {
-		return ""
+	for _, updates := range u.Updates {
+		if len(updates) > 0 {
+			var parts []string
+			for _, update := range updates {
+				parts = append(parts, fmt.Sprintf("%s: %s -> %s", update.Name, update.OldDigest, update.NewDigest))
+			}
+			return "Updated images for dev/int:\n" + strings.Join(parts, "\n")
+		}
 	}
-
-	msg := "updated image components for dev/int\n\n"
-
-	seen := make(map[string]string)
-	for _, update := range u.Updates {
-		seen[update.Name] = update.NewDigest
-	}
-
-	for name, digest := range seen {
-		msg += fmt.Sprintf("- %s: %s\n", name, digest)
-	}
-
-	return strings.TrimSuffix(msg, "\n")
+	return ""
 }

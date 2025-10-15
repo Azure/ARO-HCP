@@ -98,11 +98,12 @@ image:
 	}
 }
 
-func TestEditor_GetValue(t *testing.T) {
+func TestEditor_GetUpdate(t *testing.T) {
 	tests := []struct {
 		name        string
 		yamlContent string
 		path        string
+		wantLine    int
 		wantValue   string
 		wantErr     bool
 		wantErrMsg  string
@@ -113,6 +114,7 @@ func TestEditor_GetValue(t *testing.T) {
 version: v1.0.0
 `,
 			path:      "version",
+			wantLine:  2,
 			wantValue: "v1.0.0",
 			wantErr:   false,
 		},
@@ -123,6 +125,7 @@ image:
   digest: sha256:abc123
 `,
 			path:      "image.digest",
+			wantLine:  3,
 			wantValue: "sha256:abc123",
 			wantErr:   false,
 		},
@@ -135,6 +138,7 @@ app:
       digest: sha256:deep
 `,
 			path:      "app.deployment.image.digest",
+			wantLine:  5,
 			wantValue: "sha256:deep",
 			wantErr:   false,
 		},
@@ -200,88 +204,102 @@ a:
 				t.Fatalf("NewEditor() failed: %v", err)
 			}
 
-			got, err := editor.GetValue(tt.path)
+			gotLine, gotValue, err := editor.GetUpdate(tt.path)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetValue() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetUpdate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if tt.wantErr {
 				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
-					t.Errorf("GetValue() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+					t.Errorf("GetUpdate() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
 				}
 				return
 			}
 
-			if got != tt.wantValue {
-				t.Errorf("GetValue() = %v, want %v", got, tt.wantValue)
+			if gotLine != tt.wantLine {
+				t.Errorf("GetUpdate() line = %v, want %v", gotLine, tt.wantLine)
+			}
+			if gotValue != tt.wantValue {
+				t.Errorf("GetUpdate() value = %v, want %v", gotValue, tt.wantValue)
 			}
 		})
 	}
 }
 
-func TestEditor_SetValue(t *testing.T) {
+func TestEditor_ApplyUpdates(t *testing.T) {
 	tests := []struct {
 		name        string
 		yamlContent string
-		path        string
-		newValue    string
+		updates     []Update
+		wantContent string
 		wantErr     bool
-		wantErrMsg  string
 	}{
 		{
-			name: "set simple value",
+			name: "single update",
 			yamlContent: `
 version: v1.0.0
-`,
-			path:     "version",
-			newValue: "v2.0.0",
-			wantErr:  false,
-		},
-		{
-			name: "set nested value",
-			yamlContent: `
 image:
-  digest: sha256:old
+  digest: sha256:old123
 `,
-			path:     "image.digest",
-			newValue: "sha256:new",
-			wantErr:  false,
-		},
-		{
-			name: "set deeply nested value",
-			yamlContent: `
-app:
-  deployment:
-    image:
-      digest: sha256:old
-`,
-			path:     "app.deployment.image.digest",
-			newValue: "sha256:new",
-			wantErr:  false,
-		},
-		{
-			name: "path does not exist",
-			yamlContent: `
+			updates: []Update{
+				{Line: 4, OldDigest: "sha256:old123", NewDigest: "sha256:new456"},
+			},
+			wantContent: `
 version: v1.0.0
+image:
+  digest: sha256:new456
 `,
-			path:       "nonexistent",
-			newValue:   "value",
-			wantErr:    true,
-			wantErrMsg: "path nonexistent not found",
 		},
 		{
-			name: "path points to non-scalar value",
+			name: "multiple updates",
 			yamlContent: `
-image:
-  digest: sha256:abc123
-  tag: latest
+app1:
+  digest: sha256:old1
+app2:
+  digest: sha256:old2
+app3:
+  digest: sha256:old3
 `,
-			path:       "image",
-			newValue:   "value",
-			wantErr:    true,
-			wantErrMsg: "does not point to a scalar value",
+			updates: []Update{
+				{Line: 3, OldDigest: "sha256:old1", NewDigest: "sha256:new1"},
+				{Line: 5, OldDigest: "sha256:old2", NewDigest: "sha256:new2"},
+				{Line: 7, OldDigest: "sha256:old3", NewDigest: "sha256:new3"},
+			},
+			wantContent: `
+app1:
+  digest: sha256:new1
+app2:
+  digest: sha256:new2
+app3:
+  digest: sha256:new3
+`,
+		},
+		{
+			name: "updates out of order",
+			yamlContent: `
+app1:
+  digest: sha256:old1
+app2:
+  digest: sha256:old2
+`,
+			updates: []Update{
+				{Line: 5, OldDigest: "sha256:old2", NewDigest: "sha256:new2"},
+				{Line: 3, OldDigest: "sha256:old1", NewDigest: "sha256:new1"},
+			},
+			wantContent: `
+app1:
+  digest: sha256:new1
+app2:
+  digest: sha256:new2
+`,
+		},
+		{
+			name:        "empty updates",
+			yamlContent: `version: v1.0.0`,
+			updates:     []Update{},
+			wantContent: `version: v1.0.0`,
 		},
 	}
 
@@ -293,93 +311,10 @@ image:
 				t.Fatalf("NewEditor() failed: %v", err)
 			}
 
-			err = editor.SetValue(tt.path, tt.newValue)
+			err = editor.ApplyUpdates(tt.updates)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("SetValue() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if tt.wantErr {
-				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
-					t.Errorf("SetValue() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
-				}
-				return
-			}
-
-			// Verify the value was actually set
-			got, err := editor.GetValue(tt.path)
-			if err != nil {
-				t.Errorf("GetValue() after SetValue() failed: %v", err)
-				return
-			}
-			if got != tt.newValue {
-				t.Errorf("After SetValue(), GetValue() = %v, want %v", got, tt.newValue)
-			}
-		})
-	}
-}
-
-func TestEditor_Save(t *testing.T) {
-	tests := []struct {
-		name        string
-		yamlContent string
-		path        string
-		newValue    string
-		wantErr     bool
-	}{
-		{
-			name: "save after simple update",
-			yamlContent: `
-version: v1.0.0
-`,
-			path:     "version",
-			newValue: "v2.0.0",
-			wantErr:  false,
-		},
-		{
-			name: "save after nested update",
-			yamlContent: `
-image:
-  digest: sha256:old
-  tag: latest
-`,
-			path:     "image.digest",
-			newValue: "sha256:new",
-			wantErr:  false,
-		},
-		{
-			name: "save preserves other fields",
-			yamlContent: `
-version: v1.0.0
-image:
-  digest: sha256:old
-  tag: latest
-other: value
-`,
-			path:     "image.digest",
-			newValue: "sha256:new",
-			wantErr:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filePath := createTempYAML(t, tt.yamlContent)
-			editor, err := NewEditor(filePath)
-			if err != nil {
-				t.Fatalf("NewEditor() failed: %v", err)
-			}
-
-			// Make a change
-			if err := editor.SetValue(tt.path, tt.newValue); err != nil {
-				t.Fatalf("SetValue() failed: %v", err)
-			}
-
-			// Save the file
-			err = editor.Save()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Save() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ApplyUpdates() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
@@ -387,25 +322,20 @@ other: value
 				return
 			}
 
-			// Verify the file was written correctly by reading it again
-			newEditor, err := NewEditor(filePath)
+			// Read the file to verify the updates were applied
+			content, err := os.ReadFile(filePath)
 			if err != nil {
-				t.Fatalf("NewEditor() after Save() failed: %v", err)
+				t.Fatalf("failed to read file after ApplyUpdates(): %v", err)
 			}
 
-			got, err := newEditor.GetValue(tt.path)
-			if err != nil {
-				t.Errorf("GetValue() after Save() failed: %v", err)
-				return
-			}
-			if got != tt.newValue {
-				t.Errorf("After Save(), GetValue() = %v, want %v", got, tt.newValue)
+			if string(content) != tt.wantContent {
+				t.Errorf("ApplyUpdates() file content:\ngot:\n%s\nwant:\n%s", string(content), tt.wantContent)
 			}
 		})
 	}
 }
 
-func TestEditor_UpdateFileCorrectly(t *testing.T) {
+func TestEditor_ApplyUpdatesPreservesFormatting(t *testing.T) {
 	yamlContent := `
 metadata:
   name: test-app
@@ -426,34 +356,31 @@ config:
 			t.Fatalf("NewEditor() failed: %v", err)
 		}
 
-		// Update the digest
-		newDigest := "sha256:newdigest456"
-		if err := editor.SetValue("image.digest", newDigest); err != nil {
-			t.Fatalf("SetValue() failed: %v", err)
+		// Apply update to the digest
+		updates := []Update{
+			{Line: 7, OldDigest: "sha256:olddigest123", NewDigest: "sha256:newdigest456"},
 		}
-
-		// Save the changes
-		if err := editor.Save(); err != nil {
-			t.Fatalf("Save() failed: %v", err)
+		if err := editor.ApplyUpdates(updates); err != nil {
+			t.Fatalf("ApplyUpdates() failed: %v", err)
 		}
 
 		// Re-read the file to verify
 		newEditor, err := NewEditor(filePath)
 		if err != nil {
-			t.Fatalf("NewEditor() after Save() failed: %v", err)
+			t.Fatalf("NewEditor() after ApplyUpdates() failed: %v", err)
 		}
 
 		// Check the updated value
-		if got, err := newEditor.GetValue("image.digest"); err != nil {
-			t.Errorf("GetValue(image.digest) failed: %v", err)
-		} else if got != newDigest {
-			t.Errorf("image.digest = %v, want %v", got, newDigest)
+		if _, got, err := newEditor.GetUpdate("image.digest"); err != nil {
+			t.Errorf("GetUpdate(image.digest) failed: %v", err)
+		} else if got != "sha256:newdigest456" {
+			t.Errorf("image.digest = %v, want %v", got, "sha256:newdigest456")
 		}
 
-		// Verify other values were preserved
+		// Verify other values were preserved using GetUpdate
 		checkValue := func(path, want string) {
-			if got, err := newEditor.GetValue(path); err != nil {
-				t.Errorf("GetValue(%s) failed: %v", path, err)
+			if _, got, err := newEditor.GetUpdate(path); err != nil {
+				t.Errorf("GetUpdate(%s) failed: %v", path, err)
 			} else if got != want {
 				t.Errorf("%s = %v, want %v", path, got, want)
 			}

@@ -184,7 +184,7 @@ image:
 				DryRun:          tt.dryRun,
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
-				Updates:         []ImageUpdate{},
+				Updates:         make(map[string][]yaml.Update),
 			}
 
 			err = u.UpdateImages(ctx)
@@ -201,18 +201,30 @@ image:
 				return
 			}
 
-			if len(u.Updates) != len(tt.wantUpdateNames) {
-				t.Errorf("UpdateImages() got %d updates, want %d", len(u.Updates), len(tt.wantUpdateNames))
+			// Count total updates across all files
+			totalUpdates := 0
+			for _, updates := range u.Updates {
+				totalUpdates += len(updates)
 			}
 
+			if totalUpdates != len(tt.wantUpdateNames) {
+				t.Errorf("UpdateImages() got %d updates, want %d", totalUpdates, len(tt.wantUpdateNames))
+			}
+
+			// Check that all expected updates are present
 			for _, updateName := range tt.wantUpdateNames {
 				found := false
-				for _, update := range u.Updates {
-					if update.Name == updateName {
-						found = true
-						if update.NewDigest != tt.registryDigest {
-							t.Errorf("Update %s has digest %s, want %s", updateName, update.NewDigest, tt.registryDigest)
+				for _, updates := range u.Updates {
+					for _, update := range updates {
+						if update.Name == updateName {
+							found = true
+							if update.NewDigest != tt.registryDigest {
+								t.Errorf("Update %s has digest %s, want %s", updateName, update.NewDigest, tt.registryDigest)
+							}
+							break
 						}
+					}
+					if found {
 						break
 					}
 				}
@@ -221,16 +233,19 @@ image:
 				}
 			}
 
-			for _, update := range u.Updates {
-				found := false
-				for _, want := range tt.wantUpdateNames {
-					if update.Name == want {
-						found = true
-						break
+			// Check that there are no unexpected updates
+			for _, updates := range u.Updates {
+				for _, update := range updates {
+					found := false
+					for _, want := range tt.wantUpdateNames {
+						if update.Name == want {
+							found = true
+							break
+						}
 					}
-				}
-				if !found {
-					t.Errorf("UpdateImages() has unexpected update for %s", update.Name)
+					if !found {
+						t.Errorf("UpdateImages() has unexpected update for %s", update.Name)
+					}
 				}
 			}
 
@@ -240,7 +255,7 @@ image:
 					t.Fatalf("failed to read updated yaml: %v", err)
 				}
 
-				digest, err := newEditor.GetValue("image.digest")
+				_, digest, err := newEditor.GetUpdate("image.digest")
 				if err != nil {
 					t.Fatalf("failed to get digest from updated yaml: %v", err)
 				}
@@ -354,19 +369,19 @@ image:
 				DryRun:          false,
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
-				Updates:         []ImageUpdate{},
+				Updates:         make(map[string][]yaml.Update),
 			}
 
-			err := u.updateImage(ctx, "test-image", "sha256:newdigest", tt.target)
+			err := u.ProcessImageUpdates(ctx, "test-image", "sha256:newdigest", tt.target)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("updateImage() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if tt.wantErr && tt.wantErrMsg != "" {
 				if !strings.Contains(err.Error(), tt.wantErrMsg) {
-					t.Errorf("updateImage() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+					t.Errorf("ProcessImageUpdates() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
 				}
 			}
 		})
@@ -376,36 +391,42 @@ image:
 func TestUpdater_GenerateCommitMessage(t *testing.T) {
 	tests := []struct {
 		name    string
-		updates []ImageUpdate
+		updates map[string][]yaml.Update
 		want    string
 	}{
 		{
 			name:    "no updates",
-			updates: []ImageUpdate{},
+			updates: map[string][]yaml.Update{},
 			want:    "",
 		},
 		{
 			name: "single update",
-			updates: []ImageUpdate{
-				{Name: "frontend", NewDigest: "sha256:abc123"},
+			updates: map[string][]yaml.Update{
+				"config.yaml": {
+					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
+				},
 			},
-			want: "updated image components for dev/int\n\n- frontend: sha256:abc123",
+			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123",
 		},
 		{
 			name: "multiple updates",
-			updates: []ImageUpdate{
-				{Name: "frontend", NewDigest: "sha256:abc123"},
-				{Name: "backend", NewDigest: "sha256:def456"},
+			updates: map[string][]yaml.Update{
+				"config.yaml": {
+					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
+					{Name: "backend", OldDigest: "sha256:old456", NewDigest: "sha256:def456"},
+				},
 			},
-			want: "updated image components for dev/int\n\n- frontend: sha256:abc123\n- backend: sha256:def456",
+			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123\nbackend: sha256:old456 -> sha256:def456",
 		},
 		{
-			name: "duplicate updates - only shows once",
-			updates: []ImageUpdate{
-				{Name: "frontend", NewDigest: "sha256:abc123"},
-				{Name: "frontend", NewDigest: "sha256:abc123"},
+			name: "duplicate updates - both shown",
+			updates: map[string][]yaml.Update{
+				"config.yaml": {
+					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
+					{Name: "frontend", OldDigest: "sha256:old123", NewDigest: "sha256:abc123"},
+				},
 			},
-			want: "updated image components for dev/int\n\n- frontend: sha256:abc123",
+			want: "Updated images for dev/int:\nfrontend: sha256:old123 -> sha256:abc123\nfrontend: sha256:old123 -> sha256:abc123",
 		},
 	}
 
@@ -419,14 +440,16 @@ func TestUpdater_GenerateCommitMessage(t *testing.T) {
 
 			// For multiple updates, the order might vary due to map iteration
 			// So we check that the message contains all expected parts
-			if tt.name == "multiple updates" || tt.name == "duplicate updates - only shows once" {
-				if !strings.Contains(got, "updated image components for dev/int") {
+			if tt.name == "multiple updates" || tt.name == "duplicate updates - both shown" {
+				if !strings.Contains(got, "Updated images for dev/int:") {
 					t.Errorf("GenerateCommitMessage() missing header")
 				}
-				for _, update := range tt.updates {
-					expected := fmt.Sprintf("- %s: %s", update.Name, update.NewDigest)
-					if !strings.Contains(got, expected) {
-						t.Errorf("GenerateCommitMessage() missing update: %s", expected)
+				for _, updates := range tt.updates {
+					for _, update := range updates {
+						expected := fmt.Sprintf("%s: %s -> %s", update.Name, update.OldDigest, update.NewDigest)
+						if !strings.Contains(got, expected) {
+							t.Errorf("GenerateCommitMessage() missing update: %s", expected)
+						}
 					}
 				}
 			} else {
@@ -499,7 +522,7 @@ config:
 			YAMLEditors: map[string]*yaml.Editor{
 				yamlPath: editor,
 			},
-			Updates: []ImageUpdate{},
+			Updates: make(map[string][]yaml.Update),
 		}
 
 		// Run update
@@ -514,7 +537,7 @@ config:
 		}
 
 		// Check updated value
-		digest, err := newEditor.GetValue("image.digest")
+		_, digest, err := newEditor.GetUpdate("image.digest")
 		if err != nil {
 			t.Fatalf("failed to get digest: %v", err)
 		}
@@ -524,8 +547,8 @@ config:
 
 		// Verify other fields were preserved
 		checkValue := func(path, want string) {
-			if got, err := newEditor.GetValue(path); err != nil {
-				t.Errorf("GetValue(%s) failed: %v", path, err)
+			if _, got, err := newEditor.GetUpdate(path); err != nil {
+				t.Errorf("GetUpdate(%s) failed: %v", path, err)
 			} else if got != want {
 				t.Errorf("%s = %v, want %v", path, got, want)
 			}
@@ -537,18 +560,27 @@ config:
 
 		// Verify updates were recorded
 		wantUpdateNames := []string{"myapp"}
-		if len(u.Updates) != len(wantUpdateNames) {
-			t.Errorf("Updates count = %d, want %d", len(u.Updates), len(wantUpdateNames))
+		totalUpdates := 0
+		for _, updates := range u.Updates {
+			totalUpdates += len(updates)
+		}
+		if totalUpdates != len(wantUpdateNames) {
+			t.Errorf("Updates count = %d, want %d", totalUpdates, len(wantUpdateNames))
 		}
 
 		for _, wantName := range wantUpdateNames {
 			found := false
-			for _, update := range u.Updates {
-				if update.Name == wantName {
-					found = true
-					if update.NewDigest != newDigest {
-						t.Errorf("Update %s digest = %v, want %v", wantName, update.NewDigest, newDigest)
+			for _, updates := range u.Updates {
+				for _, update := range updates {
+					if update.Name == wantName {
+						found = true
+						if update.NewDigest != newDigest {
+							t.Errorf("Update %s digest = %v, want %v", wantName, update.NewDigest, newDigest)
+						}
+						break
 					}
+				}
+				if found {
 					break
 				}
 			}
