@@ -34,7 +34,7 @@ grafana-dashboards:
   - name: Backend
     path: ./grafana-dashboards/backend/
   - name: Clusters Service
-    path: ./grafana-dashboards/cluster-service
+    path: ./grafana-dashboards/clusters-service
   - name: Maestro
     path: ./grafana-dashboards/maestro/
   - name: MSI Credential Refresher
