@@ -150,6 +150,21 @@ data:
         K8S-Logging.Exclude On
         Buffer_Size         64k
 
+{{- if .Values.forwarder.mdsd.enabled }}
+    [FILTER]
+        Name          nest
+        Match         kubernetes.*
+        Operation     lift
+        Nested_under  kubernetes
+    
+    [FILTER]
+        Name            rewrite_tag
+        Alias           filter.namespace_router
+        Match           kubernetes.var.log.containers.*
+        Rule            namespace_name ^ocm-.* ocm.logs false
+        Rule            namespace_name ^(?!ocm-).* other.logs false
+        Emitter_Name    re_emitted_namespace_router
+{{- else }}
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
@@ -157,6 +172,7 @@ data:
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
         Emitter_Name    re_emitted_namespace_router
+{{- end}}
 
     [FILTER]
         # Other logs are keept, because want to send them to mdsd as well
