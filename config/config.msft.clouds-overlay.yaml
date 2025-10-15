@@ -104,7 +104,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:2b972ac73f43afe99d08161ec1cb192191ae06fc41f2fa8d5e2e84f1254257a9
+              digest: sha256:1b5433dbe4b5022c330b3c5cacedc5d4fe63592ab93f0884bcf960ee125fa090
             k8s:
               deploymentStrategy:
                 rollingUpdate:
@@ -152,17 +152,17 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:685e63a880d6170073138dc70cc720eb41184944615ec1575ee531c17a803df9"
+              digest: "sha256:f5f0d0741c67be3ba842126d3aa6bb67c8bbfb344af869072e77aaacdbad841d"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:0d361a67ef3962b2336dc91349b96f568aeff7902a75e8a0dbe6c04716e3a877"
+              digest: "sha256:68463d04a949d9429506de09addc9117e27459a985bb13e85a0a3b693a14ed32"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
+              digest: sha256:116cf15120c5a6edc7e59bc36c9a316755a5d06f447ec0dfc596b1e42fc505bd
           # Maestro
           maestro:
             image:
