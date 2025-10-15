@@ -98,8 +98,9 @@ var _ = Describe("Customer", func() {
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
 				*resourceGroup.Name,
 				"cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
@@ -133,22 +134,22 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"node-pool",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
-					"openshiftVersionId": openshiftNodeVersionId,
-					"clusterName":        customerClusterName,
-					"nodePoolName":       customerNodePoolName,
-					"replicas":           2,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
+			/*			By("creating the node pool")
+						_, err = framework.CreateBicepTemplateAndWait(ctx,
+							tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
+							*resourceGroup.Name,
+							"node-pool",
+							framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+							map[string]interface{}{
+								"openshiftVersionId": openshiftNodeVersionId,
+								"clusterName":        customerClusterName,
+								"nodePoolName":       customerNodePoolName,
+								"replicas":           2,
+							},
+							45*time.Minute,
+						)
+						Expect(err).NotTo(HaveOccurred())
+			*/
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())

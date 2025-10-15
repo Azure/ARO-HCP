@@ -119,9 +119,19 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	return tc.azureCredentials, nil
 }
 
-func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
-	if tc.isDevelopmentEnvironment {
+type OpsType string
+
+const (
+	ARM OpsType = "ARM"
+	HCP OpsType = "HCP"
+)
+
+func (tc *perBinaryInvocationTestContext) getClientFactoryOptions(OpsType OpsType) *azcorearm.ClientOptions {
+	fmt.Printf("DEBUG: getClientFactoryOptions called with OpsType=%s, isDevelopmentEnvironment=%t\n", OpsType, tc.isDevelopmentEnvironment)
+	if tc.isDevelopmentEnvironment && OpsType == HCP {
+		fmt.Printf("DEBUG: Returning localhost:8443 config for HCP operations\n")
 		return &azcorearm.ClientOptions{
+
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{
 					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
@@ -136,7 +146,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 			},
 		}
 	}
-
+	fmt.Printf("DEBUG: Returning nil (default Azure endpoints) for OpsType=%s\n", OpsType)
 	return nil
 }
 
@@ -154,12 +164,13 @@ func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context,
 	if len(tc.subscriptionID) > 0 {
 		return tc.subscriptionID, nil
 	}
+	// In non-development environments, use the original ARM client approach , for development env too we want to use ARM.
 	subscriptionID, err := GetSubscriptionID(ctx, subscriptionClient, tc.subscriptionName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get subscription ID: %w", err)
 	}
-	tc.subscriptionID = subscriptionID
 
+	tc.subscriptionID = subscriptionID
 	return tc.subscriptionID, nil
 }
 
