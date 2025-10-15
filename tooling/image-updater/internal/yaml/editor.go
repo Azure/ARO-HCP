@@ -15,12 +15,24 @@
 package yaml
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// Update represents a single line update in a YAML file
+type Update struct {
+	Name      string // Image/component name
+	OldDigest string // Current digest value
+	NewDigest string // New digest value
+	FilePath  string // Path to the YAML file
+	JsonPath  string // JSON path to the value in the YAML
+	Line      int    // Line number in the file
+}
 
 // Editor provides functionality to edit YAML files while preserving structure
 type Editor struct {
@@ -46,58 +58,24 @@ func NewEditor(filePath string) (*Editor, error) {
 	}, nil
 }
 
-// GetValue retrieves the value at the specified path
-func (e *Editor) GetValue(path string) (string, error) {
+// GetUpdate retrieves the update(line + text) required at the specified path
+func (e *Editor) GetUpdate(path string) (int, string, error) {
 	parts := strings.Split(path, ".")
 	node := e.root
 
 	for _, part := range parts {
 		node = e.findChild(node, part)
 		if node == nil {
-			return "", fmt.Errorf("path %s not found", path)
+			return 0, "", fmt.Errorf("path %s not found", path)
 		}
 	}
 
 	if node.Kind != yaml.ScalarNode {
-		return "", fmt.Errorf("path %s does not point to a scalar value", path)
+		return 0, "", fmt.Errorf("path %s does not point to a scalar value", path)
 	}
 
-	return node.Value, nil
-}
-
-// SetValue updates the value at the specified path
-func (e *Editor) SetValue(path, value string) error {
-	parts := strings.Split(path, ".")
-	node := e.root
-
-	for _, part := range parts {
-		node = e.findChild(node, part)
-		if node == nil {
-			return fmt.Errorf("path %s not found", path)
-		}
-	}
-
-	if node.Kind != yaml.ScalarNode {
-		return fmt.Errorf("path %s does not point to a scalar value", path)
-	}
-
-	node.Value = value
-
-	return nil
-}
-
-// Save writes the YAML back to the file
-func (e *Editor) Save() error {
-	data, err := yaml.Marshal(e.root)
-	if err != nil {
-		return fmt.Errorf("failed to marshal YAML: %w", err)
-	}
-
-	if err := os.WriteFile(e.filePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write file %s: %w", e.filePath, err)
-	}
-
-	return nil
+	line := node.Line
+	return line, node.Value, nil
 }
 
 // findChild finds a child node with the specified key
@@ -117,6 +95,71 @@ func (e *Editor) findChild(parent *yaml.Node, key string) *yaml.Node {
 		if keyNode.Value == key {
 			return valueNode
 		}
+	}
+
+	return nil
+}
+
+// ApplyUpdates applies a list of updates to the file
+func (e *Editor) ApplyUpdates(updates []Update) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// Sort updates by line number before applying
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].Line < updates[j].Line
+	})
+
+	// Read the original file and copy to a temp file, applying updates on the fly
+	// Then replace the original file with the temp file
+	// This preserves the original formatting instead of rewriting with a yaml library
+	file, err := os.Open(e.filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %v", e.filePath, err)
+	}
+	defer file.Close()
+
+	tempFile, err := os.CreateTemp("/tmp", strings.Split(e.filePath, "/")[len(strings.Split(e.filePath, "/"))-1])
+	if err != nil {
+		return fmt.Errorf("failed to create temp file for %s: %v", e.filePath, err)
+	}
+	defer tempFile.Close()
+
+	scanner := bufio.NewScanner(file)
+	writer := bufio.NewWriter(tempFile)
+
+	lineNum := 1
+	updateIndex := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		if updateIndex < len(updates) && updates[updateIndex].Line == lineNum {
+			line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
+			updateIndex++
+		}
+		writer.WriteString(line + "\n")
+		lineNum++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading file %s: %v", e.filePath, err)
+	}
+
+	// Flush and sync before closing
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush temp file: %v", err)
+	}
+
+	if err := tempFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync temp file: %v", err)
+	}
+
+	// Close files before renaming
+	tempFile.Close()
+	file.Close()
+
+	if err := os.Rename(tempFile.Name(), e.filePath); err != nil {
+		return fmt.Errorf("failed to replace original file %s with updated content: %v", e.filePath, err)
 	}
 
 	return nil
