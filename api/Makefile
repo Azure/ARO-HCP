@@ -7,6 +7,14 @@ VERSION ?= v20251223preview
 
 AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
 
+# Detect OS for rm command compatibility
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    RM_FORCE = -f
+else
+    RM_FORCE = --force
+endif
+
 .DEFAULT_GOAL := generate
 
 .PHONY: generate
@@ -22,10 +30,10 @@ models: $(GOIMPORTS)
 	VERSION=${VERSION} npm run models
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
 	# Remove the client API, leave only the constants and models.
-	rm --force ${AUTOREST_OUTPUT_DIR}/client_factory.go
-	rm --force ${AUTOREST_OUTPUT_DIR}/*_client.go
-	rm --force ${AUTOREST_OUTPUT_DIR}/options.go
-	rm --force ${AUTOREST_OUTPUT_DIR}/responses.go
+	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/client_factory.go
+	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/*_client.go
+	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/options.go
+	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/responses.go
 
 .PHONY: testsdk
 testsdk: $(GOIMPORTS)
