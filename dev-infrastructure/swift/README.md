@@ -24,6 +24,19 @@ You need to create a cluster in dev with the correct vnet tag, instance types an
 
 `./03_create_podnetwork.sh`
 
+5. Create the `PodNetworkInstance` CR
+
+`./04_create_podnetworkinstance.sh`
+
+6. Create a test pod listening on port 80
+
+`./05_create_testpod.sh`
+
+7. Validate multitenantpodnetworkconfig CR
+
+`./06_validate_mtpnc.sh`
+
+
 Only the 1P app can delete the subnet delegation, if the user tries to delete the subnet or resource group that it resides in it will fail. 
 
-`05_delete_sal.sh`
+`07_delete_sal.sh`
