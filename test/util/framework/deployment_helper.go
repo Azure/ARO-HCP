@@ -214,8 +214,14 @@ func CreateHCPClusterFromBicepDev(
 
 	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API in dev environment\n", clusterName)
 
+	// Get subscription ID from test context
+	subscriptionId, err := testContext.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
 	// Convert bicep template to HCP cluster object
-	cluster, err := BuildHCPClusterFromBicepTemplate(bicepTemplateJSON, parameters, testContext.Location())
+	cluster, err := BuildHCPClusterFromBicepTemplate(ctx, bicepTemplateJSON, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
 	}
