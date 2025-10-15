@@ -99,10 +99,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
+			_, err = framework.CreateHCPClusterFromBicepDev(ctx,
+				tc,
 				*resourceGroup.Name,
-				"cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
 				map[string]interface{}{
 					"openshiftVersionId":          openshiftControlPlaneVersionId,

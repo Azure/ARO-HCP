@@ -192,3 +192,59 @@ func ListAllOperations(
 
 	return allOperations, nil
 }
+
+// CreateHCPClusterFromBicepDev creates an HCP cluster from bicep template in development environment
+// by converting it to direct API calls to localhost:8443
+func CreateHCPClusterFromBicepDev(
+	ctx context.Context,
+	testContext *perItOrDescribeTestContext,
+	resourceGroupName string,
+	bicepTemplateJSON []byte,
+	parameters map[string]interface{},
+	timeout time.Duration,
+) (*armresources.DeploymentExtended, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Extract cluster name from parameters
+	clusterName, ok := parameters["clusterName"].(string)
+	if !ok {
+		return nil, fmt.Errorf("clusterName parameter not found or not a string")
+	}
+
+	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API in dev environment\n", clusterName)
+
+	// Convert bicep template to HCP cluster object
+	cluster, err := BuildHCPClusterFromBicepTemplate(bicepTemplateJSON, parameters, testContext.Location())
+	if err != nil {
+		return nil, fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
+	}
+	// Create the cluster directly via API
+	createdCluster, err := CreateHCPClusterAndWait(
+		ctx,
+		testContext.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+
+	// Create mock deployment response to maintain compatibility
+	mockDeployment := &armresources.DeploymentExtended{
+		Name: to.Ptr("cluster"),
+		Properties: &armresources.DeploymentPropertiesExtended{
+			ProvisioningState: (*armresources.ProvisioningState)(createdCluster.Properties.ProvisioningState),
+			Outputs: map[string]interface{}{
+				"clusterName": map[string]interface{}{
+					"type":  "string",
+					"value": *createdCluster.Name,
+				},
+			},
+		},
+	}
+
+	return mockDeployment, nil
+}
