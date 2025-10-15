@@ -49,3 +49,9 @@ jobs:
     - name: Check for Uncommitted Changes
       run: |
         git diff --exit-code || (echo "::error::Uncommitted changes detected in OpenAPI spec. Please regenerate and commit them." && exit 1)
+    - name: Validate API Examples
+      run: make validate-examples
+      working-directory: './api'
+    - name: Lint OpenAPI with ARM rules
+      run: make lint-openapi
+      working-directory: './api'

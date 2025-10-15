@@ -7,7 +7,10 @@ VERSION ?= v20251223preview
 
 AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
 
-# Detect OS for rm command compatibility
+SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters
+API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
+API_VERSIONS = $(shell echo '$(API_SPEC_PATHS)' | tr ' ' '\n' | sed 's|/openapi.json||' | xargs -n1 basename | sort -u)
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     RM_FORCE = -f
@@ -43,3 +46,31 @@ testsdk: $(GOIMPORTS)
 .PHONY: fmt
 fmt:
 	npm run format
+
+.PHONY: validate-examples
+validate-examples:
+	@echo "Validating examples for all API versions..."
+	@for spec_path in $(API_SPEC_PATHS); do \
+		version=$$(basename $$(dirname $$spec_path)); \
+		echo ""; \
+		echo "==> Validating $$version"; \
+		npx oav validate-example $$spec_path || exit 1; \
+	done
+
+.PHONY: lint-openapi
+lint-openapi:
+	@echo "Linting OpenAPI specs with Azure ARM rules for all API versions..."
+	@for spec_path in $(API_SPEC_PATHS); do \
+		version=$$(basename $$(dirname $$spec_path)); \
+		readme_path=$$(dirname $$(dirname $$spec_path))/readme.md; \
+		echo ""; \
+		echo "==> Linting $$version (using $$readme_path)"; \
+		npx autorest \
+			--v3 \
+			--azure-validator \
+			--spectral \
+			--semantic-validator=false \
+			--model-validator=false \
+			--openapi-type=arm \
+			$$readme_path || exit 1; \
+	done
