@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -33,6 +32,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -418,80 +418,83 @@ func BuildHCPClusterFromBicepTemplate(
 	parameters map[string]interface{},
 	location string,
 ) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
-	// Parse the bicep template to extract the HCP cluster resource
-	var bicepTemplate map[string]interface{}
-	if err := json.Unmarshal(bicepTemplateJSON, &bicepTemplate); err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to parse bicep template: %w", err)
+	// Create HCP cluster struct directly from parameters
+	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
+		Location:   &location,
+		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
 	}
 
-	// Convert bicep parameters to the format expected by the template
-	bicepParameters := map[string]interface{}{}
-	for k, v := range parameters {
-		bicepParameters[k] = map[string]interface{}{
-			"value": v,
+	// Set required Platform profile
+	cluster.Properties.Platform = &hcpsdk20240610preview.PlatformProfile{}
+
+	// Map bicep parameters to cluster properties
+	if openshiftVersionId, ok := parameters["openshiftVersionId"].(string); ok {
+		cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{
+			ID: &openshiftVersionId,
+		}
+		// Ensure default channel group mirrors bicep default when not explicitly provided
+		if cluster.Properties.Version.ChannelGroup == nil {
+			cluster.Properties.Version.ChannelGroup = to.Ptr("stable")
 		}
 	}
 
-	// Find the HCP cluster resource in the bicep template
-	resources, ok := bicepTemplate["resources"].([]interface{})
-	if !ok {
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no resources found in bicep template")
+	if managedResourceGroupName, ok := parameters["managedResourceGroupName"].(string); ok {
+		cluster.Properties.Platform.ManagedResourceGroup = &managedResourceGroupName
 	}
 
-	var hcpResource map[string]interface{}
-	for _, resource := range resources {
-		if resourceMap, ok := resource.(map[string]interface{}); ok {
-			if resourceType, ok := resourceMap["type"].(string); ok {
-				if resourceType == "Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview" {
-					hcpResource = resourceMap
-					break
+	if nsgName, ok := parameters["nsgName"].(string); ok {
+		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgName
+	}
+
+	if subnetName, ok := parameters["subnetName"].(string); ok {
+		cluster.Properties.Platform.SubnetID = &subnetName
+	}
+
+	if uamiVal, ok := parameters["userAssignedIdentitiesValue"]; ok {
+		// Safest: re-marshal then unmarshal into the exact SDK type
+		if b, err := json.Marshal(uamiVal); err == nil {
+			var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
+			if err := json.Unmarshal(b, &uamis); err == nil {
+				cluster.Properties.Platform.OperatorsAuthentication = &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: &uamis,
 				}
 			}
 		}
 	}
 
-	if hcpResource == nil {
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("HCP cluster resource not found in bicep template")
-	}
+	if kv, ok := parameters["keyVaultName"].(string); ok {
+		if key, ok := parameters["etcdEncryptionKeyName"].(string); ok {
+			// Prefer to pass this in alongside other params; required by API
+			ver, _ := parameters["etcdEncryptionKeyVersion"].(string)
 
-	// Extract the cluster definition and set the location
-	clusterDef := map[string]interface{}{}
-	if props, ok := hcpResource["properties"]; ok {
-		clusterDef["properties"] = props
-	}
-	if identity, ok := hcpResource["identity"]; ok {
-		clusterDef["identity"] = identity
-	}
-
-	// Set location
-	clusterDef["location"] = location
-
-	// Process template variables/parameters in the cluster definition
-	clusterDefJSON, err := json.Marshal(clusterDef)
-	if err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to marshal cluster definition: %w", err)
-	}
-
-	// Simple parameter substitution for development
-	clusterDefStr := string(clusterDefJSON)
-	for paramName, paramValue := range parameters {
-		placeholder := fmt.Sprintf("\"[parameters('%s')]\"", paramName)
-		if valueStr, ok := paramValue.(string); ok {
-			clusterDefStr = strings.Replace(clusterDefStr, placeholder, fmt.Sprintf("\"%s\"", valueStr), -1)
-		} else {
-			// For complex objects, just convert to JSON
-			if valueJSON, err := json.Marshal(paramValue); err == nil {
-				clusterDefStr = strings.Replace(clusterDefStr, placeholder, string(valueJSON), -1)
+			cluster.Properties.Etcd = &hcpsdk20240610preview.EtcdProfile{
+				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: (*hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType)(to.Ptr("CustomerManaged")),
+					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
+						EncryptionType: (*hcpsdk20240610preview.CustomerManagedEncryptionType)(to.Ptr("KMS")),
+						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
+							ActiveKey: &hcpsdk20240610preview.KmsKey{
+								VaultName: &kv,
+								Name:      &key,
+								Version:   &ver, // must be non-empty
+							},
+						},
+					},
+				},
 			}
 		}
 	}
 
-	// Parse the processed cluster definition into HCP struct
-	var cluster hcpsdk20240610preview.HcpOpenShiftCluster
-	if err := json.Unmarshal([]byte(clusterDefStr), &cluster); err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to unmarshal cluster: %w", err)
+	// Top-level Managed Identity assignment from bicep output
+	if idVal, ok := parameters["identityValue"]; ok {
+		if b, err := json.Marshal(idVal); err == nil {
+			var msi hcpsdk20240610preview.ManagedServiceIdentity
+			if err := json.Unmarshal(b, &msi); err == nil {
+				cluster.Identity = &msi
+			}
+		}
 	}
 
-	fmt.Printf("DEBUG: Successfully converted bicep template to HCP cluster struct\n")
+	fmt.Printf("DEBUG: Successfully built HCP cluster struct from parameters\n")
 	return cluster, nil
 }
