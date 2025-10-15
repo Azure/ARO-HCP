@@ -25,7 +25,7 @@ type version struct {
 	validator *validator.Validate
 }
 
-func newVersion() version {
+func NewVersion() version {
 	return version{
 		validator: newValidator(),
 	}
@@ -43,7 +43,7 @@ func (v version) GetValidator() *validator.Validate {
 }
 
 var (
-	versionedInterface        = newVersion()
+	versionedInterface        = NewVersion()
 	clusterVisibilityMap      = api.NewVisibilityMap[api.HCPOpenShiftCluster]()
 	nodePoolVisibilityMap     = api.NewVisibilityMap[api.HCPOpenShiftClusterNodePool]()
 	externalAuthVisibilityMap = api.NewVisibilityMap[api.HCPOpenShiftClusterExternalAuth]()
