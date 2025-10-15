@@ -26,18 +26,18 @@ grafana-dashboards:
   - Microsoft Defender for Cloud
   dashboardFolders:
   - name: istio
-    path: ../istio/grafana-dashboards
+    path: ./grafana-dashboards/istio/
   - name: Infrastructure
-    path: infra-dashboards
+    path: ./grafana-dashboards/infra-dashboards
   - name: Frontend
-    path: ../frontend/grafana-dashboards
+    path: ./grafana-dashboards/frontend/
   - name: Backend
-    path: ../backend/grafana-dashboards
+    path: ./grafana-dashboards/backend/
   - name: Clusters Service
-    path: ../cluster-service/grafana-dashboards
+    path: ./grafana-dashboards/clusters-service
   - name: Maestro
-    path: ../maestro/grafana-dashboards
+    path: ./grafana-dashboards/maestro/
   - name: MSI Credential Refresher
-    path: ../msi-credential-refresher/grafana-dashboards
+    path: ./grafana-dashboards/msi-credential-refresher
   - name: Performance & Scale
-    path: perfscale-dashboards
+    path: ./grafana-dashboards/perfscale-dashboards
