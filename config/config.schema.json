@@ -2359,6 +2359,10 @@
     "keyVaultDNSSuffix": {
       "type": "string"
     },
+    "acrDNSSuffix": {
+      "type": "string",
+      "description": "The DNS suffix for Azure Container Registry (e.g., azurecr.io, azurecr.us, azurecr.cn)"
+    },
     "e2e": {
       "type": "object",
       "properties": {
@@ -2426,6 +2430,7 @@
     "msiRp",
     "msiCredentialsRefresher",
     "keyVaultDNSSuffix",
+    "acrDNSSuffix",
     "e2e"
   ]
 }
