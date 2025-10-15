@@ -74,9 +74,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
 	// first-in-last-out order. This ensures that the framework instance
 	// remains valid as long as possible.
-	//
-	// Since hcp cluster cleanup has 60 minute timeout, we need to set NodeTimeout to higher value to avoid premature interruption.
-	cleanupTimeout := 90 * time.Minute
+	cleanupTimeout := 5 * time.Second
 	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	// Registered later and thus runs before deleting namespaces.

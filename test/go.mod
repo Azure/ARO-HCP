@@ -221,3 +221,5 @@ replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/arm
 
 // this is the OCP fork of ginkgo that allows listing and inspecting the tests to be compatible with https://github.com/openshift-eng/openshift-tests-extension
 replace github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54
+
+replace github.com/openshift-eng/openshift-tests-extension => github.com/patriksuba/openshift-tests-extension v0.0.0-20251014150413-89dcee13e8a2
