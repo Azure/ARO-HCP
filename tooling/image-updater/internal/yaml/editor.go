@@ -137,7 +137,10 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 			line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
 			updateIndex++
 		}
-		writer.WriteString(line + "\n")
+		_, err := writer.WriteString(line + "\n")
+		if err != nil {
+			return fmt.Errorf("failed to write to temp file: %v", err)
+		}
 		lineNum++
 	}
 
