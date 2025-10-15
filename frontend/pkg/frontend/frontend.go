@@ -1096,10 +1096,11 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	cloudError := api.ValidateSubscription(&subscription)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
+	validationErrs := validation.ValidateSubscriptionCreate(ctx, &subscription)
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
 
