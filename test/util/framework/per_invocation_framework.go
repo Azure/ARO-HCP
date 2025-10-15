@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -30,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
@@ -126,12 +128,28 @@ const (
 	HCP OpsType = "HCP"
 )
 
+// armSystemDataPolicy adds ARM system data headers for localhost requests
+type armSystemDataPolicy struct{}
+
+func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
+	if req.Raw().URL.Host == "localhost:8443" {
+		// Add the ARM system data header that the frontend expects
+		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "User", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
+		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
+
+		// Add other headers that demo scripts include
+		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
+
+		fmt.Printf("DEBUG: Added ARM system data header for localhost request\n")
+	}
+	return req.Next()
+}
+
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions(OpsType OpsType) *azcorearm.ClientOptions {
 	fmt.Printf("DEBUG: getClientFactoryOptions called with OpsType=%s, isDevelopmentEnvironment=%t\n", OpsType, tc.isDevelopmentEnvironment)
 	if tc.isDevelopmentEnvironment && OpsType == HCP {
 		fmt.Printf("DEBUG: Returning localhost:8443 config for HCP operations\n")
 		return &azcorearm.ClientOptions{
-
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{
 					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
@@ -143,6 +161,9 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions(OpsType OpsTyp
 					},
 				},
 				InsecureAllowCredentialWithHTTP: true,
+				PerCallPolicies: []policy.Policy{
+					&armSystemDataPolicy{},
+				},
 			},
 		}
 	}

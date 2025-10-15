@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -33,6 +34,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -414,14 +417,19 @@ func CreateHCPClusterAndWait(
 
 // BuildHCPClusterFromBicepTemplate converts bicep template and parameters to an HCP cluster object
 func BuildHCPClusterFromBicepTemplate(
+	ctx context.Context,
 	bicepTemplateJSON []byte,
 	parameters map[string]interface{},
 	location string,
+	subscriptionId string,
+	resourceGroupName string,
+	testContext *perItOrDescribeTestContext,
 ) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 	// Create HCP cluster struct directly from parameters
 	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location:   &location,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
+		// SystemData is read-only and should not be set in requests
 	}
 
 	// Set required Platform profile
@@ -443,11 +451,15 @@ func BuildHCPClusterFromBicepTemplate(
 	}
 
 	if nsgName, ok := parameters["nsgName"].(string); ok {
-		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgName
+		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionId, resourceGroupName, nsgName)
+		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgID
 	}
 
 	if subnetName, ok := parameters["subnetName"].(string); ok {
-		cluster.Properties.Platform.SubnetID = &subnetName
+		if vnetName, ok := parameters["vnetName"].(string); ok {
+			subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, vnetName, subnetName)
+			cluster.Properties.Platform.SubnetID = &subnetID
+		}
 	}
 
 	if uamiVal, ok := parameters["userAssignedIdentitiesValue"]; ok {
@@ -462,10 +474,49 @@ func BuildHCPClusterFromBicepTemplate(
 		}
 	}
 
+	// ETCD encryption is required - platform managed is not supported
 	if kv, ok := parameters["keyVaultName"].(string); ok {
 		if key, ok := parameters["etcdEncryptionKeyName"].(string); ok {
-			// Prefer to pass this in alongside other params; required by API
-			ver, _ := parameters["etcdEncryptionKeyVersion"].(string)
+			// Get version from parameters or retrieve using Azure Key Vault client
+			ver, hasVersion := parameters["etcdEncryptionKeyVersion"].(string)
+			if !hasVersion || ver == "" {
+				// Get Azure credentials from test context
+				azureCredentials, err := azidentity.NewAzureCLICredential(nil)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed building development environment CLI credential: %w", err)
+				}
+
+				// Create Key Vault client to get key version
+				keyVaultURL := fmt.Sprintf("https://%s.vault.azure.net/", kv)
+				client, err := azkeys.NewClient(keyVaultURL, azureCredentials, nil)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to create key vault client: %w", err)
+				}
+
+				// Get key versions (sorted by creation date, latest first)
+				versions := client.NewListKeyPropertiesVersionsPager(key, nil)
+				page, err := versions.NextPage(ctx)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to list key versions: %w", err)
+				}
+
+				if len(page.Value) == 0 {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no key versions found for key %s", key)
+				}
+
+				// Extract version from the key ID (last part of the URL path)
+				if page.Value[0].KID != nil {
+					keyID := *page.Value[0].KID
+					parts := strings.Split(string(keyID), "/")
+					if len(parts) > 0 {
+						ver = parts[len(parts)-1]
+					} else {
+						return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to extract version from key ID: %s", keyID)
+					}
+				} else {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("key ID is nil for key %s", key)
+				}
+			}
 
 			cluster.Properties.Etcd = &hcpsdk20240610preview.EtcdProfile{
 				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
@@ -476,7 +527,7 @@ func BuildHCPClusterFromBicepTemplate(
 							ActiveKey: &hcpsdk20240610preview.KmsKey{
 								VaultName: &kv,
 								Name:      &key,
-								Version:   &ver, // must be non-empty
+								Version:   &ver,
 							},
 						},
 					},
