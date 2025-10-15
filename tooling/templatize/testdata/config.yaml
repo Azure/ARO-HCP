@@ -16,6 +16,7 @@ defaults:
   childZone: child.example.com
   vaultBaseUrl: myvault.azure.com
   vaultDomainSuffix: '{{ .ev2.keyVault.domainNameSuffix }}'
+  acrDNSSuffix: '{{ .ev2.azureContainerRegistry.domainNameSuffix }}'
   availabilityZoneCount: '{{ .ev2.availabilityZoneCount }}'
   provider: Self
   enableOptionalStep: false
