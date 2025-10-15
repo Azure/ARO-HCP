@@ -16,7 +16,9 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -373,4 +375,123 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	}
 
 	return nil
+}
+
+// CreateHCPClusterAndWait creates an HCP cluster via direct API call and waits for completion , this is to support lower environments .
+func CreateHCPClusterAndWait(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API call\n", hcpClusterName)
+
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+		return &m.HcpOpenShiftCluster, nil
+	default:
+		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// BuildHCPClusterFromBicepTemplate converts bicep template and parameters to an HCP cluster object
+func BuildHCPClusterFromBicepTemplate(
+	bicepTemplateJSON []byte,
+	parameters map[string]interface{},
+	location string,
+) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	// Parse the bicep template to extract the HCP cluster resource
+	var bicepTemplate map[string]interface{}
+	if err := json.Unmarshal(bicepTemplateJSON, &bicepTemplate); err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to parse bicep template: %w", err)
+	}
+
+	// Convert bicep parameters to the format expected by the template
+	bicepParameters := map[string]interface{}{}
+	for k, v := range parameters {
+		bicepParameters[k] = map[string]interface{}{
+			"value": v,
+		}
+	}
+
+	// Find the HCP cluster resource in the bicep template
+	resources, ok := bicepTemplate["resources"].([]interface{})
+	if !ok {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no resources found in bicep template")
+	}
+
+	var hcpResource map[string]interface{}
+	for _, resource := range resources {
+		if resourceMap, ok := resource.(map[string]interface{}); ok {
+			if resourceType, ok := resourceMap["type"].(string); ok {
+				if resourceType == "Microsoft.RedHatOpenShift/hcpOpenShiftClusters@2024-06-10-preview" {
+					hcpResource = resourceMap
+					break
+				}
+			}
+		}
+	}
+
+	if hcpResource == nil {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("HCP cluster resource not found in bicep template")
+	}
+
+	// Extract the cluster definition and set the location
+	clusterDef := map[string]interface{}{}
+	if props, ok := hcpResource["properties"]; ok {
+		clusterDef["properties"] = props
+	}
+	if identity, ok := hcpResource["identity"]; ok {
+		clusterDef["identity"] = identity
+	}
+
+	// Set location
+	clusterDef["location"] = location
+
+	// Process template variables/parameters in the cluster definition
+	clusterDefJSON, err := json.Marshal(clusterDef)
+	if err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to marshal cluster definition: %w", err)
+	}
+
+	// Simple parameter substitution for development
+	clusterDefStr := string(clusterDefJSON)
+	for paramName, paramValue := range parameters {
+		placeholder := fmt.Sprintf("\"[parameters('%s')]\"", paramName)
+		if valueStr, ok := paramValue.(string); ok {
+			clusterDefStr = strings.Replace(clusterDefStr, placeholder, fmt.Sprintf("\"%s\"", valueStr), -1)
+		} else {
+			// For complex objects, just convert to JSON
+			if valueJSON, err := json.Marshal(paramValue); err == nil {
+				clusterDefStr = strings.Replace(clusterDefStr, placeholder, string(valueJSON), -1)
+			}
+		}
+	}
+
+	// Parse the processed cluster definition into HCP struct
+	var cluster hcpsdk20240610preview.HcpOpenShiftCluster
+	if err := json.Unmarshal([]byte(clusterDefStr), &cluster); err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to unmarshal cluster: %w", err)
+	}
+
+	fmt.Printf("DEBUG: Successfully converted bicep template to HCP cluster struct\n")
+	return cluster, nil
 }
