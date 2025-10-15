@@ -2995,7 +2995,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",namespace=~\"clusters.*\",instance=~\".*user.*\"}[$interval])) by (instance) * 100",
+              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",namespace=~\"ocm.*\",instance=~\".*user.*\"}[$interval])) by (instance) * 100",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -3139,7 +3139,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",namespace!~\"clusters.*\",instance=~\".*user.*\"}[$interval])) by (instance) * 100",
+              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",namespace!~\"ocm.*\",instance=~\".*user.*\"}[$interval])) by (instance) * 100",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -3281,7 +3281,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\".*user.*\",namespace=~\"clusters.*\"}) by (instance)",
+              "expr": "sum(container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\".*user.*\",namespace=~\"ocm.*\"}) by (instance)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -3423,7 +3423,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\".*user.*\",namespace!~\"clusters.*\"}) by (instance)",
+              "expr": "sum(container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\".*user.*\",namespace!~\"ocm.*\"}) by (instance)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
@@ -5098,7 +5098,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace=~\"clusters.*\"}[$interval])) by (pod,container,namespace,name,service) * 100",
+              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace=~\"ocm.*\"}[$interval])) by (pod,container,namespace,name,service) * 100",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ pod }}: {{ container }}",
@@ -5241,7 +5241,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace!~\".*clusters.*\",namespace=~\"$namespace\"}[$interval])) by (pod,container,namespace,name,service) * 100",
+              "expr": "sum(irate(container_cpu_usage_seconds_total{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace!~\"ocm.*\",namespace=~\"$namespace\"}[$interval])) by (pod,container,namespace,name,service) * 100",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ pod }}: {{ container }}",
@@ -5382,7 +5382,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "topk(10, container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace=~\".*clusters.*\",namespace=~\"$namespace\"})",
+              "expr": "topk(10, container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace=~\"ocm.*\",namespace=~\"$namespace\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ pod }}: {{ container }}",
@@ -5523,7 +5523,7 @@
                 "uid": "$datasource"
               },
               "editorMode": "code",
-              "expr": "topk(10, container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace!~\".*clusters.*\",namespace=~\"$namespace\"})",
+              "expr": "topk(10, container_memory_rss{cluster=\"$cluster\",container!=\"POD\",name!=\"\",instance=~\"$_worker_node\",namespace!~\"ocm.*\",namespace=~\"$namespace\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{ pod }}: {{ container }}",
