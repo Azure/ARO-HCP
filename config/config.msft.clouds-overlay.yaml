@@ -18,7 +18,7 @@ clouds:
                 rollingUpdate:
                   maxUnavailable: 0
                   maxSurge: 1
-            batchProcessesDryRun: true
+            batchProcessesDryRun: false
             batchProcesses: "ARO-20736"
           # ACR Pull
           acrPull:
