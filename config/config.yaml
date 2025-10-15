@@ -27,6 +27,7 @@ defaults:
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
+  acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
     readerGroupId: ""
     releaseManagementGroupId: ""
