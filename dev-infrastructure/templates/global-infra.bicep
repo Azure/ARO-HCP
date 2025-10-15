@@ -87,26 +87,11 @@ param genevaKeyVaultTagKey string
 @description('Tag value for the geneva actions keyvault')
 param genevaKeyVaultTagValue string
 
-@description('Name of certificate in Keyvault and hostname used in SAN')
-param genevaCertificateName string
-
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string
-
-@description('Should geneva certificates be managed')
-param genevaCertificateManage bool
-
-@description('Name of the svc DNS zone')
-param svcDNSZoneName string
-
 @description('Name of geneva action extensions')
 param allowedAcisExtensions string
 
 @description('App ID for Geneva Actions')
 param genevaActionsPrincipalId string
-
-@description('Should geneva actions be enabled')
-param genevaActionsEnabled bool
 
 //
 //  G L O B A L   M S I
@@ -408,7 +393,7 @@ output globalKeyVaultUrl string = globalKV.outputs.kvUrl
 
 // G E N E V A   A C T I O N S
 
-module genevaActions '../modules/genevaactions.bicep' = if (genevaActionsEnabled) {
+module genevaActions '../modules/genevaactions.bicep' = {
   name: 'geneva-actions'
   params: {
     location: location
@@ -417,12 +402,10 @@ module genevaActions '../modules/genevaactions.bicep' = if (genevaActionsEnabled
     genevaKeyVaultSoftDelete: genevaKeyVaultSoftDelete
     genevaKeyVaultTagKey: genevaKeyVaultTagKey
     genevaKeyVaultTagValue: genevaKeyVaultTagValue
-    genevaCertificateName: genevaCertificateName
-    genevaCertificateIssuer: genevaCertificateIssuer
-    genevaCertificateManage: genevaCertificateManage
-    svcDNSZoneName: svcDNSZoneName
     allowedAcisExtensions: allowedAcisExtensions
     genevaActionsPrincipalId: genevaActionsPrincipalId
-    globalMSIId: globalMSI.id
+    kvCertOfficerPrincipalId: kvCertOfficerPrincipalId
+    kvCertAccessPrincipalId: kvCertAccessPrincipalId
+    kvCertAccessRoleId: kvCertAccessRoleId
   }
 }

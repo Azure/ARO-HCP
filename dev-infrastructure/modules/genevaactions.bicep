@@ -11,20 +11,16 @@ param genevaKeyVaultSoftDelete bool
 param genevaKeyVaultTagKey string
 @description('Tag value for the geneva actions keyvault')
 param genevaKeyVaultTagValue string
-@description('Name of certificate in Keyvault and hostname used in SAN')
-param genevaCertificateName string
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string
-@description('Should geneva certificates be managed')
-param genevaCertificateManage bool
-@description('Name of the svc DNS zone')
-param svcDNSZoneName string
 @description('Name of geneva action extensions')
 param allowedAcisExtensions string
 @description('App ID for Geneva Actions')
 param genevaActionsPrincipalId string
-@description('Global MSI ID')
-param globalMSIId string
+@description('Principal ID for KV certificate officer')
+param kvCertOfficerPrincipalId string
+@description('Principal ID for EV2 certificate access, i.e. geneva log/action access')
+param kvCertAccessPrincipalId string
+@description('Roles used for EV2 KeyVault access, i.e. geneva log/action access')
+param kvCertAccessRoleId string
 
 //   G E N E V A    K V
 
@@ -37,31 +33,15 @@ module genevaKv '../modules/keyvault/keyvault.bicep' = {
     enableSoftDelete: genevaKeyVaultSoftDelete
     tagKey: genevaKeyVaultTagKey
     tagValue: genevaKeyVaultTagValue
+    kvCertOfficerPrincipalId: kvCertOfficerPrincipalId
+    kvCertAccessPrincipalId: kvCertAccessPrincipalId
+    kvCertAccessRoleId: kvCertAccessRoleId
   }
 }
 
 output genevaKeyVaultUrl string = genevaKv.outputs.kvUrl
 
-var genevaCertificateSNI = '${genevaCertificateName}.${svcDNSZoneName}'
-
-module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaCertificateManage) {
-  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
-  params: {
-    keyVaultName: genevaKeyVaultName
-    subjectName: 'CN=${genevaCertificateSNI}'
-    certName: genevaCertificateName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      genevaCertificateSNI
-    ]
-    issuerName: genevaCertificateIssuer
-  }
-  dependsOn: [
-    genevaKv
-  ]
-}
-
-module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = if (genevaActionsPrincipalId != '') {
   name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Secrets User', genevaActionsPrincipalId)
   params: {
     keyVaultName: genevaKv.outputs.kvName
@@ -70,7 +50,7 @@ module genevaKvSecretsUserAccessToGenevaApp '../modules/keyvault/keyvault-secret
   }
 }
 
-module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaKvReaderAccessToGenevaApp '../modules/keyvault/keyvault-secret-access.bicep' = if (genevaActionsPrincipalId != '') {
   name: guid(genevaKeyVaultName, 'KeyVaultAccess', 'Key Vault Reader', genevaActionsPrincipalId)
   params: {
     keyVaultName: genevaKv.outputs.kvName

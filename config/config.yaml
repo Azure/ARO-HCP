@@ -157,7 +157,6 @@ defaults:
         san: ""
         configVersion: "1"
     actions:
-      enabled: true
       serviceTag: GenevaActions
       keyVault:
         name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
@@ -168,7 +167,7 @@ defaults:
       certificate:
         name: genevaAction
         issuer: OneCertV2-PrivateCA
-        manage: false
+        manage: true
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
       genevaActionsPrincipalId: ""
   kusto:
@@ -766,6 +765,7 @@ clouds:
         cxParentZoneName: hcp.osadev.cloud
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
+        globalCertificatesDomain: hcp-global.osadev.cloud
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
       firstPartyAppCertificate:
@@ -932,7 +932,8 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
-          enabled: false
+          certificate:
+            issuer: Self
     environments:
       dev:
         # this is the integrated DEV environment
