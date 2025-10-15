@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ../../demo/env_vars
+
 error_msg() {
     echo "Error: $1"
     exit 1
@@ -19,9 +21,9 @@ is_service_principal(){
     return $(test "$(az account show --query user.type --output tsv)" = "servicePrincipal")
 }
 
-export resource_group=$USER-swiftv2-test
-export vnet_name=$USER-swiftv2-test-vnet
-export subnet_name=$USER-swiftv2-test-subnet
+export resource_group=$MANAGED_RESOURCE_GROUP
+export vnet_name=$CUSTOMER_VNET_NAME
+export subnet_name=$CUSTOMER_VNET_SUBNET1
 export subscription=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 export resource=RedHatOpenShift
 export linked_resource_type=Microsoft.RedHatOpenShift/hcpOpenShiftClusters
