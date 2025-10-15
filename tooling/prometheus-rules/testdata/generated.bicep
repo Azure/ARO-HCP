@@ -30,7 +30,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           title: 'All instances of the App are down'
         }
         expression: 'sum(up{job="app"}) == 0'
-        severity: 1
+        severity: 2
       }
       {
         actions: [for g in actionGroups: {
@@ -54,7 +54,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'sum by (namespace, pod, cluster) ( max by(namespace, pod, cluster) ( kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"} ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) ( 1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}) ) ) > 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
