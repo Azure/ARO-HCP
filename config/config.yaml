@@ -650,8 +650,8 @@ defaults:
       serviceAccountName: clusters-service
       deploymentStrategy:
         rollingUpdate:
-          maxUnavailable: 25%
-          maxSurge: 25%
+          maxUnavailable: 0
+          maxSurge: 1
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     # OCP Versions configuration
@@ -810,11 +810,6 @@ clouds:
           roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
-        k8s:
-          deploymentStrategy:
-            rollingUpdate:
-              maxUnavailable: 0
-              maxSurge: 1
       # Hypershift Operator
       hypershift:
         image:
