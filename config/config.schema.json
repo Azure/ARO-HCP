@@ -777,6 +777,10 @@
         "parentZoneName": {
           "type": "string",
           "description": "The global parent DNS zone name"
+        },
+        "globalCertificatesDomain": {
+          "type": "string",
+          "description": "The global certificates domain"
         }
       },
       "additionalProperties": false,
@@ -784,7 +788,8 @@
         "baseDnsZoneRG",
         "cxParentZoneName",
         "svcParentZoneName",
-        "regionalSubdomain"
+        "regionalSubdomain",
+        "globalCertificatesDomain"
       ]
     },
     "acm": {
@@ -1381,8 +1386,7 @@
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
-            "genevaActionsPrincipalId",
-            "enabled"
+            "genevaActionsPrincipalId"
           ],
           "properties": {
             "serviceTag": {
