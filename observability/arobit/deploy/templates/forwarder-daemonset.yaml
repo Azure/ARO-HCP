@@ -16,6 +16,8 @@ spec:
       app.kubernetes.io/instance: '{{ .Release.Name }}'
   updateStrategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
   template:
     metadata:
       labels:
