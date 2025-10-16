@@ -155,6 +155,7 @@ cxKeyVault:
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud
+  globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
   regionalSubdomain: westus3
   svcParentZoneName: hcpsvc.osadev.cloud
@@ -203,10 +204,9 @@ geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension
     certificate:
-      issuer: OneCertV2-PrivateCA
-      manage: false
+      issuer: Self
+      manage: true
       name: genevaAction
-    enabled: false
     genevaActionsPrincipalId: ""
     keyVault:
       name: arohcpdev-geneva-kv
