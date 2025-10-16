@@ -556,11 +556,11 @@ func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
 
 	switch *severity {
 	case "critical":
-		return ptr.To(int32(2)) // SEV 2: "Single service SLA impact." 
+		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
 	case "warning":
-		return ptr.To(int32(3)) // SEV 3: "Urgent/high business impact, no SLA impact." 
+		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
 	case "info":
-		return ptr.To(int32(4)) // SEV 4: "Not urgent, no SLA impact."
+		return ptr.To(int32(4)) // SEV 4: Not urgent, no SLA impact.
 	default:
 		logrus.Warnf("unknown severity label %q, defaulting to verbose", *severity)
 		return ptr.To(int32(4)) // Sev 4 - Verbose
