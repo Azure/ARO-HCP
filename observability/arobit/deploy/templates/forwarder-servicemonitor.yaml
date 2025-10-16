@@ -7,7 +7,7 @@ spec:
   endpoints:
   - interval: 30s
     path: /metrics
-    port: 2020
+    port: metrics
     scheme: http
   namespaceSelector:
     matchNames:
@@ -15,4 +15,3 @@ spec:
   selector:
     matchLabels:
       app: arobit-forwarder
-      port: 2020

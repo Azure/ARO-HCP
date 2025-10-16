@@ -47,6 +47,9 @@ spec:
             - name: forward
               containerPort: 24224
               protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /api/v1/health

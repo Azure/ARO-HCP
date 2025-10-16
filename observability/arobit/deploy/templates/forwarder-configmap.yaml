@@ -193,6 +193,12 @@ data:
         Preserve_Key On
         Reserve_Data On
   output.conf: |
+    [OUTPUT]
+        Name  prometheus_exporter
+        Alias exporter.fluentbit
+        Match metrics.fluentbit
+        Host  0.0.0.0
+        Port  9090
 {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     [OUTPUT]
         Match ocm.logs
@@ -273,7 +279,7 @@ data:
         Alias exporter.fluentbit
         Match metrics.fluentbit
         Host  0.0.0.0
-        Port  2020
+        Port  9090
   output-mdsd-ocm.conf: |
     # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
     [OUTPUT]
