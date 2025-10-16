@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arobit-forwarder
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: 2020
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - '{{ .Release.Namespace }}'
+  selector:
+    matchLabels:
+      app: arobit-forwarder
+      port: 2020

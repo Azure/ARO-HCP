@@ -11,10 +11,6 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - name: http
-    port: 2020
-    targetPort: http
-    protocol: TCP
   - name: otlp-http
     port: 4318
     targetPort: otlp-http
@@ -22,6 +18,10 @@ spec:
   - name: forward
     port: 24224
     targetPort: forward
+    protocol: TCP
+  - name: metrics
+    port: 2020
+    targetPort: 2020
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
