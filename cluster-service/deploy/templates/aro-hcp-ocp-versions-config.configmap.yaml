@@ -9,7 +9,7 @@ data:
       channelGroupName: stable
       version: {{ .Values.ocpVersions.defaultVersion.version }}
     channelGroups:
-      - url: {{ .Values.ocpVersions.channelGroups.stable.url }}
+      - url: https://api.openshift.com/api/upgrades_info/graph
         channelGroupName: stable
         minVersion: {{ .Values.ocpVersions.channelGroups.stable.minVersion }}
         {{- if .Values.ocpVersions.channelGroups.stable.maxVersion }}

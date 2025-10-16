@@ -125,7 +125,6 @@ clustersService:
       stable:
         maxVersion: 4.19.8
         minVersion: 4.19.0
-        url: https://api.openshift.com/api/upgrades_info/graph
     defaultVersion:
       version: 4.19.7
   postgres:

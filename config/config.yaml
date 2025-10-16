@@ -661,7 +661,6 @@ defaults:
         version: 4.19.7
       channelGroups:
         stable:
-          url: https://api.openshift.com/api/upgrades_info/graph
           minVersion: 4.19.0
           maxVersion: 4.19.8
   # Image Sync
