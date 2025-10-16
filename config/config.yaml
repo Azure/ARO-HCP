@@ -932,6 +932,8 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
+          keyVault:
+            name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
             issuer: Self
     environments:
