@@ -15,7 +15,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -26,7 +26,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
+          correlationId: 'PrometheusJobUp/{{ $externalLabels.cluster }}'
           description: '''Prometheus has not been reachable for the past 5 minutes.
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
@@ -47,7 +47,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -58,7 +58,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusUptime/{{ $labels.cluster }}'
+          correlationId: 'PrometheusUptime/{{ $externalLabels.cluster }}'
           description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
@@ -79,7 +79,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -90,7 +90,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusPendingRate/{{ $labels.cluster }}'
+          correlationId: 'PrometheusPendingRate/{{ $externalLabels.cluster }}'
           description: '''The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
 This means that more than 40% of samples are waiting to be sent to remote storage, which may indicate
 a bottleneck or issue with the remote write endpoint, network connectivity, or Prometheus performance.
@@ -115,7 +115,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -126,7 +126,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}'
+          correlationId: 'PrometheusFailedRate/{{ $externalLabels.cluster }}'
           description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
 This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
 issues with the remote write endpoint, network instability, or Prometheus resource constraints.
@@ -164,7 +164,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -175,7 +175,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.remote_name }}/{{ $labels.url }}'
+          correlationId: 'PrometheusRemoteStorageFailures/{{ $externalLabels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.remote_name }}/{{ $labels.url }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures'
           summary: 'Prometheus fails to send samples to remote storage.'
@@ -190,7 +190,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -201,7 +201,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusNotIngestingSamples/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusNotIngestingSamples/{{ $externalLabels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples'
           summary: 'Prometheus is not ingesting samples.'
@@ -216,7 +216,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -227,7 +227,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusBadConfig/{{ $externalLabels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig'
           summary: 'Failed Prometheus configuration reload.'
@@ -242,7 +242,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -253,7 +253,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusRuleFailures/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusRuleFailures/{{ $externalLabels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to evaluate {{ printf "%.0f" $value }} rules in the last 5m.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusrulefailures'
           summary: 'Prometheus is failing rule evaluations.'
@@ -268,7 +268,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -279,7 +279,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'PrometheusScrapeSampleLimitHit/{{ $externalLabels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
           summary: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
@@ -307,7 +307,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -318,7 +318,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusOperatorNotReady/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}'
+          correlationId: 'PrometheusOperatorNotReady/{{ $externalLabels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace isn\'t ready to reconcile {{ $labels.controller }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready'
           summary: 'Prometheus operator not ready'
@@ -333,7 +333,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -344,7 +344,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'PrometheusOperatorRejectedResources/{{ $labels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}/{{ $labels.resource }}'
+          correlationId: 'PrometheusOperatorRejectedResources/{{ $externalLabels.cluster }}/{{ $labels.controller }}/{{ $labels.namespace }}/{{ $labels.resource }}'
           description: 'Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources'
           summary: 'Resources rejected by Prometheus operator'
@@ -372,7 +372,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -383,7 +383,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'info'
         }
         annotations: {
-          correlationId: 'MiseEnvoyScrapeDown/{{ $labels.cluster }}'
+          correlationId: 'MiseEnvoyScrapeDown/{{ $externalLabels.cluster }}'
           description: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
           runbook_url: 'TBD'
           summary: 'Envoy scrape target down for namespace=mise'
@@ -411,7 +411,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -422,7 +422,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           severity: 'info'
         }
         annotations: {
-          correlationId: 'FrontendLatency/{{ $labels.cluster }}'
+          correlationId: 'FrontendLatency/{{ $externalLabels.cluster }}'
           description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
           runbook_url: 'TBD'
           summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
@@ -437,7 +437,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -448,7 +448,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           severity: 'info'
         }
         annotations: {
-          correlationId: 'FrontendClusterServiceErrorRate/{{ $labels.cluster }}'
+          correlationId: 'FrontendClusterServiceErrorRate/{{ $externalLabels.cluster }}'
           description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
           runbook_url: 'TBD'
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
@@ -463,7 +463,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -474,7 +474,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           severity: 'info'
         }
         annotations: {
-          correlationId: 'FrontendHealthAvailability/{{ $labels.cluster }}'
+          correlationId: 'FrontendHealthAvailability/{{ $externalLabels.cluster }}'
           description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
           runbook_url: 'TBD'
           summary: 'High unavailability on the Frontend'
@@ -502,7 +502,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -515,7 +515,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           short: '30m'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API availability error budget burn rate is too high'
@@ -530,7 +530,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -542,7 +542,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           slo: 'api-availability'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
@@ -557,7 +557,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -571,7 +571,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           slo: 'api-latency-p99'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P99 latency error budget burn rate is too high'
@@ -586,7 +586,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -598,7 +598,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           slo: 'api-latency-p99'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
@@ -613,7 +613,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -627,7 +627,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           slo: 'api-latency-p90'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'Cluster Service API P90 latency error budget burn rate is too high'
@@ -642,7 +642,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -654,7 +654,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           slo: 'api-latency-p90'
         }
         annotations: {
-          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $externalLabels.cluster }}'
           description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
           runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
           summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
@@ -682,7 +682,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -693,7 +693,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'info'
         }
         annotations: {
-          correlationId: 'BackendOperationErrorRate/{{ $labels.cluster }}'
+          correlationId: 'BackendOperationErrorRate/{{ $externalLabels.cluster }}'
           description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
           runbook_url: 'TBD'
           summary: 'High Error Rate on Backend Operations'
@@ -708,7 +708,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           for g in actionGroups: {
             actionGroupId: g
             actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.Title': '#$.externalLabels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
             }
           }
@@ -719,7 +719,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'info'
         }
         annotations: {
-          correlationId: 'BackendHealthAvailability/{{ $labels.cluster }}'
+          correlationId: 'BackendHealthAvailability/{{ $externalLabels.cluster }}'
           description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
           runbook_url: 'TBD'
           summary: 'High unavailability on the Backend'
