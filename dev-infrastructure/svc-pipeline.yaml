@@ -279,6 +279,7 @@ resourceGroups:
     action: Helm
     releaseName: 'arobit'
     releaseNamespace: 'arobit'
+    timeout: 60m
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
     inputVariables:

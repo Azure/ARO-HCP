@@ -113,6 +113,16 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return fmt.Errorf("failed to write file %s: %w", values, err)
 	}
 
+	timeout := step.Timeout
+	if timeout == "" {
+		timeout = "5m"
+	}
+
+	parsedTimeout, err := time.ParseDuration(timeout)
+	if err != nil {
+		return fmt.Errorf("failed to parse timeout duration: %w", err)
+	}
+
 	// then, run the helm release
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
 	opts := helm.RawOptions{
@@ -121,7 +131,7 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		ReleaseNamespace: step.ReleaseNamespace,
 		ChartDir:         chartDir,
 		ValuesFile:       values,
-		Timeout:          5 * time.Minute,
+		Timeout:          parsedTimeout,
 		KubeconfigFile:   kubeconfig,
 		DryRun:           options.DryRun,
 	}
