@@ -18,4 +18,4 @@ spec:
           This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
           Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
-        summary: Arobit forwarder is unreachable for 5 minutes.
+        summary: Arobit forwarder is unreachable for 15 minutes.

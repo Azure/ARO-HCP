@@ -735,3 +735,48 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
     ]
   }
 }
+
+resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arobit-rules'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ArobitForwarderJobUp'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'ArobitForwarderJobUp/{{ $labels.cluster }}'
+          description: '''Arobit forwarder has not been reachable for the past 15 minutes.
+This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
+Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+'''
+          runbook_url: 'TBD'
+          summary: 'Arobit forwarder is unreachable for 15 minutes.'
+          title: '''Arobit forwarder has not been reachable for the past 15 minutes.
+This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
+Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+'''
+        }
+        expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
+        for: 'PT15M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
