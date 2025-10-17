@@ -11,7 +11,7 @@ images:
   hypershift:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
-      tagPattern: "^latest$"
+      tagPattern: "^sha256-[a-f0-9]{64}$"
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
