@@ -1,0 +1,566 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles
+  name: managedIdentitiesReaderRoles
+  properties:
+    correlationId: ce2d9f2f-934c-488a-881e-0ccd5fd2eb06
+    dependencies:
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b74ce851-6cd9-5c9a-b259-8b1023867fa1
+      resourceName: b74ce851-6cd9-5c9a-b259-8b1023867fa1
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/76f7a2e8-5418-5c09-8042-bcc35e5b92de
+      resourceName: 76f7a2e8-5418-5c09-8042-bcc35e5b92de
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+      resourceName: e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b0469990-330a-58bf-b327-34385a167d12
+      resourceName: b0469990-330a-58bf-b327-34385a167d12
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/04e449c4-f19b-599e-8e74-39e45f795601
+      resourceName: 04e449c4-f19b-599e-8e74-39e45f795601
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b922be8f-4c19-52ca-adb6-1c31dc2a4753
+      resourceName: b922be8f-4c19-52ca-adb6-1c31dc2a4753
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/ef4a9f21-f265-5b38-ac2c-3da50492a26a
+      resourceName: ef4a9f21-f265-5b38-ac2c-3da50492a26a
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b15106b1-8f68-5464-924e-bdc2ba34efbe
+      resourceName: b15106b1-8f68-5464-924e-bdc2ba34efbe
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/58284355-1aba-5fac-a469-d1304f689d3c
+      resourceName: 58284355-1aba-5fac-a469-d1304f689d3c
+      resourceType: Microsoft.Authorization/roleAssignments
+    duration: PT6.8271593S
+    mode: Incremental
+    outputResources:
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b15106b1-8f68-5464-924e-bdc2ba34efbe
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b74ce851-6cd9-5c9a-b259-8b1023867fa1
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/76f7a2e8-5418-5c09-8042-bcc35e5b92de
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/04e449c4-f19b-599e-8e74-39e45f795601
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b922be8f-4c19-52ca-adb6-1c31dc2a4753
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/ef4a9f21-f265-5b38-ac2c-3da50492a26a
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b0469990-330a-58bf-b327-34385a167d12
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/58284355-1aba-5fac-a469-d1304f689d3c
+    parameters:
+      cloudControllerManagerMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+      cloudNetworkConfigMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+      clusterApiAzureMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+      controlPlaneMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+      diskCsiDriverMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+      fileCsiDriverMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+      imageRegistryMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+      ingressMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+      kmsMiId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+      serviceManagedIdentityId:
+        type: String
+        value: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+    providers:
+    - namespace: Microsoft.Authorization
+      resourceTypes:
+      - locations:
+        - null
+        resourceType: roleAssignments
+    provisioningState: Succeeded
+    templateHash: "10701184943633811620"
+    timestamp: "2025-10-16T04:52:48.9123668Z"
+  type: Microsoft.Resources/deployments
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managed-identities
+  name: managed-identities
+  properties:
+    correlationId: ce2d9f2f-934c-488a-881e-0ccd5fd2eb06
+    debugSetting:
+      detailLevel: RequestContent
+    dependencies:
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/21227569-dfd6-52c6-be7e-07f949195e63
+      resourceName: 21227569-dfd6-52c6-be7e-07f949195e63
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/63da4bb5-6a70-5504-ab1c-e60962c5371d
+      resourceName: 63da4bb5-6a70-5504-ab1c-e60962c5371d
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/b8b57502-bcd0-52f8-a43f-777249217a36
+      resourceName: b8b57502-bcd0-52f8-a43f-777249217a36
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/0a724bec-515b-5d5f-8bb4-985b48454fd7
+      resourceName: 0a724bec-515b-5d5f-8bb4-985b48454fd7
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/431495a6-7580-5c92-bede-5869b60f94fd
+      resourceName: 431495a6-7580-5c92-bede-5869b60f94fd
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/bbe5e96a-f968-5834-aac4-2a81ceff09d2
+      resourceName: bbe5e96a-f968-5834-aac4-2a81ceff09d2
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/f783601f-7b89-5651-9f6a-fd392fbfd1f0
+      resourceName: f783601f-7b89-5651-9f6a-fd392fbfd1f0
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/5b96d54d-f13d-5cae-9042-d5c3ca77fef0
+      resourceName: 5b96d54d-f13d-5cae-9042-d5c3ca77fef0
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/a7d2c332-e8f8-52f0-b6a5-6684a47b2e6d
+      resourceName: a7d2c332-e8f8-52f0-b6a5-6684a47b2e6d
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/99bafbca-5c8b-5a29-82bb-a21b398b1b1f
+      resourceName: 99bafbca-5c8b-5a29-82bb-a21b398b1b1f
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/3ff69b7a-c5c4-52b3-8e4c-414f084b6cd6
+      resourceName: 3ff69b7a-c5c4-52b3-8e4c-414f084b6cd6
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/436525bf-5430-5fde-9684-6c138857fac4
+      resourceName: 436525bf-5430-5fde-9684-6c138857fac4
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/a39d05ed-a74a-57a1-8b10-f67a65b6ac30
+      resourceName: a39d05ed-a74a-57a1-8b10-f67a65b6ac30
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/f7121172-eeb3-5d9d-b599-c670c27e2751
+      resourceName: f7121172-eeb3-5d9d-b599-c670c27e2751
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-image-registry-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-dp-image-registry-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b347df34-91ae-5c61-8fbe-d241f25fe69d
+      resourceName: b347df34-91ae-5c61-8fbe-d241f25fe69d
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/80781c96-638b-5926-a3c7-dfcef990dc55
+      resourceName: 80781c96-638b-5926-a3c7-dfcef990dc55
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/d73c174e-5827-5de9-a78c-21f4d09e9102
+      resourceName: d73c174e-5827-5de9-a78c-21f4d09e9102
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/29a096a4-8586-527b-9797-516e221fce72
+      resourceName: 29a096a4-8586-527b-9797-516e221fce72
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/2b044206-6cff-5e02-973f-00ae9ede2b92
+      resourceName: 2b044206-6cff-5e02-973f-00ae9ede2b92
+      resourceType: Microsoft.Authorization/roleAssignments
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-cp-kms-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+        resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles
+      resourceName: managedIdentitiesReaderRoles
+      resourceType: Microsoft.Resources/deployments
+    duration: PT13.2224245S
+    mode: Incremental
+    outputResources:
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/2b044206-6cff-5e02-973f-00ae9ede2b92
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b15106b1-8f68-5464-924e-bdc2ba34efbe
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b74ce851-6cd9-5c9a-b259-8b1023867fa1
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/76f7a2e8-5418-5c09-8042-bcc35e5b92de
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/04e449c4-f19b-599e-8e74-39e45f795601
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b922be8f-4c19-52ca-adb6-1c31dc2a4753
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/ef4a9f21-f265-5b38-ac2c-3da50492a26a
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b0469990-330a-58bf-b327-34385a167d12
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/58284355-1aba-5fac-a469-d1304f689d3c
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/3ff69b7a-c5c4-52b3-8e4c-414f084b6cd6
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/436525bf-5430-5fde-9684-6c138857fac4
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-image-registry-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b347df34-91ae-5c61-8fbe-d241f25fe69d
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/29a096a4-8586-527b-9797-516e221fce72
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/431495a6-7580-5c92-bede-5869b60f94fd
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/5b96d54d-f13d-5cae-9042-d5c3ca77fef0
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/b8b57502-bcd0-52f8-a43f-777249217a36
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name/providers/Microsoft.Authorization/roleAssignments/f7121172-eeb3-5d9d-b599-c670c27e2751
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/63da4bb5-6a70-5504-ab1c-e60962c5371d
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/80781c96-638b-5926-a3c7-dfcef990dc55
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/providers/Microsoft.Authorization/roleAssignments/99bafbca-5c8b-5a29-82bb-a21b398b1b1f
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/0a724bec-515b-5d5f-8bb4-985b48454fd7
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/21227569-dfd6-52c6-be7e-07f949195e63
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/a39d05ed-a74a-57a1-8b10-f67a65b6ac30
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/a7d2c332-e8f8-52f0-b6a5-6684a47b2e6d
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/bbe5e96a-f968-5834-aac4-2a81ceff09d2
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/d73c174e-5827-5de9-a78c-21f4d09e9102
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name/subnets/customer-vnet-subnet1/providers/Microsoft.Authorization/roleAssignments/f783601f-7b89-5651-9f6a-fd392fbfd1f0
+    outputs:
+      identityValue:
+        type: Object
+        value:
+          type: UserAssigned
+          userAssignedIdentities:
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+            : {}
+            ? /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+            : {}
+      userAssignedIdentitiesValue:
+        type: Object
+        value:
+          controlPlaneOperators:
+            cloud-controller-manager: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre
+            cloud-network-config: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre
+            cluster-api-azure: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre
+            control-plane: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre
+            disk-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre
+            file-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre
+            image-registry: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre
+            ingress: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre
+            kms: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre
+          dataPlaneOperators:
+            disk-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-disk-csi-driver-wjsz64pvegwre
+            file-csi-driver: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-file-csi-driver-wjsz64pvegwre
+            image-registry: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-dp-image-registry-wjsz64pvegwre
+          serviceManagedIdentity: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+    parameters:
+      clusterName:
+        type: String
+        value: basic-hcp-cluster
+      keyVaultName:
+        type: String
+        value: cust-kv-wjsz64pvegwre
+      nsgName:
+        type: String
+        value: customer-nsg-name
+      subnetName:
+        type: String
+        value: customer-vnet-subnet1
+      vnetName:
+        type: String
+        value: customer-vnet-name
+    providers:
+    - namespace: Microsoft.ManagedIdentity
+      resourceTypes:
+      - locations:
+        - westus3
+        resourceType: userAssignedIdentities
+    - namespace: Microsoft.Authorization
+      resourceTypes:
+      - locations:
+        - null
+        resourceType: roleAssignments
+    - namespace: Microsoft.Resources
+      resourceTypes:
+      - locations:
+        - null
+        resourceType: deployments
+    provisioningState: Succeeded
+    templateHash: "10971218049377219820"
+    timestamp: "2025-10-16T04:52:51.0645089Z"
+  type: Microsoft.Resources/deployments
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra
+  name: customer-infra
+  properties:
+    correlationId: e34fdc33-8283-4bea-b78a-cc01cece3979
+    debugSetting:
+      detailLevel: RequestContent
+    dependencies:
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+        resourceName: customer-nsg-name
+        resourceType: Microsoft.Network/networkSecurityGroups
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+      resourceName: customer-vnet-name
+      resourceType: Microsoft.Network/virtualNetworks
+    - dependsOn:
+      - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre
+        resourceName: cust-kv-wjsz64pvegwre
+        resourceType: Microsoft.KeyVault/vaults
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre/keys/etcd-data-kms-encryption-key
+      resourceName: cust-kv-wjsz64pvegwre/etcd-data-kms-encryption-key
+      resourceType: Microsoft.KeyVault/vaults/keys
+    duration: PT23.3675741S
+    mode: Incremental
+    outputResources:
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre/keys/etcd-data-kms-encryption-key
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+    - id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+    outputs:
+      etcdEncryptionKeyName:
+        type: String
+        value: etcd-data-kms-encryption-key
+      keyVaultName:
+        type: String
+        value: cust-kv-wjsz64pvegwre
+      nsgName:
+        type: String
+        value: customer-nsg-name
+      vnetName:
+        type: String
+        value: customer-vnet-name
+      vnetSubnetName:
+        type: String
+        value: customer-vnet-subnet1
+    parameters:
+      customerEtcdEncryptionKeyName:
+        type: String
+        value: etcd-data-kms-encryption-key
+      customerNsgName:
+        type: String
+        value: customer-nsg-name
+      customerVnetName:
+        type: String
+        value: customer-vnet-name
+      customerVnetSubnetName:
+        type: String
+        value: customer-vnet-subnet1
+      persistTagValue:
+        type: Bool
+        value: false
+    providers:
+    - namespace: Microsoft.KeyVault
+      resourceTypes:
+      - locations:
+        - westus3
+        resourceType: vaults
+      - locations:
+        - null
+        resourceType: vaults/keys
+    - namespace: Microsoft.Network
+      resourceTypes:
+      - locations:
+        - westus3
+        resourceType: networkSecurityGroups
+      - locations:
+        - westus3
+        resourceType: virtualNetworks
+    provisioningState: Succeeded
+    templateHash: "1869967358656821364"
+    timestamp: "2025-10-16T04:52:25.9764983Z"
+  type: Microsoft.Resources/deployments

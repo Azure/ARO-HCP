@@ -1,0 +1,128 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/BFEF24585264A79E
+  operationId: BFEF24585264A79E
+  properties:
+    duration: PT2.8099821S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-controller-manager-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+      resourceName: e0d11aca-4141-53d0-bc50-43fd81eaeb3e
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/4615CA72E2790693
+  operationId: 4615CA72E2790693
+  properties:
+    duration: PT2.7787286S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-image-registry-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/ef4a9f21-f265-5b38-ac2c-3da50492a26a
+      resourceName: ef4a9f21-f265-5b38-ac2c-3da50492a26a
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/905433896E47B828
+  operationId: 905433896E47B828
+  properties:
+    duration: PT2.747479S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-control-plane-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/76f7a2e8-5418-5c09-8042-bcc35e5b92de
+      resourceName: 76f7a2e8-5418-5c09-8042-bcc35e5b92de
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/B9AFFD7403B4D9E3
+  operationId: B9AFFD7403B4D9E3
+  properties:
+    duration: PT2.6849786S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-disk-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/04e449c4-f19b-599e-8e74-39e45f795601
+      resourceName: 04e449c4-f19b-599e-8e74-39e45f795601
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/4165588BBDA7E43E
+  operationId: 4165588BBDA7E43E
+  properties:
+    duration: PT2.6849786S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-ingress-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b0469990-330a-58bf-b327-34385a167d12
+      resourceName: b0469990-330a-58bf-b327-34385a167d12
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/2103B6FA863A582D
+  operationId: 2103B6FA863A582D
+  properties:
+    duration: PT3.431749S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-kms-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/58284355-1aba-5fac-a469-d1304f689d3c
+      resourceName: 58284355-1aba-5fac-a469-d1304f689d3c
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:44.4806181Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/5F8D1E7AE1161199
+  operationId: 5F8D1E7AE1161199
+  properties:
+    duration: PT2.6537287S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cluster-api-azure-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b74ce851-6cd9-5c9a-b259-8b1023867fa1
+      resourceName: b74ce851-6cd9-5c9a-b259-8b1023867fa1
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/22213E1AEECF16DB
+  operationId: 22213E1AEECF16DB
+  properties:
+    duration: PT2.4974803S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-file-csi-driver-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b922be8f-4c19-52ca-adb6-1c31dc2a4753
+      resourceName: b922be8f-4c19-52ca-adb6-1c31dc2a4753
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/8B435C3BA81D2ABA
+  operationId: 8B435C3BA81D2ABA
+  properties:
+    duration: PT1.7318589S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    statusCode: Created
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-cp-cloud-network-config-wjsz64pvegwre/providers/Microsoft.Authorization/roleAssignments/b15106b1-8f68-5464-924e-bdc2ba34efbe
+      resourceName: b15106b1-8f68-5464-924e-bdc2ba34efbe
+      resourceType: Microsoft.Authorization/roleAssignments
+    timestamp: "2025-10-16T04:52:45.2430096Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/194A51F93CA762C1
+  operationId: 194A51F93CA762C1
+  properties:
+    duration: PT0.4161379S
+    provisioningOperation: Read
+    provisioningState: Succeeded
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.ManagedIdentity/userAssignedIdentities/basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+      resourceName: basic-hcp-cluster-service-managed-identity-wjsz64pvegwre
+      resourceType: Microsoft.ManagedIdentity/userAssignedIdentities
+    timestamp: "2025-10-16T04:52:44.4806181Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/managedIdentitiesReaderRoles/operations/08584410165233854515
+  operationId: "08584410165233854515"
+  properties:
+    duration: PT0.3938209S
+    provisioningOperation: EvaluateDeploymentOutput
+    provisioningState: Succeeded
+    statusCode: OK
+    timestamp: "2025-10-16T04:52:48.3154134Z"
