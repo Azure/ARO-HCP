@@ -1,3 +1,3 @@
-InvalidRequestContent: properties.network: properties.network: Forbidden: field is immutable
-InvalidRequestContent: properties.network.hostPrefix: properties.network.hostPrefix: Forbidden: field is immutable
-InvalidRequestContent: properties.network.hostPrefix: properties.network.hostPrefix: Invalid value: 30: must be less than or equal to 26
+InvalidRequestContent: properties.network: Forbidden: field is immutable
+InvalidRequestContent: properties.network.hostPrefix: Forbidden: field is immutable
+InvalidRequestContent: properties.network.hostPrefix: Invalid value: 30: must be less than or equal to 26

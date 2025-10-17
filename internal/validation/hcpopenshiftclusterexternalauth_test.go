@@ -19,22 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/validation/field"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 )
-
-func externalAuthContainsError(errs field.ErrorList, expectedErr expectedError) bool {
-	for _, err := range errs {
-		fieldMatches := strings.Contains(err.Field, expectedErr.fieldPath)
-		messageMatches := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-
-		if fieldMatches && messageMatches {
-			return true
-		}
-	}
-	return false
-}
 
 func TestExternalAuthRequired(t *testing.T) {
 	tests := []struct {
@@ -91,21 +77,7 @@ func TestExternalAuthRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualErrors := ValidateExternalAuthCreate(context.TODO(), tt.resource)
-
-			if len(tt.expectErrors) == 0 && len(actualErrors) > 0 {
-				t.Errorf("expected no errors but got: %v", actualErrors)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !externalAuthContainsError(actualErrors, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, actualErrors)
-				}
-			}
-
-			if len(actualErrors) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(actualErrors), actualErrors)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }
@@ -403,23 +375,8 @@ func TestExternalAuthValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := api.ExternalAuthTestCase(t, tt.tweaks)
-
 			actualErrors := ValidateExternalAuthCreate(context.TODO(), resource)
-
-			if len(tt.expectErrors) == 0 && len(actualErrors) > 0 {
-				t.Errorf("expected no errors but got: %v", actualErrors)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !externalAuthContainsError(actualErrors, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, actualErrors)
-				}
-			}
-
-			if len(actualErrors) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(actualErrors), actualErrors)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
 }

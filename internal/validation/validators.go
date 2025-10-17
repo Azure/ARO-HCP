@@ -328,3 +328,24 @@ func ValidatePEM(ctx context.Context, op operation.Operation, fldPath *field.Pat
 
 	return nil
 }
+
+// EachMapKey validates each element of newMap with the specified validation function.
+// This is a copy from validate.EachMapKey except that the field path includes the key because its more useful for us that way.
+func EachMapKey[K ~string, T any](ctx context.Context, op operation.Operation, fldPath *field.Path, newMap, oldMap map[K]T, validator validate.ValidateFunc[*K]) field.ErrorList {
+	var errs field.ErrorList
+	for key := range newMap {
+		var old *K
+		if _, found := oldMap[key]; found {
+			old = &key
+		}
+		// If the operation is an update, for validation ratcheting, skip re-validating if
+		// the key is found in oldMap.
+		if op.Type == operation.Update && old != nil {
+			continue
+		}
+		// Note: the field path is the field, not the key.
+		keyString := fmt.Sprintf("%v", key)
+		errs = append(errs, validator(ctx, op, fldPath.Key(keyString), &key, nil)...)
+	}
+	return errs
+}

@@ -1,2 +1,2 @@
-InvalidRequestContent: properties.issuer.url: properties.issuer.url: Required value
-InvalidRequestContent: properties.claim.mappings.username.claim: properties.claim.mappings.username.claim: Required value
+InvalidRequestContent: properties.issuer.url: Required value
+InvalidRequestContent: properties.claim.mappings.username.claim: Required value

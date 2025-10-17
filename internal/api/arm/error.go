@@ -97,7 +97,7 @@ func cloudErrorBodyFromFieldError(fieldError *field.Error) *CloudErrorBody {
 	}
 	return &CloudErrorBody{
 		Code:    CloudErrorCodeInvalidRequestContent,
-		Message: fieldError.Error(),
+		Message: fieldError.ErrorBody(),
 		Target:  fieldError.Field,
 	}
 }
