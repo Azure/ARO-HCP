@@ -551,13 +551,16 @@ func severityFor(labels map[string]*string, forceInfoSeverity bool) *int32 {
 		return nil
 	}
 
+	// Severity level mapping
+	// https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels
+
 	switch *severity {
 	case "critical":
-		return ptr.To(int32(1)) // Sev 1 - Critical
+		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
 	case "warning":
-		return ptr.To(int32(2)) // Sev 2 - Warning
+		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
 	case "info":
-		return ptr.To(int32(3)) // Sev 3 - Info
+		return ptr.To(int32(4)) // SEV 4: Not urgent, no SLA impact.
 	default:
 		logrus.Warnf("unknown severity label %q, defaulting to verbose", *severity)
 		return ptr.To(int32(4)) // Sev 4 - Verbose

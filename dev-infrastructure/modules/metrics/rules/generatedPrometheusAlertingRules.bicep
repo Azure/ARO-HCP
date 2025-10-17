@@ -40,7 +40,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'min by (job, namespace) (up{job="prometheus/prometheus",namespace="prometheus"}) == 0'
         for: 'PT5M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -72,7 +72,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -108,7 +108,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -144,7 +144,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -183,7 +183,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus-prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus-prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -235,7 +235,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus-prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -261,7 +261,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'increase(prometheus_rule_evaluation_failures_total{job="prometheus-prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -391,7 +391,7 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         }
         expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
         for: 'PT5M'
-        severity: 3
+        severity: 4
       }
     ]
     scopes: [
@@ -430,7 +430,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -456,7 +456,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum(max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT5M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -482,7 +482,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(((120 - sum_over_time(frontend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
-        severity: 3
+        severity: 4
       }
     ]
     scopes: [
@@ -701,7 +701,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
         for: 'PT5M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -727,7 +727,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: '(((120 - sum_over_time(backend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
-        severity: 3
+        severity: 4
       }
     ]
     scopes: [

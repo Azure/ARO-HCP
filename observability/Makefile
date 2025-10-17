@@ -12,8 +12,6 @@ kubernetesControlPlane-prometheusRule:
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
 .PHONY: kubernetesControlPlane-prometheusRule
 
-GENERATOR_FLAGS='--force-info-severity'
-
 alerts: kubernetesControlPlane-prometheusRule
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability.yaml)

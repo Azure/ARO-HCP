@@ -566,7 +566,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -592,7 +592,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) == 1'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -644,7 +644,7 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (cluster, container, pod, namespace) / sum(increase(container_cpu_cfs_periods_total{}[5m])) by (cluster, container, pod, namespace) > ( 25 / 100 )'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
     ]
     scopes: [
@@ -683,7 +683,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -735,7 +735,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -787,7 +787,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -893,7 +893,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -921,7 +921,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1042,7 +1042,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1119,7 +1119,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="controlplane-apiserver"} == 1)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1236,7 +1236,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'count by(cluster, node) ( (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) ( kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -1364,7 +1364,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Client certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1414,7 +1414,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 3
+        severity: 2
       }
       {
         actions: [
@@ -1492,7 +1492,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'absent(up{job="kubelet", metrics_path="/metrics"} == 1)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1531,7 +1531,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'absent(up{job="controlplane-kube-scheduler"} == 1)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1570,7 +1570,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'absent(up{job="controlplane-kube-controller-manager"} == 1)'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
@@ -1661,7 +1661,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[2h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[1d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[1d])) > 1440'
         for: 'PT1H'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -1687,7 +1687,7 @@ resource kasMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{}[3d])) > 4320'
         for: 'PT3H'
-        severity: 3
+        severity: 4
       }
     ]
     scopes: [

@@ -335,7 +335,7 @@ func TestOptionsGenerate(t *testing.T) {
 	assert.Contains(t, generated, "param actionGroups array")
 	assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 	assert.Contains(t, generated, "alert: 'TestAlert'")
-	assert.Contains(t, generated, "severity: 1")
+	assert.Contains(t, generated, "severity: 2")
 }
 
 func TestWriteGroups(t *testing.T) {
@@ -425,9 +425,9 @@ func TestSeverityFor(t *testing.T) {
 		forceInfoSeverity bool
 		expected          *int32
 	}{
-		{map[string]*string{"severity": ptr.To("critical")}, false, ptr.To(int32(1))},
-		{map[string]*string{"severity": ptr.To("warning")}, false, ptr.To(int32(2))},
-		{map[string]*string{"severity": ptr.To("info")}, false, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("critical")}, false, ptr.To(int32(2))},
+		{map[string]*string{"severity": ptr.To("warning")}, false, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("info")}, false, ptr.To(int32(4))},
 		{map[string]*string{"severity": ptr.To("unknown")}, false, ptr.To(int32(4))},
 		{map[string]*string{}, false, nil},
 		{map[string]*string{"other": ptr.To("value")}, false, nil},
