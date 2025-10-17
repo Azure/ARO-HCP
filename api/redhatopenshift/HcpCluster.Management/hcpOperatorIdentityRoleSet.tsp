@@ -31,10 +31,12 @@ model HcpOperatorIdentityRoleSet
 model HcpOperatorIdentityRoleSetProperties {
   /** The role definitions required for the User-Assigned managed identities used
    * by Control Plane operators on a cluster. */
+  @OpenAPI.extension("x-ms-identifiers", #["name"])
   controlPlaneOperators: OperatorIdentityRoles[];
 
   /** The role definitions required for the User-Assigned managed identities used
    * by Data Plane operators on a cluster. */
+  @OpenAPI.extension("x-ms-identifiers", #["name"])
   dataPlaneOperators: OperatorIdentityRoles[];
 }
 
@@ -47,6 +49,7 @@ model OperatorIdentityRoles {
   required: OperatorIdentityRequired;
 
   /** The role definitions required to be assigned to the identity assumed by this operator */
+  @OpenAPI.extension("x-ms-identifiers", #["name"])
   roleDefinitions: RoleDefinition[];
 }
 
