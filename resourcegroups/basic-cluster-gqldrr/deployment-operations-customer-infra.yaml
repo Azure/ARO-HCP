@@ -1,0 +1,91 @@
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra/operations/59FAE08F9B5FE85E
+  operationId: 59FAE08F9B5FE85E
+  properties:
+    duration: PT20.2581445S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        properties:
+          keySize: 2048
+          kty: RSA
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre/keys/etcd-data-kms-encryption-key
+      resourceName: cust-kv-wjsz64pvegwre/etcd-data-kms-encryption-key
+      resourceType: Microsoft.KeyVault/vaults/keys
+    timestamp: "2025-10-16T04:52:05.2652403Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra/operations/5DE213124484B44A
+  operationId: 5DE213124484B44A
+  properties:
+    duration: PT6.8485656S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: westus3
+        properties:
+          addressSpace:
+            addressPrefixes:
+            - 10.0.0.0/16
+          subnets:
+          - name: customer-vnet-subnet1
+            properties:
+              addressPrefix: 10.0.0.0/24
+              networkSecurityGroup:
+                id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+        tags:
+          persist: "False"
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/virtualNetworks/customer-vnet-name
+      resourceName: customer-vnet-name
+      resourceType: Microsoft.Network/virtualNetworks
+    timestamp: "2025-10-16T04:52:05.2652403Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra/operations/85F17E3408394AB3
+  operationId: 85F17E3408394AB3
+  properties:
+    duration: PT19.3518824S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: westus3
+        properties:
+          enableRbacAuthorization: true
+          enableSoftDelete: false
+          sku:
+            family: A
+            name: standard
+          tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.KeyVault/vaults/cust-kv-wjsz64pvegwre
+      resourceName: cust-kv-wjsz64pvegwre
+      resourceType: Microsoft.KeyVault/vaults
+    timestamp: "2025-10-16T04:52:05.2652403Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra/operations/69CCB8D5AB676103
+  operationId: 69CCB8D5AB676103
+  properties:
+    duration: PT2.7268622S
+    provisioningOperation: Create
+    provisioningState: Succeeded
+    request:
+      content:
+        location: westus3
+        tags:
+          persist: "False"
+    statusCode: OK
+    targetResource:
+      id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-name
+      resourceName: customer-nsg-name
+      resourceType: Microsoft.Network/networkSecurityGroups
+    timestamp: "2025-10-16T04:52:05.2652403Z"
+- id: /subscriptions/1d3378d3-5a3f-4712-85a1-2485495dfc4b/resourceGroups/basic-cluster-gqldrr/providers/Microsoft.Resources/deployments/customer-infra/operations/08584410165628558833
+  operationId: "08584410165628558833"
+  properties:
+    duration: PT0.3140478S
+    provisioningOperation: EvaluateDeploymentOutput
+    provisioningState: Succeeded
+    statusCode: OK
+    timestamp: "2025-10-16T04:52:25.6312045Z"
