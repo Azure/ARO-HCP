@@ -18,12 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -31,6 +33,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -71,14 +74,7 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// DeferCleanup, in contrast to AfterEach, triggers execution in
 	// first-in-last-out order. This ensures that the framework instance
 	// remains valid as long as possible.
-	//
-	// In addition, AfterEach will not be called if a test never gets here.
-	// We are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
-	// If we haven't fixed the deletion timeout after Labor Day, this intentional time bomb will explode and start failing again.
-	cleanupTimeout := 45 * time.Minute
-	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
-		cleanupTimeout = 90 * time.Minute
-	}
+	cleanupTimeout := 5 * time.Second
 	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	// Registered later and thus runs before deleting namespaces.
@@ -95,17 +91,17 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to get HCP client")
-		return
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
 	resourceGroupsClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to get ARM client")
-		return
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to get Graph client")
-		return
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}
 
 	tc.contextLock.RLock()
@@ -114,9 +110,9 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
-	err = CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+	errCleanupResourceGroups := CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
+	if errCleanupResourceGroups != nil {
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
@@ -125,6 +121,33 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
+	// Register error to ginkgo reporter to ensure the test fails if any errors occur except for not found resource group or resource.
+	if isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
+		ginkgo.GinkgoLogr.Info("ignoring not found resource group or resource cleanup error")
+	} else {
+		gomega.Expect(errCleanupResourceGroups).ToNot(gomega.HaveOccurred())
+	}
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+}
+
+func isIgnorableResourceGroupCleanupError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		if responseErr.StatusCode == http.StatusNotFound {
+			return true
+		}
+
+		switch responseErr.ErrorCode {
+		case "ResourceGroupNotFound", "ResourceNotFound":
+			return true
+		}
+	}
+
+	return false
 }
 
 func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
@@ -170,12 +193,15 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 			return tc.collectDebugInfoForResourceGroup(ctx, currResourceGroupName)
 		})
 	}
-	if err := waitGroup.Wait(); err != nil {
+	err := waitGroup.Wait()
+	if err != nil {
 		// remember that Wait only shows the first error, not all the errors.
 		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("finished collecting debug info")
+	// Register error to ginkgo reporter to ensure the test fails if any errors occur.
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
 func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix, location string) (*armresources.ResourceGroup, error) {
