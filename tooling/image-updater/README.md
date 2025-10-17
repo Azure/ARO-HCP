@@ -1,6 +1,14 @@
 # Image Updater
 
-Automatically fetches the latest image digests from container registries and updates ARO-HCP configuration files.
+Automatically fetches the latest image digests from container registries and updates ARO-HCP configuration files. Only fetches digests for images with **amd64** or **x86_64** architecture to ensure compatibility.
+
+## Key Features
+
+- **Architecture Filtering**: Automatically selects only amd64/x86_64 compatible images
+- **Metadata Filtering**: Skips signature files (.sig, .att, .sbom) for faster processing
+- **Pattern Matching**: Use regex patterns to target specific tags (commit hashes, versions, etc.)
+- **Performance Optimized**: Caching and early-exit optimizations for fast execution
+- **Registry Support**: Works with Quay.io and Azure Container Registry
 
 ## Managed Images
 
@@ -52,19 +60,35 @@ images:
 
 ## Tag Patterns
 
-Common regex patterns for filtering tags:
+Use regex patterns to target specific tags:
 
-- `^[a-f0-9]{40}$` - 40-character commit hashes
-- `^latest$` - Only 'latest' tag
+- `^[a-f0-9]{40}$` - Commit hashes (40 chars)
+- `^sha256-[a-f0-9]{64}$` - SHA256-based tags
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
-- `^main-.*` - Tags starting with 'main-'
+- `^latest$` - Latest tag only
 
 If no pattern is specified, uses the most recently pushed tag.
 
+## Architecture Filtering
+
+The image updater automatically ensures only **amd64/x86_64** compatible images are selected:
+
+- **Skips incompatible architectures**: arm64, s390x, ppc64le, etc.
+- **Metadata file filtering**: Automatically ignores signature files (.sig, .att, .sbom)
+- **Caching optimization**: Remembers architecture info to avoid redundant API calls
+- **Early exit**: Stops searching once a valid image is found for faster execution
+
+## Performance Optimizations
+
+- **Pattern-based filtering**: Use tag patterns to target specific image types (commit hashes, semantic versions)
+- **Architecture caching**: Avoids repeated architecture checks for the same digest
+- **Metadata filtering**: Skips non-image tags automatically
+- **Single-arch focus**: Optimized for repositories with single-architecture images
+
 ## Registry Support
 
-- **Quay.io**: Public repositories (no auth required)
-- **Azure Container Registry**: Requires `az login` authentication
+- **Quay.io**: Public repositories with automatic architecture detection
+- **Azure Container Registry**: Requires `az login` authentication, assumes amd64 images
 
 ## Command Options
 

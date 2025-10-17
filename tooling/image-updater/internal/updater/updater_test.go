@@ -40,6 +40,27 @@ func (m *mockRegistryClient) GetLatestDigest(repository string, tagPattern strin
 	return m.digest, nil
 }
 
+// mockArchitectureFilteringClient simulates architecture filtering behavior
+type mockArchitectureFilteringClient struct {
+	digest            string
+	err               error
+	simulateNoAmd64   bool
+	simulateArchError bool
+}
+
+func (m *mockArchitectureFilteringClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	if m.simulateNoAmd64 {
+		return "", fmt.Errorf("no amd64/x86_64 architecture found in manifest list")
+	}
+	if m.simulateArchError {
+		return "", fmt.Errorf("failed to get architecture for latest tag: unsupported architecture arm64")
+	}
+	return m.digest, nil
+}
+
 func TestUpdater_UpdateImages(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -587,6 +608,405 @@ config:
 			if !found {
 				t.Errorf("Missing expected update for %s", wantName)
 			}
+		}
+	})
+}
+
+func TestUpdater_ArchitectureFiltering(t *testing.T) {
+	tests := []struct {
+		name              string
+		simulateNoAmd64   bool
+		simulateArchError bool
+		wantErr           bool
+		wantErrMsg        string
+		wantUpdateNames   []string
+	}{
+		{
+			name:              "successful update with amd64 architecture",
+			simulateNoAmd64:   false,
+			simulateArchError: false,
+			wantErr:           false,
+			wantUpdateNames:   []string{"test-image"},
+		},
+		{
+			name:              "no amd64 architecture available",
+			simulateNoAmd64:   true,
+			simulateArchError: false,
+			wantErr:           true,
+			wantErrMsg:        "no amd64/x86_64 architecture found",
+			wantUpdateNames:   []string{},
+		},
+		{
+			name:              "architecture detection error",
+			simulateNoAmd64:   false,
+			simulateArchError: true,
+			wantErr:           true,
+			wantErrMsg:        "failed to get architecture",
+			wantUpdateNames:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Create test configuration
+			config := &config.Config{
+				Images: map[string]config.ImageConfig{
+					"test-image": {
+						Source: config.Source{
+							Image: "quay.io/test/multiarch-app",
+						},
+						Targets: []config.Target{
+							{
+								FilePath: "test.yaml",
+								JsonPath: "image.digest",
+							},
+						},
+					},
+				},
+			}
+
+			// Create temporary YAML file
+			tmpDir := t.TempDir()
+			yamlPath := filepath.Join(tmpDir, "test.yaml")
+			yamlContent := `
+image:
+  digest: sha256:olddigest
+`
+			if err := os.WriteFile(yamlPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to create temp yaml: %v", err)
+			}
+
+			// Update config with actual file path
+			for name, imgCfg := range config.Images {
+				for i := range imgCfg.Targets {
+					imgCfg.Targets[i].FilePath = yamlPath
+				}
+				config.Images[name] = imgCfg
+			}
+
+			// Create YAML editor
+			editor, err := yaml.NewEditor(yamlPath)
+			if err != nil {
+				t.Fatalf("failed to create yaml editor: %v", err)
+			}
+			yamlEditors := map[string]*yaml.Editor{
+				yamlPath: editor,
+			}
+
+			// Create mock client that simulates architecture filtering
+			mockClient := &mockArchitectureFilteringClient{
+				digest:            "sha256:newdigest-amd64",
+				simulateNoAmd64:   tt.simulateNoAmd64,
+				simulateArchError: tt.simulateArchError,
+			}
+
+			registryClients := map[string]clients.RegistryClient{
+				"quay.io": mockClient,
+			}
+
+			// Create updater
+			u := &Updater{
+				Config:          config,
+				DryRun:          false,
+				RegistryClients: registryClients,
+				YAMLEditors:     yamlEditors,
+				Updates:         make(map[string][]yaml.Update),
+			}
+
+			// Run the update
+			err = u.UpdateImages(ctx)
+
+			// Check error expectations
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UpdateImages() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr {
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("UpdateImages() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
+				}
+				return
+			}
+
+			// Count total updates across all files
+			totalUpdates := 0
+			for _, updates := range u.Updates {
+				totalUpdates += len(updates)
+			}
+
+			if totalUpdates != len(tt.wantUpdateNames) {
+				t.Errorf("UpdateImages() got %d updates, want %d", totalUpdates, len(tt.wantUpdateNames))
+			}
+
+			// Check that all expected updates are present
+			for _, updateName := range tt.wantUpdateNames {
+				found := false
+				for _, updates := range u.Updates {
+					for _, update := range updates {
+						if update.Name == updateName {
+							found = true
+							if update.NewDigest != "sha256:newdigest-amd64" {
+								t.Errorf("Update %s has digest %s, want %s", updateName, update.NewDigest, "sha256:newdigest-amd64")
+							}
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+				if !found {
+					t.Errorf("UpdateImages() missing expected update for %s", updateName)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdater_RegistryClientIntegration(t *testing.T) {
+	t.Run("ACR client integration", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Test configuration for ACR
+		config := &config.Config{
+			Images: map[string]config.ImageConfig{
+				"acr-image": {
+					Source: config.Source{
+						Image: "myregistry.azurecr.io/test/app",
+					},
+					Targets: []config.Target{
+						{
+							FilePath: "test.yaml",
+							JsonPath: "image.digest",
+						},
+					},
+				},
+			},
+		}
+
+		// Create temporary YAML file
+		tmpDir := t.TempDir()
+		yamlPath := filepath.Join(tmpDir, "test.yaml")
+		yamlContent := `
+image:
+  digest: sha256:olddigest
+`
+		if err := os.WriteFile(yamlPath, []byte(yamlContent), 0644); err != nil {
+			t.Fatalf("failed to create temp yaml: %v", err)
+		}
+
+		// Update config with actual file path
+		for name, imgCfg := range config.Images {
+			for i := range imgCfg.Targets {
+				imgCfg.Targets[i].FilePath = yamlPath
+			}
+			config.Images[name] = imgCfg
+		}
+
+		// Create YAML editor
+		editor, err := yaml.NewEditor(yamlPath)
+		if err != nil {
+			t.Fatalf("failed to create yaml editor: %v", err)
+		}
+		yamlEditors := map[string]*yaml.Editor{
+			yamlPath: editor,
+		}
+
+		// Mock ACR client that assumes amd64 (like our real implementation)
+		mockACRClient := &mockRegistryClient{
+			digest: "sha256:newdigest-acr-amd64",
+		}
+
+		registryClients := map[string]clients.RegistryClient{
+			"myregistry.azurecr.io": mockACRClient,
+		}
+
+		// Create updater
+		u := &Updater{
+			Config:          config,
+			DryRun:          false,
+			RegistryClients: registryClients,
+			YAMLEditors:     yamlEditors,
+			Updates:         make(map[string][]yaml.Update),
+		}
+
+		// Run the update
+		err = u.UpdateImages(ctx)
+		if err != nil {
+			t.Errorf("UpdateImages() unexpected error = %v", err)
+			return
+		}
+
+		// Verify the ACR image was updated
+		totalUpdates := 0
+		for _, updates := range u.Updates {
+			totalUpdates += len(updates)
+		}
+
+		if totalUpdates != 1 {
+			t.Errorf("UpdateImages() got %d updates, want 1", totalUpdates)
+		}
+
+		// Check that the ACR update is correct
+		found := false
+		for _, updates := range u.Updates {
+			for _, update := range updates {
+				if update.Name == "acr-image" {
+					found = true
+					if update.NewDigest != "sha256:newdigest-acr-amd64" {
+						t.Errorf("ACR update digest = %s, want %s", update.NewDigest, "sha256:newdigest-acr-amd64")
+					}
+					break
+				}
+			}
+		}
+		if !found {
+			t.Errorf("Missing expected ACR update")
+		}
+	})
+}
+
+func TestUpdater_PatternOptimizations(t *testing.T) {
+	t.Run("commit hash pattern filters correctly", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Create a mock client that simulates finding a commit hash
+		mockClient := &mockArchitectureFilteringClient{
+			digest: "sha256:commit-hash-digest-amd64",
+		}
+
+		tmpDir := t.TempDir()
+		targetPath := filepath.Join(tmpDir, "target.yaml")
+
+		// Create target file with different digest than mock will return
+		targetContent := `test:
+  digest: "sha256:olddigest"`
+		if err := os.WriteFile(targetPath, []byte(targetContent), 0644); err != nil {
+			t.Fatalf("Failed to write target: %v", err)
+		}
+
+		// Create config with commit hash pattern (40-char pattern like maestro)
+		cfg := &config.Config{
+			Images: map[string]config.ImageConfig{
+				"maestro": {
+					Source: config.Source{
+						Image:      "quay.io/test/maestro",
+						TagPattern: "^[a-f0-9]{40}$", // Only 40-char commit hashes
+					},
+					Targets: []config.Target{
+						{
+							JsonPath: "test.digest",
+							FilePath: targetPath,
+						},
+					},
+				},
+			},
+		}
+
+		registryClients := map[string]clients.RegistryClient{
+			"quay.io": mockClient,
+		}
+
+		yamlEditors := make(map[string]*yaml.Editor)
+		editor, err := yaml.NewEditor(targetPath)
+		if err != nil {
+			t.Fatalf("Failed to create YAML editor: %v", err)
+		}
+		yamlEditors[targetPath] = editor
+
+		u := &Updater{
+			Config:          cfg,
+			DryRun:          false, // Set to false to generate updates
+			RegistryClients: registryClients,
+			YAMLEditors:     yamlEditors,
+			Updates:         make(map[string][]yaml.Update),
+		}
+
+		err = u.UpdateImages(ctx)
+		if err != nil {
+			t.Fatalf("UpdateImages() error = %v", err)
+		}
+
+		// Should have found the commit hash pattern
+		totalUpdates := 0
+		for _, updates := range u.Updates {
+			totalUpdates += len(updates)
+		}
+		if totalUpdates != 1 {
+			t.Errorf("Expected 1 update for commit hash pattern, got %d", totalUpdates)
+		}
+	})
+
+	t.Run("sha256 pattern filters correctly", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Create a mock client that simulates finding a SHA256-based tag
+		mockClient := &mockArchitectureFilteringClient{
+			digest: "sha256:hypershift-amd64-digest",
+		}
+
+		tmpDir := t.TempDir()
+		targetPath := filepath.Join(tmpDir, "target.yaml")
+
+		// Create target file with different digest than mock will return
+		targetContent := `test:
+  digest: "sha256:olddigest"`
+		if err := os.WriteFile(targetPath, []byte(targetContent), 0644); err != nil {
+			t.Fatalf("Failed to write target: %v", err)
+		}
+
+		// Create config with SHA256 pattern (like hypershift)
+		cfg := &config.Config{
+			Images: map[string]config.ImageConfig{
+				"hypershift": {
+					Source: config.Source{
+						Image:      "quay.io/acm-d/rhtap-hypershift-operator",
+						TagPattern: "^sha256-[a-f0-9]{64}$", // Only SHA256-based tags
+					},
+					Targets: []config.Target{
+						{
+							JsonPath: "test.digest",
+							FilePath: targetPath,
+						},
+					},
+				},
+			},
+		}
+
+		registryClients := map[string]clients.RegistryClient{
+			"quay.io": mockClient,
+		}
+
+		yamlEditors := make(map[string]*yaml.Editor)
+		editor, err := yaml.NewEditor(targetPath)
+		if err != nil {
+			t.Fatalf("Failed to create YAML editor: %v", err)
+		}
+		yamlEditors[targetPath] = editor
+
+		u := &Updater{
+			Config:          cfg,
+			DryRun:          false, // Set to false to generate updates
+			RegistryClients: registryClients,
+			YAMLEditors:     yamlEditors,
+			Updates:         make(map[string][]yaml.Update),
+		}
+
+		err = u.UpdateImages(ctx)
+		if err != nil {
+			t.Fatalf("UpdateImages() error = %v", err)
+		}
+
+		// Should have found the SHA256 pattern
+		totalUpdates := 0
+		for _, updates := range u.Updates {
+			totalUpdates += len(updates)
+		}
+		if totalUpdates != 1 {
+			t.Errorf("Expected 1 update for SHA256 pattern, got %d", totalUpdates)
 		}
 	})
 }

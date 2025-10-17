@@ -25,7 +25,8 @@ import (
 
 // ACRClient provides methods to interact with Azure Container Registry
 type ACRClient struct {
-	client *azcontainerregistry.Client
+	client      *azcontainerregistry.Client
+	registryURL string
 }
 
 // NewACRClient creates a new Azure Container Registry client
@@ -41,7 +42,8 @@ func NewACRClient(registryURL string) (*ACRClient, error) {
 	}
 
 	return &ACRClient{
-		client: client,
+		client:      client,
+		registryURL: registryURL,
 	}, nil
 }
 
@@ -87,11 +89,14 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 
 			if tagAttributes.Digest != nil {
 				tag.Digest = *tagAttributes.Digest
+				// For ACR/MCR images, assume amd64 architecture, as we pull amd64 images by default. Validation can be added later if needed.
+				tag.Architecture = "amd64"
+			} else {
+				continue // Skip tags without digests
 			}
 
 			tagProps, err := c.client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
 			if err != nil {
-				fmt.Printf("  Warning: Could not get tag properties for %s: %v\n", *tagAttributes.Name, err)
 				tag.LastModified = time.Time{}
 			} else {
 				if tagProps.Tag.CreatedOn != nil {
@@ -103,7 +108,6 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 
 			allTags = append(allTags, tag)
 		}
-
 	}
 
 	return allTags, nil

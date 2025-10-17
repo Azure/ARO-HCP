@@ -243,6 +243,12 @@ func TestNewRegistryClient(t *testing.T) {
 			wantErr:     false,
 		},
 		{
+			name:        "ACR registry",
+			registryURL: "myregistry.azurecr.io",
+			wantType:    "*clients.ACRClient",
+			wantErr:     false,
+		},
+		{
 			name:        "unsupported registry",
 			registryURL: "docker.io",
 			wantType:    "",

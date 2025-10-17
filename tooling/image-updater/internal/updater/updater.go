@@ -48,11 +48,17 @@ func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.Reg
 
 // UpdateImages processes all images in the configuration
 func (u *Updater) UpdateImages(ctx context.Context) error {
+	fmt.Printf("Starting to process %d images...\n", len(u.Config.Images))
+
 	for name, imageConfig := range u.Config.Images {
+		fmt.Printf("Processing image: %s (source: %s)\n", name, imageConfig.Source.Image)
+
 		digest, err := u.fetchLatestDigest(imageConfig.Source)
 		if err != nil {
 			return fmt.Errorf("failed to fetch latest digest for %s: %w", name, err)
 		}
+
+		fmt.Printf("Found latest digest for %s: %s\n", name, digest)
 
 		for _, target := range imageConfig.Targets {
 			if err := u.ProcessImageUpdates(ctx, name, digest, target); err != nil {
