@@ -6,7 +6,6 @@ metadata:
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: '{{ .Release.Name }}'
-    ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
 spec:
   type: ClusterIP
@@ -20,8 +19,8 @@ spec:
     targetPort: forward
     protocol: TCP
   - name: metrics
-    port: 2020
-    targetPort: 2020
+    port: 9090
+    targetPort: 9090
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
