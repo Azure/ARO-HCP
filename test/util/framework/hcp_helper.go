@@ -86,6 +86,13 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 		return nil, err
 	}
 
+	// Skip TLS verification for development environments with self-signed certificates
+	if isDevelopmentEnvironment() {
+		ret.TLSClientConfig.Insecure = true
+		ret.TLSClientConfig.CAData = nil
+		ret.TLSClientConfig.CAFile = ""
+	}
+
 	return ret, nil
 }
 
