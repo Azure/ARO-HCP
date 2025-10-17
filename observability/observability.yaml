@@ -5,6 +5,7 @@ prometheusRules:
   - ../frontend/alerts/frontend-prometheusRule.yaml
   - ../observability/alerts/tested-rules
   - ../backend/alerts/backend-prometheusRule.yaml
+  - ../observability/alerts/arobit-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b

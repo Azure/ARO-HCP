@@ -281,6 +281,9 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
+    dependsOn:
+    - resourceGroup: service
+      step: prometheus
     inputVariables:
       tenantId:
         resourceGroup: service

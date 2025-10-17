@@ -16,6 +16,8 @@ spec:
       app.kubernetes.io/instance: '{{ .Release.Name }}'
   updateStrategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
   template:
     metadata:
       labels:
@@ -44,6 +46,9 @@ spec:
               protocol: TCP
             - name: forward
               containerPort: 24224
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
               protocol: TCP
           livenessProbe:
             httpGet:
