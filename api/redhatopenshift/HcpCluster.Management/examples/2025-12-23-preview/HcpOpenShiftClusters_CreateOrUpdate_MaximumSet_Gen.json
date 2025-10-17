@@ -119,7 +119,6 @@
             },
             "issuerUrl": "https://oidc.contoso.com"
           },
-          "provisioningState": "Succeeded",
           "console": {
             "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
           },
@@ -183,6 +182,7 @@
       },
       "body": {
         "properties": {
+          "provisioningState": "Succeeded",
           "version": {
             "channelGroup": "stable",
             "id": "4.12"
@@ -216,7 +216,6 @@
             },
             "issuerUrl": "https://oidc.contoso.com"
           },
-          "provisioningState": "Succeeded",
           "console": {
             "url": "https://console.test.shrd.usw3test.hcp.osadev.cloud"
           },
