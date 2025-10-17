@@ -1,0 +1,58 @@
+images:
+  maestro:
+    source:
+      image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+      tagPattern: "^[a-f0-9]{40}$"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.maestro.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.maestro.image.digest
+      filePath: ../../config/config.yaml
+  hypershift:
+    source:
+      image: quay.io/acm-d/rhtap-hypershift-operator
+      tagPattern: "^latest$"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.environments.pers.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+  pko-package:
+    source:
+      image: quay.io/package-operator/package-operator-package
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.pko.imagePackage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: defaults.pko.imagePackage.digest
+      filePath: ../../config/config.yaml
+  pko-manager:
+    source:
+      image: quay.io/package-operator/package-operator-manager
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.pko.imageManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: defaults.pko.imageManager.digest
+      filePath: ../../config/config.yaml
+  pko-remote-phase-manager:
+    source:
+      image: quay.io/package-operator/remote-phase-manager
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.pko.remotePhaseManager.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: defaults.pko.remotePhaseManager.digest
+      filePath: ../../config/config.yaml
+  arohcpfrontend:
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpfrontend
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.frontend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+  arohcpbackend:
+    source:
+      image: arohcpsvcdev.azurecr.io/arohcpbackend
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.backend.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
