@@ -42,7 +42,7 @@ var (
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return buildChart(
 				outputDir, olmBundle, sourceLink, scaffoldDir,
-				configFile, chartName, chartDescription, crdChartName,
+				configFile, chartName, chartDescription, crdChartName, valuesFileName,
 			)
 		},
 	}
@@ -54,6 +54,7 @@ var (
 	chartName        string
 	chartDescription string
 	crdChartName     string
+	valuesFileName   string
 )
 
 func main() {
@@ -68,6 +69,7 @@ func main() {
 	cmd.Flags().StringVar(&chartName, "chart-name", "", "Override chart name")
 	cmd.Flags().StringVar(&chartDescription, "chart-description", "", "Override chart description")
 	cmd.Flags().StringVar(&crdChartName, "crd-chart-name", "", "Name for a separate CRD chart (if not specified, CRDs will be included in the main chart)")
+	cmd.Flags().StringVar(&valuesFileName, "values-file-name", "values.yaml", "Name for the generated values file (default: values.yaml)")
 
 	err := cmd.MarkFlagRequired("olm-bundle")
 	if err != nil {
@@ -88,7 +90,8 @@ func main() {
 	}
 }
 
-func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chartName, chartDescription, crdChartName string) error {
+func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chartName, chartDescription, crdChartName,
+	valuesFileName string) error {
 	ctx := context.Background()
 
 	// Load bundle configuration
@@ -196,6 +199,7 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 		values,
 		outputDir,
 		false, // don't add CRDs as templates
+		valuesFileName,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create main chart: %v", err)
@@ -205,7 +209,8 @@ func buildChart(outputDir, olmBundle, sourceLink, scaffoldDir, configFile, chart
 }
 
 // createChart creates a Helm chart with the given parameters
-func createChart(name, description, version, sourceLink string, keywords []string, manifests []unstructured.Unstructured, values interface{}, outputDir string, crdsAsTemplates bool) error {
+func createChart(name, description, version, sourceLink string, keywords []string, manifests []unstructured.Unstructured,
+	values interface{}, outputDir string, crdsAsTemplates bool, valuesFileName string) error {
 	// Create chart metadata
 	chartMeta := &chart.Metadata{
 		APIVersion:  "v2",
@@ -230,7 +235,7 @@ func createChart(name, description, version, sourceLink string, keywords []strin
 		return fmt.Errorf("failed to marshal values to YAML: %v", err)
 	}
 	chartFiles = append(chartFiles, &chart.File{
-		Name: "values.yaml",
+		Name: valuesFileName,
 		Data: valuesData,
 	})
 
@@ -268,7 +273,8 @@ func createChart(name, description, version, sourceLink string, keywords []strin
 	return nil
 }
 
-func createCRDChart(outputDir string, config *customize.BundleConfig, reg convert.RegistryV1, sourceLink string, crdManifests []unstructured.Unstructured, crdChartName string) error {
+func createCRDChart(outputDir string, config *customize.BundleConfig, reg convert.RegistryV1, sourceLink string,
+	crdManifests []unstructured.Unstructured, crdChartName string) error {
 	crdChartDescription := config.ChartDescription + " - CRDs"
 	crdValues := map[string]interface{}{}
 
@@ -281,6 +287,7 @@ func createCRDChart(outputDir string, config *customize.BundleConfig, reg conver
 		crdManifests,
 		crdValues,
 		outputDir,
-		true, // add CRDs as templates
+		true,          // add CRDs as templates
+		"values.yaml", // CRD charts always use default values.yaml name
 	)
 }
