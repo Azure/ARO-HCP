@@ -137,11 +137,16 @@ var _ = Describe("Customer", func() {
 		By("ensuring the API TLS certificate issued is not an OpenShift root CA")
 		clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 		Expect(err).NotTo(HaveOccurred())
+
+		Expect(clusterResp.Properties).NotTo(BeNil())
+		Expect(clusterResp.Properties.API).NotTo(BeNil())
+		Expect(clusterResp.Properties.API.URL).NotTo(BeNil())
+
 		apiServerURL := clusterResp.Properties.API.URL
 		actualAPICert, err := tlsCertFromURL(ctx, *apiServerURL)
 		Expect(err).NotTo(HaveOccurred())
 
-		fmt.Print(GinkgoWriter, "Issuer: %s", actualAPICert.Issuer)
+		fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICert.Issuer)
 		Expect(actualAPICert.Issuer).NotTo(SatisfyAll(
 			HaveField("CommonName", "root-ca"),
 			HaveField("OrganizationalUnit", ContainElements("openshift")),
@@ -151,23 +156,24 @@ var _ = Describe("Customer", func() {
 		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
 		By("waiting for the console URL to become available")
-		ingressURL := func(g Gomega) *string {
+		var consoleURL string
+		Eventually(func() bool {
 			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			g.Expect(err).NotTo(HaveOccurred())
-			if resp.Properties.Console.URL == nil {
-				fmt.Printf("Waiting for ingress URL retrying in 10 seconds..")
-				return nil
+			if err != nil || resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
+				fmt.Fprintln(GinkgoWriter, "Waiting for ingress URL, retrying in 10 seconds…")
+				return false
 			}
-			fmt.Printf("Ingress URL found")
-			return resp.Properties.Console.URL
-		}
-		Eventually(ingressURL, ctx).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(HaveExistingField("Issuer"))
+			consoleURL = *resp.Properties.Console.URL
+			fmt.Fprintln(GinkgoWriter, "Ingress URL found:", consoleURL)
+			return true
+		}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
+
 		By("examining the server certificate returned by the default ingress when routing the console URL")
 		sslPort := 443
-		consoleUrlWithPort := fmt.Sprintf("%s:%s", *ingressURL(Default), strconv.Itoa(sslPort))
+		consoleUrlWithPort := fmt.Sprintf("%s:%s", consoleURL, strconv.Itoa(sslPort))
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
 		Expect(err).To(BeNil())
-		fmt.Print(GinkgoWriter, "Issuer: %s", actualCert.Issuer)
+		fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualCert.Issuer)
 		Expect(actualCert.Issuer).NotTo(SatisfyAll(
 			HaveField("CommonName", "root-ca"),
 			HaveField("OrganizationalUnit", ContainElements("openshift")),
