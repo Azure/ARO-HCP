@@ -29,7 +29,6 @@ import (
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -264,9 +263,9 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			TenantID(api.TestTenantID),
 		).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
-		CloudProvider(cmv1.NewCloudProvider().
+		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
-		Flavour(cmv1.NewFlavour().
+		Flavour(arohcpv1alpha1.NewFlavour().
 			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
@@ -281,9 +280,9 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			PodPriorityThreshold(-10).
 			MaxNodeProvisionTime("15m").
 			MaxPodGracePeriod(600)).
-		Product(cmv1.NewProduct().
+		Product(arohcpv1alpha1.NewProduct().
 			ID("aro")).
-		Region(cmv1.NewCloudRegion().
+		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(arm.GetAzureLocation())).
 		Version(arohcpv1alpha1.NewVersion().
 			ID("").

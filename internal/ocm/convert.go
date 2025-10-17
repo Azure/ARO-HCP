@@ -578,13 +578,13 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	clusterBuilder.
 		Name(strings.ToLower(hcpCluster.Name)).
-		Flavour(cmv1.NewFlavour().
+		Flavour(arohcpv1alpha1.NewFlavour().
 			ID(csFlavourId)).
-		Region(cmv1.NewCloudRegion().
+		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(arm.GetAzureLocation())).
-		CloudProvider(cmv1.NewCloudProvider().
+		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID(csCloudProvider)).
-		Product(cmv1.NewProduct().
+		Product(arohcpv1alpha1.NewProduct().
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(csHypershifEnabled)).
