@@ -1103,6 +1103,10 @@ clouds:
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
+          # Logs
+          logs:
+            loganalytics:
+              enable: true
           # Cluster Service
           clustersService:
             postgres:

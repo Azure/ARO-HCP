@@ -26,3 +26,7 @@ go.work.sum
 timing.yaml
 .graph.dot
 .graph.svg
+local/
+
+# Development guide (agent-specific)
+CRUSH.md
