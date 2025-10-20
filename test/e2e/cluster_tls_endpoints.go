@@ -160,7 +160,6 @@ var _ = Describe("Customer", func() {
 		Eventually(func() bool {
 			resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 			if err != nil || resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
-				fmt.Fprintln(GinkgoWriter, "Waiting for ingress URL, retrying in 10 seconds…")
 				return false
 			}
 			consoleURL = *resp.Properties.Console.URL
@@ -169,6 +168,8 @@ var _ = Describe("Customer", func() {
 		}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
+		// Wait for the certificate to be loaded after concole starts
+		time.Sleep(2 * time.Minute)
 		sslPort := 443
 		consoleUrlWithPort := fmt.Sprintf("%s:%s", consoleURL, strconv.Itoa(sslPort))
 		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
