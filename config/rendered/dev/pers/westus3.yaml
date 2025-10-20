@@ -203,6 +203,8 @@ frontend:
 geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension
+    applicationName: arohcp-ga-dev
+    applicationOwnerId: 30cac221-bded-4c8f-8746-c2ae1ea4777d
     certificate:
       issuer: Self
       manage: true
