@@ -92,6 +92,6 @@ resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplica
   ] : []
 }
 
-// resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationCreation) {
-//   appId: genevaApp.appId
-// }
+resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationCreation) {
+  appId: genevaApp.appId
+}

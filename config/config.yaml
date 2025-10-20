@@ -172,6 +172,7 @@ defaults:
       genevaActionsPrincipalId: ""
       applicationName: "arohcp-ga-{{ .ctx.environment }}" # [unique across clouds - todo incorporate cloud name]
       applicationOwnerId: ""
+      applicationUseSNI: true
   kusto:
     enabled: false
     resourceGroup: ""
@@ -931,6 +932,7 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
+          applicationUseSNI: false
           applicationName: "arohcp-ga-dev"
           applicationOwnerId: "d8837611-f550-4f0a-af48-575a7178adfb" # aro-github-actions-identity
           keyVault:
