@@ -287,7 +287,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:116cf15120c5a6edc7e59bc36c9a316755a5d06f447ec0dfc596b1e42fc505bd
+    digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
