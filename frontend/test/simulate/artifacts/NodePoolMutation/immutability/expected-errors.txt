@@ -1,5 +1,6 @@
-    InvalidRequestContent: properties.platform.vmSize: Field 'vmSize' cannot be updated
-    InvalidRequestContent: properties.platform.availabilityZone: Field 'availabilityZone' cannot be updated
-    InvalidRequestContent: properties.platform.enableEncryptionAtHost: Field 'enableEncryptionAtHost' cannot be updated
-    InvalidRequestContent: properties.platform.osDisk.diskStorageAccountType: Field 'diskStorageAccountType' cannot be updated
-    InvalidRequestContent: properties.platform.osDisk.sizeGiB: Field 'sizeGiB' cannot be updated
+InvalidRequestContent: properties.platform.vmSize: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.availabilityZone: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.enableEncryptionAtHost: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.osDisk: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.osDisk.diskStorageAccountType: Unsupported value: "Changed": supported values: "Premium_LRS", "StandardSSD_LRS", "Standard_LRS"
+InvalidRequestContent: properties.platform: Forbidden: field is immutable

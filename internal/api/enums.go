@@ -27,6 +27,14 @@ const (
 	DiskStorageAccountTypeStandard_LRS    DiskStorageAccountType = "Standard_LRS"
 )
 
+var (
+	ValidDiskStorageAccountTypes = sets.New[DiskStorageAccountType](
+		DiskStorageAccountTypePremium_LRS,
+		DiskStorageAccountTypeStandardSSD_LRS,
+		DiskStorageAccountTypeStandard_LRS,
+	)
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 
@@ -79,6 +87,14 @@ const (
 	EffectNoSchedule Effect = "NoSchedule"
 	// EffectPreferNoSchedule - PreferNoSchedule taint effect
 	EffectPreferNoSchedule Effect = "PreferNoSchedule"
+)
+
+var (
+	ValidEffects = sets.New[Effect](
+		EffectNoExecute,
+		EffectNoSchedule,
+		EffectPreferNoSchedule,
+	)
 )
 
 type CustomerManagedEncryptionType string

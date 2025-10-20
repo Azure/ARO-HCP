@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/api/validate/constraints"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -57,6 +58,22 @@ func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.
 	if strings.TrimSpace(*value) != *value {
 		return field.ErrorList{field.Invalid(fldPath, *value, "must not contain extra whitespace")}
 	}
+	return nil
+}
+
+func OpenshiftVersionWithOptionalMicro(_ context.Context, op operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+
+	_, err := semver.NewVersion(*value)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fldPath, value, err.Error())}
+	}
+
 	return nil
 }
 
@@ -348,4 +365,47 @@ func EachMapKey[K ~string, T any](ctx context.Context, op operation.Operation, f
 		errs = append(errs, validator(ctx, op, fldPath.Key(keyString), &key, nil)...)
 	}
 	return errs
+}
+
+// EQ matches validate.NEQ
+func EQ[T comparable](_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *T, allowed T) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if *value != allowed {
+		return field.ErrorList{
+			field.Invalid(fldPath, *value, fmt.Sprintf("must be equal to %v", allowed)),
+		}
+	}
+	return nil
+}
+
+func KubeLabelValue(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if kubeErrs := k8svalidation.IsValidLabelValue(*value); len(kubeErrs) > 0 {
+		errs := field.ErrorList{}
+		for _, err := range kubeErrs {
+			errs = append(errs, field.Invalid(fldPath, *value, err))
+		}
+		return errs
+	}
+
+	return nil
+}
+
+func KubeQualifiedName(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if kubeErrs := k8svalidation.IsQualifiedName(*value); len(kubeErrs) > 0 {
+		errs := field.ErrorList{}
+		for _, err := range kubeErrs {
+			errs = append(errs, field.Invalid(fldPath, *value, err))
+		}
+		return errs
+	}
+
+	return nil
 }
