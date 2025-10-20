@@ -29,13 +29,49 @@ type expectedError struct {
 	fieldPath string // Expected field path for the error
 }
 
-func containsError(errs field.ErrorList, expectedErr expectedError) bool {
-	for _, err := range errs {
-		if strings.Contains(err.Field, expectedErr.fieldPath) && strings.Contains(err.Detail, expectedErr.message) {
-			return true
+func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.ErrorList) {
+	if len(expectedErrors) != len(errs) {
+		t.Errorf("expected %d errors, got %d: %v", len(expectedErrors), len(errs), errs)
+		return
+	}
+
+	// Check that each expected error message and field path is found
+	for _, expectedErr := range expectedErrors {
+		if len(strings.TrimSpace(expectedErr.fieldPath)) == 0 {
+			t.Errorf("expected error with path %s to be non-empty", expectedErr.fieldPath)
+		}
+		if len(strings.TrimSpace(expectedErr.message)) == 0 {
+			t.Errorf("expected error with msg %s to be non-empty", expectedErr.message)
+		}
+
+		found := false
+		for _, err := range errs {
+			messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
+			fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
+			if messageMatch && fieldMatch {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
 		}
 	}
-	return false
+
+	for _, err := range errs {
+		found := false
+		for _, expectedErr := range expectedErrors {
+			messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
+			fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
+			if messageMatch && fieldMatch {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("actual error '%v' but not found in expected", err)
+		}
+	}
 }
 
 func TestOpenshiftVersion(t *testing.T) {
@@ -89,21 +125,7 @@ func TestOpenshiftVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := OpenshiftVersionWithoutMicro(ctx, op, fldPath, tt.value, nil)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -156,21 +178,7 @@ func TestMaxItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MaxItems(ctx, op, fldPath, tt.value, nil, tt.maxLen)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -223,21 +231,7 @@ func TestMaxLen(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MaxLen(ctx, op, fldPath, tt.value, nil, tt.maxLen)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -284,21 +278,7 @@ func TestMinLen(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MinLen(ctx, op, fldPath, tt.value, nil, tt.minLen)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -345,21 +325,7 @@ func TestMaximum(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := Maximum(ctx, op, fldPath, tt.value, nil, tt.max)
-
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -429,21 +395,8 @@ func TestMatchesRegex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := MatchesRegex(ctx, op, fldPath, tt.value, nil, rfc1035LabelRegex, rfc1035ErrorString)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
 		})
 	}
 }
@@ -523,21 +476,8 @@ func TestCIDRv4(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errs := CIDRv4(ctx, op, fldPath, tt.value, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
 
-			if len(tt.expectErrors) == 0 && len(errs) > 0 {
-				t.Errorf("expected no errors but got: %v", errs)
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				if !containsError(errs, expectedErr) {
-					t.Errorf("expected error %+v not found in %v", expectedErr, errs)
-				}
-			}
-
-			if len(errs) != len(tt.expectErrors) {
-				t.Errorf("expected %d errors, got %d: %v", len(tt.expectErrors), len(errs), errs)
-			}
 		})
 	}
 }

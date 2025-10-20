@@ -1,22 +1,22 @@
-InvalidRequestContent: properties.dns.baseDomain: properties.dns.baseDomain: Forbidden: field is immutable
-InvalidRequestContent: properties.dns.baseDomainPrefix: properties.dns.baseDomainPrefix: Forbidden: field is immutable
-InvalidRequestContent: properties.platform: properties.platform: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.networkSecurityGroupId: properties.platform.networkSecurityGroupId: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.subnetId: properties.platform.subnetId: Forbidden: field is immutable
-InvalidRequestContent: properties.platform.managedResourceGroup: properties.platform.managedResourceGroup: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd: properties.etcd: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption: properties.etcd.dataEncryption: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged: properties.etcd.dataEncryption.customerManaged: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms: properties.etcd.dataEncryption.customerManaged.kms: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey: properties.etcd.dataEncryption.customerManaged.kms.activeKey: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Forbidden: field is immutable
-InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Forbidden: field is immutable
-InvalidRequestContent: properties.network: properties.network: Forbidden: field is immutable
-InvalidRequestContent: properties.network.hostPrefix: properties.network.hostPrefix: Forbidden: field is immutable
-InvalidRequestContent: properties.network.machineCidr: properties.network.machineCidr: Forbidden: field is immutable
-InvalidRequestContent: properties.network.networkType: properties.network.networkType: Forbidden: field is immutable
-InvalidRequestContent: properties.network.podCidr: properties.network.podCidr: Forbidden: field is immutable
-InvalidRequestContent: properties.network.serviceCidr: properties.network.serviceCidr: Forbidden: field is immutable
-InvalidRequestContent: properties.version.id: properties.version.id: Forbidden: field is immutable
-InvalidRequestContent: properties.version.id: properties.version.id: Invalid value: "illegal-change": Malformed version: illegal-change
+InvalidRequestContent: properties.dns.baseDomain: Forbidden: field is immutable
+InvalidRequestContent: properties.dns.baseDomainPrefix: Forbidden: field is immutable
+InvalidRequestContent: properties.platform: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.networkSecurityGroupId: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.subnetId: Forbidden: field is immutable
+InvalidRequestContent: properties.platform.managedResourceGroup: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.name: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName: Forbidden: field is immutable
+InvalidRequestContent: properties.etcd.dataEncryption.customerManaged.kms.activeKey.version: Forbidden: field is immutable
+InvalidRequestContent: properties.network: Forbidden: field is immutable
+InvalidRequestContent: properties.network.hostPrefix: Forbidden: field is immutable
+InvalidRequestContent: properties.network.machineCidr: Forbidden: field is immutable
+InvalidRequestContent: properties.network.networkType: Forbidden: field is immutable
+InvalidRequestContent: properties.network.podCidr: Forbidden: field is immutable
+InvalidRequestContent: properties.network.serviceCidr: Forbidden: field is immutable
+InvalidRequestContent: properties.version.id: Forbidden: field is immutable
+InvalidRequestContent: properties.version.id: Invalid value: "illegal-change": Malformed version: illegal-change
