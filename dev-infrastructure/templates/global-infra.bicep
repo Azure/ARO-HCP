@@ -90,8 +90,17 @@ param genevaKeyVaultTagValue string
 @description('Name of geneva action extensions')
 param allowedAcisExtensions string
 
-@description('App ID for Geneva Actions')
+@description('App ID for Geneva Actions - this is the MSFT owned one that will run our GAs')
 param genevaActionsPrincipalId string
+
+@description('App name for the Geneva Action Application we will use for downstream automation towards the Admin API')
+param genevaActionApplicationName string
+
+@description('SNI for Geneva Action Application')
+param genevaActionApplicationCertificateSubjectName string
+
+@description('The owner of the geneva actions application')
+param genevaActionApplicationOwnerId string
 
 //
 //  G L O B A L   M S I
@@ -407,5 +416,8 @@ module genevaActions '../modules/genevaactions.bicep' = {
     kvCertOfficerPrincipalId: kvCertOfficerPrincipalId
     kvCertAccessPrincipalId: kvCertAccessPrincipalId
     kvCertAccessRoleId: kvCertAccessRoleId
+    genevaActionApplicationName: genevaActionApplicationName
+    genevaActionApplicationCertificateSubjectName: genevaActionApplicationCertificateSubjectName
+    genevaActionApplicationOwnerId: genevaActionApplicationOwnerId
   }
 }

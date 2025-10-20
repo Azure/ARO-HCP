@@ -170,6 +170,8 @@ defaults:
         manage: true
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
       genevaActionsPrincipalId: ""
+      applicationName: "arohcp-ga-{{ .ctx.environment }}" # [unique across clouds - todo incorporate cloud name]
+      applicationOwnerId: ""
   kusto:
     enabled: false
     resourceGroup: ""
