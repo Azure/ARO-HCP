@@ -14,3 +14,7 @@ param genevaActionsCertificateDomain = '{{ .geneva.actions.certificate.name }}.{
 param genevaActionsCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
 param genevaActionsCertificateName = '{{ .geneva.actions.certificate.name }}'
 param genevaActionsManageCertificates = {{ .geneva.actions.certificate.manage }}
+param genevaActionApplicationUseSNI = false
+param genevaActionApplicationCreation = true
+param genevaActionApplicationName = '{{ .geneva.actions.applicationName }}'
+param genevaActionApplicationOwnerId = '{{ .geneva.actions.applicationOwnerId }}'
