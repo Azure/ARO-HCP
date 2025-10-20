@@ -751,7 +751,7 @@ func TestValidateClusterCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterCreate(ctx, tt.cluster)
+			errs := ValidateClusterCreate(ctx, tt.cluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}

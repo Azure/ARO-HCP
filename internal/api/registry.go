@@ -59,8 +59,15 @@ type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[HCPOpenShif
 type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
 type VersionedHCPOpenShiftVersion VersionedResource
 
+// ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
+// for this particular version.  This needs to be as close as possible, but perfection isn't required since fields
+// could be split or combined.
+type ValidationPathMapperFunc func(path string) string
+
 type Version interface {
 	fmt.Stringer
+
+	ValidationPathRewriter(obj any) (ValidationPathMapperFunc, error)
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.

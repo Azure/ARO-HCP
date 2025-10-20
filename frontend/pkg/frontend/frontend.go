@@ -622,7 +622,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	// this sets many default values, which are then sometimes overridden by Normalize
 	newInternalCluster := &api.HCPOpenShiftCluster{}
 	newExternalCluster.Normalize(newInternalCluster)
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster)
+	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
 
 	// prefer new validation.  Have a fallback for old validation.
@@ -875,7 +875,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	oldInternalCluster := &api.HCPOpenShiftCluster{}
 	oldExternalCluster.Normalize(oldInternalCluster)
-	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster)
+	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
 
 	// prefer new validation.  Have a fallback for old validation.
@@ -1423,7 +1423,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			newInternalCluster := &api.HCPOpenShiftCluster{}
 			versionedCluster.Normalize(newInternalCluster)
-			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster)
+			validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 			cloudError = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):

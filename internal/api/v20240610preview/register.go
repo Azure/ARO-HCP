@@ -15,6 +15,9 @@
 package v20240610preview
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -30,8 +33,23 @@ func (v version) String() string {
 	return "2024-06-10-preview"
 }
 
+func (v version) ValidationPathRewriter(internalObj any) (api.ValidationPathMapperFunc, error) {
+	switch internalObj.(type) {
+	case *api.HCPOpenShiftClusterNodePool:
+		return nil, nil
+	case *api.HCPOpenShiftClusterExternalAuth:
+		return nil, nil
+	case *api.HCPOpenShiftCluster:
+		return propertiesReplacer.Replace, nil
+
+	default:
+		return nil, fmt.Errorf("unexpected type %T", internalObj)
+	}
+}
+
 var (
 	versionedInterface = NewVersion()
+	propertiesReplacer = strings.NewReplacer("customerProperties", "properties", "serviceProviderProperties", "properties")
 )
 
 func RegisterVersion(apiRegistry api.APIRegistry) error {
