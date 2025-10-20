@@ -205,6 +205,7 @@ geneva:
     allowedAcisExtensions: AzureRedHatHypershiftExtension
     applicationName: arohcp-ga-dev
     applicationOwnerId: d8837611-f550-4f0a-af48-575a7178adfb
+    applicationUseSNI: false
     certificate:
       issuer: Self
       manage: true

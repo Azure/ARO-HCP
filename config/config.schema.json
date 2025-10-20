@@ -1388,7 +1388,8 @@
             "allowedAcisExtensions",
             "genevaActionsPrincipalId",
             "applicationName",
-            "applicationOwnerId"
+            "applicationOwnerId",
+            "applicationUseSNI"
           ],
           "properties": {
             "serviceTag": {
@@ -1431,6 +1432,9 @@
             },
             "applicationOwnerId": {
               "type": "string"
+            },
+            "applicationUseSNI": {
+              "type": "boolean"
             }
           }
         }
