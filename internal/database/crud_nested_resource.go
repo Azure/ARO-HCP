@@ -103,3 +103,7 @@ func (d *nestedCosmosResourceCRUD[T]) List(ctx context.Context, options *DBClien
 
 	return list[T](ctx, d.containerClient, d.resourceType, prefix, options)
 }
+
+func (d *nestedCosmosResourceCRUD[T]) Replace(ctx context.Context, desiredObj *T) (*T, error) {
+	return replace[T](ctx, d.containerClient, desiredObj)
+}
