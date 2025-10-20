@@ -437,9 +437,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   name: 'managed-identities'
   params: {
     location: location
-    manageIdentityNames: [
-      for wi in workloadIdentities: wi.value.uamiName
-    ]
+    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
   }
 }
 
@@ -666,7 +664,10 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: globalMSIId
-    maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, maestroMIName).uamiPrincipalID
+    maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      maestroMIName
+    ).uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }

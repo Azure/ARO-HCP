@@ -224,9 +224,7 @@ module managedIdentities '../modules/managed-identities.bicep' = {
   name: 'managed-identities'
   params: {
     location: location
-    manageIdentityNames: [
-      for wi in workloadIdentities: wi.value.uamiName
-    ]
+    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
   }
 }
 
@@ -472,7 +470,10 @@ var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain :
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
   params: {
-    maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'maestro-consumer').uamiPrincipalID
+    maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      'maestro-consumer'
+    ).uamiPrincipalID
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
