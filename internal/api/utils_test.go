@@ -17,13 +17,9 @@ package api
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
 func TestTrimStringSlice(t *testing.T) {
@@ -205,120 +201,4 @@ func TestNonNilSliceValues(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCopyReadOnlyValues(t *testing.T) {
-	const (
-		testClientID    = "33333333-3333-3333-3333-333333333333"
-		testPrincipalID = "44444444-4444-4444-4444-444444444444"
-	)
-
-	now := time.Now()
-
-	userAssignedIdentity1 := NewTestUserAssignedIdentity("userAssignedIdentity1")
-	userAssignedIdentity2 := NewTestUserAssignedIdentity("userAssignedIdentity2")
-	userAssignedIdentity3 := NewTestUserAssignedIdentity("userAssignedIdentity3")
-	userAssignedIdentity4 := NewTestUserAssignedIdentity("userAssignedIdentity4")
-
-	src := &ExternalTestResource{
-		ID:       Ptr(TestClusterResourceID),
-		Name:     Ptr(TestClusterName),
-		Type:     Ptr(ClusterResourceType.String()),
-		Location: Ptr("this should be overridden"),
-		SystemData: &generated.SystemData{
-			CreatedAt:     &now,
-			CreatedBy:     Ptr("me"),
-			CreatedByType: Ptr(generated.CreatedByTypeUser),
-		},
-		Identity: &generated.ManagedServiceIdentity{
-			PrincipalID: Ptr(testPrincipalID),
-			TenantID:    Ptr(TestTenantID),
-			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
-				userAssignedIdentity2: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-				userAssignedIdentity3: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-				userAssignedIdentity4: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-			},
-		},
-	}
-
-	dst := &ExternalTestResource{
-		ID:       Ptr("wrong read-only value"),
-		Location: Ptr(TestLocation),
-		Identity: &generated.ManagedServiceIdentity{
-			Type: Ptr(generated.ManagedServiceIdentityTypeSystemAssignedUserAssigned),
-			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
-				userAssignedIdentity1: nil,
-				userAssignedIdentity2: nil,
-				userAssignedIdentity3: {},
-				userAssignedIdentity4: {
-					ClientID:    nil,
-					PrincipalID: nil,
-				},
-			},
-		},
-	}
-
-	expect := &ExternalTestResource{
-		ID:       Ptr("wrong read-only value"), // this would fail validation
-		Name:     Ptr(TestClusterName),
-		Type:     Ptr(ClusterResourceType.String()),
-		Location: Ptr(TestLocation),
-		SystemData: &generated.SystemData{
-			CreatedAt:     &now,
-			CreatedBy:     Ptr("me"),
-			CreatedByType: Ptr(generated.CreatedByTypeUser),
-		},
-		Identity: &generated.ManagedServiceIdentity{
-			PrincipalID: Ptr(testPrincipalID),
-			TenantID:    Ptr(TestTenantID),
-			Type:        Ptr(generated.ManagedServiceIdentityTypeSystemAssignedUserAssigned),
-			UserAssignedIdentities: map[string]*generated.UserAssignedIdentity{
-				userAssignedIdentity1: nil,
-				userAssignedIdentity2: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-				userAssignedIdentity3: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-				userAssignedIdentity4: {
-					ClientID:    Ptr(testClientID),
-					PrincipalID: Ptr(testPrincipalID),
-				},
-			},
-		},
-	}
-
-	CopyReadOnlyValues(src, dst)
-
-	assert.Equal(t, expect, dst)
-
-	// Slightly outside the intended scope of this
-	// test but make sure it validates as expected.
-
-	expectErrors := []arm.CloudErrorBody{
-		{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: "Field 'id' cannot be updated",
-			Target:  "id",
-		},
-		{
-			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: "Field 'location' cannot be updated",
-			Target:  "location",
-		},
-	}
-
-	structTagMap := GetStructTagMap[InternalTestResource]()
-	assert.Equal(t, expectErrors, ValidateVisibility(dst, src, testResourceVisibilityMap, structTagMap, true))
 }
