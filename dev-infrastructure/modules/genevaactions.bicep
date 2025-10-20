@@ -22,6 +22,14 @@ param kvCertAccessPrincipalId string
 @description('Roles used for EV2 KeyVault access, i.e. geneva log/action access')
 param kvCertAccessRoleId string
 
+@description('App name for the Geneva Action Application we will use for downstream automation towards the Admin API')
+param genevaActionApplicationName string
+@description('SNI for Geneva Action Application')
+param genevaActionApplicationCertificateSubjectName string
+@description('The owner of the geneva actions application')
+param genevaActionApplicationOwnerId string
+
+
 //   G E N E V A    K V
 
 module genevaKv '../modules/keyvault/keyvault.bicep' = {
@@ -68,3 +76,46 @@ resource allowedExtensionsSecret 'Microsoft.KeyVault/vaults/secrets@2021-04-01-p
     genevaKv
   ]
 }
+
+//   A P P   R E G I S T R A T I O N
+
+extension microsoftGraphBeta
+
+resource genevaApp 'Microsoft.Graph/applications@beta' = {
+  displayName: genevaActionApplicationName
+  isFallbackPublicClient: true
+  signInAudience: 'AzureADMyOrg' // Single tenant applicaion
+  uniqueName: genevaActionApplicationName
+  info: {}
+  requiredResourceAccess: []
+  publicClient: {
+    redirectUris: []
+  }
+  web: {
+    redirectUris: []
+    logoutUrl: null
+    implicitGrantSettings: {
+      enableIdTokenIssuance: true
+      enableAccessTokenIssuance: false
+    }
+  }
+  spa: {
+    redirectUris: []
+  }
+  serviceManagementReference: 'b8e9ef87-cd63-4085-ab14-1c637806568c'
+  trustedSubjectNameAndIssuers: [
+    {
+      authorityId: '00000000-0000-0000-0000-000000000001'
+      subjectName: genevaActionApplicationCertificateSubjectName
+    }
+  ]
+  owners: {
+    relationships: [
+      genevaActionApplicationOwnerId
+    ]
+  }
+}
+
+// resource sp 'Microsoft.Graph/servicePrincipals@v1.0' = {
+//   appId: app.appId
+// }
