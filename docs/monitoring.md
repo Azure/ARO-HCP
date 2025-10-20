@@ -116,3 +116,127 @@ A **Data Collection Endpoint** provides a set of Azure-hosted endpoints that acc
 
 - Only **metrics** are sent to the DCE.
 - The **metrics ingestion endpoint** on the DCE acts as the **remote write target** for the Prometheus server running in the AKS cluster.
+
+## Azure Front Door Monitoring
+
+Azure Front Door metrics and logs are available in Grafana through two complementary approaches:
+
+### 1. Direct Azure Monitor Metrics (No Configuration Required)
+
+Azure Front Door automatically publishes platform metrics to Azure Monitor. These metrics are immediately available in Grafana without any additional configuration:
+
+**Available Metrics:**
+- Request count and rate
+- Latency (backend, total)
+- Cache hit ratio
+- Error rates (4xx, 5xx)
+- Backend health percentage
+- Web Application Firewall (WAF) request count
+
+**How to Query in Grafana:**
+1. Add **Azure Monitor** as a data source in Grafana (typically pre-configured)
+2. Create a new dashboard panel
+3. Select Azure Monitor data source
+4. Choose:
+   - **Subscription**: Your Azure subscription
+   - **Resource Group**: `global`
+   - **Resource Type**: `Microsoft.Cdn/profiles`
+   - **Resource**: Your Front Door profile name (e.g., `arohcpdev`)
+   - **Metric Namespace**: `Microsoft.Cdn/profiles`
+   - **Metric**: Select from available metrics (e.g., `RequestCount`, `TotalLatency`, `Percentage4XX`)
+
+**Advantages:**
+- Zero configuration required
+- Real-time metrics
+- Standard Azure Monitor aggregations (avg, min, max, sum, count)
+
+**Limitations:**
+- Metrics only (no detailed logs)
+- Limited retention (90 days by default)
+- No custom KQL queries
+
+### 2. Log Analytics Workspace (Configured via Diagnostic Settings)
+
+For detailed logs and historical analysis, Azure Front Door diagnostic settings export data to Log Analytics workspace:
+
+**Available Data:**
+- **FrontDoorAccessLog**: Detailed request/response data (URL, status code, client IP, user agent, cache status, etc.)
+- **FrontDoorHealthProbeLog**: Backend health probe results
+- **FrontDoorWebApplicationFirewallLog**: WAF rule matches, blocks, and actions
+- **AllMetrics**: Same metrics as Azure Monitor, stored in Log Analytics for longer retention
+
+**Configuration:**
+Diagnostic settings are automatically deployed when Log Analytics is enabled in the environment configuration:
+
+```yaml
+# config/config.yaml
+logs:
+  loganalytics:
+    enable: true
+```
+
+This creates diagnostic settings via `dev-infrastructure/modules/oidc/afd-datacollection.bicep` that export to the regional Log Analytics workspace.
+
+**How to Query in Grafana:**
+1. Add **Azure Monitor Logs** (Log Analytics) as a data source in Grafana
+2. Create a new dashboard panel
+3. Select the Log Analytics data source
+4. Write KQL queries against AFD tables:
+
+```kusto
+// Request count by status code
+AzureDiagnostics
+| where Category == "FrontDoorAccessLog"
+| summarize count() by httpStatusCode_d, bin(TimeGenerated, 5m)
+
+// Top requested URLs
+AzureDiagnostics
+| where Category == "FrontDoorAccessLog"
+| summarize RequestCount = count() by requestUri_s
+| top 10 by RequestCount
+
+// WAF blocks over time
+AzureDiagnostics
+| where Category == "FrontDoorWebApplicationFirewallLog"
+| where action_s == "Block"
+| summarize count() by bin(TimeGenerated, 5m)
+
+// Backend health status
+AzureDiagnostics
+| where Category == "FrontDoorHealthProbeLog"
+| summarize by healthProbeId_s, httpStatusCode_d, TimeGenerated
+```
+
+**Advantages:**
+- Detailed request-level data
+- Custom KQL queries for complex analysis
+- Longer retention (configurable, up to 730 days)
+- Correlation with other Azure service logs
+- WAF security insights
+
+**Limitations:**
+- Requires Log Analytics workspace (additional cost)
+- Slight ingestion delay (typically < 1 minute)
+
+### Recommended Approach
+
+Use **both methods** for comprehensive monitoring:
+- **Azure Monitor metrics**: Real-time dashboards for operational monitoring (request rate, latency, errors)
+- **Log Analytics**: Deep-dive analysis, troubleshooting, security investigations, and historical trends
+
+### Environments with AFD Monitoring Enabled
+
+Log Analytics (and thus AFD diagnostic settings) is enabled in:
+- `dev` - Integrated development environment
+- `cspr` - Cluster service PR check environment
+- `pers` - Personal development environments (when configured)
+
+To enable in other environments (`ntly`, `perf`, `swft`), add to `config/config.yaml`:
+```yaml
+environments:
+  <environment-name>:
+    defaults:
+      logs:
+        loganalytics:
+          enable: true
+```
