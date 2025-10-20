@@ -18,13 +18,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-playground/validator/v10"
-
 	"k8s.io/utils/set"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -56,8 +52,6 @@ type VersionedCreatableResource[T any] interface {
 	NewExternal() any
 	SetDefaultValues(any) error
 	Normalize(*T)
-	GetVisibility(path string) (VisibilityFlags, bool)
-	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]
@@ -68,8 +62,6 @@ type VersionedHCPOpenShiftVersion VersionedResource
 type Version interface {
 	fmt.Stringer
 
-	GetValidator() *validator.Validate
-
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
 	NewHCPOpenShiftCluster(*HCPOpenShiftCluster) VersionedHCPOpenShiftCluster
@@ -79,34 +71,6 @@ type Version interface {
 
 	// Response Marshaling
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
-}
-
-func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = incoming.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftClusterNodePool
-
-		incoming.Normalize(&normalized)
-
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate(cluster)
-		}
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
 }
 
 // APIRegistry is a way to keep track of versioned interfaces.

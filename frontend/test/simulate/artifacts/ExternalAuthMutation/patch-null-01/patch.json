@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "claim": {
+      "mappings": {
+        "groups": null
+      }
+    },
+    "clients": null
+  }
+}
