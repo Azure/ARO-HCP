@@ -809,7 +809,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	// body included a new set of resource tags.
 
 	internalOldCluster.SystemData = oldCosmosCluster.SystemData
-	internalOldCluster.Properties.ProvisioningState = oldCosmosCluster.ProvisioningState
+	internalOldCluster.ServiceProviderProperties.ProvisioningState = oldCosmosCluster.ProvisioningState
 	if internalOldCluster.Identity == nil {
 		internalOldCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
@@ -831,9 +831,9 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		// values that are determined downstream of this phase of
 		// request processing. To ensure idempotency, add these
 		// values to the target struct for the incoming request.
-		newInternalCluster.Properties.Version.ID = internalOldCluster.Properties.Version.ID
-		newInternalCluster.Properties.DNS.BaseDomainPrefix = internalOldCluster.Properties.DNS.BaseDomainPrefix
-		newInternalCluster.Properties.Platform.ManagedResourceGroup = internalOldCluster.Properties.Platform.ManagedResourceGroup
+		newInternalCluster.CustomerProperties.Version.ID = internalOldCluster.CustomerProperties.Version.ID
+		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = internalOldCluster.CustomerProperties.DNS.BaseDomainPrefix
+		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = internalOldCluster.CustomerProperties.Platform.ManagedResourceGroup
 
 		// read-only values are an internal concern since they're the source, so we convert.
 		// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
@@ -1572,7 +1572,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HC
 
 	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData
 	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
-	clusterServiceBasedInternalCluster.Properties.ProvisioningState = internalCluster.Properties.ProvisioningState
+	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
 	if clusterServiceBasedInternalCluster.Identity == nil {
 		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
 	}

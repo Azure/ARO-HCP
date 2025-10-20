@@ -54,167 +54,167 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid version - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "invalid-version"
+				c.CustomerProperties.Version.ID = "invalid-version"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
+				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
 			name: "invalid DNS prefix - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "Invalid-Name"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "properties.dns.baseDomainPrefix"},
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 			},
 		},
 		{
 			name: "invalid network type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.NetworkType = "InvalidType"
+				c.CustomerProperties.Network.NetworkType = "InvalidType"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.network.networkType"},
+				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
 			},
 		},
 		{
 			name: "invalid Pod CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "invalid-cidr"
+				c.CustomerProperties.Network.PodCIDR = "invalid-cidr"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.network.podCidr"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.network.podCidr"},
 			},
 		},
 		{
 			name: "invalid Service CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.ServiceCIDR = "300.0.0.0/16"
+				c.CustomerProperties.Network.ServiceCIDR = "300.0.0.0/16"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.network.serviceCidr"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.network.serviceCidr"},
 			},
 		},
 		{
 			name: "invalid Machine CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.MachineCIDR = "2001:db8::/32"
+				c.CustomerProperties.Network.MachineCIDR = "2001:db8::/32"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "not IPv4", fieldPath: "properties.network.machineCidr"},
+				{message: "not IPv4", fieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
 		{
 			name: "host prefix too small - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.HostPrefix = 22
+				c.CustomerProperties.Network.HostPrefix = 22
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 23", fieldPath: "properties.network.hostPrefix"},
+				{message: "must be greater than or equal to 23", fieldPath: "customerProperties.network.hostPrefix"},
 			},
 		},
 		{
 			name: "host prefix too large - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.HostPrefix = 27
+				c.CustomerProperties.Network.HostPrefix = 27
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be less than or equal to 26", fieldPath: "properties.network.hostPrefix"},
+				{message: "must be less than or equal to 26", fieldPath: "customerProperties.network.hostPrefix"},
 			},
 		},
 		{
 			name: "invalid API visibility - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = "InvalidVisibility"
+				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.api.visiblity"},
+				{message: "Unsupported value", fieldPath: "customerProperties.api.visiblity"},
 			},
 		},
 		{
 			name: "invalid authorized CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "empty authorized CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{""}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{""}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "authorized CIDR with leading whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "authorized CIDR with trailing whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16 "}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16 "}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "authorized CIDR with internal whitespace - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0. 0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0. 0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "valid IPv4 address in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"192.168.1.1"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"192.168.1.1"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -223,7 +223,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "valid CIDR ranges in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -232,158 +232,158 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "IPv6 address in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "IPv6 CIDR in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::/32"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"2001:db8::/32"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "invalid CIDR prefix in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/33"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/33"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "multiple validation errors in authorized CIDRs - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"", "invalid-cidr", " 10.0.0.0/16", "2001:db8::1"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"", "invalid-cidr", " 10.0.0.0/16", "2001:db8::1"}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[1]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[1]"},
-				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[2]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[2]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[2]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[3]"},
-				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[3]"},
+				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[1]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[1]"},
+				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[2]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
+				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[3]"},
 			},
 		},
 		{
 			name: "missing subnet ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = ""
+				c.CustomerProperties.Platform.SubnetID = ""
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.platform.subnetId"},
+				{message: "Required value", fieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
 		{
 			name: "invalid outbound type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OutboundType = "InvalidType"
+				c.CustomerProperties.Platform.OutboundType = "InvalidType"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.platform.outboundType"},
+				{message: "Unsupported value", fieldPath: "customerProperties.platform.outboundType"},
 			},
 		},
 		{
 			name: "missing network security group ID - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.NetworkSecurityGroupID = ""
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = ""
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.platform.networkSecurityGroupId"},
+				{message: "Required value", fieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{
 			name: "wrong NSG resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "properties.platform.networkSecurityGroupId"},
+				{message: "resource ID must reference an instance of type", fieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{
 			name: "node drain timeout too large - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 10081
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 10081
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be less than or equal to 10080", fieldPath: "properties.nodeDrainTimeoutMinutes"},
+				{message: "must be less than or equal to 10080", fieldPath: "customerProperties.nodeDrainTimeoutMinutes"},
 			},
 		},
 		{
 			name: "invalid etcd encryption key management mode - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.etcd.dataEncryption.keyManagementMode"},
+				{message: "Unsupported value", fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
 			},
 		},
 		{
 			name: "customer managed without customer managed profile - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.Properties.Etcd.DataEncryption.CustomerManaged = nil
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be specified when", fieldPath: "properties.etcd.dataEncryption.customerManaged"},
+				{message: "must be specified when", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
 			name: "invalid cluster image registry state - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = "InvalidState"
+				c.CustomerProperties.ClusterImageRegistry.State = "InvalidState"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.clusterImageRegistry.state"},
+				{message: "Unsupported value", fieldPath: "customerProperties.clusterImageRegistry.state"},
 			},
 		},
 		{
 			name: "missing user assigned identity name - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
 				}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
+				{message: "Required value", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -391,15 +391,15 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "invalid user assigned identity resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet",
 				}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "resource ID must reference an instance of type", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -417,7 +417,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "Required value", fieldPath: "identity.type"},
 				{message: "Unsupported value", fieldPath: "identity.state"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -435,7 +435,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "Unsupported value", fieldPath: "identity.state"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -454,24 +454,24 @@ func TestValidateClusterCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "resource ID must reference an instance of type", fieldPath: "identity.userAssignedIdentities"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
 			name: "multiple validation errors - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "invalid-version"
-				c.Properties.DNS.BaseDomainPrefix = "Invalid-Name"
-				c.Properties.Network.NetworkType = "InvalidType"
-				c.Properties.API.Visibility = "InvalidVisibility"
+				c.CustomerProperties.Version.ID = "invalid-version"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
+				c.CustomerProperties.Network.NetworkType = "InvalidType"
+				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "properties.version.id"},
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "properties.dns.baseDomainPrefix"},
-				{message: "Unsupported value", fieldPath: "properties.network.networkType"},
-				{message: "Unsupported value", fieldPath: "properties.api.visiblity"},
+				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
+				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
+				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
+				{message: "Unsupported value", fieldPath: "customerProperties.api.visiblity"},
 			},
 		},
 		// Tests for validateOperatorAuthenticationAgainstIdentities
@@ -487,8 +487,8 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Don't reference the identity in operators
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = ""
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = ""
 				return c
 			}(),
 			expectErrors: []expectedError{
@@ -504,13 +504,13 @@ func TestValidateClusterCreate(t *testing.T) {
 					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{},
 				}
 				// Reference an identity that's not assigned
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/unassigned-identity",
 				}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
@@ -525,7 +525,7 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Use the same identity in multiple places
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"operator1": identityID,
 					"operator2": identityID,
 				}
@@ -547,14 +547,14 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Data plane operators cannot use assigned identities
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
 					"dataplane-operator": identityID,
 				}
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{message: "cannot use identity assigned to this resource by .identities.userAssignedIdentities", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity]"},
 			},
 		},
@@ -569,8 +569,8 @@ func TestValidateClusterCreate(t *testing.T) {
 						identityID: {},
 					},
 				}
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityID
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityID
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -588,7 +588,7 @@ func TestValidateClusterCreate(t *testing.T) {
 					},
 				}
 				// Reference with different casing should work
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator": upperCaseID,
 				}
 				return c
@@ -601,14 +601,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Managed resource group cannot be the same as the cluster's resource group
-				c.Properties.Platform.ManagedResourceGroup = "some-resource-group"
+				c.CustomerProperties.Platform.ManagedResourceGroup = "some-resource-group"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must not be the same resource group name", fieldPath: "properties.platform.subnetId"},
-				{message: "must not be the same resource group name", fieldPath: "properties.platform.managedResourceGroup"},
-				{message: "must not be the same resource group name", fieldPath: "properties.platform.subnetId"},
-				{message: "must not be the same resource group name", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.subnetId"},
+				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.managedResourceGroup"},
+				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.subnetId"},
+				{message: "must not be the same resource group name", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 			},
 		},
 		{
@@ -616,11 +616,11 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Subnet in different subscription should fail
-				c.Properties.Platform.SubnetID = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				c.CustomerProperties.Platform.SubnetID = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.subnetId"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
 		{
@@ -628,14 +628,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Identity in different subscription
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
 				}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities"},
 			},
 		},
@@ -644,13 +644,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Data plane operator identity validation
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]string{
 					"dataplane-operator": "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dataplane-identity",
 				}
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[dataplane-operator]"},
 			},
 		},
 		{
@@ -658,12 +658,12 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Service managed identity validation
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = "/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-identity"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
 			},
 		},
 		// Tests for network CIDR overlap validation
@@ -671,39 +671,39 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "machine CIDR overlaps with service CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.MachineCIDR = "10.0.0.0/16"
-				c.Properties.Network.ServiceCIDR = "10.0.1.0/24" // Overlaps with machine CIDR
-				c.Properties.Network.PodCIDR = "10.128.0.0/14"   // No overlap
+				c.CustomerProperties.Network.MachineCIDR = "10.0.0.0/16"
+				c.CustomerProperties.Network.ServiceCIDR = "10.0.1.0/24" // Overlaps with machine CIDR
+				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"   // No overlap
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/16' and service CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+				{message: "machine CIDR '10.0.0.0/16' and service CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
 			},
 		},
 		{
 			name: "machine CIDR overlaps with pod CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.MachineCIDR = "10.0.0.0/16"
-				c.Properties.Network.PodCIDR = "10.0.1.0/24"       // Overlaps with machine CIDR
-				c.Properties.Network.ServiceCIDR = "172.30.0.0/16" // No overlap
+				c.CustomerProperties.Network.MachineCIDR = "10.0.0.0/16"
+				c.CustomerProperties.Network.PodCIDR = "10.0.1.0/24"       // Overlaps with machine CIDR
+				c.CustomerProperties.Network.ServiceCIDR = "172.30.0.0/16" // No overlap
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+				{message: "machine CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
 			},
 		},
 		{
 			name: "service CIDR overlaps with pod CIDR - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.MachineCIDR = "192.168.0.0/16" // No overlap
-				c.Properties.Network.ServiceCIDR = "10.0.0.0/16"
-				c.Properties.Network.PodCIDR = "10.0.1.0/24" // Overlaps with service CIDR
+				c.CustomerProperties.Network.MachineCIDR = "192.168.0.0/16" // No overlap
+				c.CustomerProperties.Network.ServiceCIDR = "10.0.0.0/16"
+				c.CustomerProperties.Network.PodCIDR = "10.0.1.0/24" // Overlaps with service CIDR
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "service CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "properties.network"},
+				{message: "service CIDR '10.0.0.0/16' and pod CIDR '10.0.1.0/24' overlap", fieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -711,14 +711,14 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// All CIDRs overlap with each other
-				c.Properties.Network.MachineCIDR = "10.0.0.0/14"
-				c.Properties.Network.ServiceCIDR = "10.0.0.0/16"
-				c.Properties.Network.PodCIDR = "10.1.0.0/16"
+				c.CustomerProperties.Network.MachineCIDR = "10.0.0.0/14"
+				c.CustomerProperties.Network.ServiceCIDR = "10.0.0.0/16"
+				c.CustomerProperties.Network.PodCIDR = "10.1.0.0/16"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "machine CIDR '10.0.0.0/14' and service CIDR '10.0.0.0/16' overlap", fieldPath: "properties.network"},
-				{message: "machine CIDR '10.0.0.0/14' and pod CIDR '10.1.0.0/16' overlap", fieldPath: "properties.network"},
+				{message: "machine CIDR '10.0.0.0/14' and service CIDR '10.0.0.0/16' overlap", fieldPath: "customerProperties.network"},
+				{message: "machine CIDR '10.0.0.0/14' and pod CIDR '10.1.0.0/16' overlap", fieldPath: "customerProperties.network"},
 			},
 		},
 		{
@@ -726,9 +726,9 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// No overlaps between any CIDRs
-				c.Properties.Network.MachineCIDR = "192.168.0.0/16"
-				c.Properties.Network.ServiceCIDR = "172.30.0.0/16"
-				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				c.CustomerProperties.Network.MachineCIDR = "192.168.0.0/16"
+				c.CustomerProperties.Network.ServiceCIDR = "172.30.0.0/16"
+				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -738,13 +738,13 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				// Invalid CIDR format - overlap check should not crash
-				c.Properties.Network.MachineCIDR = "invalid-cidr"
-				c.Properties.Network.ServiceCIDR = "172.30.0.0/16"
-				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				c.CustomerProperties.Network.MachineCIDR = "invalid-cidr"
+				c.CustomerProperties.Network.ServiceCIDR = "172.30.0.0/16"
+				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.network.machineCidr"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
 	}
@@ -795,12 +795,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow channel group change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -809,12 +809,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow authorized CIDRs change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -823,12 +823,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow autoscaling changes",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Autoscaling.MaxNodesTotal = 200
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 200
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Autoscaling.MaxNodesTotal = 100
+				c.CustomerProperties.Autoscaling.MaxNodesTotal = 100
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -837,12 +837,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid cluster update - allow node drain timeout change",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 60
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 60
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.NodeDrainTimeoutMinutes = 30
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -858,7 +858,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 						"/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2": {},
 					},
 				}
-				c.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 					"test-operator":   "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity",
 					"test-operator-2": "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity2",
 				}
@@ -875,276 +875,276 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.platform"},
-				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication"},
-				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities"},
-				{message: "field is immutable", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator-2]"},
 			},
 		},
 		{
 			name: "immutable provisioning state - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ProvisioningState = arm.ProvisioningStateProvisioning
+				c.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateProvisioning
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
+				c.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateSucceeded
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.provisioningState"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.provisioningState"},
 			},
 		},
 		{
 			name: "immutable version ID - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.15.2"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.15.1"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.version.id"},
-				{message: "must be specified as MAJOR.MINOR", fieldPath: "properties.version.id"},
+				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
+				{message: "must be specified as MAJOR.MINOR", fieldPath: "customerProperties.version.id"},
 			},
 		},
 		{
 			name: "immutable base domain - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomain = "new.example.com"
+				c.ServiceProviderProperties.DNS.BaseDomain = "new.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomain = "example.com"
+				c.ServiceProviderProperties.DNS.BaseDomain = "example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.dns.baseDomain"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.dns.baseDomain"},
 			},
 		},
 		{
 			name: "immutable base domain prefix - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.dns.baseDomainPrefix"},
+				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 			},
 		},
 		{
 			name: "immutable network profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "10.200.0.0/14"
+				c.CustomerProperties.Network.PodCIDR = "10.200.0.0/14"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Network.PodCIDR = "10.128.0.0/14"
+				c.CustomerProperties.Network.PodCIDR = "10.128.0.0/14"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.network"},
-				{message: "field is immutable", fieldPath: "properties.network.podCidr"},
+				{message: "field is immutable", fieldPath: "customerProperties.network"},
+				{message: "field is immutable", fieldPath: "customerProperties.network.podCidr"},
 			},
 		},
 		{
 			name: "immutable console profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Console.URL = "https://new-console.example.com"
+				c.ServiceProviderProperties.Console.URL = "https://new-console.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Console.URL = "https://console.example.com"
+				c.ServiceProviderProperties.Console.URL = "https://console.example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.console"},
-				{message: "field is immutable", fieldPath: "properties.console.url"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.console"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.console.url"},
 			},
 		},
 		{
 			name: "immutable API URL - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.URL = "https://new-api.example.com"
+				c.ServiceProviderProperties.API.URL = "https://new-api.example.com"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.URL = "https://api.example.com"
+				c.ServiceProviderProperties.API.URL = "https://api.example.com"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.api.url"},
+				{message: "field is immutable", fieldPath: "serviceProviderProperties.api.url"},
 			},
 		},
 		{
 			name: "immutable API visibility - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = api.VisibilityPrivate
+				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.Visibility = api.VisibilityPublic
+				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.api.visiblity"},
+				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},
 		},
 		{
 			name: "immutable platform profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"
+				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-subnet"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+				c.CustomerProperties.Platform.SubnetID = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.platform"},
-				{message: "field is immutable", fieldPath: "properties.platform.subnetId"},
-				{message: "must be in the same Azure subscription", fieldPath: "properties.platform.subnetId"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform"},
+				{message: "field is immutable", fieldPath: "customerProperties.platform.subnetId"},
+				{message: "must be in the same Azure subscription", fieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
 		{
 			name: "immutable etcd profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.etcd"},
-				{message: "field is immutable", fieldPath: "properties.etcd.dataEncryption"},
-				{message: "field is immutable", fieldPath: "properties.etcd.dataEncryption.keyManagementMode"},
-				{message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", fieldPath: "properties.etcd.dataEncryption.customerManaged"},
+				{message: "field is immutable", fieldPath: "customerProperties.etcd"},
+				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption"},
+				{message: "field is immutable", fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", fieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
 			name: "immutable cluster image registry profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateDisabled
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
+				c.CustomerProperties.ClusterImageRegistry.State = api.ClusterImageRegistryProfileStateEnabled
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.clusterImageRegistry"},
-				{message: "field is immutable", fieldPath: "properties.clusterImageRegistry.state"},
+				{message: "field is immutable", fieldPath: "customerProperties.clusterImageRegistry"},
+				{message: "field is immutable", fieldPath: "customerProperties.clusterImageRegistry.state"},
 			},
 		},
 		{
 			name: "invalid new field value on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"invalid-cidr"}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "empty authorized CIDR on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{""}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{""}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "Required value", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "authorized CIDR with whitespace on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16 "}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{" 10.0.0.0/16 "}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "must not contain extra whitespace", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "not an IP", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "must not contain extra whitespace", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "not an IP", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "IPv6 in authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"2001:db8::1"}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "not IPv4", fieldPath: "properties.api.authorizedCidrs[0]"},
-				{message: "invalid CIDR address", fieldPath: "properties.api.authorizedCidrs[0]"},
+				{message: "not IPv4", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
+				{message: "invalid CIDR address", fieldPath: "customerProperties.api.authorizedCidrs[0]"},
 			},
 		},
 		{
 			name: "too many authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = make([]string, 501)
-				for i := range c.Properties.API.AuthorizedCIDRs {
-					c.Properties.API.AuthorizedCIDRs[i] = "10.0.0.1"
+				c.CustomerProperties.API.AuthorizedCIDRs = make([]string, 501)
+				for i := range c.CustomerProperties.API.AuthorizedCIDRs {
+					c.CustomerProperties.API.AuthorizedCIDRs[i] = "10.0.0.1"
 				}
 				return c
 			}(),
 			oldCluster: createValidCluster(),
 			expectErrors: []expectedError{
-				{message: "Too many", fieldPath: "properties.api.authorizedCidrs"},
+				{message: "Too many", fieldPath: "customerProperties.api.authorizedCidrs"},
 			},
 		},
 		{
 			name: "add authorized CIDR on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24", "172.16.0.0/12"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24", "172.16.0.0/12"}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -1153,12 +1153,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "remove authorized CIDR on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16"}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -1167,12 +1167,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "clear all authorized CIDRs on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{}
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
+				c.CustomerProperties.API.AuthorizedCIDRs = []string{"10.0.0.0/16", "192.168.1.0/24"}
 				return c
 			}(),
 			expectErrors: []expectedError{},
@@ -1219,7 +1219,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.principalId"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -1249,7 +1249,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.tenantId"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -1281,7 +1281,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].clientId"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -1313,7 +1313,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity].principalId"},
-				{message: "identity is not assigned to this resource", fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
+				{message: "identity is not assigned to this resource", fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
 				{message: "identity is assigned to this resource but not used", fieldPath: "identity.userAssignedIdentities[/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity]"},
 			},
 		},
@@ -1321,23 +1321,23 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.2"
-				c.Properties.DNS.BaseDomainPrefix = "new-prefix"
-				c.Properties.API.Visibility = api.VisibilityPrivate
+				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
+				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.Properties.Version.ID = "4.15.1"
-				c.Properties.DNS.BaseDomainPrefix = "old-prefix"
-				c.Properties.API.Visibility = api.VisibilityPublic
+				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
+				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.version.id"},
-				{message: "must be specified as MAJOR.MINOR; the PATCH value is managed", fieldPath: "properties.version.id"},
-				{message: "field is immutable", fieldPath: "properties.dns.baseDomainPrefix"},
-				{message: "field is immutable", fieldPath: "properties.api.visiblity"},
+				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
+				{message: "must be specified as MAJOR.MINOR; the PATCH value is managed", fieldPath: "customerProperties.version.id"},
+				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
+				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},
 		},
 	}
@@ -1355,17 +1355,17 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	cluster := api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/noop-updat")))
 
 	// Set required fields that are not in the default
-	cluster.Location = "eastus"            // Required for TrackedResource validation
-	cluster.Properties.Version.ID = "4.15" // Use MAJOR.MINOR format
-	cluster.Properties.DNS.BaseDomainPrefix = "test-cluster"
+	cluster.Location = "eastus"                    // Required for TrackedResource validation
+	cluster.CustomerProperties.Version.ID = "4.15" // Use MAJOR.MINOR format
+	cluster.CustomerProperties.DNS.BaseDomainPrefix = "test-cluster"
 	// Use different resource group for subnet to ensure same subscription validation
-	cluster.Properties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
-	cluster.Properties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
-	cluster.Properties.Platform.ManagedResourceGroup = "managed-rg" // Different from cluster resource group
+	cluster.CustomerProperties.Platform.SubnetID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"
+	cluster.CustomerProperties.Platform.NetworkSecurityGroupID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/test-nsg"
+	cluster.CustomerProperties.Platform.ManagedResourceGroup = "managed-rg" // Different from cluster resource group
 
 	// Set up user assigned identities for valid testing with matching subscription and location
 	identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-identity"
-	cluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
+	cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]string{
 		"test-operator": identityID,
 	}
 

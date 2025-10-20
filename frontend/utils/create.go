@@ -59,11 +59,11 @@ func main() {
 // CreateJSONFile creates a base cluster JSON file for use with testing frontend to create clusters
 func CreateJSONFile() error {
 	cluster := api.HCPOpenShiftCluster{
-		Properties: api.HCPOpenShiftClusterProperties{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 			Version: api.VersionProfile{
 				ChannelGroup: "stable",
 			},
-			DNS: api.DNSProfile{},
+			DNS: api.CustomerDNSProfile{},
 			Network: api.NetworkProfile{
 				NetworkType: api.NetworkTypeOVNKubernetes,
 				PodCIDR:     "10.128.0.0/14",
@@ -71,16 +71,20 @@ func CreateJSONFile() error {
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			Console: api.ConsoleProfile{},
-			API: api.APIProfile{
+			API: api.CustomerAPIProfile{
 				Visibility: api.Visibility("Public"),
 			},
-			Platform: api.PlatformProfile{
+			Platform: api.CustomerPlatformProfile{
 				ManagedResourceGroup:   "dev-test-mrg",
 				NetworkSecurityGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/networkSecurityGroups/xyz",
 				SubnetID:               "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.Network/virtualNetworks/xyz/subnets/xyz",
 				OutboundType:           api.OutboundType("LoadBalancer"),
-				IssuerURL:              "",
+			},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			Console: api.ServiceProviderConsoleProfile{},
+			Platform: api.ServiceProviderPlatformProfile{
+				IssuerURL: "",
 			},
 		},
 	}

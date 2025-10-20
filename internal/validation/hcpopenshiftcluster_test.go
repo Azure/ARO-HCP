@@ -49,47 +49,47 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.version.id",
+					fieldPath: "customerProperties.version.id",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.version.channelGroup",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.version.channelGroup",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.network.networkType",
+					fieldPath: "customerProperties.network.networkType",
 				},
 				{
 					message:   "must be greater than or equal to 23",
-					fieldPath: "properties.network.hostPrefix",
+					fieldPath: "customerProperties.network.hostPrefix",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.api.visiblity",
+					fieldPath: "customerProperties.api.visiblity",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.subnetId",
+					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.platform.outboundType",
+					fieldPath: "customerProperties.platform.outboundType",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.networkSecurityGroupId",
+					fieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.etcd.dataEncryption.keyManagementMode",
+					fieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
 				},
 				{
 					message:   "Unsupported value",
-					fieldPath: "properties.clusterImageRegistry.state",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 			},
 		},
@@ -99,11 +99,11 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.subnetId",
+					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.networkSecurityGroupId",
+					fieldPath: "customerProperties.platform.networkSecurityGroupId",
 				},
 			},
 		},
@@ -114,8 +114,8 @@ func TestClusterRequired(t *testing.T) {
 		{
 			name: "Cluster with identity",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -136,8 +136,8 @@ func TestClusterRequired(t *testing.T) {
 		{
 			name: "Cluster with broken identity",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -157,7 +157,7 @@ func TestClusterRequired(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
 					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
@@ -165,11 +165,11 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
 					message:   "resource id 'wrong/Pattern/Of/ResourceID' must start with '/'",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 			},
 		},
@@ -203,7 +203,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad cidrv4",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR: "Mmm... apple cider",
 					},
@@ -212,15 +212,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "invalid CIDR address",
-					fieldPath: "properties.network.podCidr",
+					fieldPath: "customerProperties.network.podCidr",
 				},
 			},
 		},
 		{
 			name: "Bad dns_rfc1035_label",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					DNS: api.DNSProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					DNS: api.CustomerDNSProfile{
 						BaseDomainPrefix: "0badlabel",
 					},
 				},
@@ -228,14 +228,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be a valid DNS RFC 1035 label",
-					fieldPath: "properties.dns.baseDomainPrefix",
+					fieldPath: "customerProperties.dns.baseDomainPrefix",
 				},
 			},
 		},
 		{
 			name: "Bad openshift_version",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID: "bad.version",
 					},
@@ -244,14 +244,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Malformed version",
-					fieldPath: "properties.version.id",
+					fieldPath: "customerProperties.version.id",
 				},
 			},
 		},
 		{
 			name: "Version cannot be MAJOR.MINOR.PATCH",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID: "4.18.1",
 					},
@@ -260,15 +260,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be specified as MAJOR.MINOR; the PATCH value is managed",
-					fieldPath: "properties.version.id",
+					fieldPath: "customerProperties.version.id",
 				},
 			},
 		},
 		{
 			name: "Bad enum_outboundtype",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OutboundType: "loadJuggler",
 					},
 				},
@@ -276,15 +276,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"LoadBalancer\"",
-					fieldPath: "properties.platform.outboundType",
+					fieldPath: "customerProperties.platform.outboundType",
 				},
 			},
 		},
 		{
 			name: "Bad enum_visibility",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					API: api.APIProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					API: api.CustomerAPIProfile{
 						Visibility: "it's a secret to everybody",
 					},
 				},
@@ -292,7 +292,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"Private\", \"Public\"",
-					fieldPath: "properties.api.visiblity",
+					fieldPath: "customerProperties.api.visiblity",
 				},
 			},
 		},
@@ -313,7 +313,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Bad enum_clusterimageregistryprofilestate",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileState("not enabled"),
 					},
@@ -322,15 +322,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"Disabled\", \"Enabled\"",
-					fieldPath: "properties.clusterImageRegistry.state",
+					fieldPath: "customerProperties.clusterImageRegistry.state",
 				},
 			},
 		},
 		{
 			name: "Base domain prefix is too long",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					DNS: api.DNSProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					DNS: api.CustomerDNSProfile{
 						BaseDomainPrefix: "this-domain-is-too-long",
 					},
 				},
@@ -338,14 +338,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "may not be more than 15 bytes",
-					fieldPath: "properties.dns.baseDomainPrefix",
+					fieldPath: "customerProperties.dns.baseDomainPrefix",
 				},
 			},
 		},
 		{
 			name: "Host prefix is too small",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						HostPrefix: 22,
 					},
@@ -354,14 +354,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be greater than or equal to 23",
-					fieldPath: "properties.network.hostPrefix",
+					fieldPath: "customerProperties.network.hostPrefix",
 				},
 			},
 		},
 		{
 			name: "Host prefix is too large",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						HostPrefix: 27,
 					},
@@ -370,14 +370,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be less than or equal to 26",
-					fieldPath: "properties.network.hostPrefix",
+					fieldPath: "customerProperties.network.hostPrefix",
 				},
 			},
 		},
 		{
 			name: "Bad required_unless",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ChannelGroup: "fast",
 					},
@@ -386,19 +386,19 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
-					fieldPath: "properties.version.id",
+					fieldPath: "customerProperties.version.id",
 				},
 				{
 					message:   "supported values: \"stable\"",
-					fieldPath: "properties.version.channelGroup",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
 		{
 			name: "Control plane operator name cannot be empty",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -412,11 +412,11 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
 				},
 				{
 					message:   "identity is not assigned to this resource",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[]",
 				},
 			},
 		},
@@ -424,8 +424,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Data plane operator name cannot be empty",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								DataPlaneOperators: map[string]string{
@@ -439,14 +439,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators",
 				},
 			},
 		},
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -457,14 +457,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be specified when `keyManagementMode` is \"CustomerManaged\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
 				},
 			},
 		},
 		{
 			name: "Platform managed ETCD key management mode excludes CustomerManaged fields",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -476,18 +476,18 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
 				},
 				{
 					message:   "supported values: \"KMS\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.encryptionType",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
 				},
 			},
 		},
 		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -501,7 +501,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must be specified when `encryptionType` is \"KMS\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.kms",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
 				},
 			},
 		},
@@ -509,7 +509,7 @@ func TestClusterValidate(t *testing.T) {
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
@@ -524,23 +524,23 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"KMS\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.encryptionType",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
 				},
 				{
 					message:   "may only be specified when `encryptionType` is \"KMS\"",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.kms",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.name",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.vaultName",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
+					fieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version",
 				},
 			},
 		},
@@ -552,7 +552,7 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid channel group",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
 						ID:           "4.99",
 						ChannelGroup: "freshmeat",
@@ -562,14 +562,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "supported values: \"stable\"",
-					fieldPath: "properties.version.channelGroup",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						ServiceCIDR: "10.0.0.0/23",
 						MachineCIDR: "10.0.0.0/16",
@@ -579,14 +579,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "machine CIDR '10.0.0.0/16' and service CIDR '10.0.0.0/23' overlap",
-					fieldPath: "properties.network",
+					fieldPath: "customerProperties.network",
 				},
 			},
 		},
 		{
 			name: "Cluster with overlapping machine and pod CIDRs",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR:     "10.1.0.0/18",
 						MachineCIDR: "10.1.0.0/23",
@@ -596,14 +596,14 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "machine CIDR '10.1.0.0/23' and pod CIDR '10.1.0.0/18' overlap",
-					fieldPath: "properties.network",
+					fieldPath: "customerProperties.network",
 				},
 			},
 		},
 		{
 			name: "Cluster with overlapping service and pod CIDRs",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Network: api.NetworkProfile{
 						PodCIDR:     "10.2.0.0/18",
 						ServiceCIDR: "10.2.0.0/24",
@@ -613,15 +613,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "service CIDR '10.2.0.0/24' and pod CIDR '10.2.0.0/18' overlap",
-					fieldPath: "properties.network",
+					fieldPath: "customerProperties.network",
 				},
 			},
 		},
 		{
 			name: "Cluster with invalid managed resource group",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: api.TestResourceGroupName,
 						// Use a different resource group name to avoid a subnet ID error.
 						SubnetID: path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName),
@@ -631,15 +631,15 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must not be the same resource group name",
-					fieldPath: "properties.platform.managedResourceGroup",
+					fieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 			},
 		},
 		{
 			name: "Cluster with invalid subnet ID",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						ManagedResourceGroup: "MRG",
 						SubnetID:             "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet",
 					},
@@ -648,23 +648,23 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "must not be the same resource group name: \"MRG\"",
-					fieldPath: "properties.platform.subnetId",
+					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
 					message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
-					fieldPath: "properties.platform.subnetId",
+					fieldPath: "customerProperties.platform.subnetId",
 				},
 				{
 					message:   "must not be the same resource group name: \"MRG\"",
-					fieldPath: "properties.platform.subnetId",
+					fieldPath: "customerProperties.platform.subnetId",
 				},
 			},
 		},
 		{
 			name: "Cluster with differently-cased identities",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -687,8 +687,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with broken identities",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -709,7 +709,7 @@ func TestClusterValidate(t *testing.T) {
 			expectErrors: []expectedError{
 				{
 					message:   "identity is not assigned to this resource",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[operatorX]",
 				},
 				{
 					message:   "identity is assigned to this resource but not used",
@@ -717,15 +717,15 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					message:   "identity is not assigned to this resource",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
 				},
 			},
 		},
 		{
 			name: "Cluster with multiple identities",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								ControlPlaneOperators: map[string]string{
@@ -754,8 +754,8 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Cluster with invalid data plane operator identities",
 			tweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
-					Platform: api.PlatformProfile{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
 						OperatorsAuthentication: api.OperatorsAuthenticationProfile{
 							UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 								DataPlaneOperators: map[string]string{
@@ -779,7 +779,7 @@ func TestClusterValidate(t *testing.T) {
 				},
 				{
 					message:   "cannot use identity assigned to this resource by .identities.userAssignedIdentities",
-					fieldPath: "properties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
+					fieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators[operatorX]",
 				},
 			},
 		},

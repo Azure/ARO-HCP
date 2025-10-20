@@ -125,12 +125,12 @@ func newVersionProfile(from *api.VersionProfile) generated.VersionProfile {
 	}
 }
 
-func newDNSProfile(from *api.DNSProfile) generated.DNSProfile {
+func newDNSProfile(from *api.CustomerDNSProfile, from2 *api.ServiceProviderDNSProfile) generated.DNSProfile {
 	if from == nil {
 		return generated.DNSProfile{}
 	}
 	return generated.DNSProfile{
-		BaseDomain:       api.PtrOrNil(from.BaseDomain),
+		BaseDomain:       api.PtrOrNil(from2.BaseDomain),
 		BaseDomainPrefix: api.PtrOrNil(from.BaseDomainPrefix),
 	}
 }
@@ -148,7 +148,7 @@ func newNetworkProfile(from *api.NetworkProfile) generated.NetworkProfile {
 	}
 }
 
-func newConsoleProfile(from *api.ConsoleProfile) generated.ConsoleProfile {
+func newConsoleProfile(from *api.ServiceProviderConsoleProfile) generated.ConsoleProfile {
 	if from == nil {
 		return generated.ConsoleProfile{}
 	}
@@ -157,18 +157,18 @@ func newConsoleProfile(from *api.ConsoleProfile) generated.ConsoleProfile {
 	}
 }
 
-func newAPIProfile(from *api.APIProfile) generated.APIProfile {
+func newAPIProfile(from *api.CustomerAPIProfile, from2 *api.ServiceProviderAPIProfile) generated.APIProfile {
 	if from == nil {
 		return generated.APIProfile{}
 	}
 	return generated.APIProfile{
-		URL:             api.PtrOrNil(from.URL),
+		URL:             api.PtrOrNil(from2.URL),
 		Visibility:      api.PtrOrNil(generated.Visibility(from.Visibility)),
 		AuthorizedCIDRs: api.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
 	}
 }
 
-func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
+func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServiceProviderPlatformProfile) generated.PlatformProfile {
 	if from == nil {
 		return generated.PlatformProfile{}
 	}
@@ -178,7 +178,7 @@ func newPlatformProfile(from *api.PlatformProfile) generated.PlatformProfile {
 		OutboundType:            api.PtrOrNil(generated.OutboundType(from.OutboundType)),
 		NetworkSecurityGroupID:  api.PtrOrNil(from.NetworkSecurityGroupID),
 		OperatorsAuthentication: api.PtrOrNil(newOperatorsAuthenticationProfile(&from.OperatorsAuthentication)),
-		IssuerURL:               api.PtrOrNil(from.IssuerURL),
+		IssuerURL:               api.PtrOrNil(from2.IssuerURL),
 	}
 }
 
@@ -310,17 +310,17 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 			Location:   api.PtrOrNil(from.Location),
 			Tags:       api.StringMapToStringPtrMap(from.Tags),
 			Properties: &generated.HcpOpenShiftClusterProperties{
-				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.Properties.ProvisioningState)),
-				Version:                 api.PtrOrNil(newVersionProfile(&from.Properties.Version)),
-				DNS:                     api.PtrOrNil(newDNSProfile(&from.Properties.DNS)),
-				Network:                 api.PtrOrNil(newNetworkProfile(&from.Properties.Network)),
-				Console:                 api.PtrOrNil(newConsoleProfile(&from.Properties.Console)),
-				API:                     api.PtrOrNil(newAPIProfile(&from.Properties.API)),
-				Platform:                api.PtrOrNil(newPlatformProfile(&from.Properties.Platform)),
-				Autoscaling:             api.PtrOrNil(newClusterAutoscalingProfile(&from.Properties.Autoscaling)),
-				NodeDrainTimeoutMinutes: api.PtrOrNil(from.Properties.NodeDrainTimeoutMinutes),
-				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.Properties.ClusterImageRegistry)),
-				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.Properties.Etcd)),
+				ProvisioningState:       api.PtrOrNil(generated.ProvisioningState(from.ServiceProviderProperties.ProvisioningState)),
+				Version:                 api.PtrOrNil(newVersionProfile(&from.CustomerProperties.Version)),
+				DNS:                     api.PtrOrNil(newDNSProfile(&from.CustomerProperties.DNS, &from.ServiceProviderProperties.DNS)),
+				Network:                 api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
+				Console:                 api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
+				API:                     api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Platform:                api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
+				Autoscaling:             api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
+				NodeDrainTimeoutMinutes: api.PtrOrNil(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
+				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -388,38 +388,38 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	out.Tags = api.StringPtrMapToStringMap(c.Tags)
 	if c.Properties != nil {
 		if c.Properties.ProvisioningState != nil {
-			out.Properties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
+			out.ServiceProviderProperties.ProvisioningState = arm.ProvisioningState(*c.Properties.ProvisioningState)
 		}
 		if c.Properties != nil {
 			if c.Properties.Version != nil {
-				normalizeVersion(c.Properties.Version, &out.Properties.Version)
+				normalizeVersion(c.Properties.Version, &out.CustomerProperties.Version)
 			}
 			if c.Properties.DNS != nil {
-				normailzeDNS(c.Properties.DNS, &out.Properties.DNS)
+				normalizeDNS(c.Properties.DNS, &out.CustomerProperties.DNS, &out.ServiceProviderProperties.DNS)
 			}
 			if c.Properties.Network != nil {
-				normalizeNetwork(c.Properties.Network, &out.Properties.Network)
+				normalizeNetwork(c.Properties.Network, &out.CustomerProperties.Network)
 			}
 			if c.Properties.Console != nil {
-				normalizeConsole(c.Properties.Console, &out.Properties.Console)
+				normalizeConsole(c.Properties.Console, &out.ServiceProviderProperties.Console)
 			}
 			if c.Properties.API != nil {
-				normalizeAPI(c.Properties.API, &out.Properties.API)
+				normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
 			}
 			if c.Properties.Platform != nil {
-				normalizePlatform(c.Properties.Platform, &out.Properties.Platform)
+				normalizePlatform(c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)
 			}
 			if c.Properties.Autoscaling != nil {
-				normalizeAutoscaling(c.Properties.Autoscaling, &out.Properties.Autoscaling)
+				normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
 			}
 			if c.Properties.NodeDrainTimeoutMinutes != nil {
-				out.Properties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
+				out.CustomerProperties.NodeDrainTimeoutMinutes = *c.Properties.NodeDrainTimeoutMinutes
 			}
 			if c.Properties.ClusterImageRegistry != nil {
-				normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.Properties.ClusterImageRegistry)
+				normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 			}
 			if c.Properties.Etcd != nil {
-				normalizeEtcd(c.Properties.Etcd, &out.Properties.Etcd)
+				normalizeEtcd(c.Properties.Etcd, &out.CustomerProperties.Etcd)
 			}
 		}
 	}
@@ -434,9 +434,9 @@ func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {
 	}
 }
 
-func normailzeDNS(p *generated.DNSProfile, out *api.DNSProfile) {
+func normalizeDNS(p *generated.DNSProfile, out *api.CustomerDNSProfile, out2 *api.ServiceProviderDNSProfile) {
 	if p.BaseDomain != nil {
-		out.BaseDomain = *p.BaseDomain
+		out2.BaseDomain = *p.BaseDomain
 	}
 	if p.BaseDomainPrefix != nil {
 		out.BaseDomainPrefix = *p.BaseDomainPrefix
@@ -461,15 +461,15 @@ func normalizeNetwork(p *generated.NetworkProfile, out *api.NetworkProfile) {
 	}
 }
 
-func normalizeConsole(p *generated.ConsoleProfile, out *api.ConsoleProfile) {
+func normalizeConsole(p *generated.ConsoleProfile, out *api.ServiceProviderConsoleProfile) {
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
 }
 
-func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
+func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *api.ServiceProviderAPIProfile) {
 	if p.URL != nil {
-		out.URL = *p.URL
+		out2.URL = *p.URL
 	}
 	if p.Visibility != nil {
 		out.Visibility = api.Visibility(*p.Visibility)
@@ -477,7 +477,7 @@ func normalizeAPI(p *generated.APIProfile, out *api.APIProfile) {
 	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
 }
 
-func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
+func normalizePlatform(p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) {
 	if p.ManagedResourceGroup != nil {
 		out.ManagedResourceGroup = *p.ManagedResourceGroup
 	}
@@ -494,7 +494,7 @@ func normalizePlatform(p *generated.PlatformProfile, out *api.PlatformProfile) {
 		normalizeOperatorsAuthentication(p.OperatorsAuthentication, &out.OperatorsAuthentication)
 	}
 	if p.IssuerURL != nil {
-		out.IssuerURL = *p.IssuerURL
+		out2.IssuerURL = *p.IssuerURL
 	}
 }
 

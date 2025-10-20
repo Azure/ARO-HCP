@@ -79,7 +79,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					Value(42),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 42,
 				},
 			},
@@ -95,7 +95,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -126,7 +126,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							CustomerManaged: &api.CustomerManagedEncryptionProfile{
@@ -152,7 +152,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					State(string(csImageRegistryStateDisabled)),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileStateDisabled,
 					},

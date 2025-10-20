@@ -43,9 +43,10 @@ func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPO
 }
 
 var (
-	toTrackedResource   = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
-	toClusterProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterProperties { return &oldObj.Properties }
-	toClusterIdentity   = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
+	toTrackedResource                  = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
+	toClusterCustomerProperties        = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterCustomerProperties { return &oldObj.CustomerProperties }
+	toClusterServiceProviderProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterServiceProviderProperties { return &oldObj.ServiceProviderProperties }
+	toClusterIdentity                  = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
 
 func validateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster) field.ErrorList {
@@ -54,8 +55,11 @@ func validateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	//arm.TrackedResource
 	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, toTrackedResource))...)
 
-	// Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
-	errs = append(errs, validateClusterProperties(ctx, op, field.NewPath("properties"), &newCluster.Properties, safe.Field(oldCluster, toClusterProperties))...)
+	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty" validate:"required"`
+	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, toClusterCustomerProperties))...)
+
+	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty" validate:"required"`
+	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, toClusterServiceProviderProperties))...)
 
 	// Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
 	errs = append(errs, validateManagedServiceIdentity(ctx, op, field.NewPath("identity"), newCluster.Identity, safe.Field(oldCluster, toClusterIdentity))...)
@@ -93,13 +97,13 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 		}
 	}
 
-	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
+	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
 		tallyIdentity(operatorIdentity, fldPath)
 	}
 
-	if serviceManagedIdentity := newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; len(serviceManagedIdentity) != 0 {
-		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity")
+	if serviceManagedIdentity := newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; len(serviceManagedIdentity) != 0 {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity")
 		tallyIdentity(serviceManagedIdentity, fldPath)
 	}
 
@@ -121,8 +125,8 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 	}
 
 	// Data-plane operator identities must not be assigned to this resource.
-	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
-		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
+	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
 		key := strings.ToLower(operatorIdentity)
 		if _, ok := userAssignedIdentities[key]; ok {
 			errs = append(errs, field.Invalid(fldPath, operatorIdentity, "cannot use identity assigned to this resource by .identities.userAssignedIdentities"))
@@ -141,22 +145,22 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	errs := field.ErrorList{}
 
 	// Validate that managed resource group is different from cluster resource group
-	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("properties", "platform", "managedResourceGroup"), &newCluster.Properties.Platform.ManagedResourceGroup, nil, clusterResourceID.ResourceGroupName)...)
-	errs = append(errs, SameSubscription(ctx, op, field.NewPath("properties", "platform", "subnetId"), &newCluster.Properties.Platform.SubnetID, nil, clusterResourceID.SubscriptionID)...)
-	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("properties", "platform", "subnetId"), &newCluster.Properties.Platform.SubnetID, nil, newCluster.Properties.Platform.ManagedResourceGroup)...)
+	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, clusterResourceID.ResourceGroupName)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, clusterResourceID.SubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
-	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
-		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
+	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
-	for operatorName, operatorIdentity := range newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
-		fldPath := field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
+	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
+		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
 	errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op,
-		field.NewPath("properties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
-		&newCluster.Properties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
-		clusterResourceID.SubscriptionID, newCluster.Properties.Platform.ManagedResourceGroup)...)
+		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
+		&newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
+		clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
 	return errs
 }
@@ -223,51 +227,40 @@ func validateSystemData(ctx context.Context, op operation.Operation, fldPath *fi
 }
 
 var (
-	toClusterPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterProperties) *arm.ProvisioningState {
-		return &oldObj.ProvisioningState
-	}
-	toVersion            = func(oldObj *api.HCPOpenShiftClusterProperties) *api.VersionProfile { return &oldObj.Version }
-	toDNS                = func(oldObj *api.HCPOpenShiftClusterProperties) *api.DNSProfile { return &oldObj.DNS }
-	toNetwork            = func(oldObj *api.HCPOpenShiftClusterProperties) *api.NetworkProfile { return &oldObj.Network }
-	toConsole            = func(oldObj *api.HCPOpenShiftClusterProperties) *api.ConsoleProfile { return &oldObj.Console }
-	toAPI                = func(oldObj *api.HCPOpenShiftClusterProperties) *api.APIProfile { return &oldObj.API }
-	toPlatform           = func(oldObj *api.HCPOpenShiftClusterProperties) *api.PlatformProfile { return &oldObj.Platform }
-	toClusterAutoscaling = func(oldObj *api.HCPOpenShiftClusterProperties) *api.ClusterAutoscalingProfile {
+	toVersion            = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.VersionProfile { return &oldObj.Version }
+	toCustomerDNS        = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
+	toNetwork            = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
+	toCustomerAPI        = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerPlatform   = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerPlatformProfile { return &oldObj.Platform }
+	toClusterAutoscaling = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.ClusterAutoscalingProfile {
 		return &oldObj.Autoscaling
 	}
-	toNodeDrainTimeoutMinutes = func(oldObj *api.HCPOpenShiftClusterProperties) *int32 { return &oldObj.NodeDrainTimeoutMinutes }
-	toEtcd                    = func(oldObj *api.HCPOpenShiftClusterProperties) *api.EtcdProfile { return &oldObj.Etcd }
-	toClusterImageRegistry    = func(oldObj *api.HCPOpenShiftClusterProperties) *api.ClusterImageRegistryProfile {
+	toNodeDrainTimeoutMinutes = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *int32 { return &oldObj.NodeDrainTimeoutMinutes }
+	toEtcd                    = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.EtcdProfile { return &oldObj.Etcd }
+	toClusterImageRegistry    = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.ClusterImageRegistryProfile {
 		return &oldObj.ClusterImageRegistry
 	}
 )
 
-func validateClusterProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterProperties) field.ErrorList {
+func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
-
-	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toClusterPropertiesProvisioningState))...)
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
 	errs = append(errs, validateVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toVersion))...)
 
-	// DNS                     DNSProfile                  `json:"dns,omitempty"`
-	errs = append(errs, validateDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toDNS))...)
+	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
+	errs = append(errs, validateCustomerDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toCustomerDNS))...)
 
 	// Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("network"), &newObj.Network, safe.Field(oldObj, toNetwork))...)
 	errs = append(errs, validateNetworkProfile(ctx, op, fldPath.Child("network"), &newObj.Network, safe.Field(oldObj, toNetwork))...)
 
-	// Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toConsole))...)
-	errs = append(errs, validateConsoleProfile(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toConsole))...)
+	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
+	errs = append(errs, validateCustomerAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toCustomerAPI))...)
 
-	// API                     APIProfile                  `json:"api,omitempty"`
-	errs = append(errs, validateAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toAPI))...)
-
-	// Platform                PlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
-	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toPlatform))...)
-	errs = append(errs, validatePlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toPlatform))...)
+	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
+	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
 	errs = append(errs, validateClusterAutoscalingProfile(ctx, op, fldPath.Child("autoscaling"), &newObj.Autoscaling, safe.Field(oldObj, toClusterAutoscaling))...)
@@ -283,6 +276,39 @@ func validateClusterProperties(ctx context.Context, op operation.Operation, fldP
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
 	errs = append(errs, validateClusterImageRegistryProfile(ctx, op, fldPath.Child("clusterImageRegistry"), &newObj.ClusterImageRegistry, safe.Field(oldObj, toClusterImageRegistry))...)
+
+	return errs
+}
+
+var (
+	toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *arm.ProvisioningState {
+		return &oldObj.ProvisioningState
+	}
+	toServiceProviderDNS      = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderDNSProfile { return &oldObj.DNS }
+	toServiceProviderConsole  = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderConsoleProfile { return &oldObj.Console }
+	toServiceProviderAPI      = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderAPIProfile { return &oldObj.API }
+	toServiceProviderPlatform = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderPlatformProfile { return &oldObj.Platform }
+)
+
+func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+
+	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
+	errs = append(errs, validateServiceProviderDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toServiceProviderDNS))...)
+
+	// Console                 ServiceProviderConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toServiceProviderConsole))...)
+	errs = append(errs, validateServiceProviderConsoleProfile(ctx, op, fldPath.Child("console"), &newObj.Console, safe.Field(oldObj, toServiceProviderConsole))...)
+
+	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
+	errs = append(errs, validateServiceProviderAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toServiceProviderAPI))...)
+
+	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
+	errs = append(errs, validateServiceProviderPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toServiceProviderPlatform))...)
 
 	return errs
 }
@@ -313,21 +339,31 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 }
 
 var (
-	toDNSBaseDomain       = func(oldObj *api.DNSProfile) *string { return &oldObj.BaseDomain }
-	toDNSBaseDomainPrefix = func(oldObj *api.DNSProfile) *string { return &oldObj.BaseDomainPrefix }
+	toDNSBaseDomainPrefix = func(oldObj *api.CustomerDNSProfile) *string { return &oldObj.BaseDomainPrefix }
 )
 
-// DNS                     DNSProfile                  `json:"dns,omitempty"`
-func validateDNSProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.DNSProfile) field.ErrorList {
+// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
+func validateCustomerDNSProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerDNSProfile) field.ErrorList {
 	errs := field.ErrorList{}
-
-	// BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("baseDomain"), &newObj.BaseDomain, safe.Field(oldObj, toDNSBaseDomain))...)
 
 	// BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label,max=15"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, safe.Field(oldObj, toDNSBaseDomainPrefix))...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, nil, 15)...)
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("baseDomainPrefix"), &newObj.BaseDomainPrefix, nil, rfc1035LabelRegex, rfc1035ErrorString)...)
+
+	return errs
+}
+
+var (
+	toDNSBaseDomain = func(oldObj *api.ServiceProviderDNSProfile) *string { return &oldObj.BaseDomain }
+)
+
+// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
+func validateServiceProviderDNSProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ServiceProviderDNSProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// BaseDomain       string `json:"baseDomain,omitempty"       visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("baseDomain"), &newObj.BaseDomain, safe.Field(oldObj, toDNSBaseDomain))...)
 
 	return errs
 }
@@ -391,11 +427,11 @@ func validateNetworkProfile(ctx context.Context, op operation.Operation, fldPath
 }
 
 var (
-	toConsoleURL = func(oldObj *api.ConsoleProfile) *string { return &oldObj.URL }
+	toConsoleURL = func(oldObj *api.ServiceProviderConsoleProfile) *string { return &oldObj.URL }
 )
 
-// Console                 ConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
-func validateConsoleProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ConsoleProfile) field.ErrorList {
+// Console                 ServiceProviderConsoleProfile              `json:"console,omitempty"                 visibility:"read"`
+func validateServiceProviderConsoleProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ServiceProviderConsoleProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// URL string `json:"url,omitempty"`
@@ -405,16 +441,12 @@ func validateConsoleProfile(ctx context.Context, op operation.Operation, fldPath
 }
 
 var (
-	toAPIURL             = func(oldObj *api.APIProfile) *string { return &oldObj.URL }
-	toAPIVisibility      = func(oldObj *api.APIProfile) *api.Visibility { return &oldObj.Visibility }
-	toAPIAuthorizedCIDRs = func(oldObj *api.APIProfile) []string { return oldObj.AuthorizedCIDRs }
+	toAPIVisibility      = func(oldObj *api.CustomerAPIProfile) *api.Visibility { return &oldObj.Visibility }
+	toAPIAuthorizedCIDRs = func(oldObj *api.CustomerAPIProfile) []string { return oldObj.AuthorizedCIDRs }
 )
 
-func validateAPIProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.APIProfile) field.ErrorList {
+func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerAPIProfile) field.ErrorList {
 	errs := field.ErrorList{}
-
-	// URL             string     `json:"url,omitempty"             visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toAPIURL))...)
 
 	// Visibility      Visibility `json:"visibility,omitempty"      visibility:"read create"        validate:"enum_visibility"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("visiblity"), &newObj.Visibility, safe.Field(oldObj, toAPIVisibility))...)
@@ -448,18 +480,30 @@ func validateAPIProfile(ctx context.Context, op operation.Operation, fldPath *fi
 }
 
 var (
-	toPlatformManagedResourceGroup    = func(oldObj *api.PlatformProfile) *string { return &oldObj.ManagedResourceGroup }
-	toPlatformSubnetID                = func(oldObj *api.PlatformProfile) *string { return &oldObj.SubnetID }
-	toPlatformOutboundType            = func(oldObj *api.PlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
-	toPlatformNetworkSecurityGroupID  = func(oldObj *api.PlatformProfile) *string { return &oldObj.NetworkSecurityGroupID }
-	toPlatformOperatorsAuthentication = func(oldObj *api.PlatformProfile) *api.OperatorsAuthenticationProfile {
-		return &oldObj.OperatorsAuthentication
-	}
-	toPlatformIssuerURL = func(oldObj *api.PlatformProfile) *string { return &oldObj.IssuerURL }
+	toAPIURL = func(oldObj *api.ServiceProviderAPIProfile) *string { return &oldObj.URL }
 )
 
-// Platform                PlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
-func validatePlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.PlatformProfile) field.ErrorList {
+func validateServiceProviderAPIProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ServiceProviderAPIProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// URL             string     `json:"url,omitempty"             visibility:"read"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toAPIURL))...)
+
+	return errs
+}
+
+var (
+	toPlatformManagedResourceGroup    = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.ManagedResourceGroup }
+	toPlatformSubnetID                = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.SubnetID }
+	toPlatformOutboundType            = func(oldObj *api.CustomerPlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
+	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *string { return &oldObj.NetworkSecurityGroupID }
+	toPlatformOperatorsAuthentication = func(oldObj *api.CustomerPlatformProfile) *api.OperatorsAuthenticationProfile {
+		return &oldObj.OperatorsAuthentication
+	}
+)
+
+// Platform                CustomerPlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerPlatformProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
@@ -483,8 +527,19 @@ func validatePlatformProfile(ctx context.Context, op operation.Operation, fldPat
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
+	return errs
+}
+
+var (
+	toServiceProviderPlatformProfileIssuerURL = func(oldObj *api.ServiceProviderPlatformProfile) *string { return &oldObj.IssuerURL }
+)
+
+// Platform                CustomerPlatformProfile             `json:"platform,omitempty"                visibility:"read create"`
+func validateServiceProviderPlatformProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ServiceProviderPlatformProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
 	//IssuerURL               string                         `json:"issuerUrl,omitempty"               visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("issuerUrl"), &newObj.IssuerURL, safe.Field(oldObj, toPlatformIssuerURL))...)
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("issuerUrl"), &newObj.IssuerURL, safe.Field(oldObj, toServiceProviderPlatformProfileIssuerURL))...)
 
 	return errs
 }
