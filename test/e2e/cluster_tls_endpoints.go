@@ -118,22 +118,6 @@ var _ = Describe("Customer", func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("creating the node pool")
-		_, err = framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-			*resourceGroup.Name,
-			"node-pool",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-			map[string]interface{}{
-				"openshiftVersionId": openshiftNodeVersionId,
-				"clusterName":        customerClusterName,
-				"nodePoolName":       customerNodePoolName,
-				"replicas":           2,
-			},
-			45*time.Minute,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
 		By("ensuring the API TLS certificate issued is not an OpenShift root CA")
 		clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
 		Expect(err).NotTo(HaveOccurred())
@@ -151,6 +135,22 @@ var _ = Describe("Customer", func() {
 			HaveField("CommonName", "root-ca"),
 			HaveField("OrganizationalUnit", ContainElements("openshift")),
 		), "expected certificate not issued by an OpenShift root CA")
+
+		By("creating the node pool")
+		_, err = framework.CreateBicepTemplateAndWait(ctx,
+			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			*resourceGroup.Name,
+			"node-pool",
+			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+			map[string]interface{}{
+				"openshiftVersionId": openshiftNodeVersionId,
+				"clusterName":        customerClusterName,
+				"nodePoolName":       customerNodePoolName,
+				"replicas":           2,
+			},
+			45*time.Minute,
+		)
+		Expect(err).NotTo(HaveOccurred())
 
 		By("ensuring the ingress TLS certificate issued by an OpenShift root CA")
 		hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
