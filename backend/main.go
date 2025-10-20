@@ -49,8 +49,11 @@ import (
 
 	ocmsdk "github.com/openshift-online/ocm-sdk-go"
 
+	"github.com/Azure/ARO-HCP/backend/controllers"
+	"github.com/Azure/ARO-HCP/frontend/pkg/util"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
@@ -204,6 +207,15 @@ func Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create OCM connection: %w", err)
 	}
 
+	csClient := ocm.NewClusterServiceClientWithTracing(
+		ocm.NewClusterServiceClient(
+			ocmConnection,
+			"",
+			false,
+			false),
+		util.TracerName,
+	)
+
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
@@ -272,8 +284,9 @@ func Run(cmd *cobra.Command, args []string) error {
 
 	group.Go(func() error {
 		var (
-			startedLeading    atomic.Bool
-			operationsScanner = NewOperationsScanner(dbClient, ocmConnection)
+			startedLeading         atomic.Bool
+			operationsScanner      = NewOperationsScanner(dbClient, ocmConnection)
+			customerSyncController = controllers.NewClusterServiceToCustomerSyncController(dbClient, csClient)
 		)
 
 		le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -286,6 +299,7 @@ func Run(cmd *cobra.Command, args []string) error {
 					operationsScanner.leaderGauge.Set(1)
 					startedLeading.Store(true)
 					go operationsScanner.Run(ctx, logger)
+					go customerSyncController.Run(ctx, 10)
 				},
 				OnStoppedLeading: func() {
 					operationsScanner.leaderGauge.Set(0)
