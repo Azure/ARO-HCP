@@ -931,6 +931,8 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
+          applicationName: "arohcp-ga-dev"
+          applicationOwnerId: "d8837611-f550-4f0a-af48-575a7178adfb" # aro-github-actions-identity
           keyVault:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:

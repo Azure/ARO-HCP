@@ -99,6 +99,14 @@ try
         $DeploymentScriptOutputs = @{}
         $DeploymentScriptOutputs['KeyVaultCertId'] = $out.Id
         $DeploymentScriptOutputs['Thumbprint'] = $out.Thumbprint
+        $thumbHex = $out.Certificate.Thumbprint -replace '[:\s]', ''
+        $thumbBytes = for ($i = 0; $i -lt $thumbHex.Length; $i += 2) {
+            [Convert]::ToByte($thumbHex.Substring($i, 2), 16)
+        }
+        $DeploymentScriptOutputs['KeyIdentifier'] = [Convert]::ToBase64String($thumbBytes)
+        $DeploymentScriptOutputs['PublicKey'] = [System.Convert]::ToBase64String($out.Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+        $DeploymentScriptOutputs['NotBefore'] = (Get-Date $out.Certificate.NotBefore.ToUniversalTime() -Format "yyyy-MM-ddTHH:mm:ssZ")
+        $DeploymentScriptOutputs['NotAfter']= (Get-Date $out.Certificate.NotAfter.ToUniversalTime()  -Format "yyyy-MM-ddTHH:mm:ssZ")
 
         if ($IssuerName -eq 'Self')
         {
@@ -106,6 +114,8 @@ try
             $pemCert = "-----BEGIN CERTIFICATE-----`n$base64Cert`n-----END CERTIFICATE-----"
             $DeploymentScriptOutputs['CACert'] = $pemCert
         }
+
+        # Add DER-encoded SubjectPublicKeyInfo (base64) to outputs as 'PublicKey'
     }
     else
     {

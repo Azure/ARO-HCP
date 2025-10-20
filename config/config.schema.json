@@ -1386,7 +1386,9 @@
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
-            "genevaActionsPrincipalId"
+            "genevaActionsPrincipalId",
+            "applicationName",
+            "applicationOwnerId"
           ],
           "properties": {
             "serviceTag": {
@@ -1423,6 +1425,12 @@
             },
             "enabled": {
               "type": "boolean"
+            },
+            "applicationName": {
+              "type": "string"
+            },
+            "applicationOwnerId": {
+              "type": "string"
             }
           }
         }

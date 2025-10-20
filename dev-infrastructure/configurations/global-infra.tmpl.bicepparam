@@ -48,6 +48,3 @@ param genevaKeyVaultTagValue = '{{ .geneva.actions.keyVault.tagValue }}'
 
 param allowedAcisExtensions = '{{ .geneva.actions.allowedAcisExtensions }}'
 param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}'
-param genevaActionApplicationName = '{{ .geneva.actions.applicationName }}'
-param genevaActionApplicationCertificateSubjectName = '{{ .geneva.actions.certificate.name }}.{{ .dns.globalCertificatesDomain }}'
-param genevaActionApplicationOwnerId = '{{ .geneva.actions.applicationOwnerId }}'
