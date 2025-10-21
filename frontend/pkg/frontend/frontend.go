@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 
@@ -173,18 +172,12 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
 }
 
-func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+func dbListOptionsFromRequest(request *http.Request) *database.DBClientListResourceDocsOptions {
+	// FIXME We may want to cap pageSizeHint. If we get a large enough
+	//       $top argument (and there's enough actual clusters to reach
+	//       that), we could potentially hit the 8MB response size limit.
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	options := database.DBClientListResourceDocsOptions{
+	options := &database.DBClientListResourceDocsOptions{
 		PageSizeHint: api.Ptr(int32(20)),
 	}
 
@@ -199,179 +192,69 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			options.PageSizeHint = api.Ptr(int32(top))
 		}
 	}
+	return options
+}
 
-	// FIXME We may want to cap pageSizeHint. If we get a large enough
-	//       $top argument (and there's enough actual clusters to reach
-	//       that), we could potentially hit the 8MB response size limit.
+func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-	resourceTypeName := path.Base(request.URL.Path)
-	location := request.PathValue(PathSegmentLocation)
-
-	var resourceTypeUsesDatabase bool
-	var clusterInternalID ocm.InternalID
-	var query string
-
-	// Map of resource documents by Cluster Service item ID.
-	documentMap := make(map[string]*database.ResourceDocument)
 
 	pagedResponse := arm.NewPagedResponse()
 
-	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		options.ResourceType = &api.ClusterResourceType
-		resourceTypeUsesDatabase = true
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		options.ResourceType = &api.NodePoolResourceType
-		resourceTypeUsesDatabase = true
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		options.ResourceType = &api.ExternalAuthResourceType
-		resourceTypeUsesDatabase = true
+	// Even though the bulk of the list content comes from Cluster Service,
+	// we start by querying Cosmos DB because its continuation token meets
+	// the requirements of a skipToken for ARM pagination. We then query
+	// Cluster Service for the exact set of IDs returned by Cosmos.
+
+	// MiddlewareReferer ensures Referer is present.
+
+	internalClusterIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
+	for _, internalCluster := range internalClusterIterator.Items(ctx) {
+		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.String()] = internalCluster
+	}
+	err = internalClusterIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	err = pagedResponse.SetNextLink(request.Referer(), internalClusterIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
-	if resourceTypeUsesDatabase {
-		var needClusterInternalID bool
-
-		// Even though the bulk of the list content comes from Cluster Service,
-		// we start by querying Cosmos DB because its continuation token meets
-		// the requirements of a skipToken for ARM pagination. We then query
-		// Cluster Service for the exact set of IDs returned by Cosmos.
-
-		prefixParts := []string{"/subscriptions", subscriptionID}
-		if resourceGroupName != "" {
-			prefixParts = append(prefixParts, "resourceGroups", resourceGroupName)
-		}
-		if resourceName != "" {
-			// This is a nested resource request. Build a resource ID for
-			// the parent cluster. We use this below to get the cluster's
-			// ResourceDocument from Cosmos DB.
-			prefixParts = append(prefixParts, "providers", api.ProviderNamespace, api.ClusterResourceTypeName, resourceName)
-			needClusterInternalID = true
-		}
-		prefix, err := azcorearm.ParseResourceID(path.Join(prefixParts...))
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		dbIterator := f.dbClient.ListResourceDocs(prefix, &options)
-
-		for _, resourceDoc := range dbIterator.Items(ctx) {
-			documentMap[resourceDoc.InternalID.ID()] = resourceDoc
-		}
-
-		err = dbIterator.GetError()
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		// MiddlewareReferer ensures Referer is present.
-		err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		// Build a Cluster Service query that looks for
-		// the specific IDs returned by the Cosmos query.
-		queryIDs := make([]string, 0, len(documentMap))
-		for key := range documentMap {
-			queryIDs = append(queryIDs, "'"+key+"'")
-		}
-		query = fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-		logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
-
-		if needClusterInternalID {
-			_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, prefix)
-			if err != nil {
-				logger.Error(err.Error())
-				if database.IsResponseError(err, http.StatusNotFound) {
-					arm.WriteResourceNotFoundError(writer, prefix)
-				} else {
-					arm.WriteInternalServerError(writer)
-				}
-				return
-			}
-			clusterInternalID = resourceDoc.InternalID
-		}
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(clustersByClusterServiceID))
+	for key := range clustersByClusterServiceID {
+		queryIDs = append(queryIDs, "'"+key+"'")
 	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
 
-	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		csIterator := f.clusterServiceClient.ListClusters(query)
+	csIterator := f.clusterServiceClient.ListClusters(query)
 
-		for csCluster := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csCluster.ID()]; ok {
-				internalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](doc)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-
-				value, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		csIterator := f.clusterServiceClient.ListNodePools(clusterInternalID, query)
-
-		for csNodePool := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csNodePool.ID()]; ok {
-				value, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		csIterator := f.clusterServiceClient.ListExternalAuths(clusterInternalID, query)
-
-		for csExternalAuth := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csExternalAuth.ID()]; ok {
-				value, err := marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.VersionResourceTypeName):
-		csIterator := f.clusterServiceClient.ListVersions()
-
-		for csVersion := range csIterator.Items(ctx) {
-			versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
-			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
-				"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
-			resourceID, err := azcorearm.ParseResourceID(stringResource)
-			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
+	for csCluster := range csIterator.Items(ctx) {
+		if internalCluster, ok := clustersByClusterServiceID[csCluster.HREF()]; ok {
+			value, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -379,11 +262,224 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			}
 			pagedResponse.AddValue(value)
 		}
-		err = csIterator.GetError()
-
-	default:
-		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
 	}
+	err = csIterator.GetError()
+
+	// Check for iteration error.
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+
+	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pagedResponse := arm.NewPagedResponse()
+
+	nodePoolsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterNodePool)
+	internalNodePoolIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(resourceName).List(ctx, dbListOptionsFromRequest(request))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	for _, nodePool := range internalNodePoolIterator.Items(ctx) {
+		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.String()] = nodePool
+	}
+	err = internalNodePoolIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), internalNodePoolIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(nodePoolsByClusterServiceID))
+	for key := range nodePoolsByClusterServiceID {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
+	for csNodePool := range csIterator.Items(ctx) {
+		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.HREF()]; ok {
+			value, err := marshalCSNodePool(csNodePool, internalNodePool, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+
+	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pagedResponse := arm.NewPagedResponse()
+
+	externalAuthsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterExternalAuth)
+	internalExternalAuthIteraotr, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	for _, externalAuth := range internalExternalAuthIteraotr.Items(ctx) {
+		externalAuthsByClusterServiceID[externalAuth.ServiceProviderProperties.ClusterServiceID.String()] = externalAuth
+	}
+	err = internalExternalAuthIteraotr.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), internalExternalAuthIteraotr.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(externalAuthsByClusterServiceID))
+	for key := range externalAuthsByClusterServiceID {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	csIterator := f.clusterServiceClient.ListExternalAuths(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
+	for csExternalAuth := range csIterator.Items(ctx) {
+		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.HREF()]; ok {
+			value, err := marshalCSExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	location := request.PathValue(PathSegmentLocation)
+
+	pagedResponse := arm.NewPagedResponse()
+
+	csIterator := f.clusterServiceClient.ListVersions()
+	for csVersion := range csIterator.Items(ctx) {
+		versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
+		stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+			"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
+		resourceID, err := azcorearm.ParseResourceID(stringResource)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		pagedResponse.AddValue(value)
+	}
+	err = csIterator.GetError()
 
 	// Check for iteration error.
 	if err != nil {

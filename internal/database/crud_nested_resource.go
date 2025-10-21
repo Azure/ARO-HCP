@@ -81,7 +81,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 	for _, currIntermediateResource := range d.intermediateResources {
 		parts = append(parts, currIntermediateResource.resourceType.Type, currIntermediateResource.resourceID)
 	}
-	parts = append(parts, d.resourceType.Type)
+	parts = append(parts, d.resourceType.Types[len(d.resourceType.Types)-1])
 
 	if len(resourceID) > 0 {
 		parts = append(parts, resourceID)
