@@ -50,7 +50,7 @@ var _ = Describe("Customer", func() {
 		tc := framework.NewTestContext()
 
 		By("creating a resource group")
-		resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", "uksouth")
+		resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
 		Expect(err).NotTo(HaveOccurred())
 
 		By("creating a customer-infra")
@@ -131,10 +131,10 @@ var _ = Describe("Customer", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICert.Issuer)
-		Expect(actualAPICert.Issuer).NotTo(SatisfyAll(
-			HaveField("CommonName", "root-ca"),
-			HaveField("OrganizationalUnit", ContainElements("openshift")),
-		), "expected certificate not issued by an OpenShift root CA")
+		Expect(actualAPICert.Issuer).To(SatisfyAll(
+			HaveField("CommonName", ContainElements("Microsoft Azure RSA TLS Issuing CA")),
+			HaveField("Organization", ContainElements("Microsoft Corporation")),
+		), "expect certificate to be issued by Microsoft")
 
 		By("creating the node pool")
 		_, err = framework.CreateBicepTemplateAndWait(ctx,
@@ -168,17 +168,22 @@ var _ = Describe("Customer", func() {
 		}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
 
 		By("examining the server certificate returned by the default ingress when routing the console URL")
-		// Wait for the certificate to be loaded after concole starts
-		time.Sleep(2 * time.Minute)
+		// Wait for the certificate to be loaded after console starts
 		sslPort := 443
 		consoleUrlWithPort := fmt.Sprintf("%s:%s", consoleURL, strconv.Itoa(sslPort))
-		actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
-		Expect(err).To(BeNil())
-		fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualCert.Issuer)
-		Expect(actualCert.Issuer).NotTo(SatisfyAll(
-			HaveField("CommonName", "root-ca"),
-			HaveField("OrganizationalUnit", ContainElements("openshift")),
-		), "expected certificate not issued by an OpenShift root CA")
+
+		Eventually(func() (*x509.Certificate, error) {
+			actualCert, err := tlsCertFromURL(ctx, consoleUrlWithPort)
+			if err != nil {
+				fmt.Fprintf(GinkgoWriter, "error fetching cert: %v\n", err)
+				return nil, err
+			}
+			fmt.Fprintf(GinkgoWriter, "Issuer OU: %v", actualCert.Issuer.OrganizationalUnit)
+			return actualCert, nil
+		}).WithTimeout(2*time.Minute).WithPolling(10*time.Second).To(SatisfyAll(
+			HaveField("CommonName", ContainElements("Microsoft Azure RSA TLS Issuing CA")),
+			HaveField("Organization", ContainElements("Microsoft Corporation")),
+		), "expect certificate to be issued by Microsoft")
 	})
 })
 
