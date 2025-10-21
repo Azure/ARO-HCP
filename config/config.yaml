@@ -969,10 +969,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-          clustersService:
-            image:
-              digest: sha256:733863739632e9f5722ea9e18067ee61d572895c1c99aade8d74226dcc487a42
-              repository: app-sre/aro-hcp-clusters-service
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
