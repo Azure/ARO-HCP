@@ -308,7 +308,14 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 
 		for csCluster := range csIterator.Items(ctx) {
 			if doc, ok := documentMap[csCluster.ID()]; ok {
-				value, err := marshalCSCluster(csCluster, doc, versionedInterface)
+				internalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](doc)
+				if err != nil {
+					logger.Error(err.Error())
+					arm.WriteInternalServerError(writer)
+					return
+				}
+
+				value, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
 				if err != nil {
 					logger.Error(err.Error())
 					arm.WriteInternalServerError(writer)
@@ -448,7 +455,7 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
 	resourceName := request.PathValue(PathSegmentResourceName)
 
-	hcpCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if database.IsResponseError(err, http.StatusNotFound) {
 		logger.Error(err.Error())
 		arm.WriteResourceNotFoundError(writer, resourceID)
@@ -460,14 +467,14 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, hcpCluster.InternalID)
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.InternalID)
 	if err != nil {
 		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, hcpCluster.ResourceID, nil))
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
 		return
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, hcpCluster.GetResourceDocument(), versionedInterface)
+	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -698,8 +705,14 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingCosmosCluster, versionedInterface)
+	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -933,8 +946,14 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingCosmosCluster, versionedInterface)
+	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1533,26 +1552,31 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(doc.ResourceID, csCluster)
+func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) ([]byte, error) {
+	resourceID, err := azcorearm.ParseResourceID(internalCluster.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse resource ID: %w", err)
+	}
+
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 	if err != nil {
 		return nil, err
 	}
 
-	hcpCluster.SystemData = doc.SystemData
-	hcpCluster.Tags = maps.Clone(doc.Tags)
-	hcpCluster.Properties.ProvisioningState = doc.ProvisioningState
-	if hcpCluster.Identity == nil {
-		hcpCluster.Identity = &arm.ManagedServiceIdentity{}
+	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData
+	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
+	clusterServiceBasedInternalCluster.Properties.ProvisioningState = internalCluster.Properties.ProvisioningState
+	if clusterServiceBasedInternalCluster.Identity == nil {
+		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
 	}
 
-	if doc.Identity != nil {
-		hcpCluster.Identity.PrincipalID = doc.Identity.PrincipalID
-		hcpCluster.Identity.TenantID = doc.Identity.TenantID
-		hcpCluster.Identity.Type = doc.Identity.Type
+	if internalCluster.Identity != nil {
+		clusterServiceBasedInternalCluster.Identity.PrincipalID = internalCluster.Identity.PrincipalID
+		clusterServiceBasedInternalCluster.Identity.TenantID = internalCluster.Identity.TenantID
+		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
 	}
 
-	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(hcpCluster))
+	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster))
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
