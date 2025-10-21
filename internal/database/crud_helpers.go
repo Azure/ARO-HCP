@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, completeResourceID *azcorearm.ResourceID) (*T, error) {
+func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
 	var responseItem []byte
 
 	pk := NewPartitionKey(completeResourceID.SubscriptionID)
@@ -70,11 +70,10 @@ func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, 
 		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
 	}
 
-	var obj T
-	if err := json.Unmarshal(responseItem, &obj); err != nil {
+	var cosmosObj *CosmosAPIType
+	if err := json.Unmarshal(responseItem, cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
 	}
-	ret := &obj
 
 	// Replace the key field from Cosmos with the given resourceID,
 	// which typically comes from the URL. This helps preserve the
@@ -90,16 +89,21 @@ func get[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, 
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	retAsResourceProperties, ok := any(ret).(ResourceProperties)
+	retAsResourceProperties, ok := any(cosmosObj).(ResourceProperties)
 	if !ok {
-		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", ret)
+		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", cosmosObj)
 	}
 	retAsResourceProperties.GetResourceDocument().ResourceID = completeResourceID
 
-	return ret, nil
+	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](cosmosObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
+	}
+
+	return internalObj, nil
 }
 
-func list[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
+func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, prefix *azcorearm.ResourceID, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	pk := NewPartitionKey(prefix.SubscriptionID)
 
 	query := "SELECT * FROM c WHERE STARTSWITH(c.properties.resourceId, @prefix, true)"
@@ -135,8 +139,8 @@ func list[T any](ctx context.Context, containerClient *azcosmos.ContainerClient,
 	pager := containerClient.NewQueryItemsPager(query, pk, &queryOptions)
 
 	if ptr.Deref(options.PageSizeHint, -1) > 0 {
-		return newQueryResourcesSinglePageIterator[T](pager), nil
+		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
 	} else {
-		return newQueryResourcesIterator[T](pager), nil
+		return newQueryResourcesIterator[InternalAPIType, CosmosAPIType](pager), nil
 	}
 }

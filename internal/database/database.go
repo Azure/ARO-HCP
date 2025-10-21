@@ -682,7 +682,7 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
 	return &hcpClusterCRUD{
-		topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[HCPCluster](d.resources, api.ClusterResourceType, subscriptionID, resourceGroupName),
+		topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, api.ClusterResourceType, subscriptionID, resourceGroupName),
 	}
 }
 
