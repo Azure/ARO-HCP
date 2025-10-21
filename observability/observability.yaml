@@ -3,7 +3,7 @@ prometheusRules:
   - ../observability/alerts/prometheus-prometheusRule.yaml
   - ../frontend/alerts/mise-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
-  - ../observability/alerts/tested-rules
+  #- ../cluster-service/alerts/cluster-service-slo-rules.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
   - ../observability/alerts/arobit-prometheusRule.yaml
   untestedRules: []
