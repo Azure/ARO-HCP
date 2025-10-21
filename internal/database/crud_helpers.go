@@ -140,3 +140,34 @@ func list[T any](ctx context.Context, containerClient *azcosmos.ContainerClient,
 		return newQueryResourcesIterator[T](pager), nil
 	}
 }
+
+func replace[T any](ctx context.Context, containerClient *azcosmos.ContainerClient, desiredObj *T) (*T, error) {
+	desiredObjAsResourceProperties, ok := any(desiredObj).(ResourceProperties)
+	if !ok {
+		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", desiredObj)
+	}
+
+	desireObjJSON, err := json.Marshal(desiredObjAsResourceProperties)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal desiredObj for '%s': %w", desiredObjAsResourceProperties.GetTypedDocument().ID, err)
+	}
+
+	replaceOpts := &azcosmos.ItemOptions{}
+	replaceOpts.IfMatchEtag = &desiredObjAsResourceProperties.GetTypedDocument().CosmosETag
+	cosmosResponse, err := containerClient.ReplaceItem(ctx,
+		azcosmos.NewPartitionKeyString(desiredObjAsResourceProperties.GetTypedDocument().PartitionKey),
+		desiredObjAsResourceProperties.GetTypedDocument().ID,
+		desireObjJSON,
+		replaceOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to replace item for '%s': %w", desiredObjAsResourceProperties.GetTypedDocument().ID, err)
+	}
+
+	var obj T
+	if err := json.Unmarshal(cosmosResponse.Value, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal resultingObj for '%s', but it was updated: %w", desiredObjAsResourceProperties.GetTypedDocument().ID, err)
+	}
+	ret := &obj
+
+	return ret, nil
+}

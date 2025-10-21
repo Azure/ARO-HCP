@@ -26,6 +26,7 @@ import (
 type ResourceCRUD[T any] interface {
 	Get(ctx context.Context, resourceID string) (*T, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error)
+	Replace(ctx context.Context, cluster *T) (*T, error)
 }
 
 type topLevelCosmosResourceCRUD[T any] struct {
@@ -95,4 +96,8 @@ func (d *topLevelCosmosResourceCRUD[T]) List(ctx context.Context, options *DBCli
 	}
 
 	return list[T](ctx, d.containerClient, d.resourceType, prefix, options)
+}
+
+func (d *topLevelCosmosResourceCRUD[T]) Replace(ctx context.Context, desiredObj *T) (*T, error) {
+	return replace[T](ctx, d.containerClient, desiredObj)
 }
