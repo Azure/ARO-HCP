@@ -184,6 +184,8 @@ clouds:
           clustersService:
             image:
               digest: sha256:b670b0501d93a7180e6c6fe500ca68e0d13c53211e9f3e03bfc251a82c571459
+            batchProcessesDryRun: true
+            batchProcesses: "ARO-20736"
           # ACR Pull
           acrPull:
             image:
