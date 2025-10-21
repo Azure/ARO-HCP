@@ -1344,7 +1344,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterUpdate(ctx, tt.newCluster, tt.oldCluster)
+			errs := ValidateClusterUpdate(ctx, tt.newCluster, tt.oldCluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
