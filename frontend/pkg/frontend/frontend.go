@@ -632,54 +632,59 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
 		return
 	}
-
-	newCosmosCluster := database.NewResourceDocument(resourceID)
-	newCosmosCluster.InternalID, err = ocm.NewInternalID(resultingClusterServiceCluster.HREF())
+	clusterServiceInternalID, err := ocm.NewInternalID(resultingClusterServiceCluster.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
+	//newCosmosCluster := database.NewResourceDocument(resourceID)
+	newCosmosCluster := &database.HCPCluster{
+		HCPClusterProperties: database.HCPClusterProperties{
+			ResourceDocument: database.ResourceDocument{
+				ResourceID: resourceID,
+				InternalID: clusterServiceInternalID,
+				// Record the latest system data values from ARM.
+				SystemData: systemData,
+				// Record managed identity type an any system-assigned identifiers.
+				// Omit the user-assigned identities map since that is reconstructed
+				// from Cluster Service data.
+				Identity: &arm.ManagedServiceIdentity{
+					PrincipalID:            newInternalCluster.Identity.PrincipalID,
+					TenantID:               newInternalCluster.Identity.TenantID,
+					Type:                   newInternalCluster.Identity.Type,
+					UserAssignedIdentities: nil,
+				},
+				Tags: newInternalCluster.Tags,
+			},
+			CustomerDesiredState: database.CustomerDesiredHCPClusterState{
+				HCPOpenShiftCluster: newInternalCluster.Properties,
+			},
+			ServiceProviderState: database.ServiceProviderHCPClusterState{
+				HCPOpenShiftCluster: newInternalCluster.Properties,
+			},
+		},
+	}
+
+	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(resourceID.SubscriptionID))
 
 	operationDoc := database.NewOperationDocument(operationRequest, newCosmosCluster.ResourceID, newCosmosCluster.InternalID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
-	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
+	resourceItemID, err := transaction.CreateSubscriptionBoundItem(newCosmosCluster, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
+	// these are not known until the operation is created, so they are part of the transaction.
 	var patchOperations database.ResourceDocumentPatchOperations
-
 	patchOperations.SetActiveOperationID(&operationID)
 	patchOperations.SetProvisioningState(operationDoc.Status)
-
-	// TODO some of this becomes extraneous once we build the cosmosCluster from the internalCluster
-	// Record the latest system data values form ARM, if present.
-	if systemData != nil {
-		patchOperations.SetSystemData(systemData)
-	}
-
-	// Record managed identity type an any system-assigned identifiers.
-	// Omit the user-assigned identities map since that is reconstructed
-	// from Cluster Service data.
-	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
-		PrincipalID: newInternalCluster.Identity.PrincipalID,
-		TenantID:    newInternalCluster.Identity.TenantID,
-		Type:        newInternalCluster.Identity.Type,
-	})
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags != nil {
-		patchOperations.SetTags(newInternalCluster.Tags)
-	}
-
 	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{

@@ -10,8 +10,11 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/google/uuid"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
@@ -26,6 +29,10 @@ type DBTransaction interface {
 
 	// DeleteDoc adds a delete request to the transaction.
 	DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions)
+
+	// CreateSubscriptionBoundItem adds a create request to the transaction and returns the tentative item ID.
+	// It takes a fully formed object to store rather than a partial one like CreateResourceDoc
+	CreateSubscriptionBoundItem(obj ResourceProperties, o *azcosmos.TransactionalBatchItemOptions) (string, error)
 
 	// CreateResourceDoc adds a create request to the transaction
 	// and returns the tentative item ID.
@@ -73,12 +80,16 @@ var ErrWrongPartition = errors.New("wrong partition key for transaction")
 
 var _ DBTransaction = &cosmosDBTransaction{}
 
-type cosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
+type CosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
+
+type CosmosTransactionBuilder interface {
+	AddStep(step CosmosDBTransactionStep)
+}
 
 type cosmosDBTransaction struct {
 	pk        azcosmos.PartitionKey
 	client    *azcosmos.ContainerClient
-	steps     []cosmosDBTransactionStep
+	steps     []CosmosDBTransactionStep
 	onSuccess []DBTransactionCallback
 }
 
@@ -102,6 +113,57 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 		b.DeleteItem(itemID, o)
 		return itemID, nil
 	})
+}
+
+func (t *cosmosDBTransaction) CreateSubscriptionBoundItem(objAsResourceProperties ResourceProperties, o *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	// this section of logic ensures that the stored data matches the past behavior of the transaction layer on create.
+	// most fields must be empty, some fields must have matching values.
+
+	// initial validation
+	if len(objAsResourceProperties.GetTypedDocument().ID) != 0 {
+		return "", fmt.Errorf("obj cannot have an ID set")
+	}
+	if !equality.Semantic.DeepEqual(objAsResourceProperties.GetTypedDocument().BaseDocument, BaseDocument{}) {
+		return "", fmt.Errorf("obj must start with empty TypedDocument")
+	}
+	if len(strings.TrimSpace(objAsResourceProperties.GetResourceDocument().ResourceID.SubscriptionID)) == 0 {
+		return "", fmt.Errorf("obj must have a SubscriptionID set")
+	}
+	if len(strings.TrimSpace(objAsResourceProperties.GetResourceDocument().ResourceID.ResourceType.String())) == 0 {
+		return "", fmt.Errorf("obj must have a ResourceType set")
+	}
+
+	// field defaulting
+	objAsResourceProperties.GetTypedDocument().ID = uuid.New().String()
+	if len(objAsResourceProperties.GetTypedDocument().PartitionKey) == 0 {
+		objAsResourceProperties.GetTypedDocument().PartitionKey = strings.ToLower(objAsResourceProperties.GetResourceDocument().ResourceID.SubscriptionID)
+	}
+	if len(objAsResourceProperties.GetTypedDocument().ResourceType) == 0 {
+		objAsResourceProperties.GetTypedDocument().ResourceType = strings.ToLower(objAsResourceProperties.GetResourceDocument().ResourceID.ResourceType.String())
+	}
+
+	// secondary validation
+	if objAsResourceProperties.GetTypedDocument().PartitionKey != strings.ToLower(objAsResourceProperties.GetResourceDocument().ResourceID.SubscriptionID) {
+		return "", ErrWrongPartition
+	}
+	if objAsResourceProperties.GetTypedDocument().ResourceType != strings.ToLower(objAsResourceProperties.GetResourceDocument().ResourceID.ResourceType.String()) {
+		return "", fmt.Errorf("obj must have a ResourceType set to the ResourceType")
+	}
+	if !reflect.DeepEqual(t.pk, azcosmos.NewPartitionKeyString(objAsResourceProperties.GetTypedDocument().PartitionKey)) {
+		return "", ErrWrongPartition
+	}
+
+	data, err := json.Marshal(objAsResourceProperties)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", objAsResourceProperties.GetResourceDocument().ResourceID, err)
+	}
+
+	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
+		b.CreateItem(data, o)
+		return objAsResourceProperties.GetTypedDocument().ID, nil
+	})
+
+	return objAsResourceProperties.GetTypedDocument().ID, nil
 }
 
 func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
