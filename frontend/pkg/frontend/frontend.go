@@ -467,7 +467,13 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.InternalID)
+	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
@@ -647,6 +653,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	newInternalCluster.ServiceProviderProperties.ClusterServiceID = newCosmosCluster.InternalID.String()
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)

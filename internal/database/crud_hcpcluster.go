@@ -30,7 +30,7 @@ type hcpClusterCRUD struct {
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
 
 func (h *hcpClusterCRUD) ExternalAuth(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterExternalAuth] {
-	return newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth,](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ExternalAuthResourceType)
+	return newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ExternalAuthResourceType)
 }
 
 func (h *hcpClusterCRUD) NodePools(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterNodePool] {

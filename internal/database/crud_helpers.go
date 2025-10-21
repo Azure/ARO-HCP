@@ -70,10 +70,11 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
 	}
 
-	var cosmosObj *CosmosAPIType
-	if err := json.Unmarshal(responseItem, cosmosObj); err != nil {
+	var obj CosmosAPIType
+	if err := json.Unmarshal(responseItem, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal Resources container item for '%s': %w", completeResourceID, err)
 	}
+	cosmosObj := &obj
 
 	// Replace the key field from Cosmos with the given resourceID,
 	// which typically comes from the URL. This helps preserve the

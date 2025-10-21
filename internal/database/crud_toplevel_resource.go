@@ -19,9 +19,10 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type ResourceCRUD[InternalAPIType any] interface {

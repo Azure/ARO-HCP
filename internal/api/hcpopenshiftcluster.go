@@ -23,8 +23,10 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterProperties `json:"properties,omitempty" validate:"required"`
-	Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"   validate:"omitempty"`
+
+	Properties                HCPOpenShiftClusterProperties                `json:"properties,omitempty" validate:"required"`
+	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -40,6 +42,10 @@ type HCPOpenShiftClusterProperties struct {
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
+}
+
+type HCPOpenShiftClusterServiceProviderProperties struct {
+	ClusterServiceID string `json:"clusterServiceID,omitempty"                visibility:"read"`
 }
 
 // VersionProfile represents the cluster control plane version.

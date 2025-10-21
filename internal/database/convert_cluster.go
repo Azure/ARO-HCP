@@ -1,11 +1,27 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package database
 
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster, error) {
@@ -17,14 +33,18 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse resource ID '%s': %w", internalObj.ID, err)
 	}
+	clusterServiceID, err := ocm.NewInternalID(internalObj.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cluster service ID '%s': %w", internalObj.ServiceProviderProperties.ClusterServiceID, err)
+	}
 
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{},
 		HCPClusterProperties: HCPClusterProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: resourceID,
+				InternalID: clusterServiceID,
 				// TODO
-				//InternalID:        ocm.InternalID{},
 				//ActiveOperationID: "",
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
@@ -43,9 +63,16 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		Location: internalObj.Location, // this is the only TrackedResource value not present elsewhere in ResourceDcoument
 	}
 	cosmosObj.InternalState.InternalAPI.Identity = nil
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
+	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ""
+
+	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
+	// This flow will eventually be called when we replace the write path and we must always have a value.
+	if len(cosmosObj.InternalID.String()) == 0 {
+		panic("Developer Error: InternalID is required")
+	}
 
 	return cosmosObj, nil
 }
@@ -109,9 +136,16 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 		Tags:     cosmosObj.Tags,
 	}
 	internalObj.Identity = toInternalIdentity(cosmosObj.Identity)
-	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
+	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID.String()
+
+	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
+	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
+	if len(internalObj.ServiceProviderProperties.ClusterServiceID) == 0 {
+		panic("Developer Error: InternalID is required")
+	}
 
 	return internalObj, nil
 }
