@@ -33,6 +33,9 @@ type AzureResourceManagerCommonTypesManagedServiceIdentityUpdate struct {
 type ClusterAutoscalingProfile struct {
 	// maxNodeProvisionTimeSeconds is the maximum time to wait for node provisioning before considering the provisioning to be
 	// unsuccessful. The default is 900 seconds, or 15 minutes.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxNodeProvisionTimeSeconds *int32
 
 	// maxNodesTotal is the maximum allowable number of nodes for the Autoscaler scale out to be operational. The autoscaler will
@@ -42,11 +45,17 @@ type ClusterAutoscalingProfile struct {
 
 	// maxPodGracePeriod is the maximum seconds to wait for graceful pod termination before scaling down a NodePool. The default
 	// is 600 seconds.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	MaxPodGracePeriodSeconds *int32
 
 	// podPriorityThreshold enables users to schedule “best-effort” pods, which shouldn’t trigger autoscaler actions, but only
 	// run when there are spare resources available. The default is -10. See the
 	// following for more details: https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md#how-does-cluster-autoscaler-work-with-pod-priority-and-preemption
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	PodPriorityThreshold *int32
 }
 
@@ -701,6 +710,10 @@ type NodePoolUpdate struct {
 // NodePoolVersionProfile - Versions represents an OpenShift version.
 type NodePoolVersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
@@ -1042,6 +1055,10 @@ type UsernameClaimProfileUpdate struct {
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
 	// ID is the unique identifier of the version.
