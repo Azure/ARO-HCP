@@ -288,14 +288,20 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](resultingCosmosObj)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSExternalAuth(csExternalAuth, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSExternalAuth(csExternalAuth, internalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -309,14 +315,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, internalObj *api.HCPOpenShiftClusterExternalAuth, versionedInterface api.Version) ([]byte, error) {
+	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(internalObj.ID, csEternalAuth)
 	if err != nil {
 		return nil, err
 	}
 
-	hcpExternalAuth.SystemData = doc.SystemData
-	hcpExternalAuth.Properties.ProvisioningState = doc.ProvisioningState
+	hcpExternalAuth.SystemData = internalObj.SystemData
+	hcpExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
 
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth))
 }
