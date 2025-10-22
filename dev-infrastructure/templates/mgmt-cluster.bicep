@@ -382,6 +382,9 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     aksClusterName: aksClusterName
     prometheusPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus').uamiPrincipalID
   }
+  dependsOn: [
+    mgmtCluster
+  ]
 }
 
 //
