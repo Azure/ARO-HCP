@@ -51,7 +51,7 @@ type ClusterServiceClientSpec interface {
 	// ListClusters prepares a GET request with the given search expression. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
-	ListClusters(searchExpression string) *ClusterListIterator
+	ListClusters(searchExpression string) ClusterListIterator
 
 	// GetNodePool sends a GET request to fetch a node pool from Cluster Service.
 	GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error)
@@ -71,7 +71,7 @@ type ClusterServiceClientSpec interface {
 	// ListNodePools prepares a GET request with the given search expression. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
-	ListNodePools(clusterInternalID InternalID, searchExpression string) *NodePoolListIterator
+	ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator
 
 	// GetExternalAuth sends a GET request to fetch an external auth config from Cluster Service.
 	GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error)
@@ -88,7 +88,7 @@ type ClusterServiceClientSpec interface {
 	// ListExternalAuths prepares a GET request with the given search expression. Call Items() on
 	// the returned iterator in a for/range loop to execute the request and paginate over results,
 	// then call GetError() to check for an iteration error.
-	ListExternalAuths(clusterInternalID InternalID, searchExpression string) *ExternalAuthListIterator
+	ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator
 
 	// GetBreakGlassCredential sends a GET request to fetch a break-glass cluster credential from Cluster Service.
 	GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error)
@@ -246,12 +246,12 @@ func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID I
 	return err
 }
 
-func (csc *clusterServiceClient) ListClusters(searchExpression string) *ClusterListIterator {
+func (csc *clusterServiceClient) ListClusters(searchExpression string) ClusterListIterator {
 	clustersListRequest := csc.conn.AroHCP().V1alpha1().Clusters().List()
 	if searchExpression != "" {
 		clustersListRequest.Search(searchExpression)
 	}
-	return &ClusterListIterator{request: clustersListRequest}
+	return &clusterListIterator{request: clustersListRequest}
 }
 
 func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error) {
@@ -359,16 +359,16 @@ func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID 
 	return err
 }
 
-func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) *NodePoolListIterator {
+func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
 	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
-		return &NodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+		return &nodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}
 	nodePoolsListRequest := client.NodePools().List()
 	if searchExpression != "" {
 		nodePoolsListRequest.Search(searchExpression)
 	}
-	return &NodePoolListIterator{request: nodePoolsListRequest}
+	return &nodePoolListIterator{request: nodePoolsListRequest}
 }
 
 func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
@@ -437,10 +437,10 @@ func (csc *clusterServiceClient) DeleteExternalAuth(ctx context.Context, interna
 	return err
 }
 
-func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID, searchExpression string) *ExternalAuthListIterator {
+func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
 	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
-		return &ExternalAuthListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
+		return &externalAuthListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}
 	externalAuthsListRequest := client.ExternalAuthConfig().ExternalAuths().List()
 	// FIXME ExternalAuthsListRequest is missing a Search method.
@@ -450,7 +450,7 @@ func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID,
 	//if searchExpression != "" {
 	//	externalAuthsListRequest.Search(searchExpression)
 	//}
-	return &ExternalAuthListIterator{request: externalAuthsListRequest}
+	return &externalAuthListIterator{request: externalAuthsListRequest}
 }
 
 func (csc *clusterServiceClient) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error) {

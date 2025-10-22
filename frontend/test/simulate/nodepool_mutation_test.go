@@ -130,4 +130,21 @@ func (tt *nodePoolMutationTest) runTest(t *testing.T) {
 	actualCreated, err := nodePoolClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
 	require.NoError(t, err)
 	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
+
+	currNodePoolFromList := &hcpsdk20240610preview.NodePool{}
+	nodePoolPager := nodePoolClient.NewListByParentPager(tt.resourceGroupName, hcpClusterName, nil)
+	for nodePoolPager.More() {
+		page, err := nodePoolPager.NextPage(ctx)
+		require.NoError(t, err)
+		for _, nodePool := range page.Value {
+			t.Logf("Found cluster %q", ptr.Deref(nodePool.Name, ""))
+
+			if ptr.Deref(nodePool.ID, "sub.ID") == ptr.Deref(actualCreated.ID, "actualCreated.ID") {
+				obj := *nodePool
+				currNodePoolFromList = &obj
+			}
+		}
+	}
+	require.NotNil(t, currNodePoolFromList)
+	require.Equal(t, actualCreated.NodePool, *currNodePoolFromList)
 }
