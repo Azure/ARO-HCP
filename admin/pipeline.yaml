@@ -1,0 +1,72 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
+rolloutName: Admin API Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: adminApi.image.registry
+    repository:
+      configRef: adminApi.image.repository
+    digest:
+      configRef: adminApi.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: service
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../dev-infrastructure/modules/adminapi/adminapi-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/adminapi-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: 'admin-api'
+    releaseNamespace: '{{ .adminApi.k8s.namespace }}'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+      adminApiMsiClientId:
+        resourceGroup: service
+        step: output
+        name: adminApiMsiClientId
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

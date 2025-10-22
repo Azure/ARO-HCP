@@ -90,6 +90,10 @@ param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceA
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
+param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
+param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
+param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
+
 // ACR Resource IDs
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
