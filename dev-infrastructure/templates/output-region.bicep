@@ -7,12 +7,6 @@ param hcpAzureMonitorWorkspaceName string
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
 
-@description('Whether to use a databse in Azure')
-param useAzureDB bool
-
-@description('The name of the Postgres server')
-param postgresName string
-
 @description('Enable Log Analytics')
 param enableLogAnalytics bool
 
@@ -44,16 +38,6 @@ resource maestroEventGridNamespace 'Microsoft.EventGrid/namespaces@2024-06-01-pr
 
 output maestroEventGridNamespaceId string = maestroEventGridNamespace.id
 output maestroEventGridNamespacesHostname string = maestroEventGridNamespace.properties.topicSpacesConfiguration.hostname
-
-//
-//  P O S T G R E S
-//
-
-resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' existing = if (useAzureDB) {
-  name: postgresName
-}
-
-output databaseHost string = useAzureDB ? postgres.properties.fullyQualifiedDomainName : 'maestro-db'
 
 //
 //   L O G   A N A L Y T I C S
