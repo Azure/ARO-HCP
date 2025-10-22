@@ -15,58 +15,57 @@
 package mustgather
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"regexp"
 	"testing"
 
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/openshift/must-gather-clean/pkg/schema"
+
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/internal/testutil"
 )
 
-func createTempData(t *testing.T) string {
-	tempDir, err := os.MkdirTemp("", "must-gather-clean-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp directory: %v", err)
-	}
-	return tempDir
-}
-
 func TestWalkAndMatchRegexPatterns(t *testing.T) {
-	tempDir := createTempData(t)
-	defer os.RemoveAll(tempDir)
-
-	err := os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("123e4567-e89b-12d3-a456-426614174000"), 0644)
-	assert.NoError(t, err)
-
 	patterns := []*replacement{
 		{
 			Regex:              regexp.MustCompile("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"),
 			ReplacementPattern: "x-uid-%010d",
 		},
 	}
-	allMatches, err := walkAndMatchRegexPatterns(context.Background(), tempDir, patterns)
+
+	allMatches, err := walkAndMatchRegexPatterns(testr.New(t), "../../testdata/test-config", patterns)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(allMatches))
+	testutil.CompareWithFixture(t, allMatches, testutil.WithExtension(".txt"))
 }
 
-func TestGenerateMustGatherCleanConfig(t *testing.T) {
-	tempDir := createTempData(t)
-	defer os.RemoveAll(tempDir)
-
-	opts := &CleanOptions{
-		WorkingDir: tempDir,
-	}
+func TestDefaultGenerateMustGatherCleanConfig(t *testing.T) {
+	opts := &CleanOptions{}
 	opts.ValidatedCleanOptions = &ValidatedCleanOptions{
-		RawCleanOptions: &RawCleanOptions{
-			ServiceConfigPath: tempDir,
-		},
+		RawCleanOptions: &RawCleanOptions{},
 	}
-	generatedConfigPath, err := generateMustGatherCleanConfig(context.Background(), opts)
+	loadConfig, err := loadMustGatherCleanConfig(t.Context(), opts)
 	assert.NoError(t, err)
-	assert.NotEmpty(t, generatedConfigPath)
+	assert.NotNil(t, loadConfig)
+}
 
-	content, err := os.ReadFile(generatedConfigPath)
+func TestExtendConfigWithPatterns(t *testing.T) {
+	loadConfig := &schema.SchemaJson{}
+	allMatches := map[string]string{
+		"12345678-1234-1234-1234-123456789012": "x-uid-%010d",
+	}
+	err := extendConfigWithPatterns(loadConfig, allMatches)
 	assert.NoError(t, err)
-	assert.Equal(t, string(content), defaultConfig)
+	assert.NotNil(t, loadConfig)
+	assert.Equal(t, loadConfig.Config.Obfuscate, []schema.Obfuscate{
+		{
+			Type: schema.ObfuscateTypeExact,
+			ExactReplacements: []schema.ObfuscateExactReplacementsElem{
+				{
+					Original:    "12345678-1234-1234-1234-123456789012",
+					Replacement: "x-uid-%010d",
+				},
+			},
+		},
+	})
 }

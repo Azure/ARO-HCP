@@ -76,15 +76,37 @@ func newCleanCommand() (*cobra.Command, error) {
 func (opts *CleanOptions) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	generatedConfigPath, err := generateMustGatherCleanConfig(ctx, opts)
+	cleanConfig, err := loadMustGatherCleanConfig(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to generate must-gather-clean config: %w", err)
 	}
 
+	// find patterns
+	allMatches, err := walkAndMatchRegexPatterns(logger, opts.ServiceConfigPath, replacementPatterns)
+	if err != nil {
+		return fmt.Errorf("failed to walk and match regex patterns: %w", err)
+	}
+
+	err = extendConfigWithPatterns(cleanConfig, allMatches)
+	if err != nil {
+		return fmt.Errorf("failed to extend config with patterns: %w", err)
+	}
+
+	json, err := json.MarshalIndent(cleanConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal clean config: %w", err)
+	}
+	configFileName := filepath.Join(opts.WorkingDir, "must-gather-clean-config.json")
+	logger.V(4).Info("persisting config to file", "filename", configFileName)
+	err = os.WriteFile(configFileName, json, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write clean config to file: %w", err)
+	}
+
 	args := []string{
-		"-i", opts.PathToClean,
-		"-o", opts.CleanedOutputPath,
-		"-c", generatedConfigPath,
+		"--input", opts.PathToClean,
+		"--output", opts.CleanedOutputPath,
+		"--config", configFileName,
 	}
 
 	cmd := exec.Command(opts.MustGatherCleanBinary, args...)
@@ -97,39 +119,12 @@ func (opts *CleanOptions) Run(ctx context.Context) error {
 	return nil
 }
 
-func generateMustGatherCleanConfig(ctx context.Context, opts *CleanOptions) (string, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-
-	logger.V(4).Info("generating must-gather-clean config", "service-config-path", opts.ServiceConfigPath)
-
-	var cleanConfigBase *schema.SchemaJson
-	var err error
-	if opts.CleanConfigPath != "" {
-		cleanConfigBase, err = schema.ReadConfigFromPath(opts.CleanConfigPath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read clean config base: %w", err)
-		}
-	} else {
-		logger.Info("no clean config path provided, using default config")
-
-		err = os.WriteFile(filepath.Join(opts.WorkingDir, "default_config.json"), []byte(defaultConfig), 0644)
-		if err != nil {
-			return "", fmt.Errorf("failed to write default clean config: %w", err)
-		}
-
-		cleanConfigBase, err = schema.ReadConfigFromPath(filepath.Join(opts.WorkingDir, "default_config.json"))
-		if err != nil {
-			return "", fmt.Errorf("failed to read default clean config: %w", err)
-		}
+func extendConfigWithPatterns(config *schema.SchemaJson, allMatches map[string]string) error {
+	if config == nil {
+		return fmt.Errorf("config is nil")
 	}
-
-	allMatches, err := walkAndMatchRegexPatterns(ctx, opts.ServiceConfigPath, replacementPatterns)
-	if err != nil {
-		return "", fmt.Errorf("failed to walk and match regex patterns: %w", err)
-	}
-
 	for match, replacement := range allMatches {
-		cleanConfigBase.Config.Obfuscate = append(cleanConfigBase.Config.Obfuscate, schema.Obfuscate{
+		config.Config.Obfuscate = append(config.Config.Obfuscate, schema.Obfuscate{
 			Type: schema.ObfuscateTypeExact,
 			ExactReplacements: []schema.ObfuscateExactReplacementsElem{
 				{
@@ -139,23 +134,39 @@ func generateMustGatherCleanConfig(ctx context.Context, opts *CleanOptions) (str
 			},
 		})
 	}
-
-	json, err := json.MarshalIndent(cleanConfigBase, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal clean config base: %w", err)
-	}
-	filename := filepath.Join(opts.WorkingDir, "must-gather-clean-config.json")
-	logger.V(4).Info("persisting config to file", "filename", filename)
-	err = os.WriteFile(filename, json, 0644)
-	if err != nil {
-		return "", fmt.Errorf("failed to write clean config to file: %w", err)
-	}
-	return filename, nil
+	return nil
 }
 
-func walkAndMatchRegexPatterns(ctx context.Context, configPath string, patterns []*replacement) (map[string]string, error) {
+func loadMustGatherCleanConfig(ctx context.Context, opts *CleanOptions) (*schema.SchemaJson, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	logger.V(4).Info("generating must-gather-clean config", "service-config-path", opts.ServiceConfigPath)
+
+	var cleanConfigBase *schema.SchemaJson
+	var err error
+	if opts.CleanConfigPath != "" {
+		cleanConfigBase, err = schema.ReadConfigFromPath(opts.CleanConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read clean config base: %w", err)
+		}
+	} else {
+		logger.Info("no clean config path provided, using default config")
+
+		err = os.WriteFile(filepath.Join(opts.WorkingDir, "default_config.json"), []byte(defaultConfig), 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write default clean config: %w", err)
+		}
+
+		cleanConfigBase, err = schema.ReadConfigFromPath(filepath.Join(opts.WorkingDir, "default_config.json"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read default clean config: %w", err)
+		}
+	}
+
+	return cleanConfigBase, nil
+}
+
+func walkAndMatchRegexPatterns(logger logr.Logger, configPath string, patterns []*replacement) (map[string]string, error) {
 	matchedReplacements := make(map[string]string)
 
 	replacementIndex := 0

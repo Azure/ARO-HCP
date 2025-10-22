@@ -104,20 +104,11 @@ func (opts *RawCleanOptions) Validate(ctx context.Context) (*ValidatedCleanOptio
 	if opts.PathToClean == "" {
 		return nil, fmt.Errorf("path-to-clean is required")
 	}
-	if _, err := os.Stat(opts.PathToClean); os.IsNotExist(err) {
-		return nil, fmt.Errorf("path-to-clean does not exist")
-	}
 	if opts.ServiceConfigPath == "" {
 		return nil, fmt.Errorf("config-file-path is required")
 	}
-	if _, err := os.Stat(opts.ServiceConfigPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("config-file-path does not exist")
-	}
 	if opts.MustGatherCleanBinary == "" {
 		return nil, fmt.Errorf("must-gather-clean-binary is required")
-	}
-	if _, err := os.Stat(opts.MustGatherCleanBinary); os.IsNotExist(err) {
-		return nil, fmt.Errorf("must-gather-clean-binary does not exist")
 	}
 	if opts.CleanedOutputPath == "" {
 		return nil, fmt.Errorf("cleaned-output-path is required")
