@@ -75,7 +75,7 @@ var _ = Describe("Customer", func() {
 			nodePoolCount := 0
 			for clusterPager.More() {
 				nodePoolList, err := clusterPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				nodePoolCount += len(nodePoolList.Value)
 			}
 			Expect(nodePoolCount).To(Equal(0), "Expected no nodepools in cluster without nodepools")
@@ -86,7 +86,7 @@ var _ = Describe("Customer", func() {
 			})
 			for resourcesGroupPager.More() {
 				nodePoolList, err := resourcesGroupPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				nodePoolCount += len(nodePoolList.Value)
 			}
 			Expect(nodePoolCount).To(Equal(0), "Expected no nodepools in RG")
@@ -98,7 +98,7 @@ var _ = Describe("Customer", func() {
 			foundOurClusterNodePool := false
 			for subscriptionPager.More() {
 				nodePoolList, err := subscriptionPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
 					if np.Name != nil && strings.HasPrefix(*np.Name, clusterName+"/") {
@@ -150,7 +150,7 @@ var _ = Describe("Customer", func() {
 			foundCreatedNodePool := false
 			for clusterPager.More() {
 				nodePoolList, err := clusterPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				nodePoolCount += len(nodePoolList.Value)
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
@@ -170,7 +170,7 @@ var _ = Describe("Customer", func() {
 			foundCreatedNodePool = false
 			for resourcesGroupPager.More() {
 				nodePoolList, err := resourcesGroupPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				nodePoolCount += len(nodePoolList.Value)
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
@@ -190,7 +190,7 @@ var _ = Describe("Customer", func() {
 			foundCreatedNodePool = false
 			for subscriptionPager.More() {
 				nodePoolList, err := subscriptionPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
 					// Nodepool name is in the format: "clustername/nodepoolname"
@@ -243,7 +243,7 @@ var _ = Describe("Customer", func() {
 			const createdNodePoolsCount = 2
 			for clusterPager.More() {
 				nodePoolList, err := clusterPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
 					if np.Name != nil {
@@ -262,7 +262,7 @@ var _ = Describe("Customer", func() {
 			foundNodePools = make(map[string]struct{})
 			for resourcesGroupPager.More() {
 				nodePoolList, err := resourcesGroupPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
 					if np.Name != nil {
@@ -282,7 +282,7 @@ var _ = Describe("Customer", func() {
 			foundNodePools = make(map[string]struct{})
 			for subscriptionPager.More() {
 				nodePoolList, err := subscriptionPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
 					if np.Name != nil {
@@ -327,7 +327,7 @@ var _ = Describe("Customer", func() {
 			foundCreatedNodePool = false
 			for clusterPager.More() {
 				nodePoolList, err := clusterPager.NextPage(ctx)
-				Expect(err).To(BeNil())
+				Expect(err).NotTo(HaveOccurred())
 				nodePoolCount += len(nodePoolList.Value)
 				for _, np := range nodePoolList.Value {
 					Expect(*np.ID).ToNot(BeEmpty())
@@ -353,7 +353,7 @@ var _ = Describe("Customer", func() {
 				foundCreatedNodePool := false
 				for resourcesGroupPager.More() {
 					nodePoolList, err := resourcesGroupPager.NextPage(ctx)
-					Expect(err).To(BeNil())
+					Expect(err).NotTo(HaveOccurred())
 					nodePoolCount += len(nodePoolList.Value)
 					for _, np := range nodePoolList.Value {
 						Expect(*np.ID).ToNot(BeEmpty())
@@ -380,7 +380,7 @@ var _ = Describe("Customer", func() {
 				foundNodePools := make(map[string]struct{})
 				for subscriptionPager.More() {
 					nodePoolList, err := subscriptionPager.NextPage(ctx)
-					Expect(err).To(BeNil())
+					Expect(err).NotTo(HaveOccurred())
 					for _, np := range nodePoolList.Value {
 						Expect(*np.ID).ToNot(BeEmpty())
 						if np.Name != nil {
