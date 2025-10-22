@@ -183,7 +183,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:b670b0501d93a7180e6c6fe500ca68e0d13c53211e9f3e03bfc251a82c571459
+              digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
             batchProcessesDryRun: true
             batchProcesses: "ARO-20736"
           # ACR Pull
@@ -228,17 +228,17 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:f5f0d0741c67be3ba842126d3aa6bb67c8bbfb344af869072e77aaacdbad841d"
+              digest: "sha256:348c59f006ada6903afaff62b8dc1377d0eb1ddd3b9ba37e25286c70906f6053"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:68463d04a949d9429506de09addc9117e27459a985bb13e85a0a3b693a14ed32"
+              digest: "sha256:483bcd0d026f486f28c0933f9e4d0927b9dfcbfe756e834aa4a7e9dfe16bd152"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:116cf15120c5a6edc7e59bc36c9a316755a5d06f447ec0dfc596b1e42fc505bd
+              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
           # Maestro
           maestro:
             image:
