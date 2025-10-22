@@ -1,0 +1,9 @@
+azureCloud: AzurePublicCloud
+tenantId: "__tenantId__"
+subscriptionId: "__subscriptionId__"
+clientId: "__veleroMsiClientId__"
+resourceGroup: "{{ .mgmt.rg }}"
+bucket: "{{ .mgmt.hcpBackups.storageAccountContainerName }}"
+storageAccount: __hcpBackupsStorageAccountName__
+imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
+hypershiftPluginDigest: "{{ .oadp.hypershiftPluginImage.digest }}"

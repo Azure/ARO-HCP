@@ -2313,6 +2313,34 @@
         "blackboxExporterImage"
       ]
     },
+    "oadp": {
+      "type": "object",
+      "description": "OADP (OpenShift API for Data Protection) operator configuration",
+      "properties": {
+        "operatorImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "veleroImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "openshiftPluginImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "azurePluginImage": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "hypershiftPluginImage": {
+            "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operatorImage",
+        "veleroImage",
+        "openshiftPluginImage",
+        "azurePluginImage"
+      ]
+    },
     "logs": {
       "type": "object",
       "additionalProperties": false,
@@ -2642,6 +2670,22 @@
       "required": [
         "prow",
         "regionTest"
+      ]
+    },
+    "backups": {
+      "type": "object",
+      "properties": {
+        "storageAccountName": {
+          "type": "string"
+        },
+        "containerName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "storageAccountName",
+        "containerName"
       ]
     },
     "automationDryRun": {

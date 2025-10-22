@@ -1,0 +1,41 @@
+apiVersion: v2
+appVersion: 99.0.0
+description: A Helm chart for OADP (OpenShift API for Data Protection) Operator
+keywords:
+- disaster backup
+- disaster recovery
+- disaster restore
+- disaster
+- backup
+- restore
+- backup automation
+- recovery
+- data protection
+- data management
+- data
+- protection
+- management
+- application resilience
+- resilience
+- velero
+- openshift
+- oadp
+- cloud-native
+- replication
+- kopia
+- restic
+- network file system
+- nfs
+- simple cloud storage
+- s3
+- minio
+- cloud storage
+- data foundation
+- ceph
+- csi
+- container storage interface
+name: oadp-operator
+sources:
+- https://github.com/openshift/oadp-operator/tree/master/bundle
+type: application
+version: 99.0.0

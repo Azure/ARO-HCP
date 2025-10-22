@@ -1,0 +1,16 @@
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: hcp-restore-new-7
+  namespace: openshift-adp
+spec:
+  backupName: hcp-backup-new-2
+  restorePVs: true
+  existingResourcePolicy: update
+  excludedResources:
+  - nodes
+  - events
+  - events.events.k8s.io
+  - backups.velero.io
+  - restores.velero.io
+  - resticrepositories.velero.io
