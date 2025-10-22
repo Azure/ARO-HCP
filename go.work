@@ -11,6 +11,7 @@ use (
 	./test-integration
 	./tooling/aro-hcp-exporter
 	./tooling/cleanup-sweeper
+	./tooling/cluster-cve-scanner
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
