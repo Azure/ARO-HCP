@@ -1,0 +1,16 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: oadp-operator-pull-binding
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  acr:
+    environment: PublicCloud
+    server: '{{ .Values.pullBinding.registry }}'
+    scope: 'repository:{{ .Values.pullBinding.repositories.oadpOperator }}:pull repository:{{ .Values.pullBinding.repositories.velero }}:pull repository:{{ .Values.pullBinding.repositories.openshiftPlugin }}:pull repository:{{ .Values.pullBinding.repositories.azurePlugin }}:pull repository:{{ .Values.pullBinding.repositories.hypershiftPlugin }}:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: openshift-adp-controller-manager
+      clientID: '{{ .Values.pullBinding.workloadIdentityClientId }}'
+      tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId }}'
+  serviceAccountName: openshift-adp-controller-manager

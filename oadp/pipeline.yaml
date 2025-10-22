@@ -1,0 +1,207 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.OADP
+rolloutName: OADP Operator Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-operator-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: oadp.operatorImage.registry
+    repository:
+      configRef: oadp.operatorImage.repository
+    digest:
+      configRef: oadp.operatorImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: mirror-velero-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: oadp.veleroImage.registry
+    repository:
+      configRef: oadp.veleroImage.repository
+    digest:
+      configRef: oadp.veleroImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: mirror-openshift-plugin-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: oadp.openshiftPluginImage.registry
+    repository:
+      configRef: oadp.openshiftPluginImage.repository
+    digest:
+      configRef: oadp.openshiftPluginImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: mirror-azure-plugin-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: oadp.azurePluginImage.registry
+    repository:
+      configRef: oadp.azurePluginImage.repository
+    digest:
+      configRef: oadp.azurePluginImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: mirror-hypershift-plugin-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: oadp.hypershiftPluginImage.registry
+    repository:
+      configRef: oadp.hypershiftPluginImage.repository
+    digest:
+      configRef: oadp.hypershiftPluginImage.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ./../dev-infrastructure/templates/output-mgmt.bicep
+    parameters: ./../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: image-puller-lookup
+    action: ARM
+    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy-oadp-operator
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'oadp-operator'
+    releaseNamespace: 'openshift-adp'
+    chartDir: ./oadp-operator
+    valuesFile: ./oadp-operator/values.yaml
+    inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiTenantId
+      veleroMsiClientId:
+        resourceGroup: management
+        step: output
+        name: veleroMsiClientId
+      oadpControllerMsiClientId:
+        resourceGroup: management
+        step: output
+        name: oadpControllerMsiClientId
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+      subscriptionId:
+        resourceGroup: management
+        step: output
+        name: subscriptionId
+      storageAccountName:
+        resourceGroup: management
+        step: output
+        name: hcpBackupsStorageAccountName
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-operator-image
+    - resourceGroup: global
+      step: mirror-velero-image
+    - resourceGroup: global
+      step: mirror-openshift-plugin-image
+    - resourceGroup: global
+      step: mirror-azure-plugin-image
+    - resourceGroup: global
+      step: mirror-hypershift-plugin-image
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: deploy-backup
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'oadp-backup'
+    releaseNamespace: 'openshift-adp'
+    chartDir: ./deploy
+    valuesFile: ./deploy/values.yaml
+    inputVariables:
+      veleroMsiClientId:
+        resourceGroup: management
+        step: output
+        name: veleroMsiClientId
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+      subscriptionId:
+        resourceGroup: management
+        step: output
+        name: subscriptionId
+      storageAccountName:
+        resourceGroup: management
+        step: output
+        name: hcpBackupsStorageAccountName
+    dependsOn:
+    - resourceGroup: management
+      step: deploy-oadp-operator
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
