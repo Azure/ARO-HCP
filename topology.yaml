@@ -42,6 +42,9 @@ services:
       purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       children:
+      - serviceGroup: Microsoft.Azure.ARO.HCP.OADP
+        pipelinePath: oadp/pipeline.yaml
+        purpose: Deploy OpenShift API for Data Protection.
       - serviceGroup: Microsoft.Azure.ARO.HCP.SecretSyncController
         pipelinePath: secret-sync-controller/pipeline.yaml
         purpose: Deploy the Secret Sync Controller.

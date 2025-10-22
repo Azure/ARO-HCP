@@ -2318,6 +2318,30 @@
         "blackboxExporterImage"
       ]
     },
+    "oadp": {
+      "type": "object",
+      "description": "OADP (OpenShift API for Data Protection) operator configuration",
+      "properties": {
+        "operator": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "velero": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "azurePlugin": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "hypershiftPlugin": {
+            "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "operator",
+        "velero",
+        "azurePlugin"
+      ]
+    },
     "logs": {
       "type": "object",
       "additionalProperties": false,

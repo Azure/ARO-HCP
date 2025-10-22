@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    capabilities: Seamless Upgrades
+    categories: |
+      Cloud Provider,Developer Tools,Modernization & Migration,OpenShift Optional,Storage
+    certified: "false"
+    containerImage: quay.io/konveyor/oadp-operator:latest
+    description: OADP (OpenShift API for Data Protection) operator sets up and installs Data Protection Applications on the OpenShift platform.
+    repository: https://github.com/openshift/oadp-operator
+    support: Red Hat
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/name: oadp-operator
+    app.kubernetes.io/part-of: oadp-operator
+    control-plane: controller-manager
+  name: openshift-adp-controller-manager
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: controller-manager
+        app.kubernetes.io/name: oadp-operator
+        app.kubernetes.io/part-of: oadp-operator
+        azure.workload.identity/use: "true"
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --leader-elect
+        command:
+        - /manager
+        env:
+        - name: WATCH_NAMESPACE
+          value: '{{ .Release.Namespace }}'
+        - name: FS_PV_HOSTPATH
+        - name: PLUGINS_HOSTPATH
+        - name: RELATED_IMAGE_VELERO
+          value: '{{ .Values.imageRegistry }}/{{ .Values.velero.repository }}@{{ .Values.velero.digest }}'
+        - name: RELATED_IMAGE_OPENSHIFT_VELERO_PLUGIN
+        - name: RELATED_IMAGE_VELERO_PLUGIN_FOR_AWS
+        - name: RELATED_IMAGE_VELERO_PLUGIN_FOR_LEGACY_AWS
+        - name: RELATED_IMAGE_VELERO_PLUGIN_FOR_MICROSOFT_AZURE
+          value: '{{ .Values.imageRegistry }}/{{ .Values.azurePlugin.repository }}@{{ .Values.azurePlugin.digest }}'
+        - name: RELATED_IMAGE_VELERO_PLUGIN_FOR_GCP
+        - name: RELATED_IMAGE_KUBEVIRT_VELERO_PLUGIN
+          value: '{{ .Values.imageRegistry }}/konveyor/kubevirt-velero-plugin:v0.7.0'
+        - name: RELATED_IMAGE_HYPERSHIFT_VELERO_PLUGIN
+          value: '{{ .Values.imageRegistry }}/{{ .Values.hypershiftPlugin.repository }}@{{ .Values.hypershiftPlugin.digest }}'
+        - name: RELATED_IMAGE_MUSTGATHER
+          value: '{{ .Values.imageRegistry }}/oadp/oadp-mustgather-rhel8:v1.2'
+        - name: RELATED_IMAGE_NON_ADMIN_CONTROLLER
+          value: '{{ .Values.imageRegistry }}/konveyor/oadp-non-admin:latest'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.oadpOperator.repository}}@{{ .Values.oadpOperator.digest }}'
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 500m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /healthz
+            port: 8081
+          periodSeconds: 10
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /var/run/secrets/openshift/serviceaccount
+          name: bound-sa-token
+          readOnly: true
+        - mountPath: /tmp
+          name: tmp-dir
+      nodeSelector:
+        aro-hcp.azure.com/role: infra
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: openshift-adp-controller-manager
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: Equal
+        value: "true"
+      volumes:
+      - name: bound-sa-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: openshift
+              expirationSeconds: 3600
+              path: token
+      - emptyDir: {}
+        name: tmp-dir
+status: {}

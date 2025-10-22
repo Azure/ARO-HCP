@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oadp-operator.v99.0-dhkhx37o5v79ek79i3jwe29nx9g2cphilsay9vvmv3k
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oadp-operator.v99.0-dhkhx37o5v79ek79i3jwe29nx9g2cphilsay9vvmv3k
+subjects:
+- kind: ServiceAccount
+  name: non-admin-controller
+  namespace: '{{ .Release.Namespace }}'
