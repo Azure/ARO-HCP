@@ -21,22 +21,24 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type ResourceCRUD[T any] interface {
-	Get(ctx context.Context, resourceID string) (*T, error)
-	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[T], error)
+type ResourceCRUD[InternalAPIType any] interface {
+	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
+	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
 }
 
-type topLevelCosmosResourceCRUD[T any] struct {
+type topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	containerClient   *azcosmos.ContainerClient
 	resourceType      azcorearm.ResourceType
 	subscriptionID    string
 	resourceGroupName string
 }
 
-func newTopLevelResourceCRUD[T any](resources *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, subscriptionID, resourceGroupName string) *topLevelCosmosResourceCRUD[T] {
-	return &topLevelCosmosResourceCRUD[T]{
+func newTopLevelResourceCRUD[InternalAPIType, CosmosAPIType any](resources *azcosmos.ContainerClient, resourceType azcorearm.ResourceType, subscriptionID, resourceGroupName string) *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
+	return &topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
 		containerClient:   resources,
 		resourceType:      resourceType,
 		subscriptionID:    subscriptionID,
@@ -44,9 +46,9 @@ func newTopLevelResourceCRUD[T any](resources *azcosmos.ContainerClient, resourc
 	}
 }
 
-var _ ResourceCRUD[HCPCluster] = &topLevelCosmosResourceCRUD[HCPCluster]{}
+var _ ResourceCRUD[api.HCPOpenShiftCluster] = &topLevelCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster]{}
 
-func (d *topLevelCosmosResourceCRUD[T]) makeResourceIDPath(subscriptionID, resourceGroupID, resourceID string) (*azcorearm.ResourceID, error) {
+func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(subscriptionID, resourceGroupID, resourceID string) (*azcorearm.ResourceID, error) {
 	if len(subscriptionID) == 0 {
 		return nil, fmt.Errorf("subscriptionID is required")
 	}
@@ -78,21 +80,21 @@ func (d *topLevelCosmosResourceCRUD[T]) makeResourceIDPath(subscriptionID, resou
 	return azcorearm.ParseResourceID(path.Join(parts...))
 }
 
-func (d *topLevelCosmosResourceCRUD[T]) Get(ctx context.Context, resourceID string) (*T, error) {
+func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
 	completeResourceID, err := d.makeResourceIDPath(d.subscriptionID, d.resourceGroupName, resourceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	return get[T](ctx, d.containerClient, completeResourceID)
+	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, completeResourceID)
 }
 
-func (d *topLevelCosmosResourceCRUD[T]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
+func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	// when resourceGroupName is empty, this lists all in the subscription
 	prefix, err := d.makeResourceIDPath(d.subscriptionID, d.resourceGroupName, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for %q: %w", d.resourceGroupName, err)
 	}
 
-	return list[T](ctx, d.containerClient, d.resourceType, prefix, options)
+	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
 }

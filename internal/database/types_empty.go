@@ -17,8 +17,7 @@ package database
 type removeAllState struct{}
 
 func (r removeAllState) RemoveUnknownFields(toMutate *ResourceDocument) error {
-	toMutate.CustomerDesiredState = nil
-	toMutate.ServiceProviderState = nil
+	toMutate.InternalState = nil
 	return nil
 }
 

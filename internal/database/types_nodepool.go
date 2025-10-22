@@ -31,25 +31,12 @@ var _ ResourceProperties = &NodePool{}
 type NodePoolProperties struct {
 	ResourceDocument `json:",inline"`
 
-	CustomerDesiredState CustomerDesiredNodePoolState `json:"customerDesiredState"`
-	ServiceProviderState ServiceProviderNodePoolState `json:"serviceProviderState"`
+	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
+	InternalState NodePoolInternalState `json:"internalState"`
 }
 
-type CustomerDesiredNodePoolState struct {
-	// NodePool contains the desired state from a customer.  It is filtered to only those fields that customers
-	// are able to set.
-	// We will eventually select specific fields which customers own and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	NodePool api.HCPOpenShiftClusterNodePoolProperties `json:"nodePoolProperties"`
-}
-
-type ServiceProviderNodePoolState struct {
-	// NodePool contains the service provider owned state.  It is filtered to only those fields that the service provider owns.
-	// We will eventually select specific fields which the service provider owns and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	NodePool api.HCPOpenShiftClusterNodePoolProperties `json:"nodePoolProperties"`
+type NodePoolInternalState struct {
+	InternalAPI api.HCPOpenShiftClusterNodePool `json:"internalAPI"`
 }
 
 func (o *NodePool) ValidateResourceType() error {
@@ -68,6 +55,5 @@ func (o *NodePool) GetResourceDocument() *ResourceDocument {
 }
 
 var FilterNodePoolState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &CustomerDesiredNodePoolState{} },
-	func() any { return &ServiceProviderNodePoolState{} },
+	func() any { return &NodePoolInternalState{} },
 )

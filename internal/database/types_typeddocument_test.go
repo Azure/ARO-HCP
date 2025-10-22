@@ -132,16 +132,13 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 					ResourceType: api.ClusterResourceType.String(),
 				},
 				innerDoc: &ResourceDocument{
-					CustomerDesiredState: map[string]any{
+					InternalState: map[string]any{
 						"alligator": "adept",
-					},
-					ServiceProviderState: map[string]any{
-						"avocado": "alert",
 					},
 				},
 				documentFilter: RemoveAllState,
 			},
-			want:    `{"partitionKey":"","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters","properties":{"internalId":"","customerDesiredState":null,"serviceProviderState":null}}`,
+			want:    `{"partitionKey":"","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters","properties":{"internalId":""}}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -152,21 +149,14 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				},
 				// cannot unmarshal string into Go struct field HCPOpenShiftClusterProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
 				innerDoc: &ResourceDocument{
-					CustomerDesiredState: map[string]any{
+					InternalState: map[string]any{
 						"alligator": "adept",
-						"clusterProperties": map[string]any{
+						"internalAPI": map[string]any{
 							"bat": "black",
-							"version": map[string]any{
-								"id": "1.2.3",
-							},
-						},
-					},
-					ServiceProviderState: map[string]any{
-						"alligator": "adept",
-						"clusterProperties": map[string]any{
-							"bat": "black",
-							"dns": map[string]any{
-								"baseDomain": "example.com",
+							"properties": map[string]any{
+								"version": map[string]any{
+									"id": "1.2.3",
+								},
 							},
 						},
 					},
@@ -179,17 +169,12 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 					ResourceType: api.ClusterResourceType.String(),
 				},
 				&ResourceDocument{},
-				CustomerDesiredHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
-						Version: api.VersionProfile{
-							ID: "1.2.3",
-						},
-					},
-				},
-				ServiceProviderHCPClusterState{
-					HCPOpenShiftCluster: api.HCPOpenShiftClusterProperties{
-						DNS: api.DNSProfile{
-							BaseDomain: "example.com",
+				ClusterInternalState{
+					InternalAPI: api.HCPOpenShiftCluster{
+						Properties: api.HCPOpenShiftClusterProperties{
+							Version: api.VersionProfile{
+								ID: "1.2.3",
+							},
 						},
 					},
 				},
@@ -209,14 +194,13 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 	}
 }
 
-func jsonFor(TypedDocument *TypedDocument, doc *ResourceDocument, customer, serviceProvider any) string {
-	doc = toResourceDocument(doc, customer, serviceProvider)
+func jsonFor(TypedDocument *TypedDocument, doc *ResourceDocument, internalState any) string {
+	doc = toResourceDocument(doc, internalState)
 	return string(api.Must(typedDocumentMarshal(TypedDocument, doc)))
 }
 
-func toResourceDocument(doc *ResourceDocument, customer, serviceProvider any) *ResourceDocument {
-	doc.CustomerDesiredState = api.Must(objToMap(customer))
-	doc.ServiceProviderState = api.Must(objToMap(serviceProvider))
+func toResourceDocument(doc *ResourceDocument, internalState any) *ResourceDocument {
+	doc.InternalState = api.Must(objToMap(internalState))
 	return doc
 }
 

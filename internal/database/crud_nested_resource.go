@@ -21,9 +21,11 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type nestedCosmosResourceCRUD[T any] struct {
+type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	containerClient   *azcosmos.ContainerClient
 	providerNamespace string
 	subscriptionID    string
@@ -40,10 +42,12 @@ type intermediateResource struct {
 	resourceID   string
 }
 
-var _ ResourceCRUD[NodePool] = &nestedCosmosResourceCRUD[NodePool]{}
+var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
 
-func newNestedCosmosResourceCRUD[T any, V any](parent *topLevelCosmosResourceCRUD[V], subscriptionID, resourceGroupID, parentResourceID string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[T] {
-	ret := &nestedCosmosResourceCRUD[T]{
+func newNestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType, ParentInternalAPIType, ParentCosmosAPIType any](
+	parent *topLevelCosmosResourceCRUD[ParentInternalAPIType, ParentCosmosAPIType],
+	subscriptionID, resourceGroupID, parentResourceID string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
+	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
 		containerClient:   parent.containerClient,
 		providerNamespace: parent.resourceType.Namespace,
 		subscriptionID:    subscriptionID,
@@ -57,7 +61,7 @@ func newNestedCosmosResourceCRUD[T any, V any](parent *topLevelCosmosResourceCRU
 	return ret
 }
 
-func (d *nestedCosmosResourceCRUD[T]) makeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceIDPath(resourceID string) (*azcorearm.ResourceID, error) {
 	if len(d.subscriptionID) == 0 {
 		return nil, fmt.Errorf("subscriptionID is required")
 	}
@@ -86,20 +90,20 @@ func (d *nestedCosmosResourceCRUD[T]) makeResourceIDPath(resourceID string) (*az
 	return azcorearm.ParseResourceID(path.Join(parts...))
 }
 
-func (d *nestedCosmosResourceCRUD[T]) Get(ctx context.Context, resourceID string) (*T, error) {
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
 	completeResourceID, err := d.makeResourceIDPath(resourceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", resourceID, err)
 	}
 
-	return get[T](ctx, d.containerClient, completeResourceID)
+	return get[InternalAPIType, CosmosAPIType](ctx, d.containerClient, completeResourceID)
 }
 
-func (d *nestedCosmosResourceCRUD[T]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[T], error) {
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	prefix, err := d.makeResourceIDPath("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.resourceGroupID, err)
 	}
 
-	return list[T](ctx, d.containerClient, d.resourceType, prefix, options)
+	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
 }

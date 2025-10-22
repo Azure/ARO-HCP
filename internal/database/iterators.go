@@ -23,7 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
-type queryResourcesIterator[T any] struct {
+type queryResourcesIterator[InternalAPIType, CosmosAPIType any] struct {
 	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
 	singlePage        bool
 	continuationToken string
@@ -31,21 +31,21 @@ type queryResourcesIterator[T any] struct {
 }
 
 // newQueryResourcesIterator is a failable push iterator for a paged query response.
-func newQueryResourcesIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return &queryResourcesIterator[T]{pager: pager}
+func newQueryResourcesIterator[InternalAPIType, CosmosAPIType any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[InternalAPIType] {
+	return &queryResourcesIterator[InternalAPIType, CosmosAPIType]{pager: pager}
 }
 
 // newQueryItemsSinglePageIterator is a failable push iterator for a paged
 // query response that stops at the end of the first page and includes a
 // continuation token if additional items are available.
-func newQueryResourcesSinglePageIterator[T any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[T] {
-	return &queryResourcesIterator[T]{pager: pager, singlePage: true}
+func newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType any](pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[InternalAPIType] {
+	return &queryResourcesIterator[InternalAPIType, CosmosAPIType]{pager: pager, singlePage: true}
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter *queryResourcesIterator[T]) Items(ctx context.Context) DBClientIteratorItem[T] {
-	return func(yield func(string, *T) bool) {
+func (iter *queryResourcesIterator[InternalAPIType, CosmosAPIType]) Items(ctx context.Context) DBClientIteratorItem[InternalAPIType] {
+	return func(yield func(string, *InternalAPIType) bool) {
 		for iter.pager.More() {
 			response, err := iter.pager.NextPage(ctx)
 			if err != nil {
@@ -56,7 +56,7 @@ func (iter *queryResourcesIterator[T]) Items(ctx context.Context) DBClientIterat
 				iter.continuationToken = *response.ContinuationToken
 			}
 			for _, itemJSON := range response.Items {
-				var obj T
+				var obj CosmosAPIType
 				if err := json.Unmarshal(itemJSON, &obj); err != nil {
 					iter.err = err
 					return
@@ -69,7 +69,13 @@ func (iter *queryResourcesIterator[T]) Items(ctx context.Context) DBClientIterat
 					return
 				}
 
-				if !yield(decodedItemAsResourceProperties.GetTypedDocument().ID, decodedItem) {
+				internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](decodedItem)
+				if err != nil {
+					iter.err = fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
+					return
+				}
+
+				if !yield(decodedItemAsResourceProperties.GetTypedDocument().ID, internalObj) {
 					return
 				}
 			}
@@ -83,12 +89,12 @@ func (iter *queryResourcesIterator[T]) Items(ctx context.Context) DBClientIterat
 // GetContinuationToken returns a continuation token that can be used to obtain
 // the next page of results. This is only set when the iterator was created with
 // NewQueryItemsSinglePageIterator and additional items are available.
-func (iter queryResourcesIterator[T]) GetContinuationToken() string {
+func (iter queryResourcesIterator[InternalAPIType, CosmosAPIType]) GetContinuationToken() string {
 	return iter.continuationToken
 }
 
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
-func (iter queryResourcesIterator[T]) GetError() error {
+func (iter queryResourcesIterator[InternalAPIType, CosmosAPIType]) GetError() error {
 	return iter.err
 }

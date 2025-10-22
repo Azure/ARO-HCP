@@ -105,6 +105,11 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 }
 
 func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
+	// prevent data corruption
+	if len(doc.InternalID.String()) == 0 {
+		panic("Developer Error: InternalID is required")
+	}
+
 	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {

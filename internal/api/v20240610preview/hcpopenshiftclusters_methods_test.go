@@ -36,6 +36,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
+		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
+			j.ClusterServiceID = ""
+		},
 	}, rand.NewSource(seed))
 
 	// Try a few times, since runTest uses random values.
