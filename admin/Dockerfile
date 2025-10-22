@@ -1,14 +1,20 @@
+ARG PLATFORM
+
 # Base and builder image will need to be replaced by Fips compliant one
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 as builder
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 as builder
 
 WORKDIR /app/admin
 COPY . .
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
-RUN go build -o aro-hcp-admin
+ARG ARO_HCP_IMAGE_TAG
+ARG ARO_HCP_REVISION
+RUN make build ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ARO_HCP_REVISION=${ARO_HCP_REVISION}
 
-FROM --platform=linux/amd64 mcr.microsoft.com/azurelinux/distroless/base:3.0
+FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/admin/aro-hcp-admin .
+ARG ARO_HCP_REVISION
+LABEL vcs-ref="${ARO_HCP_REVISION}"
 ENTRYPOINT ["/aro-hcp-admin"]

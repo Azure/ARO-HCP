@@ -442,6 +442,18 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+  # Admin API
+  adminApi:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: arohcpadminapi
+    managedIdentityName: admin-api
+    k8s:
+      replicas: 2
+      namespace: aro-hcp-admin-api
+      serviceAccountName: admin-api
+    cert:
+      name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Frontend
   frontend:
     audit:
@@ -822,6 +834,12 @@ clouds:
       backplaneAPI:
         image:
           digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+      # Admin API
+      adminApi:
+        image:
+          digest: ''
+        cert:
+          issuer: Self
       # Frontend
       frontend:
         cert:

@@ -373,6 +373,15 @@ param genevaRpLogsName string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
+@description('The name of the Admin API managed identity')
+param adminApiMIName string
+
+@description('The namespace of the Admin API managed identity')
+param adminApiNamespace string
+
+@description('The service account name of the Admin API managed identity')
+param adminApiServiceAccountName string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -430,6 +439,11 @@ var workloadIdentities = items({
     uamiName: msiRefresherMIName
     namespace: msiRefresherNamespace
     serviceAccountName: msiRefresherServiceAccountName
+  }
+  admin_api_wi: {
+    uamiName: adminApiMIName
+    namespace: adminApiNamespace
+    serviceAccountName: adminApiServiceAccountName
   }
 })
 

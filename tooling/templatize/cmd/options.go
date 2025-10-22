@@ -16,12 +16,17 @@ package options
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/types"
+	"github.com/Azure/ARO-Tools/pkg/yamlwrap"
 )
 
 func DefaultOptions() *RawOptions {
@@ -32,6 +37,7 @@ func DefaultOptions() *RawOptions {
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigFile, "config-file", opts.ConfigFile, "config file path")
+	cmd.Flags().StringVar(&opts.ConfigFileOverride, "config-file-override", opts.ConfigFileOverride, "config file override path")
 	cmd.Flags().StringVar(&opts.Cloud, "cloud", opts.Cloud, "the cloud (public, fairfax, dev)")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "the deploy environment")
 	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "the Ev2 cloud to use when resolving config, if different from --cloud")
@@ -40,10 +46,11 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	ConfigFile string
-	Cloud      string
-	DeployEnv  string
-	Ev2Cloud   string
+	ConfigFile         string
+	ConfigFileOverride string
+	Cloud              string
+	DeployEnv          string
+	Ev2Cloud           string
 }
 
 func (o *RawOptions) Validate() (*ValidatedOptions, error) {
@@ -70,9 +77,33 @@ type ValidatedOptions struct {
 }
 
 func (o *ValidatedOptions) Complete() (*Options, error) {
-	configProvider, err := config.NewConfigProvider(o.ConfigFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load service config: %v", err)
+	var configProvider config.ConfigProvider
+	var err error
+
+	if o.ConfigFileOverride != "" {
+		mergedConfigFile, err := os.CreateTemp("", "merged-config-*.yaml")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temporary file for merged configuration: %w", err)
+		}
+		mergedConfigFilePath := mergedConfigFile.Name()
+
+		mergedConfig, err := types.MergeRawConfigurationFiles(filepath.Dir(mergedConfigFilePath), []string{o.ConfigFile, o.ConfigFileOverride})
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge configuration files: %w", err)
+		}
+		if err := os.WriteFile(mergedConfigFilePath, mergedConfig, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write configuration to file %q: %w", mergedConfigFilePath, err)
+		}
+
+		configProvider, err = config.NewConfigProvider(mergedConfigFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config provider from merged configuration %s: %w", mergedConfigFilePath, err)
+		}
+	} else {
+		configProvider, err = config.NewConfigProvider(o.ConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load service config: %v", err)
+		}
 	}
 
 	return &Options{
@@ -81,6 +112,28 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			Ev2Cloud:       o.Ev2Cloud,
 		},
 	}, nil
+}
+
+func writeRawConfig(config types.Configuration, filePath string) error {
+	if filePath == "" {
+		return fmt.Errorf("output file path cannot be empty")
+	}
+
+	rawData, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+
+	data, err := yamlwrap.UnwrapYAML(rawData)
+	if err != nil {
+		return fmt.Errorf("failed to unwrap configuration: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write configuration to file %q: %w", filePath, err)
+	}
+
+	return nil
 }
 
 // completedGenerationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
