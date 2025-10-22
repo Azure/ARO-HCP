@@ -46,7 +46,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 				InternalID: clusterServiceID,
 				// TODO
 				//ActiveOperationID: "",
-				ProvisioningState: internalObj.Properties.ProvisioningState,
+				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
 				SystemData:        internalObj.SystemData,
 				Tags:              copyTags(internalObj.Tags),
@@ -65,7 +65,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.Identity = nil
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
-	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ""
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
@@ -138,7 +138,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.Identity = toInternalIdentity(cosmosObj.Identity)
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
-	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
+	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID.String()
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly

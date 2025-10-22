@@ -147,15 +147,20 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				typedDoc: &TypedDocument{
 					ResourceType: api.ClusterResourceType.String(),
 				},
-				// cannot unmarshal string into Go struct field HCPOpenShiftClusterProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
+				// cannot unmarshal string into Go struct field HCPOpenShiftClusterCustomerProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
 				innerDoc: &ResourceDocument{
 					InternalState: map[string]any{
 						"alligator": "adept",
 						"internalAPI": map[string]any{
 							"bat": "black",
-							"properties": map[string]any{
+							"customerProperties": map[string]any{
 								"version": map[string]any{
 									"id": "1.2.3",
+								},
+							},
+							"serviceProviderProperties": map[string]any{
+								"dns": map[string]any{
+									"baseDomain": "example.com",
 								},
 							},
 						},
@@ -171,9 +176,14 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 				&ResourceDocument{},
 				ClusterInternalState{
 					InternalAPI: api.HCPOpenShiftCluster{
-						Properties: api.HCPOpenShiftClusterProperties{
+						CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 							Version: api.VersionProfile{
 								ID: "1.2.3",
+							},
+						},
+						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+							DNS: api.ServiceProviderDNSProfile{
+								BaseDomain: "example.com",
 							},
 						},
 					},

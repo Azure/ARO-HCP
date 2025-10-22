@@ -30,16 +30,16 @@ import (
 func AdmitNodePool(nodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster) field.ErrorList {
 	errs := field.ErrorList{}
 
-	if nodePool.Properties.Version.ChannelGroup != cluster.Properties.Version.ChannelGroup {
+	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
 		errs = append(errs, field.Invalid(
 			field.NewPath("properties", "version", "channelGroup"),
 			nodePool.Properties.Version.ChannelGroup,
-			fmt.Sprintf("must be the same as control plane channel group '%s'", cluster.Properties.Version.ChannelGroup),
+			fmt.Sprintf("must be the same as control plane channel group '%s'", cluster.CustomerProperties.Version.ChannelGroup),
 		))
 	}
 
-	if len(nodePool.Properties.Platform.SubnetID) > 0 && len(cluster.Properties.Platform.SubnetID) > 0 {
-		clusterSubnetResourceID, _ := azcorearm.ParseResourceID(cluster.Properties.Platform.SubnetID)
+	if len(nodePool.Properties.Platform.SubnetID) > 0 && len(cluster.CustomerProperties.Platform.SubnetID) > 0 {
+		clusterSubnetResourceID, _ := azcorearm.ParseResourceID(cluster.CustomerProperties.Platform.SubnetID)
 		nodePoolSubnetResourceID, _ := azcorearm.ParseResourceID(nodePool.Properties.Platform.SubnetID)
 
 		// if this fails, then other validation will fail
