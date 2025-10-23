@@ -23,7 +23,71 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
-type ClusterListIterator struct {
+type ListIterator[T any] interface {
+	Items(ctx context.Context) iter.Seq[*T]
+	GetError() error
+}
+
+type ClusterListIterator interface {
+	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster]
+	GetError() error
+}
+
+type NodePoolListIterator interface {
+	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool]
+	GetError() error
+}
+
+type ExternalAuthListIterator interface {
+	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth]
+	GetError() error
+}
+
+type simpleListIterator[T any] struct {
+	clusters []*T
+	err      error
+}
+
+func NewSimpleClusterListIterator(objs []*arohcpv1alpha1.Cluster, err error) ClusterListIterator {
+	return &simpleListIterator[arohcpv1alpha1.Cluster]{
+		clusters: objs,
+		err:      err,
+	}
+}
+
+func NewSimpleNodePoolListIterator(objs []*arohcpv1alpha1.NodePool, err error) NodePoolListIterator {
+	return &simpleListIterator[arohcpv1alpha1.NodePool]{
+		clusters: objs,
+		err:      err,
+	}
+}
+
+func NewSimpleExternalAuthListIterator(objs []*arohcpv1alpha1.ExternalAuth, err error) ExternalAuthListIterator {
+	return &simpleListIterator[arohcpv1alpha1.ExternalAuth]{
+		clusters: objs,
+		err:      err,
+	}
+}
+
+// Items returns a push iterator that can be used directly in for/range loops.
+// If an error occurs during paging, iteration stops and the error is recorded.
+func (iter *simpleListIterator[T]) Items(ctx context.Context) iter.Seq[*T] {
+	return func(yield func(*T) bool) {
+		for _, cluster := range iter.clusters {
+			if !yield(cluster) {
+				return
+			}
+		}
+	}
+}
+
+// GetError returns any error that occurred during iteration. Call this after the
+// for/range loop that calls Items() to check if iteration completed successfully.
+func (iter *simpleListIterator[T]) GetError() error {
+	return iter.err
+}
+
+type clusterListIterator struct {
 	request *arohcpv1alpha1.ClustersListRequest
 	err     error
 }
@@ -35,7 +99,7 @@ type VersionsListIterator struct {
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter *ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster] {
+func (iter *clusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.Cluster] {
 	return func(yield func(*arohcpv1alpha1.Cluster) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -78,18 +142,18 @@ func (iter *ClusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1al
 
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
-func (iter ClusterListIterator) GetError() error {
+func (iter clusterListIterator) GetError() error {
 	return iter.err
 }
 
-type NodePoolListIterator struct {
+type nodePoolListIterator struct {
 	request *arohcpv1alpha1.NodePoolsListRequest
 	err     error
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter *NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
+func (iter *nodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.NodePool] {
 	return func(yield func(*arohcpv1alpha1.NodePool) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -132,18 +196,18 @@ func (iter *NodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1a
 
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
-func (iter NodePoolListIterator) GetError() error {
+func (iter nodePoolListIterator) GetError() error {
 	return iter.err
 }
 
-type ExternalAuthListIterator struct {
+type externalAuthListIterator struct {
 	request *arohcpv1alpha1.ExternalAuthsListRequest
 	err     error
 }
 
 // Items returns a push iterator that can be used directly in for/range loops.
 // If an error occurs during paging, iteration stops and the error is recorded.
-func (iter *ExternalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth] {
+func (iter *externalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth] {
 	return func(yield func(*arohcpv1alpha1.ExternalAuth) bool) {
 		// Request can be nil to allow for mocking.
 		if iter.request != nil {
@@ -186,7 +250,7 @@ func (iter *ExternalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohc
 
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
-func (iter ExternalAuthListIterator) GetError() error {
+func (iter externalAuthListIterator) GetError() error {
 	return iter.err
 }
 

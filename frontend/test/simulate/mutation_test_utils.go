@@ -31,6 +31,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -88,7 +89,9 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
 	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, builder *csarhcpv1alpha1.ClusterBuilder) (*csarhcpv1alpha1.Cluster, error) {
-		internalID := "/api/clusters_mgmt/v1/clusters/" + rand.String(10)
+		justID := rand.String(10)
+		builder.ID(justID)
+		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 		builder = builder.HREF(internalID)
 		ret, err := builder.Build()
 		if err != nil {
@@ -114,20 +117,25 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		return ret, nil
 	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.Cluster, error) {
-		history := internalIDToCluster[id.String()]
-		if len(history) == 0 {
-			return nil, fmt.Errorf("not found: %q", id.String())
+		return mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[id.String()])
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().ListClusters(gomock.Any()).DoAndReturn(func(s string) ocm.ClusterListIterator {
+		allObjs := []*csarhcpv1alpha1.Cluster{}
+		for _, key := range sets.StringKeySet(internalIDToCluster).List() {
+			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[key])
+			if err != nil {
+				panic(err)
+			}
+			allObjs = append(allObjs, obj)
 		}
-		mergedJSON, err := mergeClusterServiceReturn(history)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
-		}
-		return csarhcpv1alpha1.UnmarshalCluster(mergedJSON)
+		return ocm.NewSimpleClusterListIterator(allObjs, nil)
 	}).AnyTimes()
 
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_externalAuths", internalIDToExternalAuth))
 	testInfo.MockClusterServiceClient.EXPECT().PostExternalAuth(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
-		externalAuthInternalID := clusterID.String() + "/external_auth_config/external_auths/" + rand.String(10)
+		justID := rand.String(10)
+		builder.ID(justID)
+		externalAuthInternalID := clusterID.String() + "/external_auth_config/external_auths/" + justID
 		builder = builder.HREF(externalAuthInternalID)
 		ret, err := builder.Build()
 		if err != nil {
@@ -147,20 +155,30 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		return ret, nil
 	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().GetExternalAuth(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
-		history := internalIDToExternalAuth[id.String()]
-		if len(history) == 0 {
-			return nil, fmt.Errorf("not found: %q", id.String())
+		return mergeClusterServiceInstance[csarhcpv1alpha1.ExternalAuth](internalIDToExternalAuth[id.String()])
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().ListExternalAuths(gomock.Any(), gomock.Any()).DoAndReturn(func(id ocm.InternalID, s string) ocm.ExternalAuthListIterator {
+		clusterIDString := id.String()
+		allObjs := []*csarhcpv1alpha1.ExternalAuth{}
+		for _, key := range sets.StringKeySet(internalIDToExternalAuth).List() {
+			if !strings.Contains(key, clusterIDString) {
+				// only include for the right cluster
+				continue
+			}
+			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.ExternalAuth](internalIDToExternalAuth[key])
+			if err != nil {
+				panic(err)
+			}
+			allObjs = append(allObjs, obj)
 		}
-		mergedJSON, err := mergeClusterServiceReturn(history)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
-		}
-		return csarhcpv1alpha1.UnmarshalExternalAuth(mergedJSON)
+		return ocm.NewSimpleExternalAuthListIterator(allObjs, nil)
 	}).AnyTimes()
 
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_nodePools", internalIDToNodePool))
 	testInfo.MockClusterServiceClient.EXPECT().PostNodePool(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
-		nodePoolInternalID := clusterID.String() + "/node_pools/" + rand.String(10)
+		justID := rand.String(10)
+		builder.ID(justID)
+		nodePoolInternalID := clusterID.String() + "/node_pools/" + justID
 		builder = builder.HREF(nodePoolInternalID)
 		ret, err := builder.Build()
 		if err != nil {
@@ -180,15 +198,23 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		return ret, nil
 	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().GetNodePool(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*arohcpv1alpha1.NodePool, error) {
-		history := internalIDToNodePool[id.String()]
-		if len(history) == 0 {
-			return nil, fmt.Errorf("not found: %q", id.String())
+		return mergeClusterServiceInstance[csarhcpv1alpha1.NodePool](internalIDToNodePool[id.String()])
+	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().ListNodePools(gomock.Any(), gomock.Any()).DoAndReturn(func(id ocm.InternalID, s string) ocm.NodePoolListIterator {
+		clusterIDString := id.String()
+		allObjs := []*csarhcpv1alpha1.NodePool{}
+		for _, key := range sets.StringKeySet(internalIDToNodePool).List() {
+			if !strings.Contains(key, clusterIDString) {
+				// only include for the right cluster
+				continue
+			}
+			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.NodePool](internalIDToNodePool[key])
+			if err != nil {
+				panic(err)
+			}
+			allObjs = append(allObjs, obj)
 		}
-		mergedJSON, err := mergeClusterServiceReturn(history)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal merged cluster-service type: %w", err)
-		}
-		return csarhcpv1alpha1.UnmarshalNodePool(mergedJSON)
+		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
 	}).AnyTimes()
 
 	return nil
@@ -268,6 +294,41 @@ func mergeClusterServiceReturn(history []any) ([]byte, error) {
 		}
 	}
 	return json.Marshal(dest)
+}
+
+func mergeClusterServiceInstance[T any](history []any) (*T, error) {
+	mergedJSON, err := mergeClusterServiceReturn(history)
+	if err != nil {
+		return nil, err
+	}
+
+	return unmarshalClusterServiceAny[T](mergedJSON)
+}
+
+func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {
+	var obj T
+	switch any(&obj).(type) {
+	case *csarhcpv1alpha1.Cluster:
+		ret, err := csarhcpv1alpha1.UnmarshalCluster(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
+	case *csarhcpv1alpha1.NodePool:
+		ret, err := csarhcpv1alpha1.UnmarshalNodePool(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
+	case *csarhcpv1alpha1.ExternalAuth:
+		ret, err := csarhcpv1alpha1.UnmarshalExternalAuth(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
+	default:
+		return nil, fmt.Errorf("unknown type: %T", &obj)
+	}
 }
 
 // cluster service types fight the standard golang stack and don't conform to standard json interfaces.

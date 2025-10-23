@@ -67,14 +67,14 @@ func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourc
 		subscriptionID,
 		"resourceGroups",
 		resourceGroupID,
-		"providers",
-		d.resourceType.Namespace,
 	}
 
-	parts = append(parts, d.resourceType.Type)
-
 	if len(resourceID) > 0 {
-		parts = append(parts, resourceID)
+		parts = append(parts,
+			"providers",
+			d.resourceType.Namespace,
+			d.resourceType.Type,
+			resourceID)
 	}
 
 	return azcorearm.ParseResourceID(path.Join(parts...))

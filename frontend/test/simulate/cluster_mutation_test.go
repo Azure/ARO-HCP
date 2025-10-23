@@ -127,4 +127,21 @@ func (tt *clusterMutationTest) runTest(t *testing.T) {
 	actualCreated, err := clusterClient.Get(ctx, tt.resourceGroupName, *toCreate.Name, nil)
 	require.NoError(t, err)
 	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
+
+	currClusterFromList := &hcpsdk20240610preview.HcpOpenShiftCluster{}
+	clusterPager := clusterClient.NewListByResourceGroupPager(tt.resourceGroupName, nil)
+	for clusterPager.More() {
+		page, err := clusterPager.NextPage(ctx)
+		require.NoError(t, err)
+		for _, cluster := range page.Value {
+			t.Logf("Found cluster %q", ptr.Deref(cluster.Name, ""))
+
+			if ptr.Deref(cluster.ID, "sub.ID") == ptr.Deref(actualCreated.ID, "actualCreated.ID") {
+				obj := *cluster
+				currClusterFromList = &obj
+			}
+		}
+	}
+	require.NotNil(t, currClusterFromList)
+	require.Equal(t, actualCreated.HcpOpenShiftCluster, *currClusterFromList)
 }

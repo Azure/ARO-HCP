@@ -129,4 +129,21 @@ func (tt *externalAuthMutationTest) runTest(t *testing.T) {
 	actualCreated, err := externalAuthClient.Get(ctx, tt.resourceGroupName, hcpClusterName, *toCreate.Name, nil)
 	require.NoError(t, err)
 	tt.genericMutationTestInfo.verifyActualResult(t, actualCreated)
+
+	currExternalAuthFromList := &hcpsdk20240610preview.ExternalAuth{}
+	externalAuthPager := externalAuthClient.NewListByParentPager(tt.resourceGroupName, hcpClusterName, nil)
+	for externalAuthPager.More() {
+		page, err := externalAuthPager.NextPage(ctx)
+		require.NoError(t, err)
+		for _, externalAuth := range page.Value {
+			t.Logf("Found cluster %q", ptr.Deref(externalAuth.Name, ""))
+
+			if ptr.Deref(externalAuth.ID, "sub.ID") == ptr.Deref(actualCreated.ID, "actualCreated.ID") {
+				obj := *externalAuth
+				currExternalAuthFromList = &obj
+			}
+		}
+	}
+	require.NotNil(t, currExternalAuthFromList)
+	require.Equal(t, actualCreated.ExternalAuth, *currExternalAuthFromList)
 }
