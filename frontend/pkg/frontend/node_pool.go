@@ -344,7 +344,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, resultingInternalObj, versionedInterface)
+	responseBody, err := mergeToExternalNodePool(csNodePool, resultingInternalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -358,7 +358,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, versionedInterface api.Version) ([]byte, error) {
+func mergeToExternalNodePool(csNodePool *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, versionedInterface api.Version) ([]byte, error) {
 	hcpNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, csNodePool)
 	hcpNodePool.SystemData = internalNodePool.SystemData
 	hcpNodePool.Tags = maps.Clone(internalNodePool.Tags)

@@ -301,7 +301,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return
 	}
 
-	responseBody, err := marshalCSExternalAuth(csExternalAuth, internalObj, versionedInterface)
+	responseBody, err := mergeToExternalExternalAuth(csExternalAuth, internalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -315,7 +315,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, internalObj *api.HCPOpenShiftClusterExternalAuth, versionedInterface api.Version) ([]byte, error) {
+func mergeToExternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, internalObj *api.HCPOpenShiftClusterExternalAuth, versionedInterface api.Version) ([]byte, error) {
 	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(internalObj.ID, csEternalAuth)
 	if err != nil {
 		return nil, err

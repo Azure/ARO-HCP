@@ -322,7 +322,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			return nil, arm.NewInternalServerError()
 		}
 
-		responseBody, err = marshalCSNodePool(csNodePool, internalObj, versionedInterface)
+		responseBody, err = mergeToExternalNodePool(csNodePool, internalObj, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
@@ -340,7 +340,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			return nil, arm.NewInternalServerError()
 		}
 
-		responseBody, err = marshalCSExternalAuth(csExternalAuth, internalObj, versionedInterface)
+		responseBody, err = mergeToExternalExternalAuth(csExternalAuth, internalObj, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()

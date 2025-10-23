@@ -344,7 +344,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csNodePool := range csIterator.Items(ctx) {
 		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.HREF()]; ok {
-			value, err := marshalCSNodePool(csNodePool, internalNodePool, versionedInterface)
+			value, err := mergeToExternalNodePool(csNodePool, internalNodePool, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -427,7 +427,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 	csIterator := f.clusterServiceClient.ListExternalAuths(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csExternalAuth := range csIterator.Items(ctx) {
 		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.HREF()]; ok {
-			value, err := marshalCSExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
+			value, err := mergeToExternalExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -499,10 +499,10 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 	}
 }
 
-// ArmResourceRead implements the GET single resource API contract for ARM
+// GetOpenshiftVersions implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
-func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -512,7 +512,6 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -520,9 +519,18 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	responseBody, cloudError := f.MarshalResource(ctx, resourceID, versionedInterface)
-	if cloudError != nil {
+	versionName := resourceID.Name
+	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
+	if err != nil {
+		logger.Error(err.Error())
+		cloudError := ocm.CSErrorToCloudError(err, resourceID, nil)
 		arm.WriteCloudError(writer, cloudError)
+		return
+	}
+	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
 		return
 	}
 
@@ -565,6 +573,104 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+		return
+	}
+
+	responseBody, err := mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+		return
+	}
+
+	responseBody, err := mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -1728,7 +1834,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
+	cosmosOperation, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1741,7 +1847,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, cosmosOperation) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1766,7 +1872,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	//
 	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
 	//
-	switch doc.Status {
+	switch cosmosOperation.Status {
 	case arm.ProvisioningStateSucceeded:
 		// Handled below.
 	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
@@ -1775,7 +1881,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	default:
 		// Operation is still in progress.
-		f.AddLocationHeader(writer, request, doc.OperationID)
+		f.AddLocationHeader(writer, request, cosmosOperation.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -1785,7 +1891,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var successStatusCode int
 
-	switch doc.Request {
+	switch cosmosOperation.Request {
 	case database.OperationRequestCreate:
 		successStatusCode = http.StatusCreated
 	case database.OperationRequestUpdate:
@@ -1799,17 +1905,16 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
+		logger.Error(fmt.Sprintf("Unhandled request type: %s", cosmosOperation.Request))
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	var responseBody []byte
-	var cloudError *arm.CloudError
 
-	switch doc.InternalID.Kind() {
-	case cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
+	switch {
+	case cosmosOperation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, cosmosOperation.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1823,8 +1928,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			return
 		}
 
-	case arohcpv1alpha1.ClusterKind:
-		resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, doc.ExternalID, versionedInterface)
+	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
+		resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, cosmosOperation.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
 			return
@@ -1835,12 +1940,50 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 		}
 
-	default:
-		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
-		if cloudError != nil {
-			arm.WriteCloudError(writer, cloudError)
+	case cosmosOperation.ExternalID.ResourceType.String() == api.NodePoolResourceType.String():
+		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).NodePools(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
 			return
 		}
+		clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+			return
+		}
+		responseBody, err = mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+	case cosmosOperation.ExternalID.ResourceType.String() == api.ExternalAuthResourceType.String():
+		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).ExternalAuth(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+			return
+		}
+		responseBody, err = mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+	default:
+		logger.Error(fmt.Sprintf("unsupported operator reference: %s", cosmosOperation.ExternalID))
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
