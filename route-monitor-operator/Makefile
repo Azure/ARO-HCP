@@ -27,6 +27,31 @@ helm-chart:
 	find ${RMO_CHART_DIR} -name "*.yaml" -o -name "*.yml" | xargs -r $(YAMLFMT)
 .PHONY: helm-chart
 
+# Stricter validation has been added to RMO and the controller fails if
+# the ingresscontroller "default" resource is not present in the
+# openshift-ingress-operator namespace. Furthermore, the controller
+# expects that the
+# `.Status.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.AWS`
+# field is populated. To keep the integration working, the
+# IngressController CRD as well as the "default" resource are deployed,
+# with the required status fields present. This makes the controller pass
+# the added validation and actually reconcile the blackbox-exporter and
+# the servicemonitor resources we require for KAS monitoring.
+# This is a hack, a temporary solution until RMO is removed and our own
+# ARO-HCP specific solution is in place.
+default-ingresscontroller-hack:
+	kubectl apply -f hack/operator.openshift.io_ingresscontrollers.yaml
+	kubectl wait --for condition=established --timeout=60s crd/ingresscontrollers.operator.openshift.io
+	kubectl create namespace openshift-ingress-operator || true
+	kubectl apply -f hack/ingresscontroller_default.yaml
+	@echo "Patching default IngressController status..."
+	kubectl patch ingresscontroller default \
+		-n openshift-ingress-operator \
+		--subresource=status \
+		--type=merge \
+		-p '{"status":{"endpointPublishingStrategy":{"type":"LoadBalancerService","loadBalancer":{"scope":"External","providerParameters":{"type":"AWS","aws":{"type":"Classic"}}}},"domain":"dummy.local","conditions":[{"type":"Available","status":"True","reason":"IngressControllerAvailable","lastTransitionTime":"'$$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}]}}'
+.PHONY: default-ingresscontroller-hack
+
 update-digests-in-config: $(YAMLFMT)
 	$(eval OPERATOR_DIGEST := $(shell yq '.imageDigestOperator' ${RMO_CHART_DIR}/values-generated.yaml))
 	$(eval BLACKBOX_DIGEST := $(shell yq '.imageDigestBlackbox' ${RMO_CHART_DIR}/values-generated.yaml))

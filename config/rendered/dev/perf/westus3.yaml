@@ -27,6 +27,7 @@ acr:
       days: 365
       enabled: false
     zoneRedundantMode: Disabled
+acrDNSSuffix: azurecr.io
 acrPull:
   image:
     digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d
@@ -600,9 +601,8 @@ routeMonitorOperator:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
     registry: quay.io
     repository: prometheus/blackbox-exporter
-  bundleVersion: 0.1.848-g208c6eb
   operatorImage:
-    digest: sha256:006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
+    digest: sha256:59b939b9e6907d71e09b2bdb7ebbc9c87ab39bfe7d6da1f155bb91fbf762ec5f
     registry: quay.io
     repository: app-sre/route-monitor-operator
 secretSyncController:

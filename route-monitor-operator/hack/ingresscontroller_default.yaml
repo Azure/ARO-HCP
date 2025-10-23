@@ -1,0 +1,20 @@
+apiVersion: operator.openshift.io/v1
+kind: IngressController
+metadata:
+  name: default
+  namespace: openshift-ingress-operator
+spec:
+  domain: dummy.local
+  replicas: 1
+status:
+  endpointPublishingStrategy:
+    type: LoadBalancerService
+    loadBalancer:
+      scope: External # Not Internal, so privateNLB = false
+      providerParameters:
+        type: Classic # Not NLB, so privateNLB = false
+  domain: dummy.local
+  conditions:
+  - type: Available
+    status: "True"
+    reason: IngressControllerAvailable

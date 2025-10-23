@@ -54,18 +54,30 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: default-ingresscontroller-hack
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make default-ingresscontroller-hack
+    workingDir: ./
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
     releaseName: route-monitor-operator
     releaseNamespace: openshift-route-monitor-operator
-    chartDir: ./../route-monitor-operator/deploy/helm/route-monitor-operator
-    valuesFile: ./../route-monitor-operator/deploy/helm/values.yaml
+    chartDir: ./deploy/helm/route-monitor-operator
+    valuesFile: ./deploy/helm/values.yaml
     dependsOn:
     - resourceGroup: global
       step: mirror-operator-image
     - resourceGroup: global
       step: mirror-blackbox-image
+    - resourceGroup: management
+      step: default-ingresscontroller-hack
     externalDependsOn:
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management
