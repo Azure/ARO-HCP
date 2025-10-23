@@ -224,6 +224,9 @@ param hostedControlPlaneLogsDatabase string
 @description('Name of the Kusto resource group')
 var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
 
+@description('The name of the Azure Storage account to create for HCP Backups')
+param hcpBackupsStorageAccountName string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -248,6 +251,16 @@ var workloadIdentities = items({
     uamiName: 'prometheus'
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
+  }
+  velero_wi: {
+    uamiName: 'velero'
+    namespace: 'openshift-adp'
+    serviceAccountName: 'velero'
+  }
+  oadp_wi: {
+    uamiName: 'openshift-adp-controller-manager'
+    namespace: 'openshift-adp'
+    serviceAccountName: 'openshift-adp-controller-manager'
   }
 })
 
@@ -560,4 +573,20 @@ module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bi
     kustoName: kustoName
   }
   scope: resourceGroup(kustoResourceGroup)
+}
+
+//
+// O A D P  B A C K U P S
+//
+
+module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
+  name: 'hcp-backups-rbac'
+  params: {
+    storageAccountName: hcpBackupsStorageAccountName
+    veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
+    oadpControllerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      'openshift-adp-controller-manager'
+    ).uamiPrincipalID
+  }
 }

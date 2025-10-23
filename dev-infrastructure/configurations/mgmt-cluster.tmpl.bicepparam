@@ -95,3 +95,6 @@ param environmentName = '{{ .environmentName }}'
 
 // Override for dev, cause here we share one kusto instance for all environments
 param staticKustoName = '{{ .kusto.staticKustoName }}'
+
+// HCP Backups Storage Account
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'

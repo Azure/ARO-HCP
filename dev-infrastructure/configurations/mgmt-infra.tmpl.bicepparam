@@ -29,3 +29,7 @@ param globalMSIId = '__globalMSIId__'
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
+
+// HCP Backups Storage Account
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'
+param hcpBackupsStorageAccountContainerName = '{{ .mgmt.hcpBackups.storageAccountContainerName }}'
