@@ -10,7 +10,9 @@ The must-gather commands are designed to collect and process diagnostic data fro
 
 ### 1. legacy-query
 
-The `legacy-query` command executes preconfigured queries against Azure Data Explorer clusters using the `akskubesystem` table.
+The `legacy-query` command executes preconfigured queries against Azure Data Explorer clusters using the `akskubesystem` table. This is legacy, cause it uses the ARO Classic table schema and is planned to replace with HCP specific schema/cli in the future.
+
+*Important:*, when you want to gather data for integrated dev, use the `must-gather query` command instead.
 
 #### Purpose
 - Execute default queries against Azure Data Explorer (Kusto)
@@ -18,7 +20,7 @@ The `legacy-query` command executes preconfigured queries against Azure Data Exp
 - Generate structured output for analysis
 
 #### Required Parameters
-- `--kusto`: Azure Data Explorer cluster name
+- `--kusto`: Azure Data Explorer cluster name, [database list](https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/monitoring/kusto/kusto-database-list)
 - `--region`: Azure Data Explorer cluster region  
 - `--subscription-id`: Azure subscription ID
 - `--resource-group`: Azure resource group name
