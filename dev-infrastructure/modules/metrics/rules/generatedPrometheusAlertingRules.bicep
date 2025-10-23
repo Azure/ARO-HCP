@@ -772,7 +772,7 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
         }
         expression: 'min by (job, namespace) (up{job="arobit-forwarder",namespace="arobit"}) == 0'
         for: 'PT15M'
-        severity: 3
+        severity: 2
       }
     ]
     scopes: [
