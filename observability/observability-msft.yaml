@@ -1,0 +1,91 @@
+prometheusRules:
+  # The msft bicep needs alerts from both HCP and main observability rules sources
+  rulesFolders:
+  - alerts/prometheus-prometheusRule.yaml
+  - ../frontend/alerts/mise-prometheusRule.yaml
+  - alerts/msi-credential-refresher-prometheusRule.yaml
+  untestedRules:
+  - alerts/kubernetesControlPlane-prometheusRule.yaml
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedMsftPrometheusAlertingRules.bicep
+  # Explicitly lists all alerts wanted to prevent new Red Hat alerts from automatically being included here
+  # Make sure to include the alert under the correct groupName as defined in its prometheusRule file
+  includedAlertsByGroup:
+  - groupName: kube-apiserver-slos
+    alerts:
+    - KubeAPIErrorBudgetBurn
+  - groupName: kubernetes-resources
+    alerts:
+    - KubeCPUOvercommit
+    - KubeCPUQuotaOvercommit
+    - KubeMemoryOvercommit
+    - KubeMemoryQuotaOvercommit
+    - KubeQuotaAlmostFull
+    - KubeQuotaExceeded
+    - KubeQuotaFullyUsed
+  - groupName: kubernetes-storage
+    alerts:
+    - KubePersistentVolumeErrors
+  - groupName: kubernetes-system
+    alerts:
+    - KubeClientErrors
+    - KubeVersionMismatch
+  - groupName: kubernetes-system-apiserver
+    alerts:
+    - KubeAPIDown
+    - KubeAPITerminatedRequests
+    - KubeAggregatedAPIDown
+    - KubeAggregatedAPIErrors
+    - KubeClientCertificateExpiration
+  - groupName: kubernetes-system-controller-manager
+    alerts:
+    - KubeControllerManagerDown
+  - groupName: kubernetes-system-kubelet
+    alerts:
+    - KubeNodeNotReady
+    - KubeNodeReadinessFlapping
+    - KubeNodeUnreachable
+    - KubeletClientCertificateExpiration
+    - KubeletClientCertificateRenewalErrors
+    - KubeletDown
+    - KubeletPlegDurationHigh
+    - KubeletPodStartUpLatencyHigh
+    - KubeletServerCertificateExpiration
+    - KubeletServerCertificateRenewalErrors
+    - KubeletTooManyPods
+  - groupName: kubernetes-system-scheduler
+    alerts:
+    - KubeSchedulerDown
+  - groupName: prometheus-wip-rules
+    alerts:
+    - PrometheusFailedRate
+    - PrometheusJobUp
+    - PrometheusPendingRate
+    - PrometheusUptime
+  - groupName: prometheus-rules
+    alerts:
+    - PrometheusBadConfig
+    - PrometheusNotIngestingSamples
+    - PrometheusRemoteStorageFailures
+    - PrometheusRuleFailures
+    - PrometheusScrapeSampleLimitHit
+  - groupName: prometheus-operator-rules
+    alerts:
+    - PrometheusOperatorNotReady
+    - PrometheusOperatorRejectedResources
+  - groupName: mise
+    alerts:
+    - MiseEnvoyScrapeDown
+  - groupName: msi-credential-refresher
+    alerts:
+    - ClusterCredentialExpiringSoon
+  outputReplacements:
+  - from: 'job="kube-scheduler"'
+    to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="apiserver"'
+    to: 'job="controlplane-apiserver"'
+  - from: 'job="etcd"'
+    to: 'job="controlplane-etcd"'
+  - from: 'job="cluster-autoscaler"'
+    to: 'job="controlplane-cluster-autoscaler"'
+  - from: 'job="kube-controller-manager"'
+    to: 'job="controlplane-kube-controller-manager"'

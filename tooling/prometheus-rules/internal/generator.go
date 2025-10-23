@@ -49,9 +49,15 @@ type alertingRuleFile struct {
 	TestFileContent           []byte
 }
 
+type GroupAlerts struct {
+	GroupName string   `json:"groupName"`
+	Alerts    []string `json:"alerts"`
+}
+
 type Options struct {
 	forceInfoSeverity  bool
 	outputBicep        string
+	includedAlerts     map[string][]string
 	ruleFiles          []alertingRuleFile
 	outputReplacements []Replacements
 }
@@ -60,6 +66,7 @@ type PrometheusRulesConfig struct {
 	RulesFolders              []string       `json:"rulesFolders"`
 	UntestedRules             []string       `json:"untestedRules,omitempty"`
 	OutputBicep               string         `json:"outputBicep"`
+	IncludedAlertsByGroup     []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
 	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
 	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
 }
@@ -117,6 +124,12 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool) error 
 	}
 
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
+
+	// Convert includedAlertsByGroup to a map
+	o.includedAlerts = make(map[string][]string)
+	for _, ga := range config.PrometheusRules.IncludedAlertsByGroup {
+		o.includedAlerts[ga.GroupName] = ga.Alerts
+	}
 
 	for _, untestedRules := range config.PrometheusRules.UntestedRules {
 		filePath := path.Join(baseDirectory, untestedRules)
@@ -274,6 +287,13 @@ param azureMonitoring string
 
 	for _, irf := range o.ruleFiles {
 		for _, group := range irf.Rules.Spec.Groups {
+			// Skip this group if not in includedAlerts
+			if len(o.includedAlerts) > 0 {
+				if _, exists := o.includedAlerts[group.Name]; !exists {
+					continue
+				}
+			}
+
 			logger := logrus.WithFields(logrus.Fields{
 				"group": group.Name,
 			})
@@ -299,6 +319,22 @@ param azureMonitoring string
 			}
 
 			for _, rule := range group.Rules {
+				// If includedAlerts is set for this group, ONLY include those alerts
+				if len(o.includedAlerts) > 0 {
+					if includedAlerts, exists := o.includedAlerts[group.Name]; exists {
+						shouldInclude := false
+						for _, includedAlert := range includedAlerts {
+							if rule.Alert == includedAlert {
+								shouldInclude = true
+								break
+							}
+						}
+						if !shouldInclude {
+							continue
+						}
+					}
+				}
+
 				labels := map[string]*string{}
 				for k, v := range group.Labels {
 					labels[k] = ptr.To(strings.ReplaceAll(v, "'", "\\'"))
@@ -379,7 +415,6 @@ param azureMonitoring string
 				}
 			}
 		}
-
 	}
 	return nil
 }
