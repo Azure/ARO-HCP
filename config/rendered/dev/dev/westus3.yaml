@@ -458,6 +458,9 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: true
+  hcpBackups:
+    storageAccountContainerName: backups
+    storageAccountName: oadpdevusw31
   nsp:
     accessMode: Learning
     name: nsp-usw3-mgmt-1

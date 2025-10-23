@@ -458,6 +458,9 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
+  hcpBackups:
+    storageAccountContainerName: backups
+    storageAccountName: oadpprowusw3j1
   jaeger:
     deploy: false
   nsp:

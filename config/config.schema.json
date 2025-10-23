@@ -785,6 +785,19 @@
         "key",
         "displayName"
       ]
+    },
+    "hcpBackups": {
+      "type": "object",
+      "properties": {
+        "storageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "Storage account name must be between 3 and 24 characters in length and use numbers and lower-case letters only"
+        },
+        "storageAccountContainerName":{
+          "type": "string"
+        }
+      }
     }
   },
   "properties": {
@@ -2154,6 +2167,9 @@
         },
         "applyKubeletFixes": {
           "type": "boolean"
+        },
+        "hcpBackups": {
+          "$ref": "#/definitions/hcpBackups"
         },
         "nsp": {
           "$ref": "#/definitions/nsp"
