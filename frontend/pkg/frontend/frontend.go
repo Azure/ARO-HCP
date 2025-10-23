@@ -371,7 +371,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 				arm.WriteInternalServerError(writer)
 				return
 			}
-			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
+			value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -1536,12 +1536,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) ([]byte, error) {
-	resourceID, err := azcorearm.ParseResourceID(internalCluster.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID: %w", err)
-	}
-
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -1747,7 +1742,7 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 	return featureMap
 }
 
-func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
+func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
 	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftVersion(hcpVersion))
 }

@@ -17,8 +17,6 @@ package database
 import (
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -29,10 +27,6 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		return nil, nil
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(internalObj.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID '%s': %w", internalObj.ID, err)
-	}
 	clusterServiceID, err := ocm.NewInternalID(internalObj.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cluster service ID '%s': %w", internalObj.ServiceProviderProperties.ClusterServiceID, err)
@@ -42,7 +36,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		TypedDocument: TypedDocument{},
 		HCPClusterProperties: HCPClusterProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: resourceID,
+				ResourceID: internalObj.ID,
 				InternalID: clusterServiceID,
 				// TODO
 				//ActiveOperationID: "",
@@ -127,7 +121,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
 		Resource: arm.Resource{
-			ID:         cosmosObj.ResourceID.String(),
+			ID:         cosmosObj.ResourceID,
 			Name:       cosmosObj.ResourceID.Name,
 			Type:       cosmosObj.ResourceID.ResourceType.String(),
 			SystemData: cosmosObj.SystemData,

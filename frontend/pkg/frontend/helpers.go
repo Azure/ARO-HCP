@@ -296,7 +296,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 		}
-		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
+		responseBody, err = marshalCSVersion(resourceID, version, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()

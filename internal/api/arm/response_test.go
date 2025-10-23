@@ -22,12 +22,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 func TestWriteJSONResponse(t *testing.T) {
+	resourceID, err := azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel")
+	require.NoError(t, err)
 	resourceStruct := &TrackedResource{
 		Resource: Resource{
-			ID:   "00000000-0000-0000-0000-000000000000",
+			ID:   resourceID,
 			Name: "testVM",
 			Type: "Microsoft.Compute/virtualMachines",
 		},
