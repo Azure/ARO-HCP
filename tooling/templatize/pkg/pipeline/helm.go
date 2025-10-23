@@ -18,19 +18,23 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/helm"
 	"github.com/Azure/ARO-Tools/pkg/types"
-	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
-func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
+func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -57,7 +61,7 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 
 	replacements := map[string]string{}
 	for key, from := range step.InputVariables {
-		value, err := resolveInput(from, outputs)
+		value, err := resolveInput(id.ServiceGroup, from, outputs)
 		if err != nil {
 			return err
 		}
@@ -80,13 +84,16 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 	}
 
 	// first, pre-process the files provided by the user
-	if err := os.MkdirAll(filepath.Join(tmpdir, "namespaces"), 0755); err != nil {
+	namespaceDir := filepath.Join(tmpdir, "namespaces")
+	if err := os.MkdirAll(namespaceDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp dir for namespace manifests: %w", err)
 	}
 	var namespaceFiles []string
+	namespaceContent := map[string][]byte{}
 	for _, file := range step.NamespaceFiles {
-		tmpfile := filepath.Join(tmpdir, "namespaces", file)
-		processed, err := process(filepath.Join(filepath.Dir(options.PipelineFilePath), file))
+		tmpfilename := strings.ReplaceAll(file, string(filepath.Separator), "-")
+		tmpfile := filepath.Join(namespaceDir, tmpfilename)
+		processed, err := process(filepath.Join(options.PipelineDirectory, file))
 		if err != nil {
 			return fmt.Errorf("failed to preprocess namespace manifest %s: %w", file, err)
 		}
@@ -94,10 +101,11 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 			return fmt.Errorf("failed to write file %s: %w", file, err)
 		}
 		namespaceFiles = append(namespaceFiles, tmpfile)
+		namespaceContent[tmpfilename] = processed
 	}
 
 	values := filepath.Join(tmpdir, filepath.Base(step.ValuesFile))
-	processed, err := process(filepath.Join(filepath.Dir(options.PipelineFilePath), step.ValuesFile))
+	processed, err := process(filepath.Join(options.PipelineDirectory, step.ValuesFile))
 	if err != nil {
 		return fmt.Errorf("failed to preprocess Helm values %s: %w", step.ValuesFile, err)
 	}
@@ -106,16 +114,59 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 	}
 
 	// then, run the helm release
+	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
 	opts := helm.RawOptions{
 		NamespaceFiles:   namespaceFiles,
 		ReleaseName:      step.ReleaseName,
 		ReleaseNamespace: step.ReleaseNamespace,
-		ChartDir:         filepath.Join(filepath.Dir(options.PipelineFilePath), step.ChartDir),
+		ChartDir:         chartDir,
 		ValuesFile:       values,
 		Timeout:          5 * time.Minute,
 		KubeconfigFile:   kubeconfig,
 		DryRun:           options.DryRun,
 	}
+
+	chartData := map[string][]byte{}
+	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		relpath, err := filepath.Rel(chartDir, path)
+		if err != nil {
+			return err
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		chartData[relpath] = raw
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to walk helm chart dir: %w", err)
+	}
+
+	inputs := helmInputs{
+		SubscriptionId:   executionTarget.GetSubscriptionID(),
+		ResourceGroup:    executionTarget.GetResourceGroup(),
+		AKSClusterName:   step.AKSCluster,
+		Namespaces:       namespaceContent,
+		Chart:            chartData,
+		Values:           processed,
+		ReleaseName:      step.ReleaseName,
+		ReleaseNamespace: step.ReleaseNamespace,
+		DryRun:           options.DryRun,
+	}
+	skip, commit, err := checkSentinel(logger, inputs, options.StepCacheDir)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return nil
+	}
+
 	validated, err := opts.Validate()
 	if err != nil {
 		return fmt.Errorf("failed to validate helm options: %w", err)
@@ -128,5 +179,18 @@ func runHelmStep(step *types.HelmStep, ctx context.Context, options *PipelineRun
 		return fmt.Errorf("failed to deploy helm release: %w", err)
 	}
 
-	return nil
+	return commit()
+}
+
+type helmInputs struct {
+	SubscriptionId string `json:"subscriptionId"`
+	ResourceGroup  string `json:"resourceGroup"`
+	AKSClusterName string `json:"aksClusterName"`
+
+	Namespaces       map[string][]byte `json:"namespaces"`
+	Chart            map[string][]byte `json:"chart"`
+	Values           []byte            `json:"values"`
+	ReleaseName      string            `json:"releaseName"`
+	ReleaseNamespace string            `json:"releaseNamespace"`
+	DryRun           bool              `json:"dryRun"`
 }

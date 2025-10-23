@@ -18,8 +18,9 @@ import (
 	"math/rand"
 	"testing"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"sigs.k8s.io/randfill"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -27,6 +28,8 @@ import (
 
 func TestExternalAuthJSONRoundTripThroughResourceDocument(t *testing.T) {
 	seed := rand.Int63()
+	t.Logf("seed: %d", seed)
+
 	fuzzer := fuzzerFor([]interface{}{
 		func(j *TypedDocument, c randfill.Continue) {
 			c.FillNoCustom(j)

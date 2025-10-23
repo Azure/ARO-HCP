@@ -18,7 +18,7 @@ tests:
         namespace: mise
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for istio envoy in namespace mise is failing or missing."
+        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
         runbook_url: 'TBD'
 - interval: 1s
   input_series: [] # No 'up' series at all (absent)
@@ -29,11 +29,12 @@ tests:
     - exp_labels:
         alertname: MiseEnvoyScrapeDown
         severity: info
-        job: envoy-stats
+        endpoint: http-envoy-prom
+        container: istio-proxy
         namespace: mise
       exp_annotations:
         summary: "Envoy scrape target down for namespace=mise"
-        description: "Prometheus scrape for istio envoy in namespace mise is failing or missing."
+        description: "Prometheus scrape for envoy-stats job in namespace mise is failing or missing."
         runbook_url: 'TBD'
 # Test: Envoy up and healthy for 10 minutes (no alert should fire)
 - interval: 1s

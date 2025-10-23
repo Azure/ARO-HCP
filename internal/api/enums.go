@@ -14,6 +14,10 @@
 
 package api
 
+import (
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
 // DiskStorageAccountType represents supported Azure storage account types.
 type DiskStorageAccountType string
 
@@ -21,6 +25,14 @@ const (
 	DiskStorageAccountTypePremium_LRS     DiskStorageAccountType = "Premium_LRS"
 	DiskStorageAccountTypeStandardSSD_LRS DiskStorageAccountType = "StandardSSD_LRS"
 	DiskStorageAccountTypeStandard_LRS    DiskStorageAccountType = "Standard_LRS"
+)
+
+var (
+	ValidDiskStorageAccountTypes = sets.New[DiskStorageAccountType](
+		DiskStorageAccountTypePremium_LRS,
+		DiskStorageAccountTypeStandardSSD_LRS,
+		DiskStorageAccountTypeStandard_LRS,
+	)
 )
 
 // NetworkType represents an OpenShift cluster network plugin.
@@ -31,11 +43,24 @@ const (
 	NetworkTypeOther         NetworkType = "Other"
 )
 
+var (
+	ValidNetworkTypes = sets.New[NetworkType](
+		NetworkTypeOVNKubernetes,
+		NetworkTypeOther,
+	)
+)
+
 // OutboundType represents a routing strategy to provide egress to the Internet.
 type OutboundType string
 
 const (
 	OutboundTypeLoadBalancer OutboundType = "LoadBalancer"
+)
+
+var (
+	ValidOutboundTypes = sets.New[OutboundType](
+		OutboundTypeLoadBalancer,
+	)
 )
 
 // Visibility represents the visibility of an API endpoint.
@@ -44,6 +69,13 @@ type Visibility string
 const (
 	VisibilityPublic  Visibility = "Public"
 	VisibilityPrivate Visibility = "Private"
+)
+
+var (
+	ValidVisibility = sets.New[Visibility](
+		VisibilityPublic,
+		VisibilityPrivate,
+	)
 )
 
 type Effect string
@@ -57,11 +89,25 @@ const (
 	EffectPreferNoSchedule Effect = "PreferNoSchedule"
 )
 
+var (
+	ValidEffects = sets.New[Effect](
+		EffectNoExecute,
+		EffectNoSchedule,
+		EffectPreferNoSchedule,
+	)
+)
+
 type CustomerManagedEncryptionType string
 
 const (
 	// CustomerManagedEncryptionTypeKMS - KMS encryption type.
 	CustomerManagedEncryptionTypeKMS CustomerManagedEncryptionType = "KMS"
+)
+
+var (
+	ValidCustomerManagedEncryptionType = sets.New[CustomerManagedEncryptionType](
+		CustomerManagedEncryptionTypeKMS,
+	)
 )
 
 type EtcdDataEncryptionKeyManagementModeType string
@@ -71,6 +117,13 @@ const (
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
+)
+
+var (
+	ValidEtcdDataEncryptionKeyManagementModeType = sets.New[EtcdDataEncryptionKeyManagementModeType](
+		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+	)
 )
 
 // ClusterImageRegistryProfileState - state indicates the desired ImageStream-backed cluster image registry installation mode.
@@ -84,12 +137,25 @@ const (
 	ClusterImageRegistryProfileStateEnabled  ClusterImageRegistryProfileState = "Enabled"
 )
 
+var (
+	ValidClusterImageRegistryProfileStates = sets.New[ClusterImageRegistryProfileState](
+		ClusterImageRegistryProfileStateDisabled,
+		ClusterImageRegistryProfileStateEnabled,
+	)
+)
+
 type TokenValidationRuleType string
 
 const (
 	// TokenValidationRuleTypeRequiredClaim - the Kubernetes API server will be configured to validate that the
 	// incoming JWT contains the required claim and that its value matches the required value.
 	TokenValidationRuleTypeRequiredClaim TokenValidationRuleType = "RequiredClaim"
+)
+
+var (
+	ValidTokenValidationRuleTypes = sets.New[TokenValidationRuleType](
+		TokenValidationRuleTypeRequiredClaim,
+	)
 )
 
 type ExternalAuthClientType string
@@ -99,6 +165,13 @@ const (
 	ExternalAuthClientTypeConfidential ExternalAuthClientType = "Confidential"
 	// ExternalAuthClientTypePublic - the client is public.
 	ExternalAuthClientTypePublic ExternalAuthClientType = "Public"
+)
+
+var (
+	ValidExternalAuthClientTypes = sets.New[ExternalAuthClientType](
+		ExternalAuthClientTypeConfidential,
+		ExternalAuthClientTypePublic,
+	)
 )
 
 type ExternalAuthConditionType string
@@ -112,6 +185,14 @@ const (
 	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
 )
 
+var (
+	ValidExternalAuthConditionTypes = sets.New[ExternalAuthConditionType](
+		ExternalAuthConditionTypeAvailable,
+		ExternalAuthConditionTypeDegraded,
+		ExternalAuthConditionTypeProgressing,
+	)
+)
+
 type ConditionStatusType string
 
 const (
@@ -123,6 +204,14 @@ const (
 	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
 )
 
+var (
+	ValidConditionStatusTypes = sets.New[ConditionStatusType](
+		ConditionStatusTypeTrue,
+		ConditionStatusTypeFalse,
+		ConditionStatusTypeUnknown,
+	)
+)
+
 type UsernameClaimPrefixPolicy string
 
 const (
@@ -132,4 +221,12 @@ const (
 	UsernameClaimPrefixPolicyNoPrefix UsernameClaimPrefixPolicy = "NoPrefix"
 	// UsernameClaimPrefixPolicyNone - let the platform choose an appropriate prefix.
 	UsernameClaimPrefixPolicyNone UsernameClaimPrefixPolicy = "None"
+)
+
+var (
+	ValidUsernameClaimPrefixPolicies = sets.New[UsernameClaimPrefixPolicy](
+		UsernameClaimPrefixPolicyPrefix,
+		UsernameClaimPrefixPolicyNoPrefix,
+		UsernameClaimPrefixPolicyNone,
+	)
 )

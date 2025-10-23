@@ -14,6 +14,8 @@
 
 package arm
 
+import "k8s.io/apimachinery/pkg/util/sets"
+
 // Represents to support the ManagedServiceIdentity ARM resource.
 type ManagedServiceIdentity struct {
 	PrincipalID            string                           `json:"principalId,omitempty"            visibility:"read"`
@@ -35,4 +37,12 @@ const (
 	ManagedServiceIdentityTypeSystemAssigned             ManagedServiceIdentityType = "SystemAssigned"
 	ManagedServiceIdentityTypeSystemAssignedUserAssigned ManagedServiceIdentityType = "SystemAssigned,UserAssigned"
 	ManagedServiceIdentityTypeUserAssigned               ManagedServiceIdentityType = "UserAssigned"
+)
+
+var (
+	ValidManagedServiceIdentityTypes = sets.New[ManagedServiceIdentityType](
+		ManagedServiceIdentityTypeNone,
+		ManagedServiceIdentityTypeSystemAssigned,
+		ManagedServiceIdentityTypeSystemAssignedUserAssigned,
+		ManagedServiceIdentityTypeUserAssigned)
 )

@@ -27,16 +27,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/google/uuid"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -296,12 +298,17 @@ func TestSubscriptionsPUT(t *testing.T) {
 	}
 }
 
+type expectedPreflightError struct {
+	message string // Expected error message (partial match)
+	target  string // Expected target field path
+}
+
 func TestDeploymentPreflight(t *testing.T) {
 	tests := []struct {
 		name         string
 		resource     map[string]any
 		expectStatus arm.DeploymentPreflightStatus
-		expectErrors int
+		expectErrors []expectedPreflightError
 	}{
 		{
 			name: "Unhandled resource type returns no error",
@@ -371,7 +378,12 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 4,
+			expectErrors: []expectedPreflightError{
+				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
+				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visiblity"},
+				{message: "Required value", target: "properties.platform.subnetId"},
+				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+			},
 		},
 		{
 			name: "Well-formed node pool resource returns no error",
@@ -419,7 +431,14 @@ func TestDeploymentPreflight(t *testing.T) {
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
-			expectErrors: 4,
+			expectErrors: []expectedPreflightError{
+				{message: "Required value", target: "properties.platform.vmSize"},
+				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
+				{message: "Unsupported value: \"NoTouchy\": supported values: \"NoExecute\", \"NoSchedule\", \"PreferNoSchedule\"", target: "properties.taints[0].effect"},
+				{message: "Required value", target: "properties.taints[0].key"},
+				{message: "Invalid value: \"\": name part must be non-empty", target: "properties.taints[0].key"},
+				{message: "Invalid value: \"\": name part must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character (e.g. 'MyName',  or 'my.name',  or '123-abc', regex used for validation is '([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9]')", target: "properties.taints[0].key"},
+			},
 		},
 	}
 
@@ -450,7 +469,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				MaxTimes(2)
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
@@ -482,19 +501,39 @@ func TestDeploymentPreflight(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, test.expectStatus, preflightResp.Status)
-			switch test.expectErrors {
-			case 0:
+			if len(test.expectErrors) == 0 {
 				assert.Nil(t, preflightResp.Error)
-			case 1:
-				if assert.NotNil(t, preflightResp.Error) {
-					assert.Nil(t, preflightResp.Error.Details)
-					assert.NotEmpty(t, preflightResp.Error.Code)
-					assert.NotEmpty(t, preflightResp.Error.Message)
-					assert.NotEmpty(t, preflightResp.Error.Target)
-				}
-			default:
-				if assert.NotNil(t, preflightResp.Error) {
-					assert.Equal(t, test.expectErrors, len(preflightResp.Error.Details))
+			} else {
+				if assert.NotNil(t, preflightResp.Error, "Expected validation errors but got none") {
+					if len(test.expectErrors) == 1 {
+						// Single error case - check main error fields
+						assert.Nil(t, preflightResp.Error.Details)
+						assert.NotEmpty(t, preflightResp.Error.Code)
+						assert.NotEmpty(t, preflightResp.Error.Message)
+						assert.NotEmpty(t, preflightResp.Error.Target)
+						// Check the expected error details
+						expected := test.expectErrors[0]
+						assert.Equal(t, expected.message, preflightResp.Error.Message)
+						assert.Equal(t, expected.target, preflightResp.Error.Target)
+					} else {
+						// Multiple errors case - check error details
+						if !assert.Equal(t, len(test.expectErrors), len(preflightResp.Error.Details), "Number of validation errors mismatch") {
+							// Print all actual errors when counts don't match
+							t.Logf("Expected %d errors, got %d errors", len(test.expectErrors), len(preflightResp.Error.Details))
+							t.Logf("Actual errors:")
+							for i, actual := range preflightResp.Error.Details {
+								t.Logf("  Error %d: Target=%s, Message=%s", i+1, actual.Target, actual.Message)
+							}
+						} else {
+							for i, expected := range test.expectErrors {
+								if i < len(preflightResp.Error.Details) {
+									actual := preflightResp.Error.Details[i]
+									assert.Equal(t, expected.message, actual.Message, "Error %d message mismatch", i+1)
+									assert.Equal(t, expected.target, actual.Target, "Error %d target mismatch", i+1)
+								}
+							}
+						}
+					}
 				}
 			}
 		})
@@ -639,7 +678,7 @@ func TestRequestAdminCredential(t *testing.T) {
 			}
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}
@@ -774,7 +813,7 @@ func TestRevokeCredentials(t *testing.T) {
 
 					requestOperationID := string(arm.ProvisioningStateProvisioning)
 					requestOperations := map[string]*database.OperationDocument{
-						requestOperationID: &database.OperationDocument{
+						requestOperationID: {
 							Request:    database.OperationRequestRequestCredential,
 							ExternalID: clusterResourceID,
 							InternalID: clusterInternalID,
@@ -827,7 +866,7 @@ func TestRevokeCredentials(t *testing.T) {
 			}
 
 			subs := map[string]*arm.Subscription{
-				api.TestSubscriptionID: &arm.Subscription{
+				api.TestSubscriptionID: {
 					State: arm.SubscriptionStateRegistered,
 				},
 			}

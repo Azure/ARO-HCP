@@ -547,10 +547,10 @@ func (c *MockClusterServiceClientSpecListBreakGlassCredentialsCall) DoAndReturn(
 }
 
 // ListClusters mocks base method.
-func (m *MockClusterServiceClientSpec) ListClusters(searchExpression string) *ocm.ClusterListIterator {
+func (m *MockClusterServiceClientSpec) ListClusters(searchExpression string) ocm.ClusterListIterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListClusters", searchExpression)
-	ret0, _ := ret[0].(*ocm.ClusterListIterator)
+	ret0, _ := ret[0].(ocm.ClusterListIterator)
 	return ret0
 }
 
@@ -567,28 +567,28 @@ type MockClusterServiceClientSpecListClustersCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecListClustersCall) Return(arg0 *ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
+func (c *MockClusterServiceClientSpecListClustersCall) Return(arg0 ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecListClustersCall) Do(f func(string) *ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
+func (c *MockClusterServiceClientSpecListClustersCall) Do(f func(string) ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecListClustersCall) DoAndReturn(f func(string) *ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
+func (c *MockClusterServiceClientSpecListClustersCall) DoAndReturn(f func(string) ocm.ClusterListIterator) *MockClusterServiceClientSpecListClustersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ListExternalAuths mocks base method.
-func (m *MockClusterServiceClientSpec) ListExternalAuths(clusterInternalID ocm.InternalID, searchExpression string) *ocm.ExternalAuthListIterator {
+func (m *MockClusterServiceClientSpec) ListExternalAuths(clusterInternalID ocm.InternalID, searchExpression string) ocm.ExternalAuthListIterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListExternalAuths", clusterInternalID, searchExpression)
-	ret0, _ := ret[0].(*ocm.ExternalAuthListIterator)
+	ret0, _ := ret[0].(ocm.ExternalAuthListIterator)
 	return ret0
 }
 
@@ -605,28 +605,28 @@ type MockClusterServiceClientSpecListExternalAuthsCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecListExternalAuthsCall) Return(arg0 *ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) Return(arg0 ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecListExternalAuthsCall) Do(f func(ocm.InternalID, string) *ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) Do(f func(ocm.InternalID, string) ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecListExternalAuthsCall) DoAndReturn(f func(ocm.InternalID, string) *ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
+func (c *MockClusterServiceClientSpecListExternalAuthsCall) DoAndReturn(f func(ocm.InternalID, string) ocm.ExternalAuthListIterator) *MockClusterServiceClientSpecListExternalAuthsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ListNodePools mocks base method.
-func (m *MockClusterServiceClientSpec) ListNodePools(clusterInternalID ocm.InternalID, searchExpression string) *ocm.NodePoolListIterator {
+func (m *MockClusterServiceClientSpec) ListNodePools(clusterInternalID ocm.InternalID, searchExpression string) ocm.NodePoolListIterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListNodePools", clusterInternalID, searchExpression)
-	ret0, _ := ret[0].(*ocm.NodePoolListIterator)
+	ret0, _ := ret[0].(ocm.NodePoolListIterator)
 	return ret0
 }
 
@@ -643,19 +643,19 @@ type MockClusterServiceClientSpecListNodePoolsCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockClusterServiceClientSpecListNodePoolsCall) Return(arg0 *ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
+func (c *MockClusterServiceClientSpecListNodePoolsCall) Return(arg0 ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockClusterServiceClientSpecListNodePoolsCall) Do(f func(ocm.InternalID, string) *ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
+func (c *MockClusterServiceClientSpecListNodePoolsCall) Do(f func(ocm.InternalID, string) ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockClusterServiceClientSpecListNodePoolsCall) DoAndReturn(f func(ocm.InternalID, string) *ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
+func (c *MockClusterServiceClientSpecListNodePoolsCall) DoAndReturn(f func(ocm.InternalID, string) ocm.NodePoolListIterator) *MockClusterServiceClientSpecListNodePoolsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

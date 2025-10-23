@@ -16,11 +16,11 @@ package api
 
 import (
 	"fmt"
+	"sync"
+
+	"k8s.io/utils/set"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	validator "github.com/go-playground/validator/v10"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 const (
@@ -43,19 +43,15 @@ var (
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
 )
 
-type Resource interface {
-	NewVersioned(versionedInterface Version) VersionedResource
-}
-
 type VersionedResource interface {
 	GetVersion() Version
 }
 
 type VersionedCreatableResource[T any] interface {
 	VersionedResource
+	NewExternal() any
+	SetDefaultValues(any) error
 	Normalize(*T)
-	GetVisibility(path string) (VisibilityFlags, bool)
-	ValidateVisibility(current VersionedCreatableResource[T], updating bool) []arm.CloudErrorBody
 }
 
 type VersionedHCPOpenShiftCluster VersionedCreatableResource[HCPOpenShiftCluster]
@@ -63,10 +59,15 @@ type VersionedHCPOpenShiftClusterNodePool VersionedCreatableResource[HCPOpenShif
 type VersionedHCPOpenShiftClusterExternalAuth VersionedCreatableResource[HCPOpenShiftClusterExternalAuth]
 type VersionedHCPOpenShiftVersion VersionedResource
 
+// ValidationPathMapperFunc takes an internal path from validation and converts it to the external path
+// for this particular version.  This needs to be as close as possible, but perfection isn't required since fields
+// could be split or combined.
+type ValidationPathMapperFunc func(path string) string
+
 type Version interface {
 	fmt.Stringer
 
-	GetValidator() *validator.Validate
+	ValidationPathRewriter(obj any) (ValidationPathMapperFunc, error)
 
 	// Resource Types
 	// Passing a nil pointer creates a resource with default values.
@@ -79,98 +80,50 @@ type Version interface {
 	MarshalHCPOpenShiftClusterAdminCredential(*HCPOpenShiftClusterAdminCredential) ([]byte, error)
 }
 
-func ValidateVersionedHCPOpenShiftCluster(incoming, current VersionedHCPOpenShiftCluster, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
+// APIRegistry is a way to keep track of versioned interfaces.
+// It should always be done per-instance, so we can easily track what registers where and why it does it.
+// This construction also gives us a way to unit and integration test different scenarios without impacting a single
+// global as we run the tests.
+type APIRegistry interface {
+	Register(version Version) error
+	ListVersions() set.Set[string]
+	Lookup(key string) (version Version, ok bool)
+}
 
-	errorDetails = incoming.ValidateVisibility(current, updating)
+type apiRegistry struct {
+	lock             sync.RWMutex
+	versionToDetails map[string]Version
+}
 
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftCluster
+func NewAPIRegistry() APIRegistry {
+	return &apiRegistry{
+		versionToDetails: map[string]Version{},
+	}
+}
 
-		incoming.Normalize(&normalized)
+func (a *apiRegistry) Register(version Version) error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate()
-		}
+	if _, exists := a.versionToDetails[version.String()]; exists {
+		return fmt.Errorf("version %s already registered", version.String())
 	}
 
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
+	a.versionToDetails[version.String()] = version
+	return nil
 }
 
-func ValidateVersionedHCPOpenShiftClusterNodePool(incoming, current VersionedHCPOpenShiftClusterNodePool, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
+func (a *apiRegistry) ListVersions() set.Set[string] {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 
-	errorDetails = incoming.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftClusterNodePool
-
-		incoming.Normalize(&normalized)
-
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate(cluster)
-		}
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
+	return set.KeySet(a.versionToDetails)
 }
 
-func ValidateVersionedHCPOpenShiftClusterExternalAuth(incoming, current VersionedHCPOpenShiftClusterExternalAuth, cluster *HCPOpenShiftCluster, updating bool) *arm.CloudError {
-	var errorDetails []arm.CloudErrorBody
+func (a *apiRegistry) Lookup(key string) (Version, bool) {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 
-	errorDetails = incoming.ValidateVisibility(current, updating)
-
-	// Proceed with additional validation only if visibility validation has
-	// passed. This avoids running further checks on changes we already know
-	// to be invalid and prevents the response body from becoming overwhelming.
-	if len(errorDetails) == 0 {
-		var normalized HCPOpenShiftClusterExternalAuth
-
-		incoming.Normalize(&normalized)
-
-		errorDetails = ValidateRequest(incoming.GetVersion().GetValidator(), &normalized)
-
-		// Proceed with complex, multi-field validation only if single-field
-		// validation has passed. This avoids running further checks on data
-		// we already know to be invalid and prevents the response body from
-		// becoming overwhelming.
-		if len(errorDetails) == 0 {
-			errorDetails = normalized.Validate(cluster)
-		}
-	}
-
-	// Returns nil if errorDetails is empty.
-	return arm.NewContentValidationError(errorDetails)
-}
-
-// apiRegistry is the map of registered API versions
-var apiRegistry = map[string]Version{}
-
-func Register(version Version) {
-	apiRegistry[version.String()] = version
-}
-
-func Lookup(key string) (version Version, ok bool) {
-	version, ok = apiRegistry[key]
-	return
+	version, ok := a.versionToDetails[key]
+	return version, ok
 }

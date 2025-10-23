@@ -197,22 +197,22 @@ The pipeline format, with its resource group and subscription references and the
 
 Within the Red Hat development tenant for ARO HCP, we have two primary use cases for deployments.
 
-Developers and SREs deploy their personal development ARO HCP instances using Makefile targets, such as `make infra.all`. Behind the scene, this executes a series of pipelines using a custom pipeline runner that interprets the pipeline files and takes actions accordingly, adhering to the defined expectations described in the [Step execution context](#step-execution-context) section.
+Developers and SREs deploy their personal development ARO HCP instances using Makefile targets, such as `make entrypoint/Global` or `make pipeline/PKO`. Use your shell's tab-completion to view the available options for these targets. Behind the scenes, this executes the steps in a pipeline or under an entrypoint using a custom pipeline runner that interprets the pipeline files and takes actions accordingly, adhering to the defined expectations described in the [Step execution context](#step-execution-context) section.
 
 In addition, some shared ARO HCP instances are continuously reconciled on each change in the ARO-HCP repository using GitHub Actions. These actions leverage the same Makefile targets and the same pipeline executor as developers and SREs.
 
 The custom pipeline runner can be found in [tooling/templatize](tooling/templatize).
 
-To manually run a pipeline you can use the `templatize.sh` script, e.g. to deploy `my-pipeline.yaml` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
+To manually run a pipeline you can use the `make pipeline/` targets, e.g. to deploy `Microsoft.Azure.ARO.HCP.Maestro.Agent` with the `pers` environment architetype in the `dev` cloud (which is basically `public` cloud - see [configuration documentation](configuration.md)), run
 
 ```sh
-./templatize.sh pers -p my-pipeline.yaml -P run
+make pipeline/Maestro.Agent DEPLOY_ENV=pers
 ```
 
-The pipeline runner supports a dry-run mode that allows you to simulate the execution of a pipeline without actually deploying any resources. This is useful for verifying the correctness of the pipeline file and the expected behavior of the steps. Add the `-d` option to the `templatize.sh` command to enable dry-run mode:
+The pipeline runner supports a dry-run mode that allows you to simulate the execution of a pipeline without actually deploying any resources. This is useful for verifying the correctness of the pipeline file and the expected behavior of the steps. Add the `DRY_RUN=true` option to the `make` command to enable dry-run mode:
 
 ```sh
-./templatize.sh pers -p my-pipeline.yaml -P run -d
+make pipeline/Maestro.Agent DEPLOY_ENV=pers DRY_RUN=true
 ```
 
 > [!IMPORTANT]

@@ -92,14 +92,14 @@ defaults:
     forwarder:
       image:
         registry: mcr.microsoft.com
-        repository: oss/fluent/fluent-bit
-        digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+        repository: oss/v2/fluent/fluent-bit
+        digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
     mdsd:
       enabled: true
       image:
         registry: linuxgeneva-microsoft.azurecr.io
         repository: genevamdsd
-        digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+        digest: sha256:c63187bb16b7cf83940b3223643d4582aa4fe3d38940b5e34d12672f443914bc
   # Kube Events
   kubeEvents:
     enabled: true
@@ -156,9 +156,26 @@ defaults:
         namespace: ""
         san: ""
         configVersion: "1"
+    actions:
+      serviceTag: GenevaActions
+      keyVault:
+        name: "arohcp{{ .ctx.environment }}-geneva-kv" # [globally-unique]
+        private: false
+        softDelete: true
+        tagKey: aroHCPPurpose
+        tagValue: geneva-actions
+      certificate:
+        name: genevaAction
+        issuer: OneCertV2-PrivateCA
+        manage: true
+      allowedAcisExtensions: "AzureRedHatHypershiftExtension"
+      genevaActionsPrincipalId: ""
   kusto:
+    enabled: false
     resourceGroup: ""
     cluster: ""
+    ingestionUrl: ""
+    environmentName: {{ .ctx.environment }}
   # Hypershift
   hypershift:
     image:
@@ -215,12 +232,12 @@ defaults:
     # Bundle version is not used in runtime, it's used to generate
     # the Helm chart for the route-monitor-operator
     # WARNING: Keep this in sync with the image digests
-    bundleVersion: 0.1.744-gad53663
+    bundleVersion: 0.1.848-g208c6eb
     # Image refs
     operatorImage:
       registry: quay.io
       repository: app-sre/route-monitor-operator
-      digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+      digest: sha256:006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
     blackboxExporterImage:
       registry: quay.io
       repository: prometheus/blackbox-exporter
@@ -467,10 +484,15 @@ defaults:
       dstsGroups:
       - name: ""
         description: ""
+      vmUsageStaleThreshold: ""
     eventHub:
       namespace: ""
       subscriptionId: ""
       resourceGroupName: ""
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   # Mise
   mise:
     deploy: false
@@ -506,6 +528,10 @@ defaults:
       commonName: ""
       sanDnsNames: []
     earlyRefreshFrequency: "0"
+    imageArtifact:
+      adoProject: ""
+      artifactName: ""
+      buildId: 0
   # Maestro
   maestro:
     server:
@@ -513,7 +539,7 @@ defaults:
         address: ""
         exporter: ""
       mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
-      loglevel: 1
+      loglevel: 2
       managedIdentityName: maestro-server
       k8s:
         replicas: 3
@@ -521,7 +547,7 @@ defaults:
         serviceAccountName: maestro
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
-      loglevel: 1
+      loglevel: 2
       managedIdentityName: maestro-consumer
       k8s:
         replicas: 3
@@ -542,11 +568,15 @@ defaults:
       serverStorageSizeGB: 32
       deploy: true
       private: false
+      password: ''
       minTLSVersion: 'TLSV1.2'
       databaseName: maestro
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      containerizedDb:
+        image: ""
+        pvcCapacity: ""
     restrictIstioIngress: true
     certDomain: ""
     image:
@@ -569,20 +599,20 @@ defaults:
   # ACM
   acm:
     operator:
-      version: "2.14.0"
-      mirrorAdditionalVersions: "2.12.0,2.13.0,2.13.1"
+      version: "2.14.1"
+      mirrorAdditionalVersions: "2.12.0,2.13.0,2.13.1,2.14.0"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157 # v2.14.0-1
+        digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d # v2.14.1-214
     mce:
-      version: "2.9.0"
-      mirrorAdditionalVersions: "2.8.1,2.8.2"
+      version: "2.9.1"
+      mirrorAdditionalVersions: "2.8.1,2.8.2,2.9.0"
       pauseReconciliation: false
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:82118a2b3c036a9c8e666636d5cac1ea0998553727cfc5da0d2bad8eed916e6b # v2.9.1-pre-release
+        digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912 # v2.9.1-37-pre-release
   # Cluster Service
   clustersService:
     image:
@@ -590,6 +620,9 @@ defaults:
       repository: app-sre/uhc-clusters-service
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
+    # batch processes
+    batchProcessesDryRun: true
+    batchProcesses: ""
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
@@ -599,6 +632,7 @@ defaults:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
       private: false
+      password: ''
       minTLSVersion: 'TLSV1.2'
       serverVersion: '17'
       serverStorageSizeGB: 128
@@ -606,6 +640,9 @@ defaults:
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      containerizedDb:
+        image: ""
+        pvcCapacity: ""
     managedIdentityName: clusters-service
     k8s:
       replicas: 3
@@ -613,10 +650,18 @@ defaults:
       serviceAccountName: clusters-service
       deploymentStrategy:
         rollingUpdate:
-          maxUnavailable: 25%
-          maxSurge: 25%
+          maxUnavailable: 0
+          maxSurge: 1
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
+    # OCP Versions configuration
+    ocpVersions:
+      defaultVersion:
+        version: 4.19.7
+      channelGroups:
+        stable:
+          minVersion: 4.19.0
+          maxVersion: 4.19.8
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
@@ -697,6 +742,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      kusto:
+        ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
       kubeEvents:
         enabled: false
       automationDryRun: false
@@ -718,6 +765,7 @@ clouds:
         cxParentZoneName: hcp.osadev.cloud
         svcParentZoneName: hcpsvc.osadev.cloud
         parentZoneName: osadev.cloud
+        globalCertificatesDomain: hcp-global.osadev.cloud
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
       firstPartyAppCertificate:
@@ -738,19 +786,16 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
-      # Geneva Actions
-      genevaActions:
-        serviceTag: GenevaActionsNonProd
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:d14c940a103d3811123c907bec610349960ac2028df508a1a8c89264bd3ed847
+          digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
       # ACR Pull
       acrPull:
         image:
-          digest: sha256:8535e678398d0c15bccc6e4383483f15ab9e248405c0fc1ce587e3999b39e664 #v0.1.18
+          digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d #v0.1.20
       # Secret Sync Controller
       secretSyncController:
         image:
@@ -760,41 +805,17 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
-        # NOTE: The role names must not include commas(,) in the name as the roleNames field
-        # here is a comma separated list of role definition names.
+          digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
         azureOperatorsManagedIdentities:
-          clusterApiAzure:
-            roleNames: Azure Red Hat OpenShift Cluster API Role - Dev
-          controlPlane:
-            roleNames: Azure Red Hat OpenShift Control Plane Operator Role - Dev
-          cloudControllerManager:
-            roleNames: Azure Red Hat OpenShift Cloud Controller Manager - Dev
-          ingress:
-            roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
-          diskCsiDriver:
-            roleNames: Azure Red Hat OpenShift Disk Storage Operator - Dev
-          fileCsiDriver:
-            roleNames: Azure Red Hat OpenShift File Storage Operator - Dev
-          imageRegistry:
-            roleNames: Azure Red Hat OpenShift Image Registry Operator - Dev
-          cloudNetworkConfig:
-            roleNames: Azure Red Hat OpenShift Network Operator - Dev
-          kms:
-            roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+          roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
-        k8s:
-          deploymentStrategy:
-            rollingUpdate:
-              maxUnavailable: 0
-              maxSurge: 1
       # Hypershift Operator
       hypershift:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
+          digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
       # Backplane API
       backplaneAPI:
         image:
@@ -904,10 +925,18 @@ clouds:
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessRoleId: ""
+      geneva:
+        actions:
+          keyVault:
+            name: "arohcpdev-geneva-kv" # [globally-unique]
+          certificate:
+            issuer: Self
     environments:
       dev:
         # this is the integrated DEV environment
         defaults:
+          kusto:
+            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
@@ -943,6 +972,8 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
+          kusto:
+            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           # Service Key Vault
           serviceKeyVault:
@@ -992,10 +1023,12 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
+              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
+          kusto:
+            enabled: true
           regionRG: "{{ .ctx.region }}-shared-resources"
           serviceKeyVault:
             name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -1009,6 +1042,10 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}-ntly'
@@ -1016,6 +1053,10 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # Frontend
           frontend:
             cosmosDB:
@@ -1066,6 +1107,10 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
@@ -1080,6 +1125,10 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               tracing:
@@ -1105,7 +1154,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
+              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1161,6 +1210,10 @@ clouds:
           clustersService:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1168,6 +1221,10 @@ clouds:
           maestro:
             postgres:
               deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
           # Frontend

@@ -15,6 +15,10 @@
 package v20240610preview
 
 import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -22,6 +26,40 @@ import (
 
 type ExternalAuth struct {
 	generated.ExternalAuth
+}
+
+var _ api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth] = &ExternalAuth{}
+
+func (h *ExternalAuth) NewExternal() any {
+	return &ExternalAuth{}
+}
+
+func (h *ExternalAuth) SetDefaultValues(uncast any) error {
+	obj, ok := uncast.(*ExternalAuth)
+	if !ok {
+		return fmt.Errorf("unexpected type %T", uncast)
+	}
+
+	SetDefaultValuesExternalAuth(obj)
+	return nil
+}
+
+func SetDefaultValuesExternalAuth(obj *ExternalAuth) {
+	if obj.Properties == nil {
+		obj.Properties = &generated.ExternalAuthProperties{}
+	}
+	if obj.Properties.Claim == nil {
+		obj.Properties.Claim = &generated.ExternalAuthClaimProfile{}
+	}
+	if obj.Properties.Claim.Mappings == nil {
+		obj.Properties.Claim.Mappings = &generated.TokenClaimMappingsProfile{}
+	}
+	if obj.Properties.Claim.Mappings.Username == nil {
+		obj.Properties.Claim.Mappings.Username = &generated.UsernameClaimProfile{}
+	}
+	if obj.Properties.Claim.Mappings.Username.PrefixPolicy == nil {
+		obj.Properties.Claim.Mappings.Username.PrefixPolicy = ptr.To(generated.UsernameClaimPrefixPolicyNone)
+	}
 }
 
 func (h *ExternalAuth) GetVersion() api.Version {
@@ -81,20 +119,10 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	}
 }
 
-func (c *ExternalAuth) GetVisibility(path string) (api.VisibilityFlags, bool) {
-	flags, ok := externalAuthVisibilityMap[path]
-	return flags, ok
-}
-
-func (c *ExternalAuth) ValidateVisibility(current api.VersionedCreatableResource[api.HCPOpenShiftClusterExternalAuth], updating bool) []arm.CloudErrorBody {
-	var structTagMap = api.GetStructTagMap[api.HCPOpenShiftClusterExternalAuth]()
-	return api.ValidateVisibility(c, current.(*ExternalAuth), externalAuthVisibilityMap, structTagMap, updating)
-}
-
 func normalizeExternalAuthClientProfile(p *generated.ExternalAuthClientProfile, out *api.ExternalAuthClientProfile) {
 	if p.Component != nil {
-		out.Component.Name = *p.Component.Name
-		out.Component.AuthClientNamespace = *p.Component.AuthClientNamespace
+		out.Component.Name = ptr.Deref(p.Component.Name, "")
+		out.Component.AuthClientNamespace = ptr.Deref(p.Component.AuthClientNamespace, "")
 	}
 	if p.ClientID != nil {
 		out.ClientID = *p.ClientID
@@ -278,7 +306,9 @@ func newTokenRequiredClaim(from *api.TokenRequiredClaim) generated.TokenRequired
 
 func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftClusterExternalAuth) api.VersionedHCPOpenShiftClusterExternalAuth {
 	if from == nil {
-		from = api.NewDefaultHCPOpenShiftClusterExternalAuth(nil)
+		ret := &ExternalAuth{}
+		SetDefaultValuesExternalAuth(ret)
+		return ret
 	}
 
 	out := &ExternalAuth{

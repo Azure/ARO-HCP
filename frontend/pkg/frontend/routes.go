@@ -70,13 +70,13 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareCorrelationData,
 		newMiddlewareAudit(f.auditClient).handleRequest,
 		MiddlewareTracing,
+		MiddlewareLowercase,
 		MiddlewareLogging,
 		// NOTE: register panic middleware twice.
 		// Making sure we can capture panicked requests in our trace data.
 		// But we also can recover if the tracing or logging middleware caused a panic.
 		MiddlewarePanic,
 		MiddlewareBody,
-		MiddlewareLowercase,
 		MiddlewareSystemData,
 		MiddlewareValidateStatic,
 	)
@@ -86,7 +86,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	// Resource list endpoints
 	postMuxMiddleware := NewMiddleware(
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion,
+		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
@@ -108,11 +108,11 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion,
+		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.GetHCPCluster))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
 		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
@@ -127,7 +127,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion,
+		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareLockSubscription(f.dbClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
@@ -168,7 +168,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
-		MiddlewareValidateAPIVersion,
+		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternOperationResults),

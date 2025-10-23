@@ -24,19 +24,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	// This will invoke the init() function in each
+	// API version package so it can register itself.
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+
 	"github.com/google/uuid"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	// This will invoke the init() function in each
-	// API version package so it can register itself.
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -167,6 +169,10 @@ func TestCreateNodePool(t *testing.T) {
 						State("enabled")).
 					Version(arohcpv1alpha1.NewVersion().
 						ChannelGroup("stable")).
+					Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+						PodPriorityThreshold(-10).
+						MaxNodeProvisionTime("15m").
+						MaxPodGracePeriod(600)).
 					Build())
 			// CreateOrUpdateNodePool
 			mockCSClient.EXPECT().

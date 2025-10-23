@@ -1,6 +1,9 @@
 #!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
 
-set -euo pipefail
+set -x # Turn on command tracing
 
 # these are the default values of the emulator container.
 DEFAULT_COSMOS_ENDPOINT="https://localhost:8081"
@@ -54,6 +57,8 @@ for i in {1..60}; do
     sleep 5
 done
 
+netstat -anlp
+
 # Wait for HTTPS endpoint to be available
 echo "Waiting for HTTPS endpoint to be available..."
 for i in {1..30}; do
@@ -62,8 +67,8 @@ for i in {1..30}; do
         break
     fi
     if [ "$i" -eq 30 ]; then
-        echo "Timeout waiting for HTTPS endpoint to be available"
-        exit 1
+        echo "Timeout waiting for HTTPS endpoint to be available, will continue and try anyway."
+        break
     fi
     echo "Attempt $i/30: Waiting for HTTPS endpoint..."
     sleep 2

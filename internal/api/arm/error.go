@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -77,6 +79,53 @@ type CloudErrorBody struct {
 
 	// A list of additional details about the error.
 	Details []CloudErrorBody `json:"details,omitempty"`
+}
+
+func CloudErrorFromFieldError(fieldError *field.Error) *CloudError {
+	if fieldError == nil {
+		return nil
+	}
+	return &CloudError{
+		StatusCode:     http.StatusBadRequest,
+		CloudErrorBody: cloudErrorBodyFromFieldError(fieldError),
+	}
+}
+
+func cloudErrorBodyFromFieldError(fieldError *field.Error) *CloudErrorBody {
+	if fieldError == nil {
+		return nil
+	}
+	return &CloudErrorBody{
+		Code:    CloudErrorCodeInvalidRequestContent,
+		Message: fieldError.ErrorBody(),
+		Target:  fieldError.Field,
+	}
+}
+
+func CloudErrorFromFieldErrors(fieldErrors field.ErrorList) *CloudError {
+	if len(fieldErrors) == 0 {
+		return nil
+	}
+	if len(fieldErrors) == 1 {
+		return CloudErrorFromFieldError(fieldErrors[0])
+	}
+
+	details := []CloudErrorBody{}
+	for _, curr := range fieldErrors {
+		if curr == nil {
+			continue
+		}
+		details = append(details, *cloudErrorBodyFromFieldError(curr))
+	}
+
+	return &CloudError{
+		StatusCode: http.StatusBadRequest,
+		CloudErrorBody: &CloudErrorBody{
+			Code:    CloudErrorCodeMultipleErrorsOccurred,
+			Message: fmt.Sprintf("%d errors occurred", len(details)),
+			Details: details,
+		},
+	}
 }
 
 // NewCloudErrorBodyFromSlice converts a CloudErrorBody slice to a single CloudErrorBody.

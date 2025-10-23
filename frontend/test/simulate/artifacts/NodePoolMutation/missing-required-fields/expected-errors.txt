@@ -1,0 +1,1 @@
+InvalidRequestContent: properties.replicas: Invalid value: 1: must be equal to 0

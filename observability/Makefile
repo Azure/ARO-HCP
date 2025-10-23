@@ -4,14 +4,13 @@ deploy:
 
 grafana:
 	python3 grafana/grafana.py
+.PHONY: grafana
 
 kubernetesControlPlane-prometheusRule:
 	PROMETHEUS_OPERATOR_REF=$(shell yq -r '.prometheusRules.prometheusOperatorVersion' observability.yaml) && \
 	wget --quiet --output-document=alerts/kubernetesControlPlane-prometheusRule.yaml \
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
 .PHONY: kubernetesControlPlane-prometheusRule
-
-GENERATOR_FLAGS='--force-info-severity'
 
 alerts: kubernetesControlPlane-prometheusRule
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run

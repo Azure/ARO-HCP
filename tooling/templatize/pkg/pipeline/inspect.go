@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-type StepInspectScope func(context.Context, *types.Pipeline, types.Step, *InspectOptions) error
+type StepInspectScope func(context.Context, *types.Pipeline, string, types.Step, *InspectOptions) error
 
 func NewStepInspectScopes(subscriptions map[string]string) map[string]StepInspectScope {
 	return map[string]StepInspectScope{
@@ -42,6 +42,9 @@ type InspectOptions struct {
 	ScopeFunctions map[string]StepInspectScope
 	OutputFile     io.Writer
 	Concurrency    int
+
+	Service     *topology.Service
+	TopologyDir string
 }
 
 func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) error {
@@ -49,7 +52,7 @@ func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) er
 		for _, step := range rg.Steps {
 			if step.StepName() == options.Step {
 				if inspectFunc, ok := options.ScopeFunctions[options.Scope]; ok {
-					err := inspectFunc(ctx, p, step, options)
+					err := inspectFunc(ctx, p, p.ServiceGroup, step, options)
 					if err != nil {
 						return err
 					}
@@ -63,8 +66,8 @@ func Inspect(p *types.Pipeline, ctx context.Context, options *InspectOptions) er
 	return fmt.Errorf("step %q not found", options.Step)
 }
 
-func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
-	return func(ctx context.Context, pipeline *types.Pipeline, s types.Step, options *InspectOptions) error {
+func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipeline *types.Pipeline, serviceGroup string, s types.Step, options *InspectOptions) error {
+	return func(ctx context.Context, pipeline *types.Pipeline, serviceGroup string, s types.Step, options *InspectOptions) error {
 		var envVars map[string]string
 		switch step := s.(type) {
 		case *types.ShellStep:
@@ -78,11 +81,11 @@ func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipe
 			for depStep := range outputChainingDependencies {
 				outputChainingDependenciesList = append(outputChainingDependenciesList, depStep)
 			}
-			inputs, err := aquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options, subscriptions)
+			inputs, err := acquireOutputChainingInputs(ctx, outputChainingDependenciesList, pipeline, options, subscriptions)
 			if err != nil {
 				return fmt.Errorf("failure acquiring output-chaining inputs: %v", err)
 			}
-			envVars, err = mapStepVariables(step.Variables, options.Configuration, inputs)
+			envVars, err = mapStepVariables(serviceGroup, step.Variables, options.Configuration, inputs)
 			if err != nil {
 				return fmt.Errorf("failure mapping step variables: %v", err)
 			}
@@ -102,29 +105,39 @@ func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipe
 	}
 }
 
-func aquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions, subscriptions map[string]string) (Outputs, error) {
-	inputs := make(Outputs)
+func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions, subscriptions map[string]string) (Outputs, error) {
+	inputs := Outputs{
+		pipeline.ServiceGroup: {},
+	}
 	for _, depStep := range steps {
 		runOptions := &PipelineRunOptions{
-			DryRun:                   true,
-			Configuration:            options.Configuration,
-			Region:                   options.Region,
-			Step:                     depStep,
-			SubsciptionLookupFunc:    LookupSubscriptionID(subscriptions),
-			NoPersist:                true,
-			DeploymentTimeoutSeconds: 60,
-			Concurrency:              options.Concurrency,
+			BaseRunOptions: BaseRunOptions{
+				DryRun:                   true,
+				Configuration:            options.Configuration,
+				NoPersist:                true,
+				DeploymentTimeoutSeconds: 60,
+			},
+			Region:                options.Region,
+			Step:                  depStep,
+			SubsciptionLookupFunc: LookupSubscriptionID(subscriptions),
+			Concurrency:           options.Concurrency,
+			TopologyDir:           options.TopologyDir,
 		}
-		outputs, err := RunPipeline(&topology.Service{
-			ServiceGroup: pipeline.ServiceGroup,
-		}, pipeline, ctx, runOptions, RunStep)
+		outputs, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
 		if err != nil {
 			return nil, err
 		}
-		for group, values := range outputs {
-			inputs[group] = map[string]Output{}
-			for key, value := range values {
-				inputs[group][key] = value
+		for serviceGroup, resourceGroups := range outputs {
+			if _, ok := inputs[serviceGroup]; !ok {
+				inputs[serviceGroup] = map[string]map[string]Output{}
+			}
+			for group, values := range resourceGroups {
+				if _, ok := inputs[serviceGroup][group]; !ok {
+					inputs[serviceGroup][group] = map[string]Output{}
+				}
+				for key, value := range values {
+					inputs[pipeline.ServiceGroup][group][key] = value
+				}
 			}
 		}
 	}

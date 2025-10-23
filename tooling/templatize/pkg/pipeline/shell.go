@@ -15,21 +15,26 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
-	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	"github.com/Azure/ARO-Tools/pkg/registration"
-	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/registration"
+	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
@@ -54,7 +59,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *PipelineRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -64,7 +69,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	if options.DryRun {
 		dryRun = &s.DryRun
 		state.RLock()
-		dryRunVars, err = mapStepVariables(dryRun.Variables, options.Configuration, state.Outputs)
+		dryRunVars, err = mapStepVariables(id.ServiceGroup, dryRun.Variables, options.Configuration, state.Outputs)
 		state.RUnlock()
 		if err != nil {
 			return fmt.Errorf("failed to build dry run vars: %w", err)
@@ -73,7 +78,7 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 
 	// build ENV vars
 	state.RLock()
-	stepVars, err := mapStepVariables(s.Variables, options.Configuration, state.Outputs)
+	stepVars, err := mapStepVariables(id.ServiceGroup, s.Variables, options.Configuration, state.Outputs)
 	state.RUnlock()
 	if err != nil {
 		return fmt.Errorf("failed to build env vars: %w", err)
@@ -84,18 +89,38 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	maps.Copy(envVars, stepVars)
 	maps.Copy(envVars, dryRunVars)
 
-	workingDir := filepath.Dir(options.PipelineFilePath)
-	if s.WorkingDir != "" {
-		workingDir = filepath.Join(filepath.Dir(options.PipelineFilePath), s.WorkingDir)
+	if kubeconfigFile != "" {
+		envVars["KUBECONFIG"] = kubeconfigFile // TODO: we need to put the kubeconfig in a deterministic place so we can omit re-runs
 	}
+
+	workingDir := options.PipelineDirectory
+	if s.WorkingDir != "" {
+		workingDir = filepath.Join(options.PipelineDirectory, s.WorkingDir)
+	}
+
+	commit := func() error {
+		return nil
+	}
+	if s.IsWellFormedOverInputs() {
+		skip, commitFunc, err := checkSentinel(logger, map[string]any{
+			"command":    s.Command,
+			"workingDir": workingDir,
+			"dryRun":     dryRun,
+			"envVars":    envVars,
+		}, options.StepCacheDir)
+		if err != nil {
+			return err
+		}
+		if skip {
+			return nil
+		}
+		commit = commitFunc
+	}
+
 	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
 		return nil
-	}
-
-	if kubeconfigFile != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", kubeconfigFile))
 	}
 
 	logger.V(5).Info(fmt.Sprintf("Executing shell command: %s\n", s.Command), "command", s.Command)
@@ -105,10 +130,10 @@ func runShellStep(s *types.ShellStep, ctx context.Context, kubeconfigFile string
 	}
 
 	fmt.Fprint(outputWriter, string(output))
-	return nil
+	return commit()
 }
 
-func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *PipelineRunOptions) error {
+func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *StepRunOptions) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("Skipping secret sync step for dry-run.")
@@ -120,8 +145,24 @@ func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *Pi
 		},
 		KeyVault:         s.KeyVault,
 		KeyEncryptionKey: s.EncryptionKey,
-		ConfigFile:       filepath.Join(filepath.Dir(options.PipelineFilePath), s.ConfigurationFile),
+		ConfigFile:       filepath.Join(options.PipelineDirectory, s.ConfigurationFile),
 	}
+	rawConfig, err := os.ReadFile(syncOpts.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to read secret sync config: %w", err)
+	}
+
+	skip, commit, err := checkSentinel(logger, map[string]any{
+		"opts":   syncOpts,
+		"config": rawConfig,
+	}, options.StepCacheDir)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return nil
+	}
+
 	validated, err := syncOpts.Validate()
 	if err != nil {
 		return err
@@ -130,10 +171,13 @@ func runSecretSyncStep(s *types.SecretSyncStep, ctx context.Context, options *Pi
 	if err != nil {
 		return err
 	}
-	return completed.Populate(ctx)
+	if err := completed.Populate(ctx); err != nil {
+		return err
+	}
+	return commit()
 }
 
-func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.Context, options *PipelineRunOptions, executionTarget ExecutionTarget) error {
+func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("Skipping provider and feature registration step for dry-run.")
@@ -159,6 +203,15 @@ func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.C
 		PollFrequency:  10 * time.Second,
 		PollDuration:   10 * time.Minute,
 	}
+
+	skip, commit, err := checkSentinel(logger, registrationOpts, options.StepCacheDir)
+	if err != nil {
+		return err
+	}
+	if skip {
+		return nil
+	}
+
 	validated, err := registrationOpts.Validate()
 	if err != nil {
 		return err
@@ -167,11 +220,90 @@ func runRegistrationStep(s *types.ProviderFeatureRegistrationStep, ctx context.C
 	if err != nil {
 		return err
 	}
-	return completed.Register(ctx)
+	if err := completed.Register(ctx); err != nil {
+		return err
+	}
+
+	return commit()
 }
 
-func mapStepVariables(vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
-	values, err := getInputValues(vars, cfg, inputs)
+var successSentinel = []byte(`success`)
+
+func checkSentinel(logger logr.Logger, data any, stepCacheDir string) (bool, func() error, error) {
+	if stepCacheDir == "" {
+		logger.V(4).Info("No cache directory provided, omitting step execution cache.")
+		return false, func() error {
+			return nil
+		}, nil
+	}
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to serialize registration options: %w", err)
+	}
+	hash := sha256.New()
+	hash.Write(encoded)
+	hashBytes := hash.Sum(nil)
+	digest := hex.EncodeToString(hashBytes)
+	logger = logger.WithValues("digest", digest)
+	logger.V(4).Info("Calculated step input digest.")
+	logger.V(8).Info("Divulging step inputs.", "inputs", string(encoded))
+
+	if content, err := os.ReadFile(filepath.Join(stepCacheDir, digest)); err == nil && bytes.Equal(content, successSentinel) {
+		logger.Info("Found cached successful run, returning.")
+		return true, nil, nil
+	} else {
+		logger.V(4).Info("Did not find any content in cache.", "err", err)
+	}
+	return false, func() error {
+		logger.Info("Committing success for step to cache.")
+		return os.WriteFile(filepath.Join(stepCacheDir, digest), successSentinel, 0644)
+	}, nil
+}
+
+func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string) (*T, func(T) error, error) {
+	if stepCacheDir == "" {
+		logger.V(4).Info("No cache directory provided, omitting step execution cache.")
+		return nil, func(T) error {
+			return nil
+		}, nil
+	}
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to serialize registration options: %w", err)
+	}
+	hash := sha256.New()
+	hash.Write(encoded)
+	hashBytes := hash.Sum(nil)
+	digest := hex.EncodeToString(hashBytes)
+	logger = logger.WithValues("digest", digest)
+	logger.V(4).Info("Calculated step input digest.")
+	logger.V(8).Info("Divulging step inputs.", "inputs", string(encoded))
+
+	if content, err := os.ReadFile(filepath.Join(stepCacheDir, digest)); err == nil {
+		logger.Info("Found cached successful run, returning.")
+
+		var output T
+		if err := json.Unmarshal(content, &output); err != nil {
+			return nil, nil, fmt.Errorf("failed to deserialize output: %w", err)
+		}
+		return &output, nil, nil
+	} else {
+		logger.V(4).Info("Did not find any content in cache.", "err", err)
+	}
+	return nil, func(output T) error {
+		logger.Info("Committing success for step.")
+		encoded, err := json.Marshal(output)
+		if err != nil {
+			return fmt.Errorf("failed to serialize output: %w", err)
+		}
+		return os.WriteFile(filepath.Join(stepCacheDir, digest), encoded, 0644)
+	}, nil
+}
+
+func mapStepVariables(serviceGroup string, vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
+	values, err := getInputValues(serviceGroup, vars, cfg, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}

@@ -19,13 +19,19 @@ import (
 	"maps"
 	"net/http"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
 func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
@@ -132,7 +138,14 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
-			api.CopyReadOnlyValues(versionedCurrentNodePool, versionedRequestNodePool)
+
+			// read-only values are an internal concern since they're the source, so we convert.
+			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
+			newTemporaryInternal := &api.HCPOpenShiftClusterNodePool{}
+			versionedRequestNodePool.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyNodePoolValues(newTemporaryInternal, hcpNodePool)
+			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(newTemporaryInternal)
+
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
 			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
@@ -206,10 +219,29 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		return
 	}
 
-	cloudError = api.ValidateVersionedHCPOpenShiftClusterNodePool(versionedRequestNodePool, versionedCurrentNodePool, hcpCluster, updating)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
+	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+	versionedRequestNodePool.Normalize(newInternalNodePool)
+
+	var validationErrs field.ErrorList
+	if updating {
+		oldInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
+		versionedCurrentNodePool.Normalize(oldInternalNodePool)
+		validationErrs = validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
+		// in addition to static validation, we have validation based on the state of the hcp cluster
+		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
+
+	} else {
+		validationErrs = validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
+		// in addition to static validation, we have validation based on the state of the hcp cluster
+		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
+
+	}
+	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
+
+	// prefer new validation.  Have a fallback for old validation.
+	if newValidationErr != nil {
+		logger.Error(newValidationErr.Error())
+		arm.WriteCloudError(writer, newValidationErr)
 		return
 	}
 
@@ -326,5 +358,5 @@ func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.Resour
 	hcpNodePool.Tags = maps.Clone(doc.Tags)
 	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
 
-	return arm.MarshalJSON(hcpNodePool.NewVersioned(versionedInterface))
+	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }

@@ -216,24 +216,81 @@ databasePort: "5432"
 managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
-  clusterApiAzure:
-    roleDefinitions: []
-  controlPlane:
-    roleDefinitions: []
-  cloudControllerManager:
-    roleDefinitions: []
-  ingress:
-    roleDefinitions: []
-  diskCsiDriver:
-    roleDefinitions: []
-  fileCsiDriver:
-    roleDefinitions: []
-  imageRegistry:
-    roleDefinitions: []
-  cloudNetworkConfig:
-    roleDefinitions: []
-  kms:
-    roleDefinitions: []
+  roleSetName: ""
+  dev:
+    clusterApiAzure:
+      roleDefinitions:
+      - id: 66a367ff-d3c0-5788-a79c-7033bff12c11
+        name: Azure Red Hat OpenShift Cluster API Role - Dev
+    controlPlane:
+      roleDefinitions:
+      - id: 666e75a4-7ac9-5be2-949a-1e088ee1f1c1
+        name: Azure Red Hat OpenShift Control Plane Operator Role - Dev
+    cloudControllerManager:
+      roleDefinitions:
+      - id: ebe170ec-1247-536a-86d9-74c829dd9844
+        name: Azure Red Hat OpenShift Cloud Controller Manager - Dev
+    ingress:
+      roleDefinitions:
+      - id: 589ca160-4fac-501e-ad6c-006a19583727
+        name: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
+    diskCsiDriver:
+      roleDefinitions:
+      - id: 4367fe74-0b43-5033-b629-15d9f28415ac
+        name: Azure Red Hat OpenShift Disk Storage Operator - Dev
+    fileCsiDriver:
+      roleDefinitions:
+      - id: fdc0aaaa-1c3e-548e-ad27-0321e5fab18b
+        name: Azure Red Hat OpenShift File Storage Operator - Dev
+    imageRegistry:
+      roleDefinitions:
+      - id: 357b9263-656f-5d45-9d7a-ccb825f0683f
+        name: Azure Red Hat OpenShift Image Registry Operator - Dev
+    cloudNetworkConfig:
+      roleDefinitions:
+      - id: 4e4f23fe-3fab-568b-a001-10b233b0f840
+        name: Azure Red Hat OpenShift Network Operator - Dev
+    kms:
+      roleDefinitions:
+      - id: db156713-c34d-53de-ae4b-3e85d24e1783
+        name: Azure Red Hat OpenShift KMS Plugin - Dev
+  public:
+    clusterApiAzure:
+      roleDefinitions:
+      - id: 88366f10-ed47-4cc0-9fab-c8a06148393e
+        name: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+    controlPlane:
+      roleDefinitions:
+      - id: fc0c873f-45e9-4d0d-a7d1-585aab30c6ed
+        name: Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
+    cloudControllerManager:
+      roleDefinitions:
+      - id: a1f96423-95ce-4224-ab27-4e3dc72facd4
+        name: Azure Red Hat OpenShift Cloud Controller Manager
+    ingress:
+      roleDefinitions:
+      - id: 0336e1d3-7a87-462b-b6db-342b63f7802c
+        name: Azure Red Hat OpenShift Cluster Ingress Operator
+    diskCsiDriver:
+      roleDefinitions:
+      - id: 5b7237c5-45e1-49d6-bc18-a1f62f400748
+        name: Azure Red Hat OpenShift Disk Storage Operator
+    fileCsiDriver:
+      roleDefinitions:
+      - id: 0d7aedc0-15fd-4a67-a412-efad370c947e
+        name: Azure Red Hat OpenShift File Storage Operator
+    imageRegistry:
+      roleDefinitions:
+      - id: 8b32b316-c2f5-4ddf-b05b-83dacd2d08b5
+        name: Azure Red Hat OpenShift Image Registry Operator
+    cloudNetworkConfig:
+      roleDefinitions:
+      - id: be7a6435-15ae-4171-8f30-4a343eff9e8f
+        name: Azure Red Hat OpenShift Network Operator
+    kms:
+      roleDefinitions:
+      - id: 12338af0-0e69-4776-bea7-57ae8d297424
+        name: Key Vault Crypto User
 # Pull binding configuration for ACR Pull Operator
 pullBinding:
   registry: ""
@@ -247,3 +304,11 @@ csDeploymentStrategy:
   rollingUpdate:
     maxSurge: 1
     maxUnavailable: 0
+ocpVersions:
+  defaultVersion:
+    version: ""
+  channelGroups:
+    stable:
+      url: ""
+      minVersion: ""
+      maxVersion: ""

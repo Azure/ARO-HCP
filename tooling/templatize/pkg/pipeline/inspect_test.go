@@ -111,7 +111,7 @@ func TestInspectVars(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			tc.options.OutputFile = buf
-			err := inspectVars(map[string]string{})(context.Background(), &types.Pipeline{}, tc.caseStep, tc.options)
+			err := inspectVars(map[string]string{})(context.Background(), &types.Pipeline{}, "", tc.caseStep, tc.options)
 			if tc.err == "" {
 				assert.NoError(t, err)
 				assert.Equal(t, buf.String(), tc.expected)
@@ -145,7 +145,7 @@ func TestInspect(t *testing.T) {
 		Region:        "",
 		Configuration: config.Configuration{},
 		ScopeFunctions: map[string]StepInspectScope{
-			"scope": func(ctx context.Context, p *types.Pipeline, s types.Step, o *InspectOptions) error {
+			"scope": func(ctx context.Context, p *types.Pipeline, serviceGroup string, s types.Step, o *InspectOptions) error {
 				assert.Equal(t, s.StepName(), "step1")
 				return nil
 			},

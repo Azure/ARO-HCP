@@ -23,29 +23,30 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	// register the APIs.
+	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/mock/gomock"
+
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/mock/gomock"
-	"k8s.io/apimachinery/pkg/util/rand"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/frontend/pkg/util"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/mocks"
-
-	// register the APIs.
-	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 )
 
 func SkipIfNotSimulationTesting(t *testing.T) {
@@ -72,6 +73,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 		}
 	}
 	artifactDir = filepath.Join(artifactDir, t.Name())
+	t.Logf("ARTIFACT_DIR: %s\n", artifactDir)
 	if err := os.MkdirAll(artifactDir, 0755); err != nil {
 		return nil, nil, fmt.Errorf("failed to create artifact directory %s: %w", artifactDir, err)
 	}
@@ -115,7 +117,7 @@ func NewFrontendFromTestingEnv(ctx context.Context, t *testing.T) (*frontend.Fro
 	frontend := frontend.NewFrontend(logger, listener, metricsListener, metricsRegistry, dbClient, clusterServiceClient, noOpAuditClient)
 	testInfo := &SimulationTestInfo{
 		ArtifactsDir:             artifactDir,
-		mockClusters:             make(map[string]map[string][]*csarhcpv1alpha1.Cluster),
+		mockData:                 make(map[string]map[string][]any),
 		CosmosDatabaseClient:     cosmosDatabaseClient,
 		DBClient:                 dbClient,
 		MockClusterServiceClient: clusterServiceClient,
@@ -210,4 +212,62 @@ func initializeCosmosDBForFrontend(ctx context.Context, cosmosClient *azcosmos.C
 
 	return cosmosDatabaseClient, nil
 
+}
+
+func MarkOperationsCompleteForName(ctx context.Context, dbClient database.DBClient, subscriptionID, resourceName string) error {
+	operationsIterator := dbClient.ListActiveOperationDocs(azcosmos.NewPartitionKeyString(subscriptionID), nil)
+	for _, operation := range operationsIterator.Items(ctx) {
+		if operation.ExternalID.Name != resourceName {
+			continue
+		}
+		err := UpdateOperationStatus(ctx, dbClient, operation, arm.ProvisioningStateSucceeded, nil)
+		if err != nil {
+			return err
+		}
+	}
+	if operationsIterator.GetError() != nil {
+		return operationsIterator.GetError()
+	}
+	return nil
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func UpdateOperationStatus(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	err := patchOperationDocument(ctx, dbClient, operation, opStatus, opError)
+	if err != nil {
+		return err
+	}
+
+	var patchOperations database.ResourceDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.ResourceDocumentJSONPathActiveOperationID, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s = '%s'", scalar, operation.OperationID.Name)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetProvisioningState(opStatus)
+	if opStatus.IsTerminal() {
+		patchOperations.SetActiveOperationID(nil)
+	}
+
+	_, err = dbClient.PatchResourceDoc(ctx, operation.ExternalID, patchOperations)
+	return err
+}
+
+// TODO this needs to simplified into something the database client can do on behalf of callers to make it more idiot-proof
+func patchOperationDocument(ctx context.Context, dbClient database.DBClient, operation *database.OperationDocument, opStatus arm.ProvisioningState, opError *arm.CloudErrorBody) error {
+	var patchOperations database.OperationDocumentPatchOperations
+
+	scalar := strings.ReplaceAll(database.OperationDocumentJSONPathStatus, "/", ".")
+	condition := fmt.Sprintf("FROM doc WHERE doc%s != '%s'", scalar, opStatus)
+
+	patchOperations.SetCondition(condition)
+	patchOperations.SetLastTransitionTime(time.Now())
+	patchOperations.SetStatus(opStatus)
+	if opError != nil {
+		patchOperations.SetError(opError)
+	}
+
+	operationPartitionKey := azcosmos.NewPartitionKeyString(operation.OperationID.SubscriptionID)
+	_, err := dbClient.PatchOperationDoc(ctx, operationPartitionKey, operation.OperationID.Name, patchOperations)
+	return err
 }

@@ -20,11 +20,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/ARO-Tools/pkg/graph"
+	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, options *PipelineRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.ImageMirrorStep, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	tmpFile, err := os.CreateTemp("", "")
@@ -61,5 +63,5 @@ func runImageMirrorStep(ctx context.Context, step *types.ImageMirrorStep, option
 		return fmt.Errorf("error resolving image mirror step %w", err)
 	}
 
-	return runShellStep(tmpShellStep, ctx, "", options, state, outputWriter)
+	return runShellStep(id, tmpShellStep, ctx, "", options, state, outputWriter)
 }

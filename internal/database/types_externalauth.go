@@ -15,6 +15,8 @@
 package database
 
 import (
+	"fmt"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -24,31 +26,34 @@ type ExternalAuth struct {
 	ExternalAuthProperties `json:"properties"`
 }
 
+var _ ResourceProperties = &ExternalAuth{}
+
 type ExternalAuthProperties struct {
 	ResourceDocument `json:",inline"`
 
-	CustomerDesiredState CustomerDesiredExternalAuthState `json:"customerDesiredState"`
-	ServiceProviderState ServiceProviderExternalAuthState `json:"serviceProviderState"`
+	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
+	InternalState ExternalAuthInternalState `json:"internalState"`
 }
 
-type CustomerDesiredExternalAuthState struct {
-	// ExternalAuth contains the desired state from a customer.  It is filtered to only those fields that customers
-	// are able to set.
-	// We will eventually select specific fields which customers own and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	ExternalAuth api.HCPOpenShiftClusterExternalAuthProperties `json:"externalAuthProperties"`
+type ExternalAuthInternalState struct {
+	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
 }
 
-type ServiceProviderExternalAuthState struct {
-	// ExternalAuth contains the service provider owned state.  It is filtered to only those fields that the service provider owns.
-	// We will eventually select specific fields which the service provider owns and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	ExternalAuth api.HCPOpenShiftClusterExternalAuthProperties `json:"externalAuthProperties"`
+func (o *ExternalAuth) ValidateResourceType() error {
+	if o.ResourceType != api.ExternalAuthResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *ExternalAuth) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterExternalAuthState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &CustomerDesiredExternalAuthState{} },
-	func() any { return &ServiceProviderExternalAuthState{} },
+	func() any { return &ExternalAuthInternalState{} },
 )

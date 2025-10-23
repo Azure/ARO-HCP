@@ -19,6 +19,8 @@ import (
 	"slices"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
@@ -78,6 +80,14 @@ const (
 	CreatedByTypeKey             CreatedByType = "Key"
 	CreatedByTypeManagedIdentity CreatedByType = "ManagedIdentity"
 	CreatedByTypeUser            CreatedByType = "User"
+)
+
+var (
+	ValidCreatedByTypes = sets.New[CreatedByType](
+		CreatedByTypeApplication,
+		CreatedByTypeKey,
+		CreatedByTypeManagedIdentity,
+		CreatedByTypeUser)
 )
 
 // SystemData includes creation and modification metadata for resources

@@ -21,17 +21,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
-	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
-
+	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/Azure/ARO-Tools/pkg/topology"
+	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
 )
 
 func DefaultValidationOptions() *RawValidationOptions {

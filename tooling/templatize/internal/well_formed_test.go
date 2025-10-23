@@ -15,20 +15,20 @@
 package internal
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
-	"sigs.k8s.io/yaml"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 )
 
@@ -94,7 +94,7 @@ func TestStepsWellFormed(t *testing.T) {
 	}
 
 	pipelines := map[string]*types.Pipeline{}
-	if err := loadPipelines(t.Context(), service, repoRootDir, pipelines, cfg); err != nil {
+	if err := entrypointutils.LoadPipelines(service, repoRootDir, pipelines, cfg); err != nil {
 		t.Fatalf("failed to load pipelines: %v", err)
 	}
 
@@ -131,28 +131,4 @@ func TestStepsWellFormed(t *testing.T) {
 	}
 
 	testutil.CompareWithFixture(t, illFormed, testutil.WithoutDirMangling())
-}
-
-func loadPipelines(
-	ctx context.Context,
-	root *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline,
-	cfg config.Configuration,
-) error {
-	pipelineConfigFilePath := filepath.Join(topologyDir, root.PipelinePath)
-	pipeline, err := types.NewPipelineFromFile(pipelineConfigFilePath, cfg)
-	if err != nil {
-		return fmt.Errorf("failed to precompile pipeline: %w", err)
-	}
-	if pipeline.ServiceGroup != root.ServiceGroup {
-		return fmt.Errorf("pipeline loaded from %s is for %s, not %s", pipelineConfigFilePath, pipeline.ServiceGroup, root.ServiceGroup)
-	}
-
-	pipelines[root.ServiceGroup] = pipeline
-
-	for _, child := range root.Children {
-		if err := loadPipelines(ctx, &child, topologyDir, pipelines, cfg); err != nil {
-			return err
-		}
-	}
-	return nil
 }

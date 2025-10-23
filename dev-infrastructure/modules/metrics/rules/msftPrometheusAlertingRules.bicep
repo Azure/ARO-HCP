@@ -1408,7 +1408,46 @@ resource mise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Prometheus scrape for envoy-stats job in namespace mise is failing or missing.'
         }
-        expression: 'absent(up{job="envoy-stats", namespace="mise"}) or (up{job="envoy-stats", namespace="mise"} == 0)'
+        expression: 'absent(up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"}) or (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 0)'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource msiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'msi-credential-refresher'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClusterCredentialExpiringSoon'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'ClusterCredentialExpiringSoon/{{ $labels.cluster }}'
+          description: 'Cluster credential for cluster #$.labels.cluster# is expiring in less than 30 days. Please follow TSG to diagnose rotation issues.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/doc/tsgs/credential-refresher-expiring-cert'
+          summary: 'Cluster credential expiring in less than 30 days'
+          title: 'One or More Cluster Credentials are Expiring Soon.'
+        }
+        expression: 'increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="14"}[30m]) > 0'
         for: 'PT5M'
         severity: 3
       }

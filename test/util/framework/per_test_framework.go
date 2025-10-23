@@ -18,18 +18,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
+
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"sigs.k8s.io/yaml"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -111,9 +117,9 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
-	err = CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
-	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to delete: %w", err)
+	errCleanupResourceGroups := CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
+	if errCleanupResourceGroups != nil {
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
@@ -122,6 +128,33 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
+	// Register error to ginkgo reporter to ensure the test fails if any errors occur except for not found resource group or resource.
+	if isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
+		ginkgo.GinkgoLogr.Info("ignoring not found resource group or resource cleanup error")
+	} else {
+		gomega.Expect(errCleanupResourceGroups).ToNot(gomega.HaveOccurred())
+	}
+	gomega.Expect(err).ToNot(gomega.HaveOccurred())
+}
+
+func isIgnorableResourceGroupCleanupError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var responseErr *azcore.ResponseError
+	if errors.As(err, &responseErr) {
+		if responseErr.StatusCode == http.StatusNotFound {
+			return true
+		}
+
+		switch responseErr.ErrorCode {
+		case "ResourceGroupNotFound", "ResourceNotFound":
+			return true
+		}
+	}
+
+	return false
 }
 
 func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {

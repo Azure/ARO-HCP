@@ -1,7 +1,9 @@
 {
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {}
+    }
   },
   "name": "noop-update",
   "properties": {
@@ -37,9 +39,14 @@
     },
     "platform": {
       "managedResourceGroup": "managed-resource-group-name",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
       "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "serviceManagedIdentity": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+        }
+      }
     },
     "version": {
       "channelGroup": "stable"

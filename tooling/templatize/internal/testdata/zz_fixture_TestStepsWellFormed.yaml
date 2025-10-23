@@ -5,37 +5,19 @@ Microsoft.Azure.ARO.HCP.ACM:
 Microsoft.Azure.ARO.HCP.ClusterService:
   service:
     deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.Maestro.Agent:
-  management:
-    deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.Maestro.Server:
-  service:
-    deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Management.Infra:
   management:
-    arobit: helm step needing migration
     fixes: helm step needing migration
     prometheus: helm step needing migration
-Microsoft.Azure.ARO.HCP.PKO:
-  management:
-    deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.RP.Backend:
   service:
     deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.RP.Frontend:
   service:
     deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.RP.HypershiftOperator:
-  management:
-    deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.RouteMonitorOperator:
-  management:
-    deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.SecretSyncController:
   management:
     deploy: helm step needing migration
 Microsoft.Azure.ARO.HCP.Service.Infra:
   service:
-    arobit: helm step needing migration
-    istio-config: helm step needing migration
     prometheus: helm step needing migration

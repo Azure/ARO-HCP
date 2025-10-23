@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
@@ -74,11 +74,11 @@ type ValidatedPipelineOptions struct {
 
 // completedPipelineOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedPipelineOptions struct {
-	RolloutOptions   *options.RolloutOptions
-	Service          *topology.Service
-	Pipeline         *types.Pipeline
-	Step             string
-	PipelineFilePath string
+	RolloutOptions *options.RolloutOptions
+	Service        *topology.Service
+	Pipeline       *types.Pipeline
+	Step           string
+	TopologyDir    string
 }
 
 type PipelineOptions struct {
@@ -127,11 +127,11 @@ func (o *ValidatedPipelineOptions) Complete() (*PipelineOptions, error) {
 
 	return &PipelineOptions{
 		completedPipelineOptions: &completedPipelineOptions{
-			RolloutOptions:   completed,
-			Pipeline:         pipeline,
-			Service:          service,
-			Step:             o.Step,
-			PipelineFilePath: pipelinePath,
+			RolloutOptions: completed,
+			Pipeline:       pipeline,
+			Service:        service,
+			Step:           o.Step,
+			TopologyDir:    filepath.Dir(o.TopologyFile),
 		},
 	}, nil
 }

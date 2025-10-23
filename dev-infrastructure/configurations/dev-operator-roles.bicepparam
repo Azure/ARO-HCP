@@ -18,6 +18,7 @@ param roles = [
       'Microsoft.Network/publicIPAddresses/join/action'
       'Microsoft.Network/publicIPAddresses/read'
       'Microsoft.Network/publicIPAddresses/write'
+      'Microsoft.Network/publicIPAddresses/delete'
       'Microsoft.Network/virtualNetworks/subnets/join/action'
       'Microsoft.Network/virtualNetworks/subnets/read'
       'Microsoft.Network/publicIPPrefixes/join/action'

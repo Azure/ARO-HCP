@@ -15,7 +15,6 @@
 package api
 
 import (
-	"fmt"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -146,78 +145,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) NewVersioned(versionedInterface Version) VersionedResource {
-	return versionedInterface.NewHCPOpenShiftClusterExternalAuth(externalAuth)
-}
-
-// This combination is used later in the system as a unique identifier and as
-// such we must ensure uniqueness.
-func (externalAuth *HCPOpenShiftClusterExternalAuth) validateUniqueClientIdentifiers() []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if len(externalAuth.Properties.Clients) > 1 {
-		clientIdsMap := make(map[string][]string, len(externalAuth.Properties.Clients))
-		for _, elem := range externalAuth.Properties.Clients {
-			var uniqueKey = elem.generateUniqueIdentifier()
-			if clientIds, ok := clientIdsMap[uniqueKey]; ok {
-				clientIdsMap[uniqueKey] = append(clientIds, elem.ClientID)
-			} else {
-				clientIdsMap[uniqueKey] = []string{elem.ClientID}
-			}
-		}
-		for uniqueKey, clientIds := range clientIdsMap {
-			if len(clientIds) > 1 {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code: arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf(
-						("External Auth Clients must have a unique combination of component.Name & component.AuthClientNamespace. " +
-							"The following clientIds share the same unique combination '%s' and are invalid: \n '%s' "),
-						uniqueKey,
-						clientIds),
-					Target: "properties.clients",
-				})
-
-			}
-		}
-
-	}
-	return errorDetails
-}
-
-// This combination is used later in the system as a unique identifier.
-func (c ExternalAuthClientProfile) generateUniqueIdentifier() string {
-	return c.Component.Name + c.Component.AuthClientNamespace
-}
-
-// validateClientIdInAudiences checks that each ClientId matches an audience in the TokenIssuerProfile.
-func (externalAuth *HCPOpenShiftClusterExternalAuth) validateClientIdInAudiences() []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if len(externalAuth.Properties.Clients) > 0 {
-		audiencesSet := make(map[string]struct{}, len(externalAuth.Properties.Issuer.Audiences))
-		for _, aud := range externalAuth.Properties.Issuer.Audiences {
-			audiencesSet[aud] = struct{}{}
-		}
-
-		for i, client := range externalAuth.Properties.Clients {
-			if _, found := audiencesSet[client.ClientID]; !found {
-				errorDetails = append(errorDetails, arm.CloudErrorBody{
-					Code:    arm.CloudErrorCodeInvalidRequestContent,
-					Message: fmt.Sprintf("ClientID '%s' in clients[%d] must match an audience in TokenIssuerProfile", client.ClientID, i),
-					Target:  "properties.clients",
-				})
-			}
-		}
-	}
-
-	return errorDetails
-}
-
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	errorDetails = append(errorDetails, externalAuth.validateUniqueClientIdentifiers()...)
-	errorDetails = append(errorDetails, externalAuth.validateClientIdInAudiences()...)
-
-	return errorDetails
+func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate() []arm.CloudErrorBody {
+	return nil
 }

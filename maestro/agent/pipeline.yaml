@@ -45,60 +45,39 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ../../dev-infrastructure/templates/maestro/maestro-agent-lookup.bicep
+    parameters: ../../dev-infrastructure/configurations/maestro-agent-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: EVENTGRID_NAME
-      configRef: maestro.eventGrid.name
-    - name: REGION_RG
-      configRef: regionRG
-    - name: MGMT_RG
-      configRef: mgmt.rg
-    - name: CONSUMER_NAME
-      configRef: maestro.agent.consumerName
-    - name: NAMESPACE
-      configRef: maestro.agent.k8s.namespace
-    - name: SERVICE_ACCOUNT_NAME
-      configRef: maestro.agent.k8s.serviceAccountName
-    - name: MAESTRO_MI_NAME
-      configRef: maestro.agent.managedIdentityName
-    - name: REPLICAS
-      configRef: maestro.agent.k8s.replicas
-    - name: MAESTRO_LOG_LEVEL
-      configRef: maestro.agent.loglevel
-    - name: KEYVAULT_NAME
-      configRef: mgmtKeyVault.name
-    - name: IMAGE_REPO
-      configRef: maestro.image.repository
-    - name: IMAGE_DIGEST
-      configRef: maestro.image.digest
-    - name: SIDECAR_IMAGE_REGISTRY
-      configRef: maestro.agent.sidecar.image.registry
-    - name: SIDECAR_IMAGE_REPOSITORY
-      configRef: maestro.agent.sidecar.image.repository
-    - name: SIDECAR_IMAGE_DIGEST
-      configRef: maestro.agent.sidecar.image.digest
-    - name: ACR_NAME
-      configRef: acr.svc.name
-    - name: EVENTGRID_HOSTNAME
-      input:
+    action: Helm
+    releaseName: 'maestro-agent'
+    releaseNamespace: '{{ .maestro.server.k8s.namespace }}'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    inputVariables:
+      brokerHost:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespacesHostname
+      tenantId:
+        resourceGroup: management
+        step: output
+        name: tenantId
+      msiClientId:
+        resourceGroup: management
+        step: output
+        name: msiClientId
     dependsOn:
     - resourceGroup: global
       step: mirror-image
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -112,6 +91,10 @@ resourceGroups:
     valuesFile: ./../registration/values.yaml
     dependsOn:
     - resourceGroup: management
+      step: deploy
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Server
+      resourceGroup: service
       step: deploy
     identityFrom:
       resourceGroup: global

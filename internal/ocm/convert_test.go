@@ -26,8 +26,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -78,7 +79,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					Value(42),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					NodeDrainTimeoutMinutes: 42,
 				},
 			},
@@ -94,7 +95,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
@@ -125,7 +126,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Etcd: api.EtcdProfile{
 						DataEncryption: api.EtcdDataEncryptionProfile{
 							CustomerManaged: &api.CustomerManagedEncryptionProfile{
@@ -151,7 +152,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 					State(string(csImageRegistryStateDisabled)),
 				),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
-				Properties: api.HCPOpenShiftClusterProperties{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					ClusterImageRegistry: api.ClusterImageRegistryProfile{
 						State: api.ClusterImageRegistryProfileStateDisabled,
 					},
@@ -163,11 +164,6 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			csCluster := ocmCluster(t, ocmClusterDefaults(), tc.ocmClusterTweaks)
 			expectHcpCluster := api.ClusterTestCase(t, tc.hcpClusterTweaks)
-
-			// FIXME Temporary hack until we pass cluster autoscaling values to CS.
-			expectHcpCluster.Properties.Autoscaling.MaxPodGracePeriodSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.MaxNodeProvisionTimeSeconds = 0
-			expectHcpCluster.Properties.Autoscaling.PodPriorityThreshold = 0
 
 			actualHcpCluster, err := ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
 			require.NoError(t, err)
@@ -255,6 +251,11 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 				OutboundType(csOutboundType)).
+			OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().
+				ManagedIdentities(arohcpv1alpha1.NewAzureOperatorsAuthenticationManagedIdentities().
+					ControlPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureControlPlaneManagedIdentityBuilder)).
+					DataPlaneOperatorsManagedIdentities(make(map[string]*csarhcpv1alpha1.AzureDataPlaneManagedIdentityBuilder)).
+					ManagedIdentitiesDataPlaneIdentityUrl(""))).
 			ResourceGroupName(strings.ToLower(api.TestResourceGroupName)).
 			ResourceName(strings.ToLower(api.TestClusterName)).
 			SubnetResourceID(api.TestSubnetResourceID).
@@ -262,9 +263,9 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			TenantID(api.TestTenantID),
 		).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(true)).
-		CloudProvider(cmv1.NewCloudProvider().
+		CloudProvider(arohcpv1alpha1.NewCloudProvider().
 			ID("azure")).
-		Flavour(cmv1.NewFlavour().
+		Flavour(arohcpv1alpha1.NewFlavour().
 			ID("osd-4")).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(true)).
@@ -275,9 +276,13 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 			PodCIDR("10.128.0.0/14").
 			ServiceCIDR("172.30.0.0/16").
 			Type("OVNKubernetes")).
-		Product(cmv1.NewProduct().
+		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
+			PodPriorityThreshold(-10).
+			MaxNodeProvisionTime("15m").
+			MaxPodGracePeriod(600)).
+		Product(arohcpv1alpha1.NewProduct().
 			ID("aro")).
-		Region(cmv1.NewCloudRegion().
+		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(arm.GetAzureLocation())).
 		Version(arohcpv1alpha1.NewVersion().
 			ID("").

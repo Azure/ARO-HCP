@@ -1,19 +1,19 @@
 acm:
   mce:
     bundle:
-      digest: sha256:82118a2b3c036a9c8e666636d5cac1ea0998553727cfc5da0d2bad8eed916e6b
+      digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-    mirrorAdditionalVersions: 2.8.1,2.8.2
+    mirrorAdditionalVersions: 2.8.1,2.8.2,2.9.0
     pauseReconciliation: false
-    version: 2.9.0
+    version: 2.9.1
   operator:
     bundle:
-      digest: sha256:437a786a301ea720cdb5651dff878a9f51470bab46ba28daae4928c7074c9157
+      digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-    mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1
-    version: 2.14.0
+    mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1,2.14.0
+    version: 2.14.1
 acr:
   ocp:
     name: arohcpocpdev
@@ -29,7 +29,7 @@ acr:
     zoneRedundantMode: Disabled
 acrPull:
   image:
-    digest: sha256:8535e678398d0c15bccc6e4383483f15ab9e248405c0fc1ce587e3999b39e664
+    digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 administration:
@@ -41,13 +41,13 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:667535f49ba225d96395ec8df3dcf9cf5f946facdb69afe1d920ebba3e7a4265
+      digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
       registry: mcr.microsoft.com
-      repository: oss/fluent/fluent-bit
+      repository: oss/v2/fluent/fluent-bit
   mdsd:
     enabled: false
     image:
-      digest: sha256:756d114bbaecec418139b53bdf634a9677f71c5c501a4af901246ef2f2c5d468
+      digest: sha256:c63187bb16b7cf83940b3223643d4582aa4fe3d38940b5e34d12672f443914bc
       registry: linuxgeneva-microsoft.azurecr.io
       repository: genevamdsd
 automationDryRun: false
@@ -77,6 +77,10 @@ billing:
     namespace: ""
     resourceGroupName: ""
     subscriptionId: ""
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
   kusto:
     clusterName: ""
     clusterPrincipals:
@@ -89,36 +93,22 @@ billing:
     - description: ""
       name: ""
     sku: ""
+    vmUsageStaleThreshold: ""
   pav2:
     cloudName: ""
   rg: placeholder
 cloud: Public
 clustersService:
   azureOperatorsManagedIdentities:
-    cloudControllerManager:
-      roleNames: Azure Red Hat OpenShift Cloud Controller Manager - Dev
-    cloudNetworkConfig:
-      roleNames: Azure Red Hat OpenShift Network Operator - Dev
-    clusterApiAzure:
-      roleNames: Azure Red Hat OpenShift Cluster API Role - Dev
-    controlPlane:
-      roleNames: Azure Red Hat OpenShift Control Plane Operator Role - Dev
-    diskCsiDriver:
-      roleNames: Azure Red Hat OpenShift Disk Storage Operator - Dev
-    fileCsiDriver:
-      roleNames: Azure Red Hat OpenShift File Storage Operator - Dev
-    imageRegistry:
-      roleNames: Azure Red Hat OpenShift Image Registry Operator - Dev
-    ingress:
-      roleNames: Azure Red Hat OpenShift Cluster Ingress Operator - Dev
-    kms:
-      roleNames: Azure Red Hat OpenShift KMS Plugin - Dev
+    roleSetName: dev
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  batchProcesses: ""
+  batchProcessesDryRun: true
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:17ae3a480e74de9484471074fa9ebad10c82e848e3ebb853d53b945221c9d5f4
+    digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
@@ -130,13 +120,24 @@ clustersService:
     replicas: 3
     serviceAccountName: clusters-service
   managedIdentityName: clusters-service
+  ocpVersions:
+    channelGroups:
+      stable:
+        maxVersion: 4.19.8
+        minVersion: 4.19.0
+    defaultVersion:
+      version: 4.19.7
   postgres:
     backupRetentionDays: 7
+    containerizedDb:
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: clusters-service
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbcs-lnstest
+    password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 128
     serverVersion: "17"
@@ -154,6 +155,7 @@ cxKeyVault:
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud
+  globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
   regionalSubdomain: lnstest
   svcParentZoneName: hcpsvc.osadev.cloud
@@ -199,6 +201,20 @@ frontend:
     address: ""
     exporter: ""
 geneva:
+  actions:
+    allowedAcisExtensions: AzureRedHatHypershiftExtension
+    certificate:
+      issuer: Self
+      manage: true
+      name: genevaAction
+    genevaActionsPrincipalId: ""
+    keyVault:
+      name: arohcpdev-geneva-kv
+      private: false
+      softDelete: true
+      tagKey: aroHCPPurpose
+      tagValue: geneva-actions
+    serviceTag: GenevaActions
   logs:
     adminCertName: geneva-logs-admin
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
@@ -230,8 +246,6 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
-genevaActions:
-  serviceTag: GenevaActionsNonProd
 global:
   billing:
     digest: placeholder
@@ -273,7 +287,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:e6556e013459b4ce26cc464e23fddc952f4c57c1a0b4d63a7329acf804c8a5d8
+    digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -299,6 +313,9 @@ kubeEvents:
     repository: ""
 kusto:
   cluster: ""
+  enabled: false
+  environmentName: swft
+  ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
   resourceGroup: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
@@ -322,7 +339,7 @@ maestro:
       namespace: maestro
       replicas: 3
       serviceAccountName: maestro
-    loglevel: 1
+    loglevel: 2
     managedIdentityName: maestro-consumer
     sidecar:
       image:
@@ -336,16 +353,20 @@ maestro:
     name: arohcp-swft-maestro-lnstest
     private: false
   image:
-    digest: sha256:d14c940a103d3811123c907bec610349960ac2028df508a1a8c89264bd3ed847
+    digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
     backupRetentionDays: 7
+    containerizedDb:
+      image: docker.io/library/postgres:14.2
+      pvcCapacity: 512Mi
     databaseName: maestro
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbmaestro-lnstest
+    password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 32
     serverVersion: "15"
@@ -356,7 +377,7 @@ maestro:
       namespace: maestro
       replicas: 3
       serviceAccountName: maestro
-    loglevel: 1
+    loglevel: 2
     managedIdentityName: maestro-server
     mqttClientName: maestro-server-lnstest
     tracing:
@@ -522,6 +543,10 @@ msiCredentialsRefresher:
     digest: ""
     registry: empty-sentinel
     repository: empty-sentinel
+  imageArtifact:
+    adoProject: ""
+    artifactName: ""
+    buildId: 0
   k8s:
     namespace: msi-credential-refresher
     serviceAccountName: msi-credential-refresher
@@ -572,9 +597,9 @@ routeMonitorOperator:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
     registry: quay.io
     repository: prometheus/blackbox-exporter
-  bundleVersion: 0.1.744-gad53663
+  bundleVersion: 0.1.848-g208c6eb
   operatorImage:
-    digest: sha256:5a00509dd9aa9454ddc619ad28bc3007c3099cd9260706b778ded5627c2b3537
+    digest: sha256:006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
     registry: quay.io
     repository: app-sre/route-monitor-operator
 secretSyncController:

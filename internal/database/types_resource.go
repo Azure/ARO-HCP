@@ -38,8 +38,7 @@ type ResourceDocument struct {
 	SystemData        *arm.SystemData             `json:"systemData,omitempty"`
 	Tags              map[string]string           `json:"tags,omitempty"`
 
-	CustomerDesiredState map[string]any `json:"customerDesiredState"`
-	ServiceProviderState map[string]any `json:"serviceProviderState"`
+	InternalState map[string]any `json:"internalState,omitempty"`
 }
 
 func NewResourceDocument(resourceID *azcorearm.ResourceID) *ResourceDocument {

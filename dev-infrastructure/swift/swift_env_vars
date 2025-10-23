@@ -26,6 +26,6 @@ export subscription=1d3378d3-5a3f-4712-85a1-2485495dfc4b
 export resource=RedHatOpenShift
 export linked_resource_type=Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 export linked_resource_name=
-export location="westus3"
+export location="uksouth"
 export address_prefix="10.32.0.0/16"
 export subnet_prefix="10.32.0.0/24"

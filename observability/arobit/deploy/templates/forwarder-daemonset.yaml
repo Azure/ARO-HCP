@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: arobit-forwarder
+  namespace: '{{ .Release.Namespace }}'
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: '{{ .Release.Name }}'
@@ -15,12 +16,15 @@ spec:
       app.kubernetes.io/instance: '{{ .Release.Name }}'
   updateStrategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
   template:
     metadata:
       labels:
         app.kubernetes.io/name: arobit-forwarder
         app.kubernetes.io/instance: '{{ .Release.Name }}'
         app: arobit-forwarder
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
       shareProcessNamespace: true
@@ -42,6 +46,9 @@ spec:
               protocol: TCP
             - name: forward
               containerPort: 24224
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
               protocol: TCP
           livenessProbe:
             httpGet:

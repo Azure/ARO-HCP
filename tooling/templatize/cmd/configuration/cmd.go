@@ -18,10 +18,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/explain"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
-
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/render"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/configuration/validate"
 )
 
 func NewCommand() (*cobra.Command, error) {

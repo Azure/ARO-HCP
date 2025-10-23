@@ -315,6 +315,60 @@ mgmt.solo:
 # Monitoring
 #
 
+kusto:
+	az deployment group create \
+		--name kusto-dev \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/kusto-dev.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/kusto-dev.bicepparam
+.PHONY: kusto
+
+kusto.what-if:
+	az deployment group what-if \
+		--name kusto-dev \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/kusto-dev.bicep \
+		--parameters configurations/kusto-dev.bicepparam
+.PHONY: kusto.what-if
+
+kusto.grant.ingest:
+	SVC_LOGS_MSI=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	SVC_IDENTIFIER=$(shell az identity show -g $(SVC_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv | cut -d- -f1)  && \
+	MGMT_LOGS_MSI=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv) && \
+	MGMT_IDENTIFIER=$(shell az identity show -g $(MGMT_RESOURCEGROUP) -n logs-mdsd --query clientId -o tsv | cut -d- -f1)  && \
+	TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPServiceLogs \
+		--principal-assignment-name "svc$${SVC_IDENTIFIER}" \
+		--principal-id $${SVC_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID} && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPServiceLogs \
+		--principal-assignment-name "mgmt$${MGMT_IDENTIFIER}" \
+		--principal-id $${MGMT_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID} && \
+	az kusto database-principal-assignment create \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--cluster-name hcp-dev-kusto \
+		--database-name HCPCustomerLogs \
+		--principal-assignment-name "svc$${SVC_IDENTIFIER}" \
+		--principal-id $${MGMT_LOGS_MSI} \
+		--principal-type App \
+		--role Ingestor \
+		--tenant-id $${TENANT_ID}
+.PHONY: kusto.grant.ingest
+
 monitoring:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
 .PHONY: monitoring
@@ -322,6 +376,18 @@ monitoring:
 monitoring.what-if:
 	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run -d
 .PHONY: monitoring.what-if
+
+# Release Information
+
+release-information:
+	az deployment group create \
+		--name release-information \
+ 		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--subscription $(DEV_TESTING_SUBSCRIPTION_ID) \
+		--template-file templates/release-information.bicep \
+		$(PROMPT_TO_CONFIRM) \
+		--parameters configurations/release-information.bicepparam
+.PHONY: release-information
 
 # ACR DEV customizations
 

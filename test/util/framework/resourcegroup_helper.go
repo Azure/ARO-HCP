@@ -19,12 +19,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
-	"github.com/davecgh/go-spew/spew"
-	"k8s.io/utils/ptr"
 )
 
 func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions.Client, subscriptionName string) (string, error) {
@@ -40,7 +42,7 @@ func GetSubscriptionID(ctx context.Context, subscriptionClient *armsubscriptions
 			}
 		}
 	}
-	return "", fmt.Errorf("subscription with name %s not found", subscriptionName)
+	return "", fmt.Errorf("subscription with name '%s' not found", subscriptionName)
 }
 
 // CreateResourceGroup creates a resource group

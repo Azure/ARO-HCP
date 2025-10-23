@@ -40,12 +40,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
 // C O N T R O L   P L A N E   I D E N T I T I E S
 //
 
-// Reader
-var readerRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-)
-
 //
 // C L U S T E R   A P I   A Z U R E   M I
 //
@@ -71,15 +65,6 @@ resource hcpClusterApiProviderRoleSubnetAssignment 'Microsoft.Authorization/role
   }
 }
 
-resource serviceManagedIdentityReaderOnClusterApiAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, clusterApiAzureMi.id)
-  scope: clusterApiAzureMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // C O N T R O L   P L A N E   O P E R A T O R   M A N A G E D   I D E N T I T Y
@@ -116,15 +101,6 @@ resource hcpControlPlaneOperatorNsgRoleAssignment 'Microsoft.Authorization/roleA
   }
 }
 
-resource serviceManagedIdentityReaderOnControlPlaneMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, controlPlaneMi.id)
-  scope: controlPlaneMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // C L O U D   C O N T R O L L E R   M A N A G E R   M A N A G E D   I D E N T I T Y
@@ -161,15 +137,6 @@ resource cloudControllerManagerRoleNsgAssignment 'Microsoft.Authorization/roleAs
   }
 }
 
-resource serviceManagedIdentityReaderOnCloudControllerManagerMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, cloudControllerManagerMi.id)
-  scope: cloudControllerManagerMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // I N G R E S S   M A N A G E D   I D E N T I T Y
@@ -196,15 +163,6 @@ resource ingressOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
-resource serviceManagedIdentityReaderOnIngressMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, ingressMi.id)
-  scope: ingressMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // D I S K   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
@@ -215,15 +173,6 @@ resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   location: resourceGroup().location
 }
 
-resource serviceManagedIdentityReaderOnDiskCsiDriverMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, diskCsiDriverMi.id)
-  scope: diskCsiDriverMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // F I L E   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
@@ -260,15 +209,6 @@ resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssig
   }
 }
 
-resource serviceManagedIdentityReaderOnFileCsiDriverMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, fileCsiDriverMi.id)
-  scope: fileCsiDriverMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // I M A G E   R E G I S T R Y   M A N A G E D   I D E N T I T Y
@@ -279,15 +219,6 @@ resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   location: resourceGroup().location
 }
 
-resource serviceManagedIdentityReaderOnImageRegistryMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, imageRegistryMi.id)
-  scope: imageRegistryMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // C L O U D   N E T W O R K   C O N F I G   M A N A G E D   I D E N T I T Y
@@ -324,15 +255,6 @@ resource networkOperatorRoleVnetAssignment 'Microsoft.Authorization/roleAssignme
   }
 }
 
-resource serviceManagedIdentityReaderOnCloudNetworkMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, cloudNetworkConfigMi.id)
-  scope: cloudNetworkConfigMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
-  }
-}
 
 //
 // D A T A P L A N E   I D E N T I T I E S
@@ -483,13 +405,24 @@ resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/rol
   }
 }
 
-resource serviceManagedIdentityReaderOnKMSAzureMi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, serviceManagedIdentity.id, readerRoleId, kmsMi.id)
-  scope: kmsMi
-  properties: {
-    principalId: serviceManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: readerRoleId
+
+//
+// R E A D E R    R O L E
+//
+
+module readerRoles 'managed-identities-reader-roles.bicep' = {
+  name: 'managedIdentitiesReaderRoles'
+  params: {
+    serviceManagedIdentityId: serviceManagedIdentity.id
+    clusterApiAzureMiId: clusterApiAzureMi.id
+    controlPlaneMiId: controlPlaneMi.id
+    cloudControllerManagerMiId: cloudControllerManagerMi.id
+    ingressMiId: ingressMi.id
+    diskCsiDriverMiId: diskCsiDriverMi.id
+    fileCsiDriverMiId: fileCsiDriverMi.id
+    imageRegistryMiId: imageRegistryMi.id
+    cloudNetworkConfigMiId: cloudNetworkConfigMi.id
+    kmsMiId: kmsMi.id
   }
 }
 

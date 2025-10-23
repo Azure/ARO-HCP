@@ -29,6 +29,10 @@
          }
        ]
     },
+    "semVer": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
     "k8sRollingUpdateDeploymentStrategy": {
       "type": "object",
       "description": "Spec to control the desired behavior of rolling update.",
@@ -546,6 +550,26 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "imageArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adoProject": {
+          "type": "string"
+        },
+        "artifactName": {
+          "type": "string"
+        },
+        "buildId": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adoProject",
+        "artifactName",
+        "buildId"
+      ]
+    },
     "zoneRedundantMode": {
       "type": "string",
       "enum": [
@@ -633,6 +657,9 @@
         "databaseName": {
           "type": "string"
         },
+        "password": {
+          "type": "string"
+        },
         "zoneRedundantMode": {
           "$ref": "#/definitions/zoneRedundantMode"
         },
@@ -643,6 +670,18 @@
         "geoRedundantBackup": {
           "type": "boolean",
           "description": "Enable geo-redundant backups for the PostgreSQL server."
+        },
+        "containerizedDb": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "type": "string"
+            },
+            "pvcCapacity": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false,
@@ -738,6 +777,10 @@
         "parentZoneName": {
           "type": "string",
           "description": "The global parent DNS zone name"
+        },
+        "globalCertificatesDomain": {
+          "type": "string",
+          "description": "The global certificates domain"
         }
       },
       "additionalProperties": false,
@@ -745,7 +788,8 @@
         "baseDnsZoneRG",
         "cxParentZoneName",
         "svcParentZoneName",
-        "regionalSubdomain"
+        "regionalSubdomain",
+        "globalCertificatesDomain"
       ]
     },
     "acm": {
@@ -854,51 +898,33 @@
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
         },
+        "batchProcessesDryRun": {
+          "type": "boolean",
+          "description": "If true, batch processes will only log what they would do, without making any changes."
+        },
+        "batchProcesses": {
+          "type": "string",
+          "description": "A comma-separated list of batch processes to execute. If set to an empty string, no batch processes are executed. No whitespace characters are allowed before or after the commas, or at the beginning or end of the list."
+        },
         "postgres": {
           "$ref": "#/definitions/postgres"
         },
         "azureOperatorsManagedIdentities": {
           "type": "object",
           "properties": {
-            "clusterApiAzure": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "controlPlane": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "cloudControllerManager": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "ingress": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "diskCsiDriver": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "fileCsiDriver": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "imageRegistry": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "cloudNetworkConfig": {
-              "$ref": "#/definitions/operatorConfig"
-            },
-            "kms": {
-              "$ref": "#/definitions/operatorConfig"
+            "roleSetName": {
+              "type": "string",
+              "enum": [
+                "dev",
+                "public",
+                "ff"
+              ],
+              "description": "The role set name refers to a particular cloud specific set of operator role definitions, found in the CS values.yaml file"
             }
           },
           "additionalProperties": false,
           "required": [
-            "clusterApiAzure",
-            "controlPlane",
-            "cloudControllerManager",
-            "ingress",
-            "diskCsiDriver",
-            "fileCsiDriver",
-            "imageRegistry",
-            "cloudNetworkConfig",
-            "kms"
+            "roleSetName"
           ]
         },
         "azureRuntimeConfig" : {
@@ -912,6 +938,46 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "ocpVersions": {
+          "type": "object",
+          "properties": {
+            "defaultVersion": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "$ref": "#/definitions/semVer"
+                }
+              },
+              "required": ["version"],
+              "additionalProperties": false
+            },
+            "channelGroups": {
+              "type": "object",
+              "properties": {
+                "stable": {
+                  "type": "object",
+                  "properties": {
+                    "minVersion": {
+                      "$ref": "#/definitions/semVer"
+                    },
+                    "maxVersion": {
+                      "oneOf": [
+                        { "$ref": "#/definitions/semVer" },
+                        { "type": "string", "pattern": "^$" }
+                      ]
+                    }
+                  },
+                  "required": ["minVersion", "maxVersion"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["stable"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["defaultVersion", "channelGroups"],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -924,7 +990,8 @@
         "azureOperatorsManagedIdentities",
         "postgres",
         "tracing",
-        "azureRuntimeConfig"
+        "azureRuntimeConfig",
+        "ocpVersions"
       ]
     },
     "cxKeyVault": {
@@ -1109,7 +1176,6 @@
             "cloudName"
           ]
         },
-
         "kusto": {
           "type": "object",
           "properties": {
@@ -1130,13 +1196,18 @@
               "items": {
                 "$ref": "#/definitions/dstsGroups"
               }
+            },
+            "vmUsageStaleThreshold": {
+              "type": "string",
+              "description": "If the latest VM usage event in kusto is older than this threshold compared to the current time, skip deletion checks for billing documents. 0 to disable this check."
             }
           },
           "required": [
             "sku",
             "clusterName",
             "clusterPrincipals",
-            "dstsGroups"
+            "dstsGroups",
+            "vmUsageStaleThreshold"
           ]
         },
         "eventHub": {
@@ -1157,6 +1228,9 @@
             "subscriptionId",
             "resourceGroupName"
           ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
         }
       },
       "additionalProperties": false,
@@ -1165,7 +1239,8 @@
         "aub",
         "pav2",
         "kusto",
-        "eventHub"
+        "eventHub",
+        "imageArtifact"
       ]
     },
     "ev2": {
@@ -1302,6 +1377,54 @@
             "typeName",
             "environment"
           ]
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "serviceTag",
+            "keyVault",
+            "certificate",
+            "allowedAcisExtensions",
+            "genevaActionsPrincipalId"
+          ],
+          "properties": {
+            "serviceTag": {
+              "type": "string"
+            },
+            "keyVault": {
+              "$ref": "#/definitions/keyVault"
+            },
+            "certificate": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "issuer": {
+                  "$ref": "#/definitions/certificateIssuer"
+                },
+                "manage": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "issuer",
+                "manage"
+              ]
+            },
+            "allowedAcisExtensions": {
+              "$ref": "#/definitions/csv"
+            },
+            "genevaActionsPrincipalId": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
         }
       },
       "additionalProperties": false,
@@ -1309,7 +1432,8 @@
         "principalId",
         "resourceContributor",
         "metrics",
-        "logs"
+        "logs",
+        "actions"
       ]
     },
     "kusto": {
@@ -1320,24 +1444,21 @@
         },
         "cluster": {
           "type": "string"
+        },
+        "ingestionUrl": {
+          "type": "string"
+        },
+        "environmentName": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
         "resourceGroup",
         "cluster"
-      ]
-    },
-    "genevaActions": {
-      "type": "object",
-      "properties": {
-        "serviceTag": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "serviceTag"
       ]
     },
     "mise": {
@@ -1437,6 +1558,9 @@
             "commonName",
             "sanDnsNames"
           ]
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
         }
       },
       "additionalProperties": false,
@@ -1445,7 +1569,8 @@
         "k8s",
         "image",
         "certificate",
-        "earlyRefreshFrequency"
+        "earlyRefreshFrequency",
+        "imageArtifact"
       ]
     },
     "global": {
@@ -2287,7 +2412,6 @@
     "firstPartyAppClientId",
     "firstPartyAppCertificate",
     "frontend",
-    "genevaActions",
     "global",
     "hypershift",
     "imageSync",

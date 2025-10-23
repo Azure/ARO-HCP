@@ -26,10 +26,15 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
+    omitFromServiceGroupCompletion: true
     template: templates/output-svc.bicep
     parameters: configurations/output-svc.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
+      resourceGroup: service
+      step: cluster
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -57,16 +62,6 @@ resourceGroups:
     parameters: configurations/mgmt-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: clusterServiceMIResourceId
-      input:
-        resourceGroup: service
-        step: output
-        name: cs
-    - name: msiRefresherMIResourceId
-      input:
-        resourceGroup: service
-        step: output
-        name: msiRefresher
     - name: logAnalyticsWorkspaceId
       input:
         resourceGroup: regional
@@ -80,6 +75,26 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
+  - name: cs-akv-permissions
+    action: ARM
+    omitFromServiceGroupCompletion: true
+    template: templates/cs-mgmt-akv-permissions.bicep
+    parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterServiceMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: cs
+    - name: msiRefresherMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: msiRefresher
+    dependsOn:
+    - resourceGroup: management
+      step: infra
   - name: infra-output
     action: ARM
     template: templates/mgmt-infra-lookup.bicep
@@ -186,6 +201,7 @@ resourceGroups:
       step: oncert-public-kv-issuer
   - name: nsp
     action: ARM
+    omitFromServiceGroupCompletion: true
     template: templates/mgmt-nsp.bicep
     parameters: configurations/mgmt-nsp.tmpl.bicepparam
     deploymentLevel: ResourceGroup
@@ -309,67 +325,38 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-  - name: arobit
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make -C ../observability/arobit deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: AROBIT_FORWARDER_DIGEST
-      configRef: arobit.forwarder.image.digest
-    - name: AROBIT_FORWARDER_REPOSITORY
-      configRef: arobit.forwarder.image.repository
-    - name: AROBIT_FORWARDER_REGISTRY
-      configRef: arobit.forwarder.image.registry
-    - name: AROBIT_MDSD_DIGEST
-      configRef: arobit.mdsd.image.digest
-    - name: AROBIT_MDSD_REPOSITORY
-      configRef: arobit.mdsd.image.repository
-    - name: AROBIT_MDSD_REGISTRY
-      configRef: arobit.mdsd.image.registry
-    - name: AROBIT_MDSD_ENABLED
-      configRef: arobit.mdsd.enabled
-    - name: AROBIT_GENEVA_RP_ACCOUNT_NAME
-      configRef: geneva.logs.rp.accountName
-    - name: AROBIT_GENEVA_RP_SECRET_NAME
-      configRef: geneva.logs.rp.secretName
-    - name: AROBIT_GENEVA_RP_SAN
-      configRef: geneva.logs.rp.san
-    - name: AROBIT_GENEVA_RP_NAMESPACE
-      configRef: geneva.logs.rp.namespace
-    - name: AROBIT_GENEVA_CLUSTER_LOGS_ACCOUNT_NAME
-      configRef: geneva.logs.cluster.accountName
-    - name: AROBIT_GENEVA_CLUSTER_LOGS_SECRET_NAME
-      configRef: geneva.logs.cluster.secretName
-    - name: AROBIT_GENEVA_CLUSTER_LOGS_SAN
-      configRef: geneva.logs.cluster.san
-    - name: AROBIT_GENEVA_CLUSTER_LOGS_NAMESPACE
-      configRef: geneva.logs.cluster.namespace
-    - name: AROBIT_CLUSTER_TYPE
-      value: "mgmt"
-    - name: AROBIT_SECRET_PROVIDER_KEY_VAULT
-      configRef: mgmtKeyVault.name
-    - name: AROBIT_SECRET_PROVIDER_TENANT_ID
-      configRef: tenantId
-    - name: MI_NAME
-      configRef: logs.mdsd.msiName
-    - name: RESOURCEGROUP
-      configRef: mgmt.rg
-    - name: REGION
-      configRef: region
-    - name: GENEVA_ENVIRONMENT
-      configRef: geneva.logs.environment
+  - name: arobit-output
+    action: ARM
+    template: templates/arobit-lookup.bicep
+    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
     dependsOn:
     - resourceGroup: management
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+  - name: arobit
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'arobit'
+    releaseNamespace: 'arobit'
+    chartDir: ../observability/arobit/deploy
+    valuesFile: ../observability/arobit/values-mgmt.yaml
+    dependsOn:
+    - resourceGroup: management
+      step: prometheus
+    inputVariables:
+      tenantId:
+        resourceGroup: management
+        step: arobit-output
+        name: tenantId
+      msiClientId:
+        resourceGroup: management
+        step: arobit-output
+        name: msiClientId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: kube-events
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm

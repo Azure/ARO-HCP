@@ -213,23 +213,18 @@ resourceGroups:
   - name: istio-config
     # configure istio
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../istio deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ISTIO_VERSIONS
-      configRef: svc.istio.versions
+    action: Helm
+    releaseName: 'istio'
+    releaseNamespace: 'aks-istio-system'
+    chartDir: ../istio/deploy
+    valuesFile: ../istio/values.yaml
     dependsOn:
     - resourceGroup: service
       step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: istio-upgrade
     # - updates workload to use istio on version svc.istio.targetVersion
     # - configures istio IP tag usage
@@ -270,59 +265,38 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-  - name: arobit
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make -C ../observability/arobit deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: AROBIT_FORWARDER_DIGEST
-      configRef: arobit.forwarder.image.digest
-    - name: AROBIT_FORWARDER_REPOSITORY
-      configRef: arobit.forwarder.image.repository
-    - name: AROBIT_FORWARDER_REGISTRY
-      configRef: arobit.forwarder.image.registry
-    - name: AROBIT_MDSD_DIGEST
-      configRef: arobit.mdsd.image.digest
-    - name: AROBIT_MDSD_REPOSITORY
-      configRef: arobit.mdsd.image.repository
-    - name: AROBIT_MDSD_REGISTRY
-      configRef: arobit.mdsd.image.registry
-    - name: AROBIT_MDSD_ENABLED
-      configRef: arobit.mdsd.enabled
-    - name: AROBIT_GENEVA_RP_ACCOUNT_NAME
-      configRef: geneva.logs.rp.accountName
-    - name: AROBIT_GENEVA_RP_SECRET_NAME
-      configRef: geneva.logs.rp.secretName
-    - name: AROBIT_GENEVA_RP_SAN
-      configRef: geneva.logs.rp.san
-    - name: AROBIT_GENEVA_RP_NAMESPACE
-      configRef: geneva.logs.rp.namespace
-    - name: AROBIT_CLUSTER_TYPE
-      value: "svc"
-    - name: AROBIT_SECRET_PROVIDER_KEY_VAULT
-      configRef: serviceKeyVault.name
-    - name: AROBIT_SECRET_PROVIDER_TENANT_ID
-      configRef: tenantId
-    - name: MI_NAME
-      configRef: logs.mdsd.msiName
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: REGION
-      configRef: region
-    - name: GENEVA_ENVIRONMENT
-      configRef: geneva.logs.environment
+  - name: arobit-output
+    action: ARM
+    template: templates/arobit-lookup.bicep
+    parameters: configurations/arobit-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
     dependsOn:
     - resourceGroup: service
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+  - name: arobit
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: 'arobit'
+    releaseNamespace: 'arobit'
+    chartDir: ../observability/arobit/deploy
+    valuesFile: ../observability/arobit/values-svc.yaml
+    dependsOn:
+    - resourceGroup: service
+      step: prometheus
+    inputVariables:
+      tenantId:
+        resourceGroup: service
+        step: arobit-output
+        name: tenantId
+      msiClientId:
+        resourceGroup: service
+        step: arobit-output
+        name: msiClientId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: kube-events
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm

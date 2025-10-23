@@ -18,10 +18,13 @@ import (
 	"context"
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/go-logr/logr"
-	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
 
 // HCPInfo contains information about a discovered HCP cluster

@@ -120,6 +120,14 @@ To access the Maestro Azure Postgres DB run
   psql -d maestro
   ```
 
+## Logging
+
+In order to enable Kusto logging, Ingest permissions need to be granted to your personal environment. This requires both mgmt and svc cluster to be created. Run following to grant permissions:
+
+```bash
+make -C dev-infrastructure kusto.grant.ingest
+```
+
 ## Observability
 
 By default, metrics from infra/management services are ingested into Azure Managed Prometheus (AMP).

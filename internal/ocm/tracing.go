@@ -17,9 +17,10 @@ package ocm
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/trace"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Azure/ARO-HCP/internal/tracing"
 )
@@ -125,7 +126,7 @@ func (csc *clusterServiceClientWithTracing) DeleteCluster(ctx context.Context, i
 	return err
 }
 
-func (csc *clusterServiceClientWithTracing) ListClusters(searchExpression string) *ClusterListIterator {
+func (csc *clusterServiceClientWithTracing) ListClusters(searchExpression string) ClusterListIterator {
 	return csc.csc.ListClusters(searchExpression)
 }
 
@@ -200,7 +201,7 @@ func (csc *clusterServiceClientWithTracing) DeleteNodePool(ctx context.Context, 
 	return err
 }
 
-func (csc *clusterServiceClientWithTracing) ListNodePools(clusterInternalID InternalID, searchExpression string) *NodePoolListIterator {
+func (csc *clusterServiceClientWithTracing) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
 	return csc.csc.ListNodePools(clusterInternalID, searchExpression)
 }
 
@@ -275,7 +276,7 @@ func (csc *clusterServiceClientWithTracing) DeleteExternalAuth(ctx context.Conte
 	return err
 }
 
-func (csc *clusterServiceClientWithTracing) ListExternalAuths(clusterInternalID InternalID, searchExpression string) *ExternalAuthListIterator {
+func (csc *clusterServiceClientWithTracing) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
 	return csc.csc.ListExternalAuths(clusterInternalID, searchExpression)
 }
 

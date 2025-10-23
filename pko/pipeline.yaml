@@ -73,14 +73,28 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+    action: Helm
+    releaseName: 'package-operator'
+    releaseNamespace: 'package-operator-system'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: management
+        step: output
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: management
+        step: output
+        name: imagePullerMsiTenantId
     dependsOn:
     - resourceGroup: global
       step: mirror-image-package
@@ -88,25 +102,7 @@ resourceGroups:
       step: mirror-image-manager
     - resourceGroup: global
       step: mirror-image-remotephase-manager
-    variables:
-    - name: ARO_HCP_IMAGE_ACR
-      configRef: acr.svc.name
-    - name: PKO_IMAGEPACKAGE_REGISTRY
-      configRef: pko.imagePackage.registry
-    - name: PKO_IMAGEPACKAGE_REPOSITORY
-      configRef: pko.imagePackage.repository
-    - name: PKO_IMAGEPACKAGE_DIGEST
-      configRef: pko.imagePackage.digest
-    - name: PKO_IMAGEMANAGER_REGISTRY
-      configRef: pko.imageManager.registry
-    - name: PKO_IMAGEMANAGER_REPOSITORY
-      configRef: pko.imageManager.repository
-    - name: PKO_IMAGEMANAGER_DIGEST
-      configRef: pko.imageManager.digest
-    - name: RESOURCEGROUP
-      configRef: mgmt.rg
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

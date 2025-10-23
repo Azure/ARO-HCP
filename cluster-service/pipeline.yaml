@@ -41,6 +41,13 @@ resourceGroups:
     parameters: ../dev-infrastructure/configurations/output-mgmt.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: cluster
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+      resourceGroup: management
+      step: cs-akv-permissions
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -62,6 +69,8 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: azureKeyvaultSecretsProviderIdentityClientId
+    - name: OPERATOR_ROLE_SET_NAME
+      configRef: clustersService.azureOperatorsManagedIdentities.roleSetName
     - name: REGION
       configRef: region
     - name: RESOURCEGROUP
@@ -80,6 +89,10 @@ resourceGroups:
       configRef: clustersService.image.digest
     - name: ACR_NAME
       configRef: acr.svc.name
+    - name: CS_BATCH_PROCESSES_DRY_RUN
+      configRef: clustersService.batchProcessesDryRun
+    - name: CS_BATCH_PROCESSES
+      configRef: clustersService.batchProcesses
     - name: OCP_ACR_NAME
       configRef: acr.ocp.name
     - name: AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID
@@ -108,24 +121,6 @@ resourceGroups:
       configRef: clustersService.postgres.deploy
     - name: DATABASE_SERVER_NAME
       configRef: clustersService.postgres.name
-    - name: OP_CLUSTER_API_AZURE_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.clusterApiAzure.roleNames
-    - name: OP_CONTROL_PLANE_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.controlPlane.roleNames
-    - name: OP_CLOUD_CONTROLLER_MANAGER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.cloudControllerManager.roleNames
-    - name: OP_INGRESS_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.ingress.roleNames
-    - name: OP_DISK_CSI_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.diskCsiDriver.roleNames
-    - name: OP_FILE_CSI_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.fileCsiDriver.roleNames
-    - name: OP_IMAGE_REGISTRY_DRIVER_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.imageRegistry.roleNames
-    - name: OP_CLOUD_NETWORK_CONFIG_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.cloudNetworkConfig.roleNames
-    - name: OP_KMS_ROLE_NAME
-      configRef: clustersService.azureOperatorsManagedIdentities.kms.roleNames
     - name: ISTO_TAG
       configRef: svc.istio.tag
     - name: MI_NAME
@@ -158,6 +153,12 @@ resourceGroups:
         name: ocpAcrLoginServer
     - name: PROVISION_SHARD_CLUSTER_LIMIT
       configRef: clustersService.provisionShardClusterLimit
+    - name: OCP_VERSIONS_DEFAULT_VERSION_VERSION
+      configRef: clustersService.ocpVersions.defaultVersion.version
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
+    - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
+      configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
     # this is maestro consumer registration stuff
     # this goes away when we have a real registration process
     - name: CONSUMER_NAME

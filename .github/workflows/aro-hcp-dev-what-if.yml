@@ -58,3 +58,4 @@ jobs:
         az bicep install
         cd dev-infrastructure/
         make what-if
+        make kusto.what-if

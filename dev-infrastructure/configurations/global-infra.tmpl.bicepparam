@@ -38,3 +38,13 @@ param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
 // SP for EV2 certificate access, i.e. geneva log access
 param kvCertAccessPrincipalId = '{{ .kvCertAccessPrincipalId }}'
 param kvCertAccessRoleId = '{{ .kvCertAccessRoleId }}'
+
+// Geneva Actions
+param genevaKeyVaultName = '{{ .geneva.actions.keyVault.name}}'
+param genevaKeyVaultPrivate = {{ .geneva.actions.keyVault.private }}
+param genevaKeyVaultSoftDelete = {{ .geneva.actions.keyVault.softDelete }}
+param genevaKeyVaultTagKey = '{{ .geneva.actions.keyVault.tagKey }}'
+param genevaKeyVaultTagValue = '{{ .geneva.actions.keyVault.tagValue }}'
+
+param allowedAcisExtensions = '{{ .geneva.actions.allowedAcisExtensions }}'
+param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}'

@@ -62,7 +62,7 @@ func NewCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func ensureDependencies(ctx context.Context) error {
+func EnsureDependencies(ctx context.Context) error {
 	for _, c := range versionConstraints {
 		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", c.Cmd)
 		output, err := cmd.CombinedOutput()
@@ -100,7 +100,7 @@ func RunPipeline(ctx context.Context, opts *RawRunOptions) error {
 	if err != nil {
 		return err
 	}
-	err = ensureDependencies(ctx)
+	err = EnsureDependencies(ctx)
 	if err != nil {
 		return err
 	}

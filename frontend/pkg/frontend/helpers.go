@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -266,19 +267,6 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 	}
 
 	switch doc.InternalID.Kind() {
-	case arohcpv1alpha1.ClusterKind:
-		csCluster, err := f.clusterServiceClient.GetCluster(ctx, doc.InternalID)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-
-		responseBody, err = marshalCSCluster(csCluster, doc, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
 	case arohcpv1alpha1.NodePoolKind:
 		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
 		if err != nil {

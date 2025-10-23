@@ -27,59 +27,54 @@ type HCPCluster struct {
 	HCPClusterProperties `json:"properties"`
 }
 
+var _ ResourceProperties = &HCPCluster{}
+
 type HCPClusterProperties struct {
 	ResourceDocument `json:",inline"`
 
-	CustomerDesiredState CustomerDesiredHCPClusterState `json:"customerDesiredState"`
-	ServiceProviderState ServiceProviderHCPClusterState `json:"serviceProviderState"`
+	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
+	InternalState ClusterInternalState `json:"internalState"`
 }
 
-type CustomerDesiredHCPClusterState struct {
-	// HCPOpenShiftCluster contains the desired state from a customer.  It is filtered to only those fields that customers
-	// are able to set.
-	// We will eventually select specific fields which customers own and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+type ClusterInternalState struct {
+	InternalAPI api.HCPOpenShiftCluster `json:"internalAPI"`
 }
 
-type ServiceProviderHCPClusterState struct {
-	// HCPOpenShiftCluster contains the service provider owned state.  It is filtered to only those fields that the service provider owns.
-	// We will eventually select specific fields which the service provider owns and blank out everything else.
-	// Alternatively, we could choose a different structure, but it's probably easier to re-use this one.
-	// There is no validation on this structure.
-	HCPOpenShiftCluster api.HCPOpenShiftClusterProperties `json:"clusterProperties"`
+func (o *HCPCluster) ValidateResourceType() error {
+	if o.ResourceType != api.ClusterResourceType.String() {
+		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
+	}
+	return nil
+}
+
+func (o *HCPCluster) GetTypedDocument() *TypedDocument {
+	return &o.TypedDocument
+}
+
+func (o *HCPCluster) GetResourceDocument() *ResourceDocument {
+	return &o.ResourceDocument
 }
 
 var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &CustomerDesiredHCPClusterState{} },
-	func() any { return &ServiceProviderHCPClusterState{} },
+	func() any { return &ClusterInternalState{} },
 )
 
 type jsonRoundTripFilterer struct {
-	newCustomerDesiredStateFn func() any
-	newServiceProviderStateFn func() any
+	newInternalStateFn func() any
 }
 
-func newJSONRoundTripFilterer(newCustomerDesiredStateFn, newServiceProviderStateFn func() any) ResourceDocumentStateFilter {
+func newJSONRoundTripFilterer(newInternalStateFn func() any) ResourceDocumentStateFilter {
 	return jsonRoundTripFilterer{
-		newCustomerDesiredStateFn: newCustomerDesiredStateFn,
-		newServiceProviderStateFn: newServiceProviderStateFn,
+		newInternalStateFn: newInternalStateFn,
 	}
 }
 
 func (r jsonRoundTripFilterer) RemoveUnknownFields(toMutate *ResourceDocument) error {
-	filteredCustomerDesiredState, err := superExpensiveButSimpleRoundFilterForUnknownFields(toMutate.CustomerDesiredState, r.newCustomerDesiredStateFn())
+	filteredInternalState, err := superExpensiveButSimpleRoundFilterForUnknownFields(toMutate.InternalState, r.newInternalStateFn())
 	if err != nil {
 		return err
 	}
-	toMutate.CustomerDesiredState = filteredCustomerDesiredState
-
-	filteredServiceProviderState, err := superExpensiveButSimpleRoundFilterForUnknownFields(toMutate.ServiceProviderState, r.newCustomerDesiredStateFn())
-	if err != nil {
-		return err
-	}
-	toMutate.ServiceProviderState = filteredServiceProviderState
+	toMutate.InternalState = filteredInternalState
 
 	return nil
 }

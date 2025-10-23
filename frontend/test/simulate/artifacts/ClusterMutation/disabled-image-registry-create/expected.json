@@ -2,13 +2,23 @@
   "id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/valid-disable-image-registry",
   "identity": {
     "type": "UserAssigned",
-    "userAssignedIdentities": {}
+    "userAssignedIdentities": {
+      "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity": {
+        "clientId": "service-managed-identity_fake-client-id",
+        "principalId": "service-managed-identity_fake-principal-id"
+      }
+    }
   },
   "location": "globals-are-evil",
   "name": "valid-disable-image-registry",
   "properties": {
     "api": {
       "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 900,
+      "maxPodGracePeriodSeconds": 600,
+      "podPriorityThreshold": -10
     },
     "clusterImageRegistry": {
       "state": "Disabled"
@@ -37,9 +47,14 @@
     },
     "platform": {
       "managedResourceGroup": "managed-resource-group-name",
-      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "networkSecurityGroupId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "operatorsAuthentication": {
+        "userAssignedIdentities": {
+          "serviceManagedIdentity": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
+        }
+      },
       "outboundType": "LoadBalancer",
-      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+      "subnetId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
     },
     "provisioningState": "Accepted",
     "version": {

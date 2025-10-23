@@ -1,0 +1,23 @@
+broker:
+  host: "__brokerHost__"
+  port: 8883
+azure:
+  clientId: "__msiClientId__"
+  tenantId: "__tenantId__"
+serviceAccountName: "{{ .maestro.agent.k8s.serviceAccountName }}"
+image:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  repository: "{{ .maestro.image.repository }}"
+  digest: "{{ .maestro.image.digest }}"
+replicas: {{ .maestro.agent.k8s.replicas }}
+credsKeyVault:
+  name: "{{ .mgmtKeyVault.name }}"
+  secret: "{{ .maestro.agent.consumerName }}"
+consumerName: "{{ .maestro.agent.consumerName }}"
+glog_v: "{{ .maestro.agent.loglevel }}"
+installAppliedManifestWorkCRD: false
+sideCar:
+  image:
+    registry: "{{ .maestro.agent.sidecar.image.registry }}"
+    repository: "{{ .maestro.agent.sidecar.image.repository }}"
+    digest: "{{ .maestro.agent.sidecar.image.digest }}"
