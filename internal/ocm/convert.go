@@ -368,7 +368,7 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 	hcpcluster := &api.HCPOpenShiftCluster{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:   resourceID.String(),
+				ID:   resourceID,
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
@@ -672,7 +672,7 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 	nodePool := &api.HCPOpenShiftClusterNodePool{
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:   resourceID.String(),
+				ID:   resourceID,
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
@@ -792,7 +792,7 @@ func ConvertCStoExternalAuth(resourceID *azcorearm.ResourceID, csExternalAuth *a
 	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
-				ID:   resourceID.String(),
+				ID:   resourceID,
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			},
@@ -949,11 +949,11 @@ func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential)
 }
 
 // ConvertCStoHCPOpenShiftVersion converts a CS Version object into an HCPOpenShiftVersion object.
-func ConvertCStoHCPOpenShiftVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
+func ConvertCStoHCPOpenShiftVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version) *api.HCPOpenShiftVersion {
 	return &api.HCPOpenShiftVersion{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
-				ID:   resourceID.String(),
+				ID:   resourceID,
 				Name: resourceID.Name,
 				Type: resourceID.ResourceType.String(),
 			}},

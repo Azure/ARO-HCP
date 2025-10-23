@@ -19,6 +19,8 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -77,7 +79,7 @@ func (h *NodePool) GetVersion() api.Version {
 
 func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
-		out.ID = *h.ID
+		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -270,9 +272,14 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		return ret
 	}
 
+	idString := ""
+	if from.ID != nil {
+		idString = from.ID.String()
+	}
+
 	out := &NodePool{
 		generated.NodePool{
-			ID:         api.PtrOrNil(from.ID),
+			ID:         api.PtrOrNil(idString),
 			Name:       api.PtrOrNil(from.Name),
 			Type:       api.PtrOrNil(from.Type),
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),

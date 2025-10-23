@@ -44,6 +44,9 @@ func init() {
 			func(a, b time.Time) bool {
 				return a.UTC().Equal(b.UTC())
 			},
+			func(a, b azcorearm.ResourceID) bool {
+				return a.String() == b.String()
+			},
 		),
 	)
 }

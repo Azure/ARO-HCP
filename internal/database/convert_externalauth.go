@@ -15,10 +15,6 @@
 package database
 
 import (
-	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -28,16 +24,11 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		return nil, nil
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(internalObj.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID '%s': %w", internalObj.ID, err)
-	}
-
 	cosmosObj := &ExternalAuth{
 		TypedDocument: TypedDocument{},
 		ExternalAuthProperties: ExternalAuthProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: resourceID,
+				ResourceID: internalObj.ID,
 				// TODO
 				//InternalID:        ocm.InternalID{},
 				//ActiveOperationID: "",
@@ -72,7 +63,7 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.ProxyResource = arm.ProxyResource{
 		Resource: arm.Resource{
-			ID:         cosmosObj.ResourceID.String(),
+			ID:         cosmosObj.ResourceID,
 			Name:       cosmosObj.ResourceID.Name,
 			Type:       cosmosObj.ResourceID.ResourceType.String(),
 			SystemData: cosmosObj.SystemData,
