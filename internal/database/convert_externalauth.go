@@ -17,6 +17,7 @@ package database
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAuth) (*ExternalAuth, error) {
@@ -29,8 +30,8 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 		ExternalAuthProperties: ExternalAuthProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: internalObj.ID,
+				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
 				// TODO
-				//InternalID:        ocm.InternalID{},
 				//ActiveOperationID: "",
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          nil,
@@ -48,6 +49,7 @@ func InternalToCosmosExternalAuth(internalObj *api.HCPOpenShiftClusterExternalAu
 	cosmosObj.InternalState.InternalAPI.ProxyResource = arm.ProxyResource{}
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	return cosmosObj, nil
 }
@@ -71,6 +73,7 @@ func CosmosToInternalExternalAuth(cosmosObj *ExternalAuth) (*api.HCPOpenShiftClu
 	}
 	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	return internalObj, nil
 }

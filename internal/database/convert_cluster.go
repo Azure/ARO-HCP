@@ -15,8 +15,6 @@
 package database
 
 import (
-	"fmt"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -27,17 +25,12 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 		return nil, nil
 	}
 
-	clusterServiceID, err := ocm.NewInternalID(internalObj.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cluster service ID '%s': %w", internalObj.ServiceProviderProperties.ClusterServiceID, err)
-	}
-
 	cosmosObj := &HCPCluster{
 		TypedDocument: TypedDocument{},
 		HCPClusterProperties: HCPClusterProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: internalObj.ID,
-				InternalID: clusterServiceID,
+				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
 				// TODO
 				//ActiveOperationID: "",
 				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
@@ -60,7 +53,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
-	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ""
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow will eventually be called when we replace the write path and we must always have a value.
@@ -133,11 +126,11 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
 	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
-	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID.String()
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set
-	if len(internalObj.ServiceProviderProperties.ClusterServiceID) == 0 {
+	if len(internalObj.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		panic("Developer Error: InternalID is required")
 	}
 

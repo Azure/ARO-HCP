@@ -17,6 +17,7 @@ package database
 import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
@@ -29,8 +30,8 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		NodePoolProperties: NodePoolProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: internalObj.ID,
+				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
 				// TODO
-				//InternalID:        ocm.InternalID{},
 				//ActiveOperationID: "",
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
@@ -52,6 +53,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	return cosmosObj, nil
 }
@@ -79,6 +81,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	return internalObj, nil
 }
