@@ -1,0 +1,40 @@
+rule_files:
+  - route-monitor-operator-prometheusRule.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: "Test 1: Blackbox Deployment is present, no alert should fire."
+    input_series:
+      # We provide the metric, so absent() will be false
+      - series: 'kube_deployment_created{deployment="blackbox-exporter", namespace="openshift-route-monitor-operator"}'
+        values: '1+0x15' # Metric exists for 15+ minutes
+    alert_rule_test:
+      - eval_time: 11m # Check after 'for' duration
+        alertname: BlackboxExporterDeploymentMissing
+        exp_alerts: [] # No alert should be firing
+
+  - interval: 1m
+    name: "Test 2: Blackbox Deployment is missing, alert should fire."
+    # We provide no input_series, so absent() will be true
+    alert_rule_test:
+      - eval_time: 4m # Check *before* 'for' duration
+        alertname: BlackboxExporterDeploymentMissing
+        exp_alerts: [] # Alert is PENDING, not firing yet
+
+      - eval_time: 6m # Check *after* 'for' duration (10m)
+        alertname: BlackboxExporterDeploymentMissing
+        # Alert should now be FIRING
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              component: route-monitor-operator
+              deployment: blackbox-exporter 
+              namespace: openshift-route-monitor-operator
+            exp_annotations:
+              summary: Blackbox Exporter Deployment is missing
+              runbook_url: tbd
+              description: |
+                The 'route-monitor-operator' (which is running) has failed to create the 'blackbox-exporter' Deployment.
+                This indicates the operator is failing its internal reconciliation logic.

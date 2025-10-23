@@ -780,3 +780,47 @@ Check the status of the Arobit forwarder pods, service endpoints, and network co
     ]
   }
 }
+
+resource routeMonitorOperatorHealth 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'route-monitor-operator-health'
+  location: resourceGroup().location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BlackboxExporterDeploymentMissing'
+        enabled: true
+        labels: {
+          component: 'route-monitor-operator'
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'BlackboxExporterDeploymentMissing/{{ $labels.cluster }}'
+          description: '''The \'route-monitor-operator\' (which is running) has failed to create the \'blackbox-exporter\' Deployment.
+This indicates the operator is failing its internal reconciliation logic.
+'''
+          runbook_url: 'tbd'
+          summary: 'Blackbox Exporter Deployment is missing'
+          title: '''The \'route-monitor-operator\' (which is running) has failed to create the \'blackbox-exporter\' Deployment.
+This indicates the operator is failing its internal reconciliation logic.
+'''
+        }
+        expression: 'absent(kube_deployment_created{deployment="blackbox-exporter", namespace="openshift-route-monitor-operator"})'
+        for: 'PT5M'
+        severity: 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
