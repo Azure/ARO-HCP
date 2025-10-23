@@ -25,12 +25,17 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 )
 
 var _ = Describe("Cluster Pull Secret Management", func() {
@@ -196,5 +201,105 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				redhatRegistryEmail,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("creating dynamic client for operator installation")
+			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating namespace for NFD operator")
+			const nfdNamespace = "openshift-nfd"
+			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nfdNamespace,
+				},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating OperatorGroup for NFD operator")
+			operatorGroupGVR := schema.GroupVersionResource{
+				Group:    "operators.coreos.com",
+				Version:  "v1",
+				Resource: "operatorgroups",
+			}
+			operatorGroup := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "operators.coreos.com/v1",
+					"kind":       "OperatorGroup",
+					"metadata": map[string]interface{}{
+						"name":      "nfd-operator-group",
+						"namespace": nfdNamespace,
+					},
+					"spec": map[string]interface{}{
+						"targetNamespaces": []interface{}{nfdNamespace},
+					},
+				},
+			}
+			_, err = dynamicClient.Resource(operatorGroupGVR).Namespace(nfdNamespace).Create(ctx, operatorGroup, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating Subscription for NFD operator from certified-operators catalog")
+			subscriptionGVR := schema.GroupVersionResource{
+				Group:    "operators.coreos.com",
+				Version:  "v1alpha1",
+				Resource: "subscriptions",
+			}
+			subscription := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "operators.coreos.com/v1alpha1",
+					"kind":       "Subscription",
+					"metadata": map[string]interface{}{
+						"name":      "nfd",
+						"namespace": nfdNamespace,
+					},
+					"spec": map[string]interface{}{
+						"channel":             "stable",
+						"name":                "nfd",
+						"source":              "certified-operators",
+						"sourceNamespace":     "openshift-marketplace",
+						"installPlanApproval": "Automatic",
+					},
+				},
+			}
+			_, err = dynamicClient.Resource(subscriptionGVR).Namespace(nfdNamespace).Create(ctx, subscription, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for NFD operator to be installed")
+			Eventually(func() error {
+				return verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd").Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 5*time.Second).Should(Succeed(), "NFD operator should be installed successfully")
+
+			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
+			nfdGVR := schema.GroupVersionResource{
+				Group:    "nfd.openshift.io",
+				Version:  "v1",
+				Resource: "nodefeaturediscoveries",
+			}
+			nfdCR := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "nfd.openshift.io/v1",
+					"kind":       "NodeFeatureDiscovery",
+					"metadata": map[string]interface{}{
+						"name":      "nfd-instance",
+						"namespace": nfdNamespace,
+					},
+					"spec": map[string]interface{}{
+						"operand": map[string]interface{}{
+							"image": "registry.redhat.io/openshift4/ose-node-feature-discovery:latest",
+						},
+					},
+				},
+			}
+			_, err = dynamicClient.Resource(nfdGVR).Namespace(nfdNamespace).Create(ctx, nfdCR, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for NFD worker DaemonSet to be ready")
+			Eventually(func() error {
+				return verifiers.VerifyNFDWorkerDaemonSet(nfdNamespace).Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 5*time.Second).Should(Succeed(), "NFD worker DaemonSet should be ready")
+
+			By("verifying NFD is working by checking node labels")
+			Eventually(func() error {
+				return verifiers.VerifyNFDNodeLabels().Verify(ctx, adminRESTConfig)
+			}, 120*time.Second, 5*time.Second).Should(Succeed(), "NFD should label nodes with hardware features")
 		})
 })
