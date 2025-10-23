@@ -5,6 +5,7 @@ import {
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
+import * as mi from '../modules/managed-identities.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -380,6 +381,70 @@ resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
   scope: resourceGroup(serviceKeyVaultResourceGroup)
 }
 
+//
+//   M A N A G E D   I D E N T I T I E S
+//
+
+var workloadIdentities = items({
+  frontend_wi: {
+    uamiName: frontendMIName
+    namespace: frontendNamespace
+    serviceAccountName: frontendServiceAccountName
+  }
+  backend_wi: {
+    uamiName: backendMIName
+    namespace: backendNamespace
+    serviceAccountName: backendServiceAccountName
+  }
+  billing_wi: {
+    uamiName: 'aro-billing'
+    namespace: 'billing'
+    serviceAccountName: 'aro-billing'
+  }
+  backplane_wi: {
+    uamiName: 'backplane-api'
+    namespace: 'aro-hcp'
+    serviceAccountName: 'backplane-api'
+  }
+  maestro_wi: {
+    uamiName: maestroMIName
+    namespace: maestroNamespace
+    serviceAccountName: maestroServiceAccountName
+  }
+  cs_wi: {
+    uamiName: csMIName
+    namespace: csNamespace
+    serviceAccountName: csServiceAccountName
+  }
+  logs_wi: {
+    uamiName: logsMSI
+    namespace: logsNamespace
+    serviceAccountName: logsServiceAccount
+  }
+  prom_wi: {
+    uamiName: 'prometheus'
+    namespace: 'prometheus'
+    serviceAccountName: 'prometheus'
+  }
+  msi_refresher_wi: {
+    uamiName: msiRefresherMIName
+    namespace: msiRefresherNamespace
+    serviceAccountName: msiRefresherServiceAccountName
+  }
+})
+
+module managedIdentities '../modules/managed-identities.bicep' = {
+  name: 'managed-identities'
+  params: {
+    location: location
+    manageIdentityNames: [for wi in workloadIdentities: wi.value.uamiName]
+  }
+}
+
+//
+//   A K S
+//
+
 resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   location: location
   name: 'svc-cluster-node-nsg'
@@ -415,6 +480,33 @@ resource svcClusterNSG 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   }
 }
 
+var vnetName = 'aks-net'
+var nodeSubnetName = 'ClusterSubnet-001'
+
+module vnetCreation '../modules/network/vnet.bicep' = {
+  name: 'vnet-${vnetName}-creation'
+  params: {
+    location: location
+    vnetName: vnetName
+    vnetAddressPrefix: vnetAddressPrefix
+    enableSwift: false
+    deploymentMsiId: globalMSIId
+  }
+}
+
+module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
+  name: 'subnet-${nodeSubnetName}-creation'
+  params: {
+    vnetName: vnetName
+    subnetName: nodeSubnetName
+    subnetNSGId: svcClusterNSG.id
+    subnetPrefix: subnetPrefix
+  }
+  dependsOn: [
+    vnetCreation
+  ]
+}
+
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()
@@ -431,9 +523,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     istioVersions: split(istioVersions, ',')
     istioIngressGatewayIPAddressName: istioIngressGatewayIPAddressName
     istioIngressGatewayIPAddressIPTags: istioIngressGatewayIPAddressIPTags
-    vnetAddressPrefix: vnetAddressPrefix
-    nodeSubnetNSGId: svcClusterNSG.id
-    subnetPrefix: subnetPrefix
+    vnetName: vnetName
+    nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
     clusterType: 'svc-cluster'
     userOsDiskSizeGB: userOsDiskSizeGB
@@ -465,62 +556,18 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     systemZoneRedundantMode: systemZoneRedundantMode
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
-    workloadIdentities: items({
-      frontend_wi: {
-        uamiName: frontendMIName
-        namespace: frontendNamespace
-        serviceAccountName: frontendServiceAccountName
-      }
-      backend_wi: {
-        uamiName: backendMIName
-        namespace: backendNamespace
-        serviceAccountName: backendServiceAccountName
-      }
-      billing_wi: {
-        uamiName: 'aro-billing'
-        namespace: 'billing'
-        serviceAccountName: 'aro-billing'
-      }
-      backplane_wi: {
-        uamiName: 'backplane-api'
-        namespace: 'aro-hcp'
-        serviceAccountName: 'backplane-api'
-      }
-      maestro_wi: {
-        uamiName: maestroMIName
-        namespace: maestroNamespace
-        serviceAccountName: maestroServiceAccountName
-      }
-      cs_wi: {
-        uamiName: csMIName
-        namespace: csNamespace
-        serviceAccountName: csServiceAccountName
-      }
-      logs_wi: {
-        uamiName: logsMSI
-        namespace: logsNamespace
-        serviceAccountName: logsServiceAccount
-      }
-      prom_wi: {
-        uamiName: 'prometheus'
-        namespace: 'prometheus'
-        serviceAccountName: 'prometheus'
-      }
-      msi_refresher_wi: {
-        uamiName: msiRefresherMIName
-        namespace: msiRefresherNamespace
-        serviceAccountName: msiRefresherServiceAccountName
-      }
-    })
+    workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
-    enableSwiftV2Vnet: false
     enableSwiftV2Nodepools: false
   }
+  dependsOn: [
+    managedIdentities
+  ]
 }
 
 output aksClusterName string = svcCluster.outputs.aksClusterName
@@ -548,12 +595,15 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
     azureMonitorWorkspaceLocation: location
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     aksClusterName: aksClusterName
-    prometheusPrincipalId: filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == 'prometheus')[0].uamiPrincipalID
+    prometheusPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'prometheus').uamiPrincipalID
   }
+  dependsOn: [
+    svcCluster
+  ]
 }
 
-var frontendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == frontendMIName)[0]
-var backendMI = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == backendMIName)[0]
+var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
+var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'
@@ -572,8 +622,8 @@ module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
-    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
-    vnetId: svcCluster.outputs.aksVnetId
+    subnetIds: [nodeSubnetCreation.outputs.subnetId]
+    vnetId: vnetCreation.outputs.vnetId
     privateLinkServiceId: rpCosmosDb.outputs.cosmosDBAccountId
     serviceType: 'cosmosdb'
     groupId: 'Sql'
@@ -611,16 +661,16 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       : 'SameZone'
     postgresBackupRetentionDays: maestroPostgresBackupRetentionDays
     postgresGeoRedundantBackup: maestroPostgresGeoRedundantBackup
-    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointSubnetId: nodeSubnetCreation.outputs.subnetId
+    privateEndpointVnetId: vnetCreation.outputs.vnetId
     privateEndpointResourceGroup: resourceGroup().name
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: globalMSIId
-    maestroServerManagedIdentityPrincipalId: filter(
-      svcCluster.outputs.userAssignedIdentities,
-      id => id.uamiName == maestroMIName
-    )[0].uamiPrincipalID
+    maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      maestroMIName
+    ).uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
@@ -633,15 +683,13 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
 //   K E Y V A U L T S
 //
 
-var logsManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == logsMSI)[0].uamiPrincipalID
-
 module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: guid(serviceKeyVaultName, logsMSI, 'certuser')
   scope: resourceGroup(serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
     roleName: 'Key Vault Certificate User'
-    managedIdentityPrincipalId: logsManagedIdentityPrincipalId
+    managedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
   }
 }
 
@@ -649,7 +697,7 @@ module logsServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bic
 //   C L U S T E R   S E R V I C E
 //
 
-var csManagedIdentityPrincipalId = filter(svcCluster.outputs.userAssignedIdentities, id => id.uamiName == csMIName)[0].uamiPrincipalID
+var csManagedIdentityPrincipalId = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, csMIName).uamiPrincipalID
 
 module cs '../modules/cluster-service.bicep' = {
   name: 'cluster-service'
@@ -659,8 +707,8 @@ module cs '../modules/cluster-service.bicep' = {
     postgresServerVersion: csPostgresServerVersion
     postgresServerStorageSizeGB: csPostgresServerStorageSizeGB
     csDatabaseName: csPostgresDatabaseName
-    privateEndpointSubnetId: svcCluster.outputs.aksNodeSubnetId
-    privateEndpointVnetId: svcCluster.outputs.aksVnetId
+    privateEndpointSubnetId: nodeSubnetCreation.outputs.subnetId
+    privateEndpointVnetId: vnetCreation.outputs.vnetId
     privateEndpointResourceGroup: resourceGroup().name
     deployPostgres: csPostgresDeploy
     postgresZoneRedundantMode: determineZoneRedundancyForRegion(location, csPostgresZoneRedundantMode)
@@ -678,9 +726,7 @@ module cs '../modules/cluster-service.bicep' = {
     ocpAcrResourceId: ocpAcrResourceId
     postgresAdministrationManagedIdentityId: globalMSIId
   }
-  dependsOn: [
-    maestroServer
-  ]
+  dependsOn: csPostgresDeploy && deployMaestroPostgres ? [maestroServer] : []
 }
 
 //
@@ -729,11 +775,11 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
-    subnetIds: [svcCluster.outputs.aksNodeSubnetId]
+    subnetIds: [nodeSubnetCreation.outputs.subnetId]
     privateLinkServiceId: eventGridNamespace.id
     serviceType: 'eventgrid'
     groupId: 'topicspace'
-    vnetId: svcCluster.outputs.aksVnetId
+    vnetId: vnetCreation.outputs.vnetId
   }
 }
 
