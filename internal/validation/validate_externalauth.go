@@ -43,6 +43,9 @@ var (
 	toExternalAuthProperties    = func(oldObj *api.HCPOpenShiftClusterExternalAuth) *api.HCPOpenShiftClusterExternalAuthProperties {
 		return &oldObj.Properties
 	}
+	toExternalAuthServiceProviderProperties = func(oldObj *api.HCPOpenShiftClusterExternalAuth) *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties {
+		return &oldObj.ServiceProviderProperties
+	}
 )
 
 func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterExternalAuth) field.ErrorList {
@@ -53,6 +56,9 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 
 	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties" validate:"required"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
+
+	//ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	errs = append(errs, validateExternalAuthServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toExternalAuthServiceProviderProperties))...)
 
 	return errs
 }
@@ -134,6 +140,30 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 			}
 		},
 	)...)
+
+	return errs
+}
+
+var (
+	toExternalAuthServiceProviderCosmosUID = func(oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) *string {
+		return &oldObj.CosmosUID
+	}
+	toExternalAuthServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) *api.InternalID {
+		return &oldObj.ClusterServiceID
+	}
+)
+
+func validateExternalAuthServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toExternalAuthServiceProviderCosmosUID))...)
+	if oldObj == nil { // must be unset on creation because we don't know it yet.
+		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
+	}
+
+	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toExternalAuthServiceProviderClusterServiceID))...)
 
 	return errs
 }

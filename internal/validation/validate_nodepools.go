@@ -41,6 +41,9 @@ var (
 	toNodePoolProperties      = func(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolProperties {
 		return &oldObj.Properties
 	}
+	toNodePoolServiceProviderProperties = func(oldObj *api.HCPOpenShiftClusterNodePool) *api.HCPOpenShiftClusterNodePoolServiceProviderProperties {
+		return &oldObj.ServiceProviderProperties
+	}
 )
 
 func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
@@ -51,6 +54,9 @@ func validateNodePool(ctx context.Context, op operation.Operation, newObj, oldOb
 
 	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties" validate:"required"`
 	errs = append(errs, validateNodePoolProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toNodePoolProperties))...)
+
+	//ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	errs = append(errs, validateNodePoolServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toNodePoolServiceProviderProperties))...)
 
 	return errs
 }
@@ -120,6 +126,30 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
 	// TODO why do we allow this to be negative?
+
+	return errs
+}
+
+var (
+	toNodePoolServiceProviderCosmosUID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *string {
+		return &oldObj.CosmosUID
+	}
+	toNodePoolServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) *api.InternalID {
+		return &oldObj.ClusterServiceID
+	}
+)
+
+func validateNodePoolServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toNodePoolServiceProviderCosmosUID))...)
+	if oldObj == nil { // must be unset on creation because we don't know it yet.
+		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
+	}
+
+	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toNodePoolServiceProviderClusterServiceID))...)
 
 	return errs
 }

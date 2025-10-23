@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/randfill"
@@ -42,6 +43,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
+			// CosmosUID does not roundtrip through the external type because it is purely an internal detail
+			j.CosmosUID = ""
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
 			j.ClusterServiceID = ocm.InternalID{}
 		},
@@ -131,8 +134,8 @@ func roundTripInternalHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster
 	//fmt.Printf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !reflect.DeepEqual(original, roundTrippedObj) {
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj))
+	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
 	}
 }
 
@@ -150,7 +153,7 @@ func roundTripExternalHCPCluster(t *testing.T, original *HcpOpenShiftCluster) {
 	//fmt.Printf("Original: %s\n\nIntermediat: %s\n\n result: %s\n\n", string(originalJSON), string(intermediateJSON), string(resultJSON))
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !reflect.DeepEqual(original, roundTrippedObj) {
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj))
+	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, roundTrippedObj, api.CmpDiffOptions...))
 	}
 }

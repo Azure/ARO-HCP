@@ -47,6 +47,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+	CosmosUID        string     `json:"cosmosUID,omitempty"`
 	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
 }
 

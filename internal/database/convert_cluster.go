@@ -26,7 +26,11 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	}
 
 	cosmosObj := &HCPCluster{
-		TypedDocument: TypedDocument{},
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{
+				ID: internalObj.ServiceProviderProperties.CosmosUID,
+			},
+		},
 		HCPClusterProperties: HCPClusterProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: internalObj.ID,
@@ -53,6 +57,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
@@ -126,6 +131,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
 	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
+	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly

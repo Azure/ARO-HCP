@@ -41,6 +41,7 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+	CosmosUID        string     `json:"cosmosUID,omitempty"`
 	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
 }
 
