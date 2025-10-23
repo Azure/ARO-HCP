@@ -27,8 +27,9 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
-	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty" validate:"required"`
-	Identity   *arm.ManagedServiceIdentity           `json:"identity,omitempty"   validate:"omitempty"`
+	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty" validate:"required"`
+	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"   validate:"omitempty"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -43,6 +44,10 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
 	Taints                  []Taint                 `json:"taints,omitempty"                  visibility:"read create update" validate:"dive"`
 	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
+}
+
+type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

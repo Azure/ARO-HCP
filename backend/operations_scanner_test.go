@@ -71,7 +71,7 @@ func TestSetDeleteOperationAsCompleted(t *testing.T) {
 	}
 
 	// Placeholder InternalID for NewOperationDocument
-	internalID, err := ocm.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
+	internalID, err := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
 	require.NoError(t, err)
 
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
@@ -233,7 +233,7 @@ func TestUpdateOperationStatus(t *testing.T) {
 	}
 
 	// Placeholder InternalID for NewOperationDocument
-	internalID, err := ocm.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
+	internalID, err := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/placeholder")
 	require.NoError(t, err)
 
 	resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)

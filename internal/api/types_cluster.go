@@ -45,7 +45,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"       visibility:"read"`
-	ClusterServiceID  string                         `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"                 visibility:"read"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`

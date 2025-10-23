@@ -31,7 +31,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
@@ -54,8 +53,8 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 				return
 			}
 			// we must always have an internal ID
-			foo := api.Must(ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
-			j.ClusterServiceID = foo.String()
+			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
+			j.ClusterServiceID = foo
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)

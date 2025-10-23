@@ -590,7 +590,9 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// this sets many default values, which are then sometimes overridden by Normalize
-	newInternalCluster := &api.HCPOpenShiftCluster{}
+	newInternalCluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.NewTrackedResource(resourceID),
+	}
 	newExternalCluster.Normalize(newInternalCluster)
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
@@ -616,23 +618,23 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newCosmosCluster := database.NewResourceDocument(resourceID)
-	newCosmosCluster.InternalID, err = ocm.NewInternalID(resultingClusterServiceCluster.HREF())
+	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(resultingClusterServiceCluster.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = newCosmosCluster.InternalID.String()
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, newCosmosCluster.ResourceID, newCosmosCluster.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, newInternalCluster.ID, newInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
+	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
+	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
 	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -1087,7 +1089,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
-	internalID, err := ocm.NewInternalID(csCredential.HREF())
+	internalID, err := api.NewInternalID(csCredential.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)

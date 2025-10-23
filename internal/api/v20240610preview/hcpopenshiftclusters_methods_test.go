@@ -26,6 +26,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
@@ -39,7 +40,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = ""
+			j.ClusterServiceID = ocm.InternalID{}
 		},
 	}, rand.NewSource(seed))
 

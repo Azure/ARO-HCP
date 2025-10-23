@@ -263,13 +263,7 @@ func (f *Frontend) MarshalCluster(ctx context.Context, resourceID *azcorearm.Res
 		return nil, arm.NewInternalServerError()
 	}
 
-	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		return nil, arm.NewInternalServerError()
-	}
-
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
 		logger.Error(err.Error())
 		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)

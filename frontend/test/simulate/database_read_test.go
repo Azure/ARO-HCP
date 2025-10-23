@@ -27,9 +27,9 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestClusterCRUD(t *testing.T) {
@@ -65,7 +65,7 @@ func TestClusterCRUD(t *testing.T) {
 		"foo": "bar",
 	}
 	csClusterHREF := "/api/clusters_mgmt/v1/clusters/fixed-value"
-	hcpCluster.InternalID, err = ocm.NewInternalID(csClusterHREF)
+	hcpCluster.InternalID, err = api.NewInternalID(csClusterHREF)
 	require.NoError(t, err)
 
 	transaction := testInfo.DBClient.NewTransaction(azcosmos.NewPartitionKeyString(subscriptionID))
