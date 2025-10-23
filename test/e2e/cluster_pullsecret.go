@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -126,12 +127,8 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("checking for CLUSTER_PROFILE_DIR environment variable")
-			clusterProfileDir := os.Getenv("CLUSTER_PROFILE_DIR")
-			Expect(clusterProfileDir).NotTo(BeEmpty(), "CLUSTER_PROFILE_DIR environment variable is not set")
-
-			By("reading pull-secret file from cluster profile directory")
-			pullSecretFilePath := filepath.Join(clusterProfileDir, "pull-secret")
+			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
+			pullSecretFilePath := filepath.Join("/var/run/aro-hcp-qe-pull-secret", "pull-secret")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
 			Expect(err).NotTo(HaveOccurred(), "failed to read pull-secret file from %s", pullSecretFilePath)
 
