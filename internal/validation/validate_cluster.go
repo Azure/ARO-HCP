@@ -203,6 +203,8 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 
 	//ID         string      `json:"id,omitempty"         visibility:"read"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
+	// TODO need to determine whether can require this on pre-flight checks
+	//errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 
 	//Name       string      `json:"name,omitempty"       visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
@@ -293,6 +295,12 @@ var (
 	toServiceProviderDNS = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
+	toServiceProviderCosmosUID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.CosmosUID
+	}
+	toServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.InternalID {
+		return &oldObj.ClusterServiceID
+	}
 	toServiceProviderConsole = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderConsoleProfile {
 		return &oldObj.Console
 	}
@@ -309,6 +317,15 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 
 	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+
+	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toServiceProviderCosmosUID))...)
+	if oldObj == nil { // must be unset on creation because we don't know it yet.
+		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
+	}
+
+	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateServiceProviderDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toServiceProviderDNS))...)

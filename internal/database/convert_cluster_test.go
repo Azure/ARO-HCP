@@ -18,12 +18,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/rand"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	"sigs.k8s.io/randfill"
 
@@ -88,11 +89,11 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !reflect.DeepEqual(original, final) {
+	if !equality.Semantic.DeepEqual(original, final) {
 		//t.Logf("original\n%s", string(originalBeforeJSON))
 		//t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
 		//t.Logf("final\n%s", string(finalJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, final))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, final, api.CmpDiffOptions...))
 	}
 
 	// now check to be sure we didn't mutate the originals.  The copies still aren't deep, but at least we didn't nuke the inputs

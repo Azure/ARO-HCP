@@ -26,7 +26,11 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	}
 
 	cosmosObj := &NodePool{
-		TypedDocument: TypedDocument{},
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{
+				ID: internalObj.ServiceProviderProperties.CosmosUID,
+			},
+		},
 		NodePoolProperties: NodePoolProperties{
 			ResourceDocument: ResourceDocument{
 				ResourceID: internalObj.ID,
@@ -53,6 +57,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	return cosmosObj, nil
@@ -81,6 +86,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
+	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	return internalObj, nil
