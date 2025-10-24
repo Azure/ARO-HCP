@@ -180,7 +180,7 @@ defaults:
   hypershift:
     image:
       registry: quay.io
-      repository: acm-d/rhtap-hypershift-operator
+      repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
   # Log settings
@@ -814,8 +814,8 @@ clouds:
       hypershift:
         image:
           registry: quay.io
-          repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
+          repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+          digest: sha256:d0521c762db3b30bf6033946bb865dc8d57f512928089eb985bb68c02d03126c
       # Backplane API
       backplaneAPI:
         image:
@@ -1022,8 +1022,8 @@ clouds:
             additionalInstallArg: '--enable-cpo-overrides=true'
             image:
               registry: quay.io
-              repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
+              repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+              digest: sha256:d0521c762db3b30bf6033946bb865dc8d57f512928089eb985bb68c02d03126c
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1153,8 +1153,8 @@ clouds:
             additionalInstallArg: '--enable-cpo-overrides=true'
             image:
               registry: quay.io
-              repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
+              repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+              digest: sha256:d0521c762db3b30bf6033946bb865dc8d57f512928089eb985bb68c02d03126c
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
