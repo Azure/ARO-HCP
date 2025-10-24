@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -135,6 +137,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// wait for a response
 	lastErr = nil
 	url := "https://" + host
+	if isDevelopmentEnvironment() {
+		url = "http://" + host
+	}
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
@@ -262,4 +267,8 @@ func must[T any](v T, err error) T {
 		panic("error: " + err.Error())
 	}
 	return v
+}
+
+func isDevelopmentEnvironment() bool {
+	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
