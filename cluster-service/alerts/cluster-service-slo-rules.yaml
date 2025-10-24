@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/part-of: cluster-service
     prometheus: k8s
     role: alert-rules
-  name: cluster-service-slo-rules
+  name: cs-monitor-alerts
   namespace: monitoring
 spec:
   groups:
@@ -210,7 +210,7 @@ spec:
         )
         ) / (1 - 0.99), 0.01)
       labels:
-        service: "clusters-service-metrics"
+      service: "clusters-service-metrics"
     - record: latency:api_inbound_request_duration:p99_burnrate6h
       expr: |
         round(
@@ -372,9 +372,9 @@ spec:
     # These thresholds would exhaust the 28-day error budget in ~2-5 days
     - alert: ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn
       annotations:
-        description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
-        runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-        summary: 'Cluster Service API availability error budget burn rate is too high'
+        description: "API is rapidly burning its 28 day availability error budget (99% SLO)"
+        runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
+        summary: "Cluster Service API availability error budget burn rate is too high"
       expr: |
         (
         sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))
@@ -415,9 +415,9 @@ spec:
     # Fires when too many requests take >1s to complete
     - alert: ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn
       annotations:
-        description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
-        runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-        summary: 'Cluster Service API P99 latency error budget burn rate is too high'
+        description: "API is rapidly burning its 28 day 1s latency error budget (99% SLO)"
+        runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
+        summary: "Cluster Service API P99 latency error budget burn rate is too high"
       expr: |
         (
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))
@@ -457,9 +457,9 @@ spec:
     # Fires when too many requests take >100ms to complete
     - alert: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
       annotations:
-        description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
-        runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-        summary: 'Cluster Service API P90 latency error budget burn rate is too high'
+        description: "API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)"
+        runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
+        summary: "Cluster Service API P90 latency error budget burn rate is too high"
       expr: |
         (
         sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90))
