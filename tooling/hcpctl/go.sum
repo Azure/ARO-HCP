@@ -1,5 +1,5 @@
-github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20250704163211-5be07afdc0ec h1:PNR+cbLkg22B4dujHRmAMwLAs7nUh6YTolBi4dHH0d0=
-github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-20250704163211-5be07afdc0ec/go.mod h1:1R2lwtREp5Z0wzP8J4/XZRkXc/jIdoyD7rqCLa5Zj6o=
+github.com/Azure/ARO-Tools v0.0.0-20251024033538-f777730eacfe h1:FcAM/XuRtIC6vJXNo2VHRHTmQB08Q4w0u/VlQWZKk1k=
+github.com/Azure/ARO-Tools v0.0.0-20251024033538-f777730eacfe/go.mod h1:XOcgRvEfE2tkiNriPyIXJeQTZO2zRuPHdfqwpZpRz7I=
 github.com/Azure/azure-kusto-go v0.16.1 h1:vCBWcQghmC1qIErUUgVNWHxGhZVStu1U/hki6iBA14k=
 github.com/Azure/azure-kusto-go v0.16.1/go.mod h1:9F2zvXH8B6eWzgI1S4k1ZXAIufnBZ1bv1cW1kB1n3D0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 h1:5YTBM8QDVIBN3sxBil89WfdAAqDZbyJTgh688DSxX5w=

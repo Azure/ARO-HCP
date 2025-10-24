@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/secret-sync
 go 1.24.3
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251022201739-a960998d3ef2
+	github.com/Azure/ARO-Tools v0.0.0-20251024033538-f777730eacfe
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.1
