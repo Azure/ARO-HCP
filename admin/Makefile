@@ -45,13 +45,12 @@ image: Dockerfile $(ADMIN_API_SOURCES) Makefile
 		--build-arg ARO_HCP_IMAGE_TAG=${ADMIN_API_IMAGE_TAG} \
 		--tag ${ADMIN_API_TAGGED_IMAGE}
 
-acr-login: $(ORAS)
-	az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | $(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} --username 00000000-0000-0000-0000-000000000000 --password-stdin
-
-build-and-push: image acr-login $(ORAS)
+build-and-push: image $(ORAS)
+	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${ADMIN_API_TAGGED_IMAGE}
 
-deploy: build-and-push $(YQ) $(ORAS) acr-login
+deploy: build-and-push $(YQ) $(ORAS)
+	az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | $(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} --username 00000000-0000-0000-0000-000000000000 --password-stdin
 	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${ADMIN_API_TAGGED_IMAGE} | $(YQ) .digest); \
 	OVERRIDE_CONFIG_FILE="/tmp/admin-api-override-config-$$(date +%s).yaml"; \
 	$(YQ) eval -n ".clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.digest = \"$$DIGEST\"" > $$OVERRIDE_CONFIG_FILE; \
