@@ -16,6 +16,7 @@ package verifiers
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"fmt"
 	"net/http"
@@ -137,8 +138,15 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// wait for a response
 	lastErr = nil
 	url := "https://" + host
+
+	// Create HTTP client with TLS skip for development environments
+	client := &http.Client{Timeout: 30 * time.Second}
 	if isDevelopmentEnvironment() {
-		url = "http://" + host
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
 	}
 	startTime := time.Now()
 	logged5Min := false
@@ -159,7 +167,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 5-10 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged5Min = true
 		}
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				klog.Info(err, "failed to get response from route",
