@@ -52,6 +52,20 @@ def time_delta_greater_than_two_days(now: datetime.datetime, resource_group_crea
 
     return n_days > 2
 
+def time_delta_greater_than_one_month(now: datetime.datetime, resource_group_creation_time: datetime.datetime):
+    if now is None:
+        print("now time is None")
+        return False
+
+    if resource_group_creation_time is None:
+        print("resource_group_creation_time is None")
+        return False
+
+    time_delta = resource_group_creation_time - now
+    n_days = abs(time_delta.days)
+
+    return n_days > 30
+
 def print_resources(resource_list: List[GenericResourceExpanded]):
     for resource in resource_list:
         print(f"- name: {resource.name}")
@@ -105,6 +119,35 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
         )
         print(f"This resource group has {len(resource_list)} resources \n")
         print_resources(resource_list)
+
+    # Special handling for hcp-underlay-pers-* resource groups
+    if resource_group_name.startswith("hcp-underlay-pers-"):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
+
+        if resource_group_creation_time is None:
+            print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
+            return
+
+        if not time_delta_greater_than_one_month(now, resource_group_creation_time):
+            print(f"Personal development environment resource group '{resource_group_name}' is not older than one month, skipping.")
+            return
+
+        print(f"Personal development environment resource group '{resource_group_name}' is older than one month and should be deleted.\n")
+        if DRY_RUN:
+            return
+
+        try:
+            print(f"\nBeginning deletion of personal development environment resource group '{resource_group_name}' ...")
+            result_poller = resource_client.resource_groups.begin_delete(resource_group_name)
+            print(f"result_poller of resource group deletion: {result_poller}")
+        except HttpResponseError as err:
+            error_codes = ("DenyAssignmentAuthorizationFailed", "ScopeLocked")
+            if err.error.code in error_codes:
+                print(f"skipping deletion of resource group due to error code {err.error.code}")
+            else:
+                raise err
+        return
 
     if resource_group_has_persist_tag_as_true(resource_group):
         print(f"Persist tag is true, this resource group should NOT be deleted, skipping.")
