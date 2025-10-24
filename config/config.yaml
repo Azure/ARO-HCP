@@ -612,7 +612,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912 # v2.9.1-37-pre-release
+        digest: sha256:18c9ef1a7546469259696e22c85174d11c7205262d1ed03ee4da2121058f27ae # v2.9.1-84
   # Cluster Service
   clustersService:
     image:
