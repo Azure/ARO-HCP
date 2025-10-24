@@ -84,7 +84,7 @@ clouds:
             operator:
               version: "2.14.1"
               bundle:
-                digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d # v2.14.1-214
+                digest: sha256:86b5fa65651887faae2399623ff364c9ed353cd9c052ea834b3d837ee37f730d # v2.14.1-251
             mce:
               version: "2.9.1"
               bundle:
