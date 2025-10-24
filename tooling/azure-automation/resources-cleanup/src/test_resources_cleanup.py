@@ -2,9 +2,13 @@ from resources_cleanup import (
     resource_group_has_persist_tag_as_true,
     resource_group_is_managed,
     time_delta_greater_than_two_days,
+    time_delta_greater_than_one_month,
     get_date_time_from_str,
     get_dry_run,
-
+    get_boolean_from_string,
+    get_creation_time_of_resource_group,
+    get_subscription_id,
+    get_client_id,
 )
 import datetime
 from collections import namedtuple
@@ -126,3 +130,194 @@ def test_get_dry_run_default(monkeypatch, capsys):
     assert get_dry_run() is False
     captured = capsys.readouterr()
     assert "Info: DRY_RUN not set in automation variables or environment" in captured.out
+
+
+# Tests for get_boolean_from_string function
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("t", True),
+        ("T", True),
+        ("yes", True),
+        ("Yes", True),
+        ("YES", True),
+        ("y", True),
+        ("Y", True),
+        ("on", True),
+        ("On", True),
+        ("ON", True),
+        ("1", True),
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        ("f", False),
+        ("F", False),
+        ("no", False),
+        ("No", False),
+        ("NO", False),
+        ("n", False),
+        ("N", False),
+        ("off", False),
+        ("Off", False),
+        ("OFF", False),
+        ("0", False),
+        ("  true  ", True),  # with whitespace
+        ("  false  ", False),  # with whitespace
+    ]
+)
+def test_get_boolean_from_string(input_str, expected):
+    assert get_boolean_from_string(input_str) == expected
+
+
+def test_get_boolean_from_string_invalid_value():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string("maybe")
+    assert "Invalid truth value" in str(exc_info.value)
+
+
+def test_get_boolean_from_string_non_string_input():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string(123)
+    assert "Expected a string" in str(exc_info.value)
+
+
+def test_get_boolean_from_string_none_input():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string(None)
+    assert "Expected a string" in str(exc_info.value)
+
+
+# Tests for time_delta_greater_than_one_month function
+@pytest.mark.parametrize(
+    "time1,time2,expected",
+    [
+        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=2, day=5), True),
+        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=3, day=1), True),
+        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=31), False),
+        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=30), False),
+        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=1), False),
+        # Test reverse order (creation time before now)
+        (datetime.datetime(year=2024, month=2, day=5), datetime.datetime(year=2024, month=1, day=1), True),
+    ]
+)
+def test_time_delta_greater_than_one_month(time1, time2, expected):
+    assert time_delta_greater_than_one_month(time1, time2) == expected
+
+
+def test_time_delta_greater_than_one_month_none_now(capsys):
+    result = time_delta_greater_than_one_month(None, datetime.datetime(year=2024, month=1, day=1))
+    assert result is False
+    captured = capsys.readouterr()
+    assert "now time is None" in captured.out
+
+
+def test_time_delta_greater_than_one_month_none_creation_time(capsys):
+    result = time_delta_greater_than_one_month(datetime.datetime(year=2024, month=1, day=1), None)
+    assert result is False
+    captured = capsys.readouterr()
+    assert "resource_group_creation_time is None" in captured.out
+
+
+# Tests for get_creation_time_of_resource_group function
+def test_get_creation_time_of_resource_group_with_created_at_tag():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags={"createdAt": "2023-12-07T18:03:19Z"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is not None
+    assert creation_time.year == 2023
+    assert creation_time.month == 12
+    assert creation_time.day == 7
+
+
+def test_get_creation_time_of_resource_group_without_created_at_tag():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags={"someOtherTag": "value"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+
+
+def test_get_creation_time_of_resource_group_no_tags():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags=None
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+
+
+# Tests for get_subscription_id function
+def test_get_subscription_id_from_automation_variable(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "test-subscription-id")
+    assert get_subscription_id() == "test-subscription-id"
+
+
+def test_get_subscription_id_from_env(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.setenv("SUBSCRIPTION_ID", "env-subscription-id")
+    assert get_subscription_id() == "env-subscription-id"
+
+
+def test_get_subscription_id_missing(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.delenv("SUBSCRIPTION_ID", raising=False)
+    with pytest.raises(ValueError) as exc_info:
+        get_subscription_id()
+    assert "Subscription ID missing" in str(exc_info.value)
+
+
+# Tests for get_client_id function
+def test_get_client_id_from_automation_variable(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "test-client-id")
+    assert get_client_id() == "test-client-id"
+
+
+def test_get_client_id_from_env(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.setenv("CLIENT_ID", "env-client-id")
+    assert get_client_id() == "env-client-id"
+
+
+def test_get_client_id_missing(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.delenv("CLIENT_ID", raising=False)
+    with pytest.raises(ValueError) as exc_info:
+        get_client_id()
+    assert "Client ID missing" in str(exc_info.value)
+
+
+# Edge case tests for time_delta_greater_than_two_days
+def test_time_delta_greater_than_two_days_none_now(capsys):
+    result = time_delta_greater_than_two_days(None, datetime.datetime(year=2024, month=1, day=1))
+    assert result is False
+    captured = capsys.readouterr()
+    assert "now time is None" in captured.out
+
+
+def test_time_delta_greater_than_two_days_none_creation_time(capsys):
+    result = time_delta_greater_than_two_days(datetime.datetime(year=2024, month=1, day=1), None)
+    assert result is False
+    captured = capsys.readouterr()
+    assert "resource_group_creation_time is None" in captured.out
+
+
+def test_time_delta_greater_than_two_days_exactly_two_days():
+    time1 = datetime.datetime(year=2024, month=1, day=1, hour=12, minute=0)
+    time2 = datetime.datetime(year=2024, month=1, day=3, hour=12, minute=0)
+    assert time_delta_greater_than_two_days(time1, time2) is False
+
+
+def test_time_delta_greater_than_two_days_reverse_order():
+    # Test that absolute value is used
+    time1 = datetime.datetime(year=2024, month=1, day=25)
+    time2 = datetime.datetime(year=2024, month=1, day=22)
+    assert time_delta_greater_than_two_days(time1, time2) is True
