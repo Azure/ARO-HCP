@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912
+      digest: sha256:18c9ef1a7546469259696e22c85174d11c7205262d1ed03ee4da2121058f27ae
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     mirrorAdditionalVersions: 2.8.1,2.8.2,2.9.0
@@ -9,7 +9,7 @@ acm:
     version: 2.9.1
   operator:
     bundle:
-      digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d
+      digest: sha256:86b5fa65651887faae2399623ff364c9ed353cd9c052ea834b3d837ee37f730d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1,2.14.0

@@ -70,7 +70,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:c94b730bd64f6ecb12b2fcd3aad64f4926c88937026912ee9762add7bb18c07e
+              digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42 # 1.0-1761243210
           # Maestro
           maestro:
             image:
@@ -84,11 +84,11 @@ clouds:
             operator:
               version: "2.14.1"
               bundle:
-                digest: sha256:cb32477fe7d41c4b3894818255ee92f9c83d9d756c7b6d22f1be40409db9820d # v2.14.1-214
+                digest: sha256:86b5fa65651887faae2399623ff364c9ed353cd9c052ea834b3d837ee37f730d # v2.14.1-251
             mce:
               version: "2.9.1"
               bundle:
-                digest: sha256:89c7ded6c434c25aea6a9f96df5bbe0faf3c32c2e0a14e231d58e6b54ff5d912 # v2.9.1-37-pre-release
+                digest: sha256:18c9ef1a7546469259696e22c85174d11c7205262d1ed03ee4da2121058f27ae # v2.9.1-84
           # OCP image sync
           imageSync:
             ocMirror:
