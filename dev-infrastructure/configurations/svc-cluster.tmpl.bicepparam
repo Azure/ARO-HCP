@@ -93,6 +93,8 @@ param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
 param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
 param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
+param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
+param adminApiIngressCertIssuer = '{{ .adminApi.cert.issuer }}'
 
 // ACR Resource IDs
 param ocpAcrResourceId = '__ocpAcrResourceId__'

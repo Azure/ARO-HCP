@@ -382,6 +382,12 @@ param adminApiNamespace string
 @description('The service account name of the Admin API managed identity')
 param adminApiServiceAccountName string
 
+@description('The name of the Admin API certificate')
+param adminApiIngressCertName string
+
+@description('The issuer of the Admin API certificate')
+param adminApiIngressCertIssuer string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -836,6 +842,50 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: frontendDnsName
+    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ttl: 300
+  }
+}
+
+//
+//   A D M I N   A P I
+//
+
+var adminApiDnsName = 'admin'
+var adminApiDnsFQDN = '${adminApiDnsName}.${regionalSvcDNSZoneName}'
+
+module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'admin-api-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${adminApiDnsFQDN}'
+    certName: adminApiIngressCertName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      adminApiDnsFQDN
+    ]
+    issuerName: adminApiIngressCertIssuer
+  }
+}
+
+module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksClusterKeyVaultSecretsProviderMI-${adminApiIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: adminApiIngressCertName
+  }
+}
+
+module adminApiDNS '../modules/dns/a-record.bicep' = {
+  name: 'admin-api-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: adminApiDnsName
     ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
     ttl: 300
   }
