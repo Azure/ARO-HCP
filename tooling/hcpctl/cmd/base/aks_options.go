@@ -20,11 +20,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/aks"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/utils"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 // RawListAKSOptions represents the initial, unvalidated configuration for AKS list operations.
@@ -68,7 +68,7 @@ func (o *RawListAKSOptions) Validate(ctx context.Context) (*ValidatedListAKSOpti
 	}
 
 	// Get Azure credentials
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
 	}
@@ -162,7 +162,7 @@ func (o *RawBreakglassAKSOptions) Validate(ctx context.Context) (*ValidatedBreak
 	}
 
 	// Get Azure credentials
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
 	}

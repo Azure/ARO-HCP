@@ -25,14 +25,13 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 type armClient struct {
@@ -45,7 +44,7 @@ type armClient struct {
 }
 
 func newArmClient(subscriptionID, region string) (*armClient, error) {
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}

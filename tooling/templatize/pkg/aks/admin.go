@@ -29,11 +29,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 const (
@@ -122,7 +121,7 @@ func getCurrentUserObjectID(ctx context.Context) (string, error) {
 	}
 
 	// Create a Graph client using Azure Credentials
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return "", fmt.Errorf("failed to obtain a credential: %w", err)
 	}
@@ -153,7 +152,7 @@ func getCurrentUserObjectID(ctx context.Context) (string, error) {
 
 func assignClusterAdminRBACRole(ctx context.Context, subscriptionID, resourceGroupName, aksClusterName, userObjectID, roleID string) error {
 	// Create a new Azure identity client
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return fmt.Errorf("failed to obtain a credential: %w", err)
 	}
