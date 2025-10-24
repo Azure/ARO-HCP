@@ -30,7 +30,7 @@ tests:
           - exp_labels:
               severity: critical
               component: route-monitor-operator
-              deployment: blackbox-exporter 
+              deployment: blackbox-exporter
               namespace: openshift-route-monitor-operator
             exp_annotations:
               summary: Blackbox Exporter Deployment is missing
