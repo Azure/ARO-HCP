@@ -8,6 +8,7 @@ use (
 	./frontend
 	./internal
 	./test
+	./tooling/cluster-cve-scanner
 	./tooling/hcpctl
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
