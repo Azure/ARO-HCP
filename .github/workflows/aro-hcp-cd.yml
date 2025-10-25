@@ -96,8 +96,7 @@ jobs:
         make operator-roles
 
         # Manage Dev Kusto
-        # Disabled for now, due to issues with API
-        # make kusto
+        make kusto
   service_ci:
     name: 'Build service images'
     permissions:
