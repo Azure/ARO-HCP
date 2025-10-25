@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: route-monitor-operator
+    app.kubernetes.io/part-of: route-monitor-operator
+    prometheus: k8s
+    role: alert-rules
+  name: route-monitor-operator-monitoring-rules
+  namespace: openshift-route-monitor-operator
+spec:
+  groups:
+  - name: route-monitor-operator-health
+    rules:
+    - alert: BlackboxExporterDeploymentMissing
+      expr: |
+        absent(kube_deployment_created{deployment="blackbox-exporter", namespace="openshift-route-monitor-operator"})
+      for: 5m
+      labels:
+        severity: critical
+        component: route-monitor-operator
+      annotations:
+        summary: Blackbox Exporter Deployment is missing
+        runbook_url: tbd
+        description: |
+          The 'route-monitor-operator' (which is running) has failed to create the 'blackbox-exporter' Deployment.
+          This indicates the operator is failing its internal reconciliation logic.
