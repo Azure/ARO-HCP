@@ -17,11 +17,48 @@ package api
 import (
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/utils/set"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
+
+var (
+	// we have some private fields that cmp.Diff chokes on. This skips them.
+	// Use only for error messages unless you know what you're doing.
+	CmpDiffOptions = []cmp.Option{
+		cmpopts.IgnoreFields(azcorearm.ResourceID{}, "ResourceType"),
+		cmpopts.IgnoreFields(azcorearm.ResourceID{}, "isChild"),
+		cmpopts.IgnoreFields(azcorearm.ResourceID{}, "stringValue"),
+		cmpopts.IgnoreFields(InternalID{}, "path"),
+		cmpopts.IgnoreFields(InternalID{}, "kind"),
+	}
+)
+
+func init() {
+	// we need some semantic equalities added for our types and this is the standard location
+	Must("",
+		equality.Semantic.AddFuncs(
+			func(a, b time.Time) bool {
+				return a.UTC().Equal(b.UTC())
+			},
+			func(a, b azcorearm.ResourceID) bool {
+				return a.String() == b.String()
+			},
+			func(a, b azcorearm.ResourceType) bool {
+				return a.String() == b.String()
+			},
+			func(a, b InternalID) bool {
+				return a.String() == b.String()
+			},
+		),
+	)
+}
 
 const (
 	ProviderNamespace               = "Microsoft.RedHatOpenShift"
