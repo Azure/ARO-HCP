@@ -281,7 +281,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		resourceDoc.InternalID, err = api.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
