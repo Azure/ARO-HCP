@@ -211,13 +211,14 @@ resourceGroups:
         step: output
         name: globalMSIId
   - name: istio-config
-    # configure istio
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
     releaseName: 'istio'
     releaseNamespace: 'aks-istio-system'
     chartDir: ../istio/deploy
     valuesFile: ../istio/values.yaml
+    namespaceFiles:
+    - ../istio/mise.namespace.yaml
     dependsOn:
     - resourceGroup: service
       step: prometheus

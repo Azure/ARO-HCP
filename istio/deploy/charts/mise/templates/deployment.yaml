@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: mise
-        image: "{{ .Values.imageRegistry }}/{{ .Values.imageRepository }}@{{ .Values.imageDigest }}"
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         ports:
         - containerPort: 8080
         livenessProbe:

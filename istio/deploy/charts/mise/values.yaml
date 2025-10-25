@@ -1,12 +1,12 @@
-imageRegistry: ""
-imageRepository: ""
-imageDigest: ""
+image:
+  registry: ""
+  repository: ""
+  digest: ""
 tenantId: ""
 azureAdInstance: ""
-armInstance: ""
 firstPartyAppId: ""
+armInstance: ""
 armAppId: ""
-namespace: ""
 tracing:
   address: ""
   exporter: ""

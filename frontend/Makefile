@@ -8,12 +8,6 @@ ifeq ($(ARO_HCP_IMAGE_REGISTRY:%.azurecr.io=azurecr.io),azurecr.io)
 ARO_HCP_IMAGE_REGISTRY_IS_ACR = 1
 endif
 
-ifeq (${DEPLOY_MISE},true)
-# ARO_HCP_IMAGE_REGISTRY can be overridden.
-# This MUST be an Azure Container Registry.
-MISE_IMAGE_REGISTRY = ${ARO_HCP_IMAGE_ACR}.azurecr.io
-endif
-
 .DEFAULT_GOAL := frontend
 
 frontend:
@@ -101,8 +95,6 @@ deploy:
 	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	kubectl create namespace ${NAMESPACE} --dry-run=client -o json | kubectl apply -f - && \
 	kubectl label namespace ${NAMESPACE} "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
-	kubectl create namespace mise --dry-run=client -o json | kubectl apply -f - && \
-	kubectl label namespace mise "istio.io/rev=${ISTO_TAG}" --overwrite=true && \
 	../hack/helm.sh aro-hcp-frontend-dev deploy ${NAMESPACE} \
 		--set azure.clientId=$${SECRET_STORE_MI_CLIENT_ID} \
 		--set azure.tenantId=$${TENANT_ID} \
@@ -124,18 +116,6 @@ deploy:
 		--set pullBinding.scope=repository:${ARO_HCP_IMAGE_REPOSITORY}:pull \
 		--set clustersService.namespace=${CS_NAMESPACE} \
 		--set clustersService.serviceAccount=${CS_SERVICE_ACCOUNT_NAME} \
-		--set deployMise=${DEPLOY_MISE} \
-		--set mise.namespace=mise \
-		--set mise.imageRegistry=${MISE_IMAGE_REGISTRY} \
-		--set mise.imageRepository=${MISE_IMAGE_REPOSITORY} \
-		--set mise.imageDigest=${MISE_IMAGE_DIGEST} \
-		--set mise.tenantId=${MISE_TENANT_ID} \
-		--set mise.azureAdInstance=${MISE_AZURE_AD_INSTANCE} \
-		--set mise.firstPartyAppId=${MISE_FIRST_PARTY_APP_ID} \
-		--set mise.armInstance=${MISE_ARM_INSTANCE} \
-		--set mise.armAppId=${MISE_ARM_APP_ID} \
-		--set mise.tracing.address=${MISE_TRACING_ADDRESS} \
-		--set mise.tracing.exporter=${MISE_TRACING_EXPORTER} \
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
 		--set audit.connectSocket=${AUDIT_CONNECT_SOCKET} \
