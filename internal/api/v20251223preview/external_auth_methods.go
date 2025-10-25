@@ -16,8 +16,11 @@ package v20251223preview
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -68,7 +71,7 @@ func (h *ExternalAuth) GetVersion() api.Version {
 
 func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 	if h.ID != nil {
-		out.ID = *h.ID
+		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -100,10 +103,15 @@ func (h *ExternalAuth) Normalize(out *api.HCPOpenShiftClusterExternalAuth) {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
 		}
 
-		// TODO: Add this when we support Condition
-		// if h.Properties.Condition != nil {
-		// 	out.Properties.Condition = *h.Properties.Condition
-		// }
+		if h.Properties.Condition != nil {
+			out.Properties.Condition = api.ExternalAuthCondition{
+				Type:               api.ExternalAuthConditionType(ptr.Deref(h.Properties.Condition.Type, "")),
+				Status:             api.ConditionStatusType(ptr.Deref(h.Properties.Condition.Status, "")),
+				LastTransitionTime: ptr.Deref(h.Properties.Condition.LastTransitionTime, time.Time{}),
+				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
+				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
+			}
+		}
 
 		if h.Properties.Issuer != nil {
 			normalizeTokenIssuerProfile(h.Properties.Issuer, &out.Properties.Issuer)
@@ -142,10 +150,12 @@ func normalizeTokenIssuerProfile(p *generated.TokenIssuerProfile, out *api.Token
 	if p.URL != nil {
 		out.URL = *p.URL
 	}
-	out.Audiences = make([]string, len(p.Audiences))
-	for i := range p.Audiences {
-		if p.Audiences[i] != nil {
-			out.Audiences[i] = *p.Audiences[i]
+	if p.Audiences != nil {
+		out.Audiences = make([]string, len(p.Audiences))
+		for i := range p.Audiences {
+			if p.Audiences[i] != nil {
+				out.Audiences[i] = *p.Audiences[i]
+			}
 		}
 	}
 	if p.CA != nil {
@@ -211,10 +221,11 @@ func newExternalAuthCondition(from *api.ExternalAuthCondition) generated.Externa
 		return generated.ExternalAuthCondition{}
 	}
 	return generated.ExternalAuthCondition{
-		Type:    api.PtrOrNil(generated.ExternalAuthConditionType(from.Type)),
-		Status:  api.PtrOrNil(generated.StatusType(from.Status)),
-		Reason:  api.PtrOrNil(from.Reason),
-		Message: api.PtrOrNil(from.Message),
+		Type:               api.PtrOrNil(generated.ExternalAuthConditionType(from.Type)),
+		Status:             api.PtrOrNil(generated.StatusType(from.Status)),
+		LastTransitionTime: api.PtrOrNil(from.LastTransitionTime),
+		Reason:             api.PtrOrNil(from.Reason),
+		Message:            api.PtrOrNil(from.Message),
 	}
 }
 
@@ -255,7 +266,7 @@ func newTokenClaimMappingsProfile(from *api.TokenClaimMappingsProfile) generated
 	}
 	return generated.TokenClaimMappingsProfile{
 		Username: api.PtrOrNil(newUsernameClaimProfile(&from.Username)),
-		Groups:   api.PtrOrNil(newGroupClaimProfile(from.Groups)),
+		Groups:   newGroupClaimProfile(from.Groups),
 	}
 }
 
@@ -270,11 +281,11 @@ func newUsernameClaimProfile(from *api.UsernameClaimProfile) generated.UsernameC
 	}
 }
 
-func newGroupClaimProfile(from *api.GroupClaimProfile) generated.GroupClaimProfile {
+func newGroupClaimProfile(from *api.GroupClaimProfile) *generated.GroupClaimProfile {
 	if from == nil {
-		return generated.GroupClaimProfile{}
+		return nil
 	}
-	return generated.GroupClaimProfile{
+	return &generated.GroupClaimProfile{
 		Claim:  api.PtrOrNil(from.Claim),
 		Prefix: api.PtrOrNil(from.Prefix),
 	}
@@ -311,9 +322,14 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 		return ret
 	}
 
+	idString := ""
+	if from.ID != nil {
+		idString = from.ID.String()
+	}
+
 	out := &ExternalAuth{
 		generated.ExternalAuth{
-			ID:         api.PtrOrNil(from.ID),
+			ID:         api.PtrOrNil(idString),
 			Name:       api.PtrOrNil(from.Name),
 			Type:       api.PtrOrNil(from.Type),
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
