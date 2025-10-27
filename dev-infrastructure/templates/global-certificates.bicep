@@ -1,3 +1,7 @@
+import {
+  csvToArray
+} from '../modules/common.bicep'
+
 param globalKeyVaultName string
 param ev2MsiName string
 
@@ -15,8 +19,8 @@ param genevaActionsCertificateIssuer string
 param genevaActionsManageCertificates bool
 param genevaActionsCertificateDomain string
 param genevaActionApplicationName string
-param genevaActionApplicationOwnerId string
-param genevaActionApplicationCreation bool
+param genevaActionApplicationOwnerIds string
+param genevaActionApplicationManage bool
 param genevaActionApplicationUseSNI bool
 
 resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -60,7 +64,7 @@ output PublicKey string = genevaCertificate.outputs.PublicKey
 
 extension microsoftGraphBeta
 
-resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplicationCreation) {
+resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplicationManage) {
   displayName: genevaActionApplicationName
   isFallbackPublicClient: true
   signInAudience: 'AzureADMyOrg' // Single tenant applicaion
@@ -75,7 +79,7 @@ resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplica
   ] : []
   owners: {
     relationships: [
-      genevaActionApplicationOwnerId
+      for ownerId in csvToArray(genevaActionApplicationOwnerIds): ownerId
     ]
   }
   keyCredentials: !genevaActionApplicationUseSNI ? [
@@ -92,6 +96,6 @@ resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplica
   ] : []
 }
 
-resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationCreation) {
+resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationManage) {
   appId: genevaApp.appId
 }

@@ -170,9 +170,11 @@ defaults:
         manage: true
       allowedAcisExtensions: "AzureRedHatHypershiftExtension"
       genevaActionsPrincipalId: ""
-      applicationName: "arohcp-ga-{{ .ctx.environment }}" # [unique across clouds - todo incorporate cloud name]
-      applicationOwnerId: ""
-      applicationUseSNI: true
+      application:
+        name: "arohcp-ga-{{ .ctx.environment }}" # [tenant unique]
+        ownerIds: ""
+        useSNI: true
+        manage: true
   kusto:
     enabled: false
     resourceGroup: ""
@@ -932,9 +934,11 @@ clouds:
       kvCertAccessRoleId: ""
       geneva:
         actions:
-          applicationUseSNI: false
-          applicationName: "arohcp-ga-dev"
-          applicationOwnerId: "d8837611-f550-4f0a-af48-575a7178adfb" # aro-github-actions-identity
+          application:
+            useSNI: false
+            name: "arohcp-ga-dev" # [tenant-unique]
+            ownerIds: "d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c" # aro-github-actions-identity, bvesel
+            manage: false
           keyVault:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
