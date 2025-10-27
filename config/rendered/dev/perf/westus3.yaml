@@ -108,7 +108,7 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:d37fb1759ebbcc60a1cb680e8f6d6772fbd28e938d023edfa0d9c2ca86315b51
+    digest: sha256:6af9be4724b345e040f8f1718870fdcc43a8ece6dbf66d26abdefad243938e6e
     registry: quay.io
     repository: app-sre/uhc-clusters-service
   k8s:
