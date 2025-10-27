@@ -326,6 +326,9 @@ type HcpOpenShiftClusterProperties struct {
 	// REQUIRED; Azure platform configuration
 	Platform *PlatformProfile
 
+	// REQUIRED; Version of the control plane components
+	Version *VersionProfile
+
 	// Shows the cluster API server profile
 	API *APIProfile
 
@@ -354,9 +357,6 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
-	// Version of the control plane components
-	Version *VersionProfile
-
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -383,7 +383,7 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	Platform *PlatformProfileUpdate
 
 	// Version of the control plane components
-	Version *VersionProfile
+	Version *VersionProfileUpdate
 }
 
 // HcpOpenShiftClusterUpdate - HCP cluster resource
@@ -1066,6 +1066,19 @@ type UsernameClaimProfileUpdate struct {
 
 // VersionProfile - Versions represents an OpenShift version.
 type VersionProfile struct {
+	// REQUIRED; ID is the desired X.Y version of the cluster control plane.
+	ID *string
+
+	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
+	// If not specified, the default value is 'stable'.
+	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
+	// value will be declared in a future API version once the TypeSpec bug is
+	// fixed. https://github.com/Azure/typespec-azure/issues/1586
+	ChannelGroup *string
+}
+
+// VersionProfileUpdate - Versions represents an OpenShift version.
+type VersionProfileUpdate struct {
 	// ChannelGroup is the name of the set to which this version belongs. Each version belongs to only a single set.
 	// If not specified, the default value is 'stable'.
 	// Note: The default value is not declared in the API specification because of a TypeSpec bug with updatable fields. The default
@@ -1073,6 +1086,6 @@ type VersionProfile struct {
 	// fixed. https://github.com/Azure/typespec-azure/issues/1586
 	ChannelGroup *string
 
-	// ID is the unique identifier of the version.
+	// ID is the desired X.Y version of the cluster control plane.
 	ID *string
 }
