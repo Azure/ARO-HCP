@@ -75,6 +75,9 @@ jobs:
     - name: 'Deploy Frontend'
       run: |
         make frontend.deploy_pipeline
+    - name: 'Deploy Admin API'
+      run: |
+        make pipeline/AdminAPI
     - name: 'Deploy Backend'
       run: |
         make backend.deploy_pipeline

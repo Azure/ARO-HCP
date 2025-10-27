@@ -29,6 +29,7 @@ jobs:
             - 'dev-infrastructure/**/*.bicepparam'
             - 'dev-infrastructure/configurations/*'
             - 'frontend/**'
+            - 'admin/**'
             - 'backend/**'
             - 'cluster-service/**'
             - 'internal/**'
