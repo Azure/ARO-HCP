@@ -20,13 +20,11 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/types"
-	"github.com/Azure/ARO-Tools/pkg/yamlwrap"
 )
 
 func DefaultOptions() *RawOptions {
@@ -112,28 +110,6 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 			Ev2Cloud:       o.Ev2Cloud,
 		},
 	}, nil
-}
-
-func writeRawConfig(config types.Configuration, filePath string) error {
-	if filePath == "" {
-		return fmt.Errorf("output file path cannot be empty")
-	}
-
-	rawData, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-
-	data, err := yamlwrap.UnwrapYAML(rawData)
-	if err != nil {
-		return fmt.Errorf("failed to unwrap configuration: %w", err)
-	}
-
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write configuration to file %q: %w", filePath, err)
-	}
-
-	return nil
 }
 
 // completedGenerationOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
