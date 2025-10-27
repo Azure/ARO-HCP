@@ -139,7 +139,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	url := "https://" + host
 
 	// Create HTTP client with TLS skip for development environments
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{}
 	if framework.IsDevelopmentEnvironment() {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
