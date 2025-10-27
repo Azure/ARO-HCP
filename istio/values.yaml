@@ -1,7 +1,7 @@
 istioVersions:
 - "{{ .svc.istio.versions }}"
 mise:
-  deploy: "{{ .mise.deploy }}"
+  deploy: {{ .mise.deploy }}
   namespace: "mise"
   image:
     registry: "{{ .acr.svc.name }}.azurecr.io"
