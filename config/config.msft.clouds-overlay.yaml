@@ -104,7 +104,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:b670b0501d93a7180e6c6fe500ca68e0d13c53211e9f3e03bfc251a82c571459
+              digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
             batchProcessesDryRun: false
             batchProcesses: "ARO-20736"
           # ACR Pull
@@ -149,21 +149,21 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:f5f0d0741c67be3ba842126d3aa6bb67c8bbfb344af869072e77aaacdbad841d"
+              digest: "sha256:7f0f117f3a3fbb150ae6c72e6af61a831465295517687cbd541f6441b23f1dc7"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:68463d04a949d9429506de09addc9117e27459a985bb13e85a0a3b693a14ed32"
+              digest: "sha256:e4ea396bd51af4be33d4b6c53d635aff15ff39d8777a9a64705150bca2bfe905"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:116cf15120c5a6edc7e59bc36c9a316755a5d06f447ec0dfc596b1e42fc505bd
+              digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42
           # Maestro
           maestro:
             image:
-              digest: sha256:a52c865958f35e7d2ed9f4215431e71ecf3fd405a6a864f130ae7c922dead8c4
+              digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
             agent:
               sidecar:
                 image:
@@ -183,7 +183,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:b670b0501d93a7180e6c6fe500ca68e0d13c53211e9f3e03bfc251a82c571459
+              digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
             batchProcessesDryRun: true
             batchProcesses: "ARO-20736"
           # ACR Pull
@@ -228,21 +228,21 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:f5f0d0741c67be3ba842126d3aa6bb67c8bbfb344af869072e77aaacdbad841d"
+              digest: "sha256:7f0f117f3a3fbb150ae6c72e6af61a831465295517687cbd541f6441b23f1dc7"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:68463d04a949d9429506de09addc9117e27459a985bb13e85a0a3b693a14ed32"
+              digest: "sha256:e4ea396bd51af4be33d4b6c53d635aff15ff39d8777a9a64705150bca2bfe905"
           # Hypershift
           hypershift:
             image:
-              digest: sha256:116cf15120c5a6edc7e59bc36c9a316755a5d06f447ec0dfc596b1e42fc505bd
+              digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42
           # Maestro
           maestro:
             image:
-              digest: sha256:a52c865958f35e7d2ed9f4215431e71ecf3fd405a6a864f130ae7c922dead8c4
+              digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
             agent:
               sidecar:
                 image:
