@@ -172,10 +172,10 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 	group, _ := errgroup.WithContext(ctx)
 	for cloud, environments := range opts.Config.AllContexts() {
 		cloudLogger := logger.WithValues("cloud", cloud)
-		cloudLogger.Info("Validating cloud.", "cloud", cloud)
+		cloudLogger.V(3).Info("Validating cloud.", "cloud", cloud)
 		for environment := range environments {
 			envLogger := cloudLogger.WithValues("environment", environment)
-			envLogger.Info("Validating environment.")
+			envLogger.V(3).Info("Validating environment.")
 			var regions []string
 			if opts.DevMode {
 				regions = []string{opts.DevRegion}
@@ -184,7 +184,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 			}
 			for _, region := range regions {
 				regionLogger := envLogger.WithValues("region", region)
-				regionLogger.Info("Validating region.")
+				regionLogger.V(3).Info("Validating region.")
 				prefix := fmt.Sprintf("config[%s][%s][%s]:", cloud, environment, region)
 				ev2Cloud := cloud
 				if opts.DevMode {
@@ -437,7 +437,7 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, ba
 				return fmt.Errorf("%s: %s: %s: variable is empty", context, service.ServiceGroup, variable.ref)
 			}
 		}
-		logger.Info("Validated service.", "service", service.ServiceGroup)
+		logger.V(3).Info("Validated service.", "service", service.ServiceGroup)
 		return nil
 	})
 	for _, child := range service.Children {
