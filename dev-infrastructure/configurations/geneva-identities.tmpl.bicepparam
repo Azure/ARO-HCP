@@ -1,4 +1,4 @@
-using '../templates/global-certificates.bicep'
+using '../templates/geneva-identities.bicep'
 
 param ev2MsiName = '{{ .global.globalMSIName }}'
 
@@ -14,3 +14,7 @@ param genevaActionsCertificateDomain = '{{ .geneva.actions.certificate.name }}.{
 param genevaActionsCertificateIssuer = '{{ .geneva.actions.certificate.issuer }}'
 param genevaActionsCertificateName = '{{ .geneva.actions.certificate.name }}'
 param genevaActionsManageCertificates = {{ .geneva.actions.certificate.manage }}
+param genevaActionApplicationUseSNI = {{ .geneva.actions.application.useSNI }}
+param genevaActionApplicationManage = {{ .geneva.actions.application.manage }}
+param genevaActionApplicationName = '{{ .geneva.actions.application.name }}'
+param genevaActionApplicationOwnerIds = '{{ .geneva.actions.application.ownerIds }}'

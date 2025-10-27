@@ -59,10 +59,10 @@ resourceGroups:
         name: genevaActionKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
-  - name: certificates
+  - name: geneva-identities
     action: ARM
-    template: templates/global-certificates.bicep
-    parameters: configurations/global-certificates.tmpl.bicepparam
+    template: templates/geneva-identities.bicep
+    parameters: configurations/geneva-identities.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: global

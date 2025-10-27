@@ -29,6 +29,28 @@
          }
        ]
     },
+    "entraApplication": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the application. Needs to be unique within the tenant. https://eng.ms/docs/microsoft-security/identity/auth/auth-sts-protocols/ests/ests-troubleshooting-guides/tsgs/3p-apps-build-out-automation/gotchas-and-known-issues"
+        },
+        "useSNI": {
+          "type": "boolean"
+        },
+        "ownerIds": {
+          "$ref": "#/definitions/csv"
+        },
+        "manage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "ownerIds"
+      ]
+    },
     "semVer": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
@@ -1386,7 +1408,8 @@
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
-            "genevaActionsPrincipalId"
+            "genevaActionsPrincipalId",
+            "application"
           ],
           "properties": {
             "serviceTag": {
@@ -1423,6 +1446,9 @@
             },
             "enabled": {
               "type": "boolean"
+            },
+            "application": {
+              "$ref": "#/definitions/entraApplication"
             }
           }
         }

@@ -90,7 +90,7 @@ param genevaKeyVaultTagValue string
 @description('Name of geneva action extensions')
 param allowedAcisExtensions string
 
-@description('App ID for Geneva Actions')
+@description('App ID for Geneva Actions - this is the MSFT owned one that will run our GAs')
 param genevaActionsPrincipalId string
 
 //
