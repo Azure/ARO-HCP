@@ -439,7 +439,7 @@ mgmt:
         repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
-        digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
+        digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
@@ -675,7 +675,7 @@ svc:
         repository: prometheus/prometheus-config-reloader
     prometheusOperator:
       image:
-        digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
+        digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
       version: ""
