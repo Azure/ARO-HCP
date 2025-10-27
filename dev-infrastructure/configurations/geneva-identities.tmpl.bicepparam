@@ -1,4 +1,4 @@
-using '../templates/global-certificates.bicep'
+using '../templates/geneva-identities.bicep'
 
 param ev2MsiName = '{{ .global.globalMSIName }}'
 
