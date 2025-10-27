@@ -87,7 +87,7 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	}
 
 	// Skip TLS verification for development environments with self-signed certificates
-	if isDevelopmentEnvironment() {
+	if IsDevelopmentEnvironment() {
 		ret.TLSClientConfig.Insecure = true
 		ret.TLSClientConfig.CAData = nil
 		ret.TLSClientConfig.CAFile = ""
@@ -399,8 +399,6 @@ func CreateHCPClusterAndWait(
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API call\n", hcpClusterName)
-
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
@@ -417,7 +415,7 @@ func CreateHCPClusterAndWait(
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
 		return &m.HcpOpenShiftCluster, nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -425,7 +423,6 @@ func CreateHCPClusterAndWait(
 // BuildHCPClusterFromBicepTemplate converts bicep template and parameters to an HCP cluster object
 func BuildHCPClusterFromBicepTemplate(
 	ctx context.Context,
-	bicepTemplateJSON []byte,
 	parameters map[string]interface{},
 	location string,
 	subscriptionId string,
@@ -436,41 +433,30 @@ func BuildHCPClusterFromBicepTemplate(
 	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
 		Location:   &location,
 		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
-		// SystemData is read-only and should not be set in requests
 	}
-
-	// Set required Platform profile
 	cluster.Properties.Platform = &hcpsdk20240610preview.PlatformProfile{}
-
-	// Map bicep parameters to cluster properties
 	if openshiftVersionId, ok := parameters["openshiftVersionId"].(string); ok {
 		cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{
 			ID: &openshiftVersionId,
 		}
-		// Ensure default channel group mirrors bicep default when not explicitly provided
 		if cluster.Properties.Version.ChannelGroup == nil {
 			cluster.Properties.Version.ChannelGroup = to.Ptr("stable")
 		}
 	}
-
 	if managedResourceGroupName, ok := parameters["managedResourceGroupName"].(string); ok {
 		cluster.Properties.Platform.ManagedResourceGroup = &managedResourceGroupName
 	}
-
 	if nsgName, ok := parameters["nsgName"].(string); ok {
 		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionId, resourceGroupName, nsgName)
 		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgID
 	}
-
 	if subnetName, ok := parameters["subnetName"].(string); ok {
 		if vnetName, ok := parameters["vnetName"].(string); ok {
 			subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, vnetName, subnetName)
 			cluster.Properties.Platform.SubnetID = &subnetID
 		}
 	}
-
 	if uamiVal, ok := parameters["userAssignedIdentitiesValue"]; ok {
-		// Safest: re-marshal then unmarshal into the exact SDK type
 		if b, err := json.Marshal(uamiVal); err == nil {
 			var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
 			if err := json.Unmarshal(b, &uamis); err == nil {
@@ -480,8 +466,6 @@ func BuildHCPClusterFromBicepTemplate(
 			}
 		}
 	}
-
-	// ETCD encryption is required - platform managed is not supported
 	if kv, ok := parameters["keyVaultName"].(string); ok {
 		if key, ok := parameters["etcdEncryptionKeyName"].(string); ok {
 			// Get version from parameters or retrieve using Azure Key Vault client
@@ -492,7 +476,6 @@ func BuildHCPClusterFromBicepTemplate(
 				if err != nil {
 					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed building development environment CLI credential: %w", err)
 				}
-
 				// Create Key Vault client to get key version
 				keyVaultURL := fmt.Sprintf("https://%s.vault.azure.net/", kv)
 				client, err := azkeys.NewClient(keyVaultURL, azureCredentials, nil)
@@ -510,7 +493,6 @@ func BuildHCPClusterFromBicepTemplate(
 				if len(page.Value) == 0 {
 					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no key versions found for key %s", key)
 				}
-
 				// Extract version from the key ID (last part of the URL path)
 				if page.Value[0].KID != nil {
 					keyID := *page.Value[0].KID
@@ -552,8 +534,6 @@ func BuildHCPClusterFromBicepTemplate(
 			}
 		}
 	}
-
-	fmt.Printf("DEBUG: Successfully built HCP cluster struct from parameters\n")
 	return cluster, nil
 }
 
@@ -569,9 +549,6 @@ func CreateNodePoolAndWait(
 ) (*hcpsdk20240610preview.NodePool, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	fmt.Printf("DEBUG: Creating NodePool %s via direct API call\n", nodePoolName)
-
 	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
@@ -583,12 +560,11 @@ func CreateNodePoolAndWait(
 	if err != nil {
 		return nil, fmt.Errorf("failed waiting for nodepool=%q for cluster %q in resourcegroup=%q to finish creating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
-
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
 		return &m.NodePool, nil
 	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
 		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
@@ -596,7 +572,6 @@ func CreateNodePoolAndWait(
 // BuildNodePoolFromBicepTemplate converts bicep template and parameters to a NodePool object
 func BuildNodePoolFromBicepTemplate(
 	ctx context.Context,
-	bicepTemplateJSON []byte,
 	parameters map[string]interface{},
 	location string,
 	subscriptionId string,
@@ -607,18 +582,14 @@ func BuildNodePoolFromBicepTemplate(
 		Location:   &location,
 		Properties: &hcpsdk20240610preview.NodePoolProperties{},
 	}
-
 	// Set required Platform profile
 	nodePool.Properties.Platform = &hcpsdk20240610preview.NodePoolPlatformProfile{}
-
 	// Map bicep parameters to nodepool properties
 	if openshiftVersionId, ok := parameters["openshiftVersionId"].(string); ok {
 		nodePool.Properties.Version = &hcpsdk20240610preview.NodePoolVersionProfile{
-			ID:           &openshiftVersionId,
-			ChannelGroup: to.Ptr("stable"), // Default from bicep template
+			ID: &openshiftVersionId,
 		}
 	}
-
 	// Handle replicas - support both int and float64 from JSON
 	if replicas, ok := parameters["replicas"]; ok {
 		switch v := replicas.(type) {
@@ -627,143 +598,16 @@ func BuildNodePoolFromBicepTemplate(
 			nodePool.Properties.Replicas = &replicasInt32
 		case int32:
 			nodePool.Properties.Replicas = &v
-		case float64:
-			replicasInt32 := int32(v)
-			nodePool.Properties.Replicas = &replicasInt32
 		}
 	}
-
-	// Handle nodeReplicas as an alternative parameter name
-	if nodeReplicas, ok := parameters["nodeReplicas"]; ok {
-		switch v := nodeReplicas.(type) {
-		case int:
-			replicasInt32 := int32(v)
-			nodePool.Properties.Replicas = &replicasInt32
-		case int32:
-			nodePool.Properties.Replicas = &v
-		case float64:
-			replicasInt32 := int32(v)
-			nodePool.Properties.Replicas = &replicasInt32
-		}
-	}
-
 	// Set VM size - default if not specified
 	if vmSize, ok := parameters["vmSize"].(string); ok {
 		nodePool.Properties.Platform.VMSize = &vmSize
 	} else {
 		// Default VM size for nodepools
-		defaultVMSize := "Standard_D4s_v3"
+		defaultVMSize := "Standard_D8s_v3"
 		nodePool.Properties.Platform.VMSize = &defaultVMSize
 	}
 
-	// Handle availabilityZone
-	if availabilityZone, ok := parameters["availabilityZone"].(string); ok {
-		nodePool.Properties.Platform.AvailabilityZone = &availabilityZone
-	}
-
-	// Handle encryption at host
-	if encryptionAtHost, ok := parameters["enableEncryptionAtHost"].(bool); ok {
-		nodePool.Properties.Platform.EnableEncryptionAtHost = &encryptionAtHost
-	}
-
-	// Handle OS disk configuration
-	if nodePoolOsDiskSizeGiB, ok := parameters["nodePoolOsDiskSizeGiB"]; ok {
-		if nodePool.Properties.Platform.OSDisk == nil {
-			nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
-		}
-		switch v := nodePoolOsDiskSizeGiB.(type) {
-		case int:
-			sizeInt32 := int32(v)
-			nodePool.Properties.Platform.OSDisk.SizeGiB = &sizeInt32
-		case int32:
-			nodePool.Properties.Platform.OSDisk.SizeGiB = &v
-		case float64:
-			sizeInt32 := int32(v)
-			nodePool.Properties.Platform.OSDisk.SizeGiB = &sizeInt32
-		}
-	}
-
-	// Handle disk storage account type
-	if diskStorageAccountType, ok := parameters["diskStorageAccountType"].(string); ok {
-		if nodePool.Properties.Platform.OSDisk == nil {
-			nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
-		}
-		diskType := hcpsdk20240610preview.DiskStorageAccountType(diskStorageAccountType)
-		nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = &diskType
-	}
-
-	// Handle disk encryption set ID
-	if diskEncryptionSetID, ok := parameters["diskEncryptionSetID"].(string); ok {
-		if nodePool.Properties.Platform.OSDisk == nil {
-			nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
-		}
-		nodePool.Properties.Platform.OSDisk.EncryptionSetID = &diskEncryptionSetID
-	}
-
-	// Handle subnet ID - construct from parameters if individual components provided
-	if subnetName, ok := parameters["subnetName"].(string); ok {
-		if vnetName, ok := parameters["vnetName"].(string); ok {
-			subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, vnetName, subnetName)
-			nodePool.Properties.Platform.SubnetID = &subnetID
-		}
-	}
-	// Or use direct subnetID if provided
-	if subnetID, ok := parameters["subnetID"].(string); ok {
-		nodePool.Properties.Platform.SubnetID = &subnetID
-	}
-
-	// Handle autoRepair
-	if autoRepair, ok := parameters["autoRepair"].(bool); ok {
-		nodePool.Properties.AutoRepair = &autoRepair
-	}
-
-	// Handle autoscaling configuration
-	if autoScalingEnabled, ok := parameters["autoScalingEnabled"].(bool); ok {
-		if autoScalingEnabled {
-			nodePool.Properties.AutoScaling = &hcpsdk20240610preview.NodePoolAutoScaling{}
-
-			if minReplicas, ok := parameters["minReplicas"]; ok {
-				switch v := minReplicas.(type) {
-				case int:
-					minInt32 := int32(v)
-					nodePool.Properties.AutoScaling.Min = &minInt32
-				case int32:
-					nodePool.Properties.AutoScaling.Min = &v
-				case float64:
-					minInt32 := int32(v)
-					nodePool.Properties.AutoScaling.Min = &minInt32
-				}
-			}
-
-			if maxReplicas, ok := parameters["maxReplicas"]; ok {
-				switch v := maxReplicas.(type) {
-				case int:
-					maxInt32 := int32(v)
-					nodePool.Properties.AutoScaling.Max = &maxInt32
-				case int32:
-					nodePool.Properties.AutoScaling.Max = &v
-				case float64:
-					maxInt32 := int32(v)
-					nodePool.Properties.AutoScaling.Max = &maxInt32
-				}
-			}
-		}
-	}
-
-	// Handle node drain timeout
-	if nodeDrainTimeout, ok := parameters["nodeDrainTimeoutMinutes"]; ok {
-		switch v := nodeDrainTimeout.(type) {
-		case int:
-			timeoutInt32 := int32(v)
-			nodePool.Properties.NodeDrainTimeoutMinutes = &timeoutInt32
-		case int32:
-			nodePool.Properties.NodeDrainTimeoutMinutes = &v
-		case float64:
-			timeoutInt32 := int32(v)
-			nodePool.Properties.NodeDrainTimeoutMinutes = &timeoutInt32
-		}
-	}
-
-	fmt.Printf("DEBUG: Successfully built NodePool struct from parameters\n")
 	return nodePool, nil
 }

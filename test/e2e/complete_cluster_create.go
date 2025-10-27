@@ -99,24 +99,46 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
-			err = framework.CreateHCPClusterFromBicepDev(ctx,
-				tc,
-				*resourceGroup.Name,
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-				map[string]interface{}{
-					"openshiftVersionId":          openshiftControlPlaneVersionId,
-					"clusterName":                 customerClusterName,
-					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
-					"userAssignedIdentitiesValue": userAssignedIdentities,
-					"identityValue":               identity,
-					"keyVaultName":                keyVaultName,
-					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-				},
-				45*time.Minute,
-			)
+			if framework.IsDevelopmentEnvironment() {
+				// Development: Use direct API calls
+				err = framework.CreateHCPClusterFromBicepDev(ctx,
+					tc,
+					*resourceGroup.Name,
+					map[string]interface{}{
+						"openshiftVersionId":          openshiftControlPlaneVersionId,
+						"clusterName":                 customerClusterName,
+						"managedResourceGroupName":    managedResourceGroupName,
+						"nsgName":                     customerNetworkSecurityGroupName,
+						"subnetName":                  customerVnetSubnetName,
+						"vnetName":                    customerVnetName,
+						"userAssignedIdentitiesValue": userAssignedIdentities,
+						"identityValue":               identity,
+						"keyVaultName":                keyVaultName,
+						"etcdEncryptionKeyName":       etcdEncryptionKeyName,
+					},
+					45*time.Minute,
+				)
+			} else {
+				_, err = framework.CreateBicepTemplateAndWait(ctx,
+					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+					*resourceGroup.Name,
+					"cluster",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
+					map[string]interface{}{
+						"openshiftVersionId":          openshiftControlPlaneVersionId,
+						"clusterName":                 customerClusterName,
+						"managedResourceGroupName":    managedResourceGroupName,
+						"nsgName":                     customerNetworkSecurityGroupName,
+						"subnetName":                  customerVnetSubnetName,
+						"vnetName":                    customerVnetName,
+						"userAssignedIdentitiesValue": userAssignedIdentities,
+						"identityValue":               identity,
+						"keyVaultName":                keyVaultName,
+						"etcdEncryptionKeyName":       etcdEncryptionKeyName,
+					},
+					45*time.Minute,
+				)
+			}
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
@@ -134,19 +156,35 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
-			err = framework.CreateNodePoolFromBicepDev(ctx,
-				tc,
-				*resourceGroup.Name,
-				customerClusterName,
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
-					"openshiftVersionId": openshiftNodeVersionId,
-					"clusterName":        customerClusterName,
-					"nodePoolName":       customerNodePoolName,
-					"replicas":           2,
-				},
-				45*time.Minute,
-			)
+			if framework.IsDevelopmentEnvironment() {
+				// Development: Use direct API calls
+				err = framework.CreateNodePoolFromBicepDev(ctx,
+					tc,
+					*resourceGroup.Name,
+					customerClusterName,
+					map[string]interface{}{
+						"openshiftVersionId": openshiftNodeVersionId,
+						"clusterName":        customerClusterName,
+						"nodePoolName":       customerNodePoolName,
+						"replicas":           2,
+					},
+					45*time.Minute,
+				)
+			} else {
+				_, err = framework.CreateBicepTemplateAndWait(ctx,
+					tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
+					*resourceGroup.Name,
+					"node-pool",
+					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+					map[string]interface{}{
+						"openshiftVersionId": openshiftNodeVersionId,
+						"clusterName":        customerClusterName,
+						"nodePoolName":       customerNodePoolName,
+						"replicas":           2,
+					},
+					45*time.Minute,
+				)
+			}
 			Expect(err).NotTo(HaveOccurred())
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)

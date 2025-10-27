@@ -77,7 +77,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
-			isDevelopmentEnvironment: isDevelopmentEnvironment(),
+			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 		}
 	})
@@ -242,9 +242,9 @@ func tenantID() string {
 	return os.Getenv("AZURE_TENANT_ID")
 }
 
-// isDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
+// IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
 // when set to development.
-func isDevelopmentEnvironment() bool {
+func IsDevelopmentEnvironment() bool {
 	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
 
