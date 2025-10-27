@@ -1,8 +1,7 @@
 ARG PLATFORM
 
 # Base and builder image will need to be replaced by Fips compliant one
-FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-cbl-mariner2.0 AS builder
-RUN yum install --assumeyes jq
+FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 AS builder
 COPY internal/go.mod internal/go.sum internal/
 COPY frontend/go.mod frontend/go.sum frontend/
 COPY test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/go.mod test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp/
@@ -14,7 +13,7 @@ ARG TAG
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
 RUN make --directory frontend ARO_HCP_IMAGE_TAG=${TAG} ENV_VARS_FILE=/app/image-environment
 
-FROM --platform=${PLATFORM} mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
+FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 WORKDIR /
 COPY --from=builder /app/frontend/aro-hcp-frontend .
 ARG REVISION

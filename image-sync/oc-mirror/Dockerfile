@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/base/core:2.0 AS downloader
+FROM --platform=linux/amd64 mcr.microsoft.com/azurelinux/base/core:3.0 AS downloader
 
 RUN set -eux; \
 # Upgrade all packages per https://eng.ms/docs/more/containers-secure-supply-chain/updating
