@@ -199,7 +199,6 @@ func CreateHCPClusterFromBicepDev(
 	ctx context.Context,
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
-	bicepTemplateJSON []byte,
 	parameters map[string]interface{},
 	timeout time.Duration,
 ) error {
@@ -221,7 +220,7 @@ func CreateHCPClusterFromBicepDev(
 	}
 
 	// Convert bicep template to HCP cluster object
-	cluster, err := BuildHCPClusterFromBicepTemplate(ctx, bicepTemplateJSON, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
+	cluster, err := BuildHCPClusterFromBicepTemplate(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
 	}
@@ -248,7 +247,6 @@ func CreateNodePoolFromBicepDev(
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
 	hcpClusterName string,
-	bicepTemplateJSON []byte,
 	parameters map[string]interface{},
 	timeout time.Duration,
 ) error {
@@ -270,7 +268,7 @@ func CreateNodePoolFromBicepDev(
 	}
 
 	// Convert bicep template to NodePool object
-	nodePool, err := BuildNodePoolFromBicepTemplate(ctx, bicepTemplateJSON, parameters, testContext.Location(), subscriptionId, resourceGroupName)
+	nodePool, err := BuildNodePoolFromBicepTemplate(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to build NodePool from bicep: %w", err)
 	}

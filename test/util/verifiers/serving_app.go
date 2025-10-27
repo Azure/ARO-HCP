@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,7 +140,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 
 	// Create HTTP client with TLS skip for development environments
 	client := &http.Client{Timeout: 30 * time.Second}
-	if isDevelopmentEnvironment() {
+	if framework.IsDevelopmentEnvironment() {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -275,8 +274,4 @@ func must[T any](v T, err error) T {
 		panic("error: " + err.Error())
 	}
 	return v
-}
-
-func isDevelopmentEnvironment() bool {
-	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
