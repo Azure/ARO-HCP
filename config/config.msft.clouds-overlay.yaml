@@ -42,7 +42,7 @@ clouds:
                   digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
           # MC cluster settings
           mgmt:
             prometheus:
@@ -51,7 +51,7 @@ clouds:
                   digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
           # RP Frontend
           frontend:
             image:

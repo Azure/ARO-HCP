@@ -447,7 +447,7 @@ mgmt:
       version: ""
     prometheusSpec:
       image:
-        digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+        digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2
@@ -683,7 +683,7 @@ svc:
       version: ""
     prometheusSpec:
       image:
-        digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+        digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
       replicas: 2
