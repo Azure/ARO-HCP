@@ -324,13 +324,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
+          digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+          digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
         version: ""
         replicas: 2
         shards: 2
@@ -338,7 +338,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+          digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
   # MGMT cluster specifics
   mgmt:
     subscription:
@@ -427,7 +427,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+          digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
   # Backend
   backend:
     image:
@@ -866,10 +866,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
+              digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
           prometheusSpec:
             image:
-              digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
       mgmt:
         subscription:
@@ -899,10 +899,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:82b7abbcdcb76ac5525f7b947537aa31938dbe84b1450896c12a5863f3d1e7c3
+              digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
           prometheusSpec:
             image:
-              digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
       # ACRs
       acr:
