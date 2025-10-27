@@ -108,9 +108,9 @@ clustersService:
   denyAssignments: disabled
   environment: arohcpdev
   image:
-    digest: sha256:6af9be4724b345e040f8f1718870fdcc43a8ece6dbf66d26abdefad243938e6e
+    digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
     registry: quay.io
-    repository: app-sre/uhc-clusters-service
+    repository: app-sre/aro-hcp-clusters-service
   k8s:
     deploymentStrategy:
       rollingUpdate:
