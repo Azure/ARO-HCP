@@ -43,6 +43,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
           # MC cluster settings
           mgmt:
             prometheus:
@@ -52,6 +55,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
           # RP Frontend
           frontend:
             image:
@@ -132,6 +138,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # MC cluster settings
           mgmt:
             prometheus:
@@ -141,6 +150,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # RP Frontend
           frontend:
             image:
@@ -211,6 +223,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # MC cluster settings
           mgmt:
             prometheus:
@@ -220,6 +235,9 @@ clouds:
               prometheusSpec:
                 image:
                   digest: sha256:db6202bbf67b22561456187a822b48be3be1cd5a554407f4fad11d3b067688b9
+              prometheusConfigReloader:
+                image:
+                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # RP Frontend
           frontend:
             image:
