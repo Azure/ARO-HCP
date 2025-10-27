@@ -115,3 +115,93 @@ tests:
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
+# NEW TESTS FOR kas-monitor-ServiceMonitorCreationErrorBudgetBurn
+# Note: In production, each HCP has 2 namespaces:
+#   - Management NS: ocm-aro{env}-{id} (2 segments) - NOT counted by pattern
+#   - HCP NS: ocm-aro{env}-{id}-{cluster} (3+ segments) - COUNTED by pattern ocm-aro.*-.*-.*
+# Uses kube_namespace_status_phase (current state) instead of kube_namespace_created
+# Test 5: Below threshold - no alert (10% missing = below 14.4%)
+- interval: 1m
+  name: "Test 5: ServiceMonitor coverage 90% - below threshold, no alert"
+  input_series:
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster1"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster2"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster3"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster4"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster5"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster6"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster7"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster8"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster9"}'
+    values: '1+0x10'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster10"}'
+    values: '1+0x10'
+  # 9 out of 10 have probe_success (10% missing)
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster1"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster2"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster3"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster4"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster5"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster6"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster7"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster8"}'
+    values: '1+0x10'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster9"}'
+    values: '1+0x10'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: kas-monitor-ServiceMonitorCreationErrorBudgetBurn
+    exp_alerts: []
+# Test 6: Above threshold - alert fires (20% missing = above 14.4%)
+- interval: 1m
+  name: "Test 6: ServiceMonitor coverage 80% - above threshold, alert fires"
+  input_series:
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster1"}'
+    values: '1+0x20'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster2"}'
+    values: '1+0x20'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster3"}'
+    values: '1+0x20'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster4"}'
+    values: '1+0x20'
+  - series: 'kube_namespace_status_phase{phase="Active", namespace="ocm-arohcpint-xxx-cluster5"}'
+    values: '1+0x20'
+  # 4 out of 5 have probe_success (20% missing)
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster1"}'
+    values: '1+0x20'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster2"}'
+    values: '1+0x20'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster3"}'
+    values: '1+0x20'
+  - series: 'probe_success{namespace="ocm-arohcpint-xxx-cluster4"}'
+    values: '1+0x20'
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: kas-monitor-ServiceMonitorCreationErrorBudgetBurn
+    exp_alerts: [] # Still pending (for: 15m not satisfied yet)
+  - eval_time: 16m
+    alertname: kas-monitor-ServiceMonitorCreationErrorBudgetBurn
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        component: route-monitor-operator
+        slo: hcp-monitoring-coverage
+      exp_annotations:
+        summary: "HCP KAS monitoring coverage below SLO"
+        description: "20% of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping."
+        runbook_url: TBD

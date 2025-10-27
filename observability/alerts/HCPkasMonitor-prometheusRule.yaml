@@ -44,3 +44,26 @@ spec:
         short_window: 6h
       annotations:
         description: "High error budget burn for {{ $labels.probe_url }} (current value: {{ $value }})"
+    # ServiceMonitor Creation Monitoring - Detects when HCP namespaces exist but probe_success metrics are missing
+    # This indicates RMO, Blackbox Exporter, or Prometheus failures preventing monitoring coverage
+    # SLO: 99% of HCPs should have monitoring (1% error budget, 14.4x burn rate = 14.4% threshold)
+    - alert: kas-monitor-ServiceMonitorCreationErrorBudgetBurn
+      expr: |
+        (
+          (
+            count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"})
+            -
+            count(probe_success{namespace=~"ocm-aro.*"})
+          )
+          /
+          count(kube_namespace_status_phase{phase="Active", namespace=~"ocm-aro.*-.*-.*"})
+        ) > 0.144
+      for: 15m
+      labels:
+        severity: warning
+        component: route-monitor-operator
+        slo: hcp-monitoring-coverage
+      annotations:
+        summary: "HCP KAS monitoring coverage below SLO"
+        description: "{{ $value | humanizePercentage }} of HCPs are missing probe_success metrics. SLO threshold: 14.4%. This indicates RMO failed to create ServiceMonitor, Blackbox Exporter is not probing, or Prometheus is not scraping."
+        runbook_url: TBD
