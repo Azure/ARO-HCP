@@ -106,7 +106,7 @@ try
         $DeploymentScriptOutputs['KeyIdentifier'] = [Convert]::ToBase64String($thumbBytes)
         $DeploymentScriptOutputs['PublicKey'] = [System.Convert]::ToBase64String($out.Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
         $DeploymentScriptOutputs['NotBefore'] = (Get-Date $out.Certificate.NotBefore.ToUniversalTime() -Format "yyyy-MM-ddTHH:mm:ssZ")
-        $DeploymentScriptOutputs['NotAfter']= (Get-Date $out.Certificate.NotAfter.ToUniversalTime()  -Format "yyyy-MM-ddTHH:mm:ssZ")
+        $DeploymentScriptOutputs['NotAfter'] = (Get-Date $out.Certificate.NotAfter.ToUniversalTime()  -Format "yyyy-MM-ddTHH:mm:ssZ")
 
         if ($IssuerName -eq 'Self')
         {
@@ -115,7 +115,6 @@ try
             $DeploymentScriptOutputs['CACert'] = $pemCert
         }
 
-        # Add DER-encoded SubjectPublicKeyInfo (base64) to outputs as 'PublicKey'
     }
     else
     {

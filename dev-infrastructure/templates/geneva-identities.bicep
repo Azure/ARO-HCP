@@ -71,29 +71,31 @@ resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplica
   uniqueName: genevaActionApplicationName
   requiredResourceAccess: []
   serviceManagementReference: 'b8e9ef87-cd63-4085-ab14-1c637806568c'
-  trustedSubjectNameAndIssuers: genevaActionApplicationUseSNI ? [
-    {
-      authorityId: '00000000-0000-0000-0000-000000000001'
-      subjectName: genevaActionsCertificateDomain
-    }
-  ] : []
+  trustedSubjectNameAndIssuers: genevaActionApplicationUseSNI
+    ? [
+        {
+          authorityId: '00000000-0000-0000-0000-000000000001'
+          subjectName: genevaActionsCertificateDomain
+        }
+      ]
+    : []
   owners: {
-    relationships: [
-      for ownerId in csvToArray(genevaActionApplicationOwnerIds): ownerId
-    ]
+    relationships: [for ownerId in csvToArray(genevaActionApplicationOwnerIds): ownerId]
   }
-  keyCredentials: !genevaActionApplicationUseSNI ? [
-    {
-      type: 'AsymmetricX509Cert'
-      usage: 'Verify'
-      displayName: 'Geneva Action Login - ${genevaCertificate.outputs.Thumbprint}'
-      key: genevaCertificate.outputs.PublicKey
-      keyId: guid(genevaCertificate.outputs.Thumbprint)
-      customKeyIdentifier: genevaCertificate.outputs.KeyIdentifier
-      startDateTime: genevaCertificate.outputs.NotBefore
-      endDateTime: genevaCertificate.outputs.NotAfter
-    }
-  ] : []
+  keyCredentials: !genevaActionApplicationUseSNI
+    ? [
+        {
+          type: 'AsymmetricX509Cert'
+          usage: 'Verify'
+          displayName: 'Geneva Action Login - ${genevaCertificate.outputs.Thumbprint}'
+          key: genevaCertificate.outputs.PublicKey
+          keyId: guid(genevaCertificate.outputs.Thumbprint)
+          customKeyIdentifier: genevaCertificate.outputs.KeyIdentifier
+          startDateTime: genevaCertificate.outputs.NotBefore
+          endDateTime: genevaCertificate.outputs.NotAfter
+        }
+      ]
+    : []
 }
 
 resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationManage) {

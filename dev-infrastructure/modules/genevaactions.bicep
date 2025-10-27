@@ -22,7 +22,6 @@ param kvCertAccessPrincipalId string
 @description('Roles used for EV2 KeyVault access, i.e. geneva log/action access')
 param kvCertAccessRoleId string
 
-
 //   G E N E V A    K V
 
 module genevaKv '../modules/keyvault/keyvault.bicep' = {
