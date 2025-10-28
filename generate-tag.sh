@@ -23,4 +23,4 @@ then
     tag="test-${USER}-${tag}"
 fi
 
-echo ${tag}
+echo "${tag}"

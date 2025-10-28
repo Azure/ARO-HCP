@@ -6,7 +6,8 @@ ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ADMIN_API_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
-ADMIN_API_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ADMIN_API_IMAGE_REPOSITORY):$(ADMIN_API_IMAGE_TAG)
+ADMIN_API_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${ADMIN_API_IMAGE_REPOSITORY} ../generate-repo.sh)
+ADMIN_API_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ADMIN_API_GENERATED_IMAGE_REPOSITORY):$(ADMIN_API_IMAGE_TAG)
 
 # Binary name
 BINARY = aro-hcp-admin
@@ -50,9 +51,16 @@ build-and-push: image $(ORAS)
 	docker push ${ADMIN_API_TAGGED_IMAGE}
 
 deploy: build-and-push $(YQ) $(ORAS)
-	az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | $(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} --username 00000000-0000-0000-0000-000000000000 --password-stdin
+	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \
+		$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
+			--username 00000000-0000-0000-0000-000000000000 \
+			--password-stdin
+
 	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${ADMIN_API_TAGGED_IMAGE} | $(YQ) .digest); \
 	OVERRIDE_CONFIG_FILE="/tmp/admin-api-override-config-$$(date +%s).yaml"; \
-	$(YQ) eval -n ".clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.digest = \"$$DIGEST\"" > $$OVERRIDE_CONFIG_FILE; \
+	$(YQ) eval -n "\
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.repository = \"$(ADMIN_API_GENERATED_IMAGE_REPOSITORY)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.digest = \"$$DIGEST\" \
+	" > $$OVERRIDE_CONFIG_FILE; \
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$$OVERRIDE_CONFIG_FILE
 .PHONY: deploy
