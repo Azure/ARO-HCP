@@ -21,6 +21,12 @@ SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 # Default target
 .DEFAULT_GOAL := build
 
+# Update must-gather-clean schema
+update-mgc-schema:
+	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema.go -o cmd/must-gather/schema/schema.go
+	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema_reader.go -o cmd/must-gather/schema/schema_reader.go
+.PHONY: update-mgc-schema
+
 # Build the binary
 build: $(BINARY)
 .PHONY: build
@@ -32,7 +38,6 @@ $(BINARY): $(SOURCES) $(MAKEFILE_LIST)
 test:
 	go test -v -timeout 300s -cover ./...
 .PHONY: test
-
 
 # Run Go-based end-to-end tests
 test-e2e: build
