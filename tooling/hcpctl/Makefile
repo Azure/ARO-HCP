@@ -23,8 +23,11 @@ SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 
 # Update must-gather-clean schema
 update-mgc-schema:
-	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema.go -o cmd/must-gather/schema/schema.go
-	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema_reader.go -o cmd/must-gather/schema/schema_reader.go
+	echo "// code copied from https://github.com/openshift/must-gather-clean/tree/main/pkg/schema" > cmd/must-gather/schema/schema.go
+	echo "// code copied from https://github.com/openshift/must-gather-clean/tree/main/pkg/schema" > cmd/must-gather/schema/schema_reader.go
+
+	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema.go >> cmd/must-gather/schema/schema.go
+	curl https://raw.githubusercontent.com/openshift/must-gather-clean/refs/heads/main/pkg/schema/schema_reader.go >> cmd/must-gather/schema/schema_reader.go
 .PHONY: update-mgc-schema
 
 # Build the binary

@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/cmd/must-gather/schema"
-
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/internal/testutil"
 )
 
