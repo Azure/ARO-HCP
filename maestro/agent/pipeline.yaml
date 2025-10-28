@@ -89,6 +89,8 @@ resourceGroups:
     releaseNamespace: '{{ .maestro.server.k8s.namespace }}'
     chartDir: ./../registration/deploy
     valuesFile: ./../registration/values.yaml
+    namespaceFiles:
+    - ./../server/namespace.yaml
     dependsOn:
     - resourceGroup: management
       step: deploy
