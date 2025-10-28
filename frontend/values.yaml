@@ -1,0 +1,36 @@
+azure:
+  clientId: "__csiSecretStoreClientId__"
+  tenantId: "__tenantId__"
+deployMise: true
+configMap:
+  databaseUrl: "__cosmosDBDocumentEndpoint__"
+  frontendMiClientId: "__frontendMsiClientId__"
+  databaseName: "{{ .frontend.cosmosDB.name }}"
+  location: "{{ .region }}"
+credsKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+  secret: "{{ .frontend.cert.name }}"
+deployment:
+  replicas: {{ .frontend.k8s.replicas }}
+  imageName: "{{ .frontend.image.registry }}/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
+serviceAccount:
+  name: "{{ .frontend.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__frontendMsiClientId__"
+  workloadIdentityTenantId: "__frontendMsiTenantId__"
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .frontend.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"
+  serviceAccount: "{{ .clustersService.k8s.serviceAccountName }}"
+tracing:
+  address: "{{ .frontend.tracing.address }}"
+  exporter: "{{ .frontend.tracing.exporter }}"
+audit:
+  connectSocket: {{ .frontend.audit.connectSocket }}
+adminApi:
+  namespace: "{{ .adminApi.k8s.namespace }}"
+  serviceAccount: "{{ .adminApi.k8s.serviceAccountName }}"
+apiBindPort: 8443

@@ -1,7 +1,7 @@
 apiVersion: acrpull.microsoft.com/v1beta2
 kind: AcrPullBinding
 metadata:
-  name: pull-binding
+  name: frontend-pull-binding
   namespace: '{{ .Release.namespace }}'
 spec:
   acr:
