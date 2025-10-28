@@ -87,6 +87,10 @@ resourceGroups:
       configRef: frontend.tracing.exporter
     - name: AUDIT_CONNECT_SOCKET
       configRef: frontend.audit.connectSocket
+    - name: ADMIN_API_NAMESPACE
+      configRef: adminApi.k8s.namespace
+    - name: ADMIN_API_SERVICE_ACCOUNT_NAME
+      configRef: adminApi.k8s.serviceAccountName
     shellIdentity:
       input:
         resourceGroup: global

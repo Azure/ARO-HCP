@@ -119,6 +119,8 @@ deploy:
 		--set tracing.address=${TRACING_ADDRESS} \
 		--set tracing.exporter=${TRACING_EXPORTER} \
 		--set audit.connectSocket=${AUDIT_CONNECT_SOCKET} \
+		--set adminApi.namespace=${ADMIN_API_NAMESPACE} \
+		--set adminApi.serviceAccount=${ADMIN_API_SERVICE_ACCOUNT_NAME} \
 		--namespace ${NAMESPACE}
 .PHONY: deploy
 
