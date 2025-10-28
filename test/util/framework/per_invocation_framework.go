@@ -136,10 +136,8 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 		// Add the ARM system data header that the frontend expects
 		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "User", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
-
 		// Add other headers that demo scripts include
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
-
 		fmt.Printf("DEBUG: Added ARM system data header for localhost request\n")
 	}
 	return req.Next()
