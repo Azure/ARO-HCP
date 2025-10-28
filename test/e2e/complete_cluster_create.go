@@ -98,24 +98,26 @@ var _ = Describe("Customer", func() {
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			params := map[string]interface{}{
+				"openshiftVersionId":          openshiftControlPlaneVersionId,
+				"clusterName":                 customerClusterName,
+				"managedResourceGroupName":    managedResourceGroupName,
+				"nsgName":                     customerNetworkSecurityGroupName,
+				"subnetName":                  customerVnetSubnetName,
+				"vnetName":                    customerVnetName,
+				"userAssignedIdentitiesValue": userAssignedIdentities,
+				"identityValue":               identity,
+				"keyVaultName":                keyVaultName,
+				"etcdEncryptionKeyName":       etcdEncryptionKeyName}
 
 			if framework.IsDevelopmentEnvironment() {
-				// Development: Use direct API calls
+				// Development: Use direct API calls with compiled template to avoid drift
+				compiledTemplate := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json"))
 				err = framework.CreateHCPClusterFromBicepDev(ctx,
 					tc,
 					*resourceGroup.Name,
-					map[string]interface{}{
-						"openshiftVersionId":          openshiftControlPlaneVersionId,
-						"clusterName":                 customerClusterName,
-						"managedResourceGroupName":    managedResourceGroupName,
-						"nsgName":                     customerNetworkSecurityGroupName,
-						"subnetName":                  customerVnetSubnetName,
-						"vnetName":                    customerVnetName,
-						"userAssignedIdentitiesValue": userAssignedIdentities,
-						"identityValue":               identity,
-						"keyVaultName":                keyVaultName,
-						"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-					},
+					compiledTemplate,
+					params,
 					45*time.Minute,
 				)
 			} else {
@@ -124,18 +126,7 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					"cluster",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-					map[string]interface{}{
-						"openshiftVersionId":          openshiftControlPlaneVersionId,
-						"clusterName":                 customerClusterName,
-						"managedResourceGroupName":    managedResourceGroupName,
-						"nsgName":                     customerNetworkSecurityGroupName,
-						"subnetName":                  customerVnetSubnetName,
-						"vnetName":                    customerVnetName,
-						"userAssignedIdentitiesValue": userAssignedIdentities,
-						"identityValue":               identity,
-						"keyVaultName":                keyVaultName,
-						"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-					},
+					params,
 					45*time.Minute,
 				)
 			}
@@ -154,20 +145,23 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
+			params = map[string]interface{}{
+				"openshiftVersionId": openshiftNodeVersionId,
+				"clusterName":        customerClusterName,
+				"nodePoolName":       customerNodePoolName,
+				"replicas":           2,
+			}
 
 			By("creating the node pool")
 			if framework.IsDevelopmentEnvironment() {
-				// Development: Use direct API calls
+				// Development: Use direct API calls with compiled template to avoid drift
+				compiledNodepool := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json"))
 				err = framework.CreateNodePoolFromBicepDev(ctx,
 					tc,
 					*resourceGroup.Name,
 					customerClusterName,
-					map[string]interface{}{
-						"openshiftVersionId": openshiftNodeVersionId,
-						"clusterName":        customerClusterName,
-						"nodePoolName":       customerNodePoolName,
-						"replicas":           2,
-					},
+					compiledNodepool,
+					params,
 					45*time.Minute,
 				)
 			} else {
@@ -176,12 +170,7 @@ var _ = Describe("Customer", func() {
 					*resourceGroup.Name,
 					"node-pool",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-					map[string]interface{}{
-						"openshiftVersionId": openshiftNodeVersionId,
-						"clusterName":        customerClusterName,
-						"nodePoolName":       customerNodePoolName,
-						"replicas":           2,
-					},
+					params,
 					45*time.Minute,
 				)
 			}
