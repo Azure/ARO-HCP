@@ -622,7 +622,7 @@ defaults:
   clustersService:
     image:
       registry: quay.io
-      repository: app-sre/uhc-clusters-service
+      repository: app-sre/aro-hcp-clusters-service
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
@@ -812,7 +812,6 @@ clouds:
         environment: "arohcpdev"
         image:
           digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
-          repository: app-sre/aro-hcp-clusters-service
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
