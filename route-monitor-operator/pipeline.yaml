@@ -54,42 +54,35 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: deploy
-    aksCluster: '{{ .mgmt.aks.name  }}'
+  - name: default-ingresscontroller-hack
+    aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    # Bundle version is not used in runtime, it's used to generate
-    # the Helm chart for the route-monitor-operator
-    # WARNING: Keep this in sync with the image digests
-    - name: BUNDLE_VERSION
-      configRef: routeMonitorOperator.bundleVersion
-    # Image refs
-    - name: ACR_NAME
-      configRef: acr.svc.name
-    - name: OPERATOR_IMAGE_REPOSITORY
-      configRef: routeMonitorOperator.operatorImage.repository
-    - name: OPERATOR_IMAGE_DIGEST
-      configRef: routeMonitorOperator.operatorImage.digest
-    - name: BLACKBOX_IMAGE_REPOSITORY
-      configRef: routeMonitorOperator.blackboxExporterImage.repository
-    - name: BLACKBOX_IMAGE_DIGEST
-      configRef: routeMonitorOperator.blackboxExporterImage.digest
-    dependsOn:
-    - resourceGroup: global
-      step: mirror-operator-image
-    - resourceGroup: global
-      step: mirror-blackbox-image
-    externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
-      resourceGroup: management
-      step: deploy
+    command: make default-ingresscontroller-hack
+    workingDir: ./
     shellIdentity:
       input:
         resourceGroup: global
         step: output
         name: globalMSIId
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: route-monitor-operator
+    releaseNamespace: openshift-route-monitor-operator
+    chartDir: ./deploy/helm/route-monitor-operator
+    valuesFile: ./deploy/helm/values.yaml
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-operator-image
+    - resourceGroup: global
+      step: mirror-blackbox-image
+    - resourceGroup: management
+      step: default-ingresscontroller-hack
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+      resourceGroup: management
+      step: deploy
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

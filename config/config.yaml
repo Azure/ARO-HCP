@@ -27,6 +27,7 @@ defaults:
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
+  acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
     readerGroupId: ""
     releaseManagementGroupId: ""
@@ -234,15 +235,10 @@ defaults:
         automitigationEnabled: ""
   # Route Monitor Operator
   routeMonitorOperator:
-    # Bundle version is not used in runtime, it's used to generate
-    # the Helm chart for the route-monitor-operator
-    # WARNING: Keep this in sync with the image digests
-    bundleVersion: 0.1.848-g208c6eb
-    # Image refs
     operatorImage:
       registry: quay.io
       repository: app-sre/route-monitor-operator
-      digest: sha256:006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
+      digest: sha256:59b939b9e6907d71e09b2bdb7ebbc9c87ab39bfe7d6da1f155bb91fbf762ec5f
     blackboxExporterImage:
       registry: quay.io
       repository: prometheus/blackbox-exporter

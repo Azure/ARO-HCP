@@ -1,9 +1,0 @@
-imageDigestBlackbox: b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
-imageDigestManager: 006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
-imageDigestOperator: 006b38e6df9609688d12e776b973b27a53e0c931a83e7e8f9d9212a5e0730bd7
-imageRegistryBlackbox: quay.io
-imageRegistryManager: quay.io
-imageRegistryOperator: quay.io
-imageRepositoryBlackbox: prometheus/blackbox-exporter
-imageRepositoryManager: app-sre/route-monitor-operator
-imageRepositoryOperator: app-sre/route-monitor-operator
