@@ -1,0 +1,23 @@
+location: "{{ .region }}"
+deployment:
+  replicas: {{ .adminApi.k8s.replicas }}
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+serviceAccount:
+  name: "{{ .adminApi.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__adminApiMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+image:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  repository: "{{ .adminApi.image.repository }}"
+  digest: "{{ .adminApi.image.digest }}"
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .adminApi.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"

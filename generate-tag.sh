@@ -18,9 +18,9 @@ then
     tag="${tag}-dirty"
 fi
 
-if [ -v DEPLOY_ENV ] && [ "${DEPLOY_ENV}" == "pers" ]
+if [[ -n "${DEPLOY_ENV:-}" ]] && [[ "${DEPLOY_ENV}" == "pers" ]]
 then
     tag="test-${USER}-${tag}"
 fi
 
-echo ${tag}
+echo "${tag}"

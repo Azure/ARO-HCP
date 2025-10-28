@@ -17,9 +17,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [ -v IMAGE_DIGEST ] && [ -n "${IMAGE_DIGEST}" ]
+if [ -n "${IMAGE_DIGEST:-}" ]
 then
-    echo ${IMAGE_DIGEST}
+    echo "${IMAGE_DIGEST}"
     exit 0
 fi
 
@@ -35,18 +35,18 @@ repository=${2}
 tags=$(mktemp)
 trap "rm ${tags}" EXIT
 
-az acr repository show-tags --orderby time_desc --n ${aro_hcp_image_acr} --repository ${repository} --detail --output json > $tags
+az acr repository show-tags --orderby time_desc --n "${aro_hcp_image_acr}" --repository "${repository}" --detail --output json > "${tags}"
 
-if [ -v IMAGE_TAG ] && [ -n "${IMAGE_TAG}" ]
+if [ -n "${IMAGE_TAG:-}" ]
 then
-    suggested_digest=$(jq -r --arg TAG ${IMAGE_TAG} 'first(.[] | select(.name==$TAG) | .digest)' $tags)
+    suggested_digest=$(jq -r --arg TAG "${IMAGE_TAG}" 'first(.[] | select(.name==$TAG) | .digest)' "${tags}")
     if [ -n "${suggested_digest}" ]
     then
-        echo ${suggested_digest}
+        echo "${suggested_digest}"
         exit 0
     fi
     echo "Image tag ${IMAGE_TAG} not found, using a fallback image" > /dev/stderr
 fi
 
 # Exclude test images for personal dev environments.
-jq -r 'first(.[] | select(.name | startswith("test-") | not) | .digest)' $tags
+jq -r 'first(.[] | select(.name | startswith("test-") | not) | .digest)' "${tags}"

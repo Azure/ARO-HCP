@@ -16,6 +16,7 @@ updates:
 - package-ecosystem: gomod
   directories:
   - '/frontend'
+  - '/admin'
   - '/backend'
   - '/internal'
   - '/tooling/mcerepkg'
@@ -36,5 +37,6 @@ updates:
   directories:
   - '/frontend'
   - '/backend'
+  - '/admin'
   schedule:
     interval: 'weekly'

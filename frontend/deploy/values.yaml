@@ -29,3 +29,7 @@ clustersService:
 tracing:
   address: ""
   exporter: ""
+adminApi:
+  namespace: ""
+  serviceAccount: ""
+apiBindPort: 8443

@@ -33,6 +33,19 @@ acrPull:
     digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
+adminApi:
+  cert:
+    issuer: Self
+    name: admin-api-cert-ntly-ln
+  image:
+    digest: sha256:da53a468fd70ddddfd21c23115ef709e2dece6d8e19f5161e417b878f80917a6
+    registry: arohcpsvcdev.azurecr.io
+    repository: arohcpadminapi
+  k8s:
+    namespace: aro-hcp-admin-api
+    replicas: 2
+    serviceAccountName: admin-api
+  managedIdentityName: admin-api
 administration:
   readerGroupId: ""
   releaseManagementGroupId: ""
