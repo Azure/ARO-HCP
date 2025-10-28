@@ -85,15 +85,13 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 		}
 		mergedConfigFilePath := mergedConfigFile.Name()
 
-		mergedConfig, err := types.MergeRawConfigurationFiles(filepath.Dir(mergedConfigFilePath), []string{o.ConfigFile, o.ConfigFileOverride})
+		schemaBaseDir := filepath.Dir(mergedConfigFilePath)
+		mergedConfigData, err := types.MergeRawConfigurationFiles(schemaBaseDir, []string{o.ConfigFile, o.ConfigFileOverride})
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge configuration files: %w", err)
 		}
-		if err := os.WriteFile(mergedConfigFilePath, mergedConfig, 0644); err != nil {
-			return nil, fmt.Errorf("failed to write configuration to file %q: %w", mergedConfigFilePath, err)
-		}
 
-		configProvider, err = config.NewConfigProvider(mergedConfigFilePath)
+		configProvider, err = config.NewConfigProviderFromData(mergedConfigData, schemaBaseDir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load config provider from merged configuration %s: %w", mergedConfigFilePath, err)
 		}
