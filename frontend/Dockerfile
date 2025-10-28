@@ -14,6 +14,7 @@ ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
 RUN make --directory frontend ARO_HCP_IMAGE_TAG=${TAG} ENV_VARS_FILE=/app/image-environment
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
+USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/frontend/aro-hcp-frontend .
 ARG REVISION

@@ -8,6 +8,7 @@ ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
 RUN go build -o aro-hcp-admin
 
 FROM --platform=linux/amd64 mcr.microsoft.com/azurelinux/distroless/base:3.0
+USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/admin/aro-hcp-admin .
 ENTRYPOINT ["/aro-hcp-admin"]
