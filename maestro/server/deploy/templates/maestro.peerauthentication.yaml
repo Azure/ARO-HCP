@@ -10,3 +10,5 @@ spec:
   portLevelMtls:
     8080:
       mode: PERMISSIVE
+    8000:
+      mode: PERMISSIVE
