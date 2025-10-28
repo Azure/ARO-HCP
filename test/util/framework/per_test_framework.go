@@ -345,7 +345,7 @@ func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client,
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context, OperationType ...OpsType) *armresources.ClientFactory {
-	var operation OpsType = ARM
+	var operation = ARM
 	if len(OperationType) > 0 {
 		operation = OperationType[0]
 	}
@@ -389,7 +389,7 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context, OperationType ...OpsType) (*armresources.ClientFactory, error) {
-	var operation OpsType = ARM
+	var operation = ARM
 
 	if len(OperationType) > 0 {
 		operation = OperationType[0]
@@ -410,7 +410,7 @@ func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.C
 }
 
 func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx context.Context, OperationType ...OpsType) (*armresources.ClientFactory, error) {
-	var operation OpsType = ARM
+	var operation = ARM
 
 	if len(OperationType) > 0 {
 		operation = OperationType[0]

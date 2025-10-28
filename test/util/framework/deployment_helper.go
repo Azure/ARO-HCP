@@ -199,6 +199,7 @@ func CreateHCPClusterFromBicepDev(
 	ctx context.Context,
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
+	compiledTemplate []byte,
 	parameters map[string]interface{},
 	timeout time.Duration,
 ) error {
@@ -219,8 +220,8 @@ func CreateHCPClusterFromBicepDev(
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
 
-	// Convert bicep template to HCP cluster object
-	cluster, err := BuildHCPClusterFromBicepTemplate(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
+	// Convert compiled template + parameters to HCP cluster object to match generated artifacts
+	cluster, err := BuildHCPClusterFromCompiledTemplate(ctx, compiledTemplate, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
 	}
@@ -247,6 +248,7 @@ func CreateNodePoolFromBicepDev(
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
 	hcpClusterName string,
+	compiledTemplate []byte,
 	parameters map[string]interface{},
 	timeout time.Duration,
 ) error {
@@ -267,8 +269,8 @@ func CreateNodePoolFromBicepDev(
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
 
-	// Convert bicep template to NodePool object
-	nodePool, err := BuildNodePoolFromBicepTemplate(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName)
+	// Convert compiled template + parameters to NodePool object
+	nodePool, err := BuildNodePoolFromCompiledTemplate(ctx, compiledTemplate, parameters, testContext.Location(), subscriptionId, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to build NodePool from bicep: %w", err)
 	}

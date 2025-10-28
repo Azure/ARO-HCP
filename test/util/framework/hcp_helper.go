@@ -88,9 +88,9 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 
 	// Skip TLS verification for development environments with self-signed certificates
 	if IsDevelopmentEnvironment() {
-		ret.TLSClientConfig.Insecure = true
-		ret.TLSClientConfig.CAData = nil
-		ret.TLSClientConfig.CAFile = ""
+		ret.Insecure = true
+		ret.CAData = nil
+		ret.CAFile = ""
 	}
 
 	return ret, nil
@@ -537,6 +537,200 @@ func BuildHCPClusterFromBicepTemplate(
 	return cluster, nil
 }
 
+// BuildHCPClusterFromCompiledTemplate builds an HCP cluster object by reading defaults
+// and constants from a compiled ARM template JSON and overlaying provided parameters.
+// This keeps the dev path aligned with the bicep output used by tests.
+func BuildHCPClusterFromCompiledTemplate(
+	ctx context.Context,
+	templateJSON []byte,
+	parameters map[string]interface{},
+	location string,
+	subscriptionId string,
+	resourceGroupName string,
+	testContext *perItOrDescribeTestContext,
+) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	// Parse template
+	tmplMap := map[string]interface{}{}
+	if err := json.Unmarshal(templateJSON, &tmplMap); err != nil {
+		return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to parse compiled template: %w", err)
+	}
+
+	// Helper to resolve parameter value or defaultValue from template
+	resolveParam := func(name string) (interface{}, bool) {
+		if v, ok := parameters[name]; ok {
+			return v, true
+		}
+		if pmRaw, ok := tmplMap["parameters"]; ok {
+			if pm, ok := pmRaw.(map[string]interface{}); ok {
+				if pdefRaw, ok := pm[name]; ok {
+					if pdef, ok := pdefRaw.(map[string]interface{}); ok {
+						if dv, ok := pdef["defaultValue"]; ok {
+							return dv, true
+						}
+					}
+				}
+			}
+		}
+		return nil, false
+	}
+
+	// Start with a blank cluster and fill in from params/defaults
+	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
+		Location:   &location,
+		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
+	}
+	cluster.Properties.Platform = &hcpsdk20240610preview.PlatformProfile{}
+
+	// Version and channelGroup
+	if vRaw, ok := resolveParam("openshiftVersionId"); ok {
+		if v, ok := vRaw.(string); ok {
+			cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{ID: &v}
+		}
+	}
+	if cluster.Properties.Version == nil {
+		cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{}
+	}
+	if cluster.Properties.Version.ChannelGroup == nil {
+		cluster.Properties.Version.ChannelGroup = to.Ptr("stable")
+	}
+
+	// Managed RG
+	if mrg, ok := parameters["managedResourceGroupName"].(string); ok {
+		cluster.Properties.Platform.ManagedResourceGroup = &mrg
+	}
+
+	// NSG/Subnet/VNET to IDs
+	if nsgName, ok := parameters["nsgName"].(string); ok {
+		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionId, resourceGroupName, nsgName)
+		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgID
+	}
+	if subnetName, ok := parameters["subnetName"].(string); ok {
+		if vnetName, ok := parameters["vnetName"].(string); ok {
+			subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, vnetName, subnetName)
+			cluster.Properties.Platform.SubnetID = &subnetID
+		}
+	}
+
+	// OperatorsAuthentication (UAMIs)
+	if uamiVal, ok := parameters["userAssignedIdentitiesValue"]; ok {
+		if b, err := json.Marshal(uamiVal); err == nil {
+			var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
+			if err := json.Unmarshal(b, &uamis); err == nil {
+				cluster.Properties.Platform.OperatorsAuthentication = &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: &uamis,
+				}
+			}
+		}
+	}
+
+	// Network: prefer parameters[networkConfig], else defaultValue from template
+	{
+		netProfile := &hcpsdk20240610preview.NetworkProfile{}
+		if raw, ok := resolveParam("networkConfig"); ok {
+			if netCfg, ok := raw.(map[string]interface{}); ok {
+				if v, ok := netCfg["networkType"].(string); ok && v != "" {
+					netProfile.NetworkType = (*hcpsdk20240610preview.NetworkType)(to.Ptr(v))
+				}
+				if v, ok := netCfg["podCidr"].(string); ok && v != "" {
+					netProfile.PodCIDR = &v
+				}
+				if v, ok := netCfg["serviceCidr"].(string); ok && v != "" {
+					netProfile.ServiceCIDR = &v
+				}
+				if v, ok := netCfg["machineCidr"].(string); ok && v != "" {
+					netProfile.MachineCIDR = &v
+				}
+				switch hv := netCfg["hostPrefix"].(type) {
+				case int:
+					vv := int32(hv)
+					netProfile.HostPrefix = &vv
+				case int32:
+					vv := hv
+					netProfile.HostPrefix = &vv
+				case float64:
+					vv := int32(hv)
+					netProfile.HostPrefix = &vv
+				}
+			}
+		}
+		cluster.Properties.Network = netProfile
+	}
+
+	// Etcd KMS (resolve version via Key Vault if not provided directly)
+	if kv, ok := parameters["keyVaultName"].(string); ok {
+		if key, ok := parameters["etcdEncryptionKeyName"].(string); ok {
+			ver, _ := parameters["etcdEncryptionKeyVersion"].(string)
+			if ver == "" {
+				azureCredentials, err := azidentity.NewAzureCLICredential(nil)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed building development environment CLI credential: %w", err)
+				}
+				client, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net/", kv), azureCredentials, nil)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to create key vault client: %w", err)
+				}
+				versions := client.NewListKeyPropertiesVersionsPager(key, nil)
+				page, err := versions.NextPage(ctx)
+				if err != nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to list key versions: %w", err)
+				}
+				if len(page.Value) == 0 || page.Value[0].KID == nil {
+					return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no key versions found for key %s", key)
+				}
+				keyID := string(*page.Value[0].KID)
+				parts := strings.Split(keyID, "/")
+				ver = parts[len(parts)-1]
+			}
+			cluster.Properties.Etcd = &hcpsdk20240610preview.EtcdProfile{
+				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: (*hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType)(to.Ptr("CustomerManaged")),
+					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
+						EncryptionType: (*hcpsdk20240610preview.CustomerManagedEncryptionType)(to.Ptr("KMS")),
+						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
+							ActiveKey: &hcpsdk20240610preview.KmsKey{VaultName: &kv, Name: &key, Version: &ver},
+						},
+					},
+				},
+			}
+		}
+	}
+
+	// Identity
+	if idVal, ok := parameters["identityValue"]; ok {
+		if b, err := json.Marshal(idVal); err == nil {
+			var msi hcpsdk20240610preview.ManagedServiceIdentity
+			if err := json.Unmarshal(b, &msi); err == nil {
+				cluster.Identity = &msi
+			}
+		}
+	}
+
+	// Read API visibility and image registry state constants from template if provided
+	if resRaw, ok := tmplMap["resources"].([]interface{}); ok {
+		for _, r := range resRaw {
+			if rmap, ok := r.(map[string]interface{}); ok {
+				if t, _ := rmap["type"].(string); t == "Microsoft.RedHatOpenShift/hcpOpenShiftClusters" {
+					if props, ok := rmap["properties"].(map[string]interface{}); ok {
+						if api, ok := props["api"].(map[string]interface{}); ok {
+							if vis, ok := api["visibility"].(string); ok && vis != "" {
+								cluster.Properties.API = &hcpsdk20240610preview.APIProfile{Visibility: (*hcpsdk20240610preview.Visibility)(to.Ptr(vis))}
+							}
+						}
+						if reg, ok := props["clusterImageRegistry"].(map[string]interface{}); ok {
+							if st, ok := reg["state"].(string); ok && st != "" {
+								cluster.Properties.ClusterImageRegistry = &hcpsdk20240610preview.ClusterImageRegistryProfile{State: (*hcpsdk20240610preview.ClusterImageRegistryProfileState)(to.Ptr(st))}
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return cluster, nil
+}
+
 // CreateNodePoolAndWait creates a NodePool via direct API call and waits for completion, this is to support lower environments.
 func CreateNodePoolAndWait(
 	ctx context.Context,
@@ -607,6 +801,137 @@ func BuildNodePoolFromBicepTemplate(
 		// Default VM size for nodepools
 		defaultVMSize := "Standard_D8s_v3"
 		nodePool.Properties.Platform.VMSize = &defaultVMSize
+	}
+
+	return nodePool, nil
+}
+
+// BuildNodePoolFromCompiledTemplate builds a NodePool object from the compiled nodepool template JSON
+// and the provided parameters, keeping the dev path aligned with test artifacts.
+func BuildNodePoolFromCompiledTemplate(
+	ctx context.Context,
+	templateJSON []byte,
+	parameters map[string]interface{},
+	location string,
+	subscriptionId string,
+	resourceGroupName string,
+) (hcpsdk20240610preview.NodePool, error) {
+	tmplMap := map[string]interface{}{}
+	if err := json.Unmarshal(templateJSON, &tmplMap); err != nil {
+		return hcpsdk20240610preview.NodePool{}, fmt.Errorf("failed to parse compiled nodepool template: %w", err)
+	}
+
+	resolveParam := func(name string) (interface{}, bool) {
+		if v, ok := parameters[name]; ok {
+			return v, true
+		}
+		if pmRaw, ok := tmplMap["parameters"]; ok {
+			if pm, ok := pmRaw.(map[string]interface{}); ok {
+				if pdefRaw, ok := pm[name]; ok {
+					if pdef, ok := pdefRaw.(map[string]interface{}); ok {
+						if dv, ok := pdef["defaultValue"]; ok {
+							return dv, true
+						}
+					}
+				}
+			}
+		}
+		return nil, false
+	}
+
+	nodePool := hcpsdk20240610preview.NodePool{
+		Location:   &location,
+		Properties: &hcpsdk20240610preview.NodePoolProperties{},
+	}
+	nodePool.Properties.Platform = &hcpsdk20240610preview.NodePoolPlatformProfile{}
+
+	// Locate nodepool resource properties in template (for dynamic constant detection)
+	var nodePoolProps map[string]interface{}
+	if resRaw, ok := tmplMap["resources"].([]interface{}); ok {
+		for _, r := range resRaw {
+			if rmap, ok := r.(map[string]interface{}); ok {
+				if t, _ := rmap["type"].(string); t == "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools" {
+					if props, ok := rmap["properties"].(map[string]interface{}); ok {
+						nodePoolProps = props
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// Version
+	if vRaw, ok := resolveParam("openshiftVersionId"); ok {
+		if v, ok := vRaw.(string); ok {
+			nodePool.Properties.Version = &hcpsdk20240610preview.NodePoolVersionProfile{ID: &v}
+		}
+	}
+	if nodePool.Properties.Version == nil {
+		nodePool.Properties.Version = &hcpsdk20240610preview.NodePoolVersionProfile{}
+	}
+	if nodePool.Properties.Version.ChannelGroup == nil {
+		nodePool.Properties.Version.ChannelGroup = to.Ptr("stable")
+	}
+
+	// Replicas
+	if replicas, ok := parameters["replicas"]; ok {
+		switch v := replicas.(type) {
+		case int:
+			vv := int32(v)
+			nodePool.Properties.Replicas = &vv
+		case int32:
+			nodePool.Properties.Replicas = &v
+		}
+	}
+
+	// VM Size
+	if vmSize, ok := parameters["vmSize"].(string); ok && vmSize != "" {
+		nodePool.Properties.Platform.VMSize = &vmSize
+	} else if vRaw, ok := resolveParam("vmSize"); ok {
+		if v, ok := vRaw.(string); ok && v != "" {
+			nodePool.Properties.Platform.VMSize = &v
+		}
+	}
+
+	// OSDisk
+	if nodePool.Properties.Platform.OSDisk == nil {
+		nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
+	}
+	// sizeGiB
+	if size, ok := parameters["osDiskSizeGiB"]; ok {
+		switch s := size.(type) {
+		case int:
+			vv := int32(s)
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &vv
+		case int32:
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &s
+		case float64:
+			vv := int32(s)
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &vv
+		}
+	} else if vRaw, ok := resolveParam("osDiskSizeGiB"); ok {
+		switch s := vRaw.(type) {
+		case int:
+			vv := int32(s)
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &vv
+		case int32:
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &s
+		case float64:
+			vv := int32(s)
+			nodePool.Properties.Platform.OSDisk.SizeGiB = &vv
+		}
+	}
+	// diskStorageAccountType: read constant from compiled template if present
+	if nodePool.Properties.Platform.OSDisk.DiskStorageAccountType == nil {
+		if nodePoolProps != nil {
+			if plat, ok := nodePoolProps["platform"].(map[string]interface{}); ok {
+				if osd, ok := plat["osDisk"].(map[string]interface{}); ok {
+					if t, ok := osd["diskStorageAccountType"].(string); ok && t != "" {
+						nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = (*hcpsdk20240610preview.DiskStorageAccountType)(to.Ptr(t))
+					}
+				}
+			}
+		}
 	}
 
 	return nodePool, nil
