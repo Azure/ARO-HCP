@@ -15,6 +15,7 @@ RUN make --directory backend ARO_HCP_IMAGE_TAG=${TAG} ENV_VARS_FILE=/app/image-e
 
 # Deployment image copies aro-hcp-backend from builder image
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
+USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
 ARG REVISION
