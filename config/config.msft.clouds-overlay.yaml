@@ -13,7 +13,6 @@ clouds:
           clustersService:
             image:
               digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
-              repository: app-sre/aro-hcp-clusters-service
           # ACR Pull
           acrPull:
             image:
@@ -106,7 +105,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
+              digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
             batchProcessesDryRun: false
             batchProcesses: "ARO-20736"
           # ACR Pull
@@ -191,7 +190,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:f0568be3327d5f051f6f4b9cf5998f61611f1ea86b2340fe2ae54b70c1641185
+              digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
             batchProcessesDryRun: true
             batchProcesses: "ARO-20736"
           # ACR Pull
