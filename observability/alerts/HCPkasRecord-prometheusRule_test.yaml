@@ -1,0 +1,49 @@
+rule_files:
+- HCPkasRecord-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: 100% Success
+# Goal: Verify that if probe_success is consistently 1, the resulting average is 1.
+- interval: 1m
+  input_series:
+  - series: 'probe_success{cluster="test-cluster-1", namespace="prod"}'
+    # Generate 10 data points with a value of 1, over 10 minutes.
+    # This is sufficient to test the avg_over_time logic without simulating 28 days.
+    values: "1+0x9"
+  # Use 'promql_expr_test' for testing recording rules.
+  promql_expr_test:
+  # The expression to test is the name of our new recorded metric.
+  - expr: probe_availability:ratio_avg_30d{cluster="test-cluster-1", namespace="prod"}
+    # Evaluate the expression after all the input data has been generated.
+    eval_time: 10m
+    # We expect a single output sample with a value of 1.
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", cluster="test-cluster-1", namespace="prod"}'
+      value: 1
+# Test 2: 50% Success
+# Goal: Verify that a 50/50 split of success and failure results in an average of 0.5.
+- interval: 1m
+  input_series:
+  - series: 'probe_success{cluster="test-cluster-2", namespace="staging"}'
+    # Generate an alternating series of 1 (success) and 0 (failure) for 10 minutes.
+    # Total of 10 points: (1+0+1+0+1+0+1+0+1+0) / 10 = 0.5
+    values: "1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  - expr: probe_availability:ratio_avg_30d{cluster="test-cluster-2", namespace="staging"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", cluster="test-cluster-2", namespace="staging"}'
+      value: 0.5
+# Test 3: 0% Success (Complete Failure)
+# Goal: Verify that if probe_success is consistently 0, the resulting average is 0.
+- interval: 1m
+  input_series:
+  - series: 'probe_success{cluster="test-cluster-3", namespace="dev"}'
+    # Generate 10 data points with a value of 0.
+    values: "0+0x9"
+  promql_expr_test:
+  - expr: probe_availability:ratio_avg_30d{cluster="test-cluster-3", namespace="dev"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="probe_availability:ratio_avg_30d", cluster="test-cluster-3", namespace="dev"}'
+      value: 0

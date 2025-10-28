@@ -13,3 +13,10 @@ module generatedAlerts 'rules/generatedHCPPrometheusAlertingRules.bicep' = {
     actionGroups: actionGroups
   }
 }
+
+module generatedRecordingRules 'rules/generatedHCPRecordingRules.bicep' = {
+  name: 'generatedHCPRecordingRules'
+  params: {
+    azureMonitoring: azureMonitoringWorkspaceId
+  }
+}
