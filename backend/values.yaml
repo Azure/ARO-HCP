@@ -1,0 +1,23 @@
+pullBinding:
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .backend.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+configMap:
+  location: "{{ .region }}"
+  backendMiClientId: "__backendMsiClientId__"
+  databaseUrl: "__cosmosDBDocumentEndpoint__"
+  databaseName: "{{ .frontend.cosmosDB.name }}"
+deployment:
+  replicas: {{ .backend.k8s.replicas }}
+  imageName: "{{ .backend.image.registry }}/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
+serviceAccount:
+  name: "{{ .backend.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__backendMsiClientId__"
+  workloadIdentityTenantId: "__backendMsiTenantId__"
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"
+  serviceAccount: "{{ .clustersService.k8s.serviceAccountName }}"
+tracing:
+  address: "{{ .backend.tracing.address }}"
+  exporter: "{{ .backend.tracing.exporter }}"
