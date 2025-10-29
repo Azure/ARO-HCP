@@ -622,7 +622,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:86b5fa65651887faae2399623ff364c9ed353cd9c052ea834b3d837ee37f730d # v2.14.1-251
+        digest: sha256:922141601fee57080ff0badcf6c2b0f05ba4a807a3ff3b84022e661565215b20 # v2.14.1-258
     mce:
       version: "2.9.1"
       mirrorAdditionalVersions: "2.8.1,2.8.2,2.9.0"
