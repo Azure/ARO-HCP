@@ -54,7 +54,7 @@ jobs:
       if: inputs.push == true
       run: |
         cd frontend/
-        make push
+        make build-and-push
   build_push_backend:
     permissions:
       id-token: 'write'
@@ -82,7 +82,7 @@ jobs:
       if: inputs.push == true
       run: |
         cd backend/
-        make push
+        make build-and-push
   build_push_admin_api:
     permissions:
       id-token: 'write'

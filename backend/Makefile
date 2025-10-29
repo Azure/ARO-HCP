@@ -53,18 +53,23 @@ image: Dockerfile $(BACKEND_SOURCES) Makefile
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
 	docker push ${BACKEND_TAGGED_IMAGE}
+.PHONY: build-and-push
 
-deploy: build-and-push $(YQ) $(ORAS)
+OVERRIDE_CONFIG_FILE ?= /tmp/backend-override-config-$(date +%s).yaml
+
+record-override: $(YQ) $(ORAS)
 	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \
-		$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
-			--username 00000000-0000-0000-0000-000000000000 \
-			--password-stdin
+    		$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
+    			--username 00000000-0000-0000-0000-000000000000 \
+    			--password-stdin
 
-	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${BACKEND_TAGGED_IMAGE} | $(YQ) .digest); \
-	OVERRIDE_CONFIG_FILE="/tmp/frontend-override-config-$$(date +%s).yaml"; \
-	$(YQ) eval -n "\
-		.clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.repository = \"$(BACKEND_GENERATED_IMAGE_REPOSITORY)\" | \
-		.clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.digest = \"$$DIGEST\" \
-	" > $$OVERRIDE_CONFIG_FILE; \
-	make -C .. pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=$$OVERRIDE_CONFIG_FILE
+    	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${BACKEND_TAGGED_IMAGE} | $(YQ) .digest); \
+    	$(YQ) eval -n "\
+    		.clouds.dev.environments.$(DEPLOY_ENV).defaults.backend.image.repository = \"$(BACKEND_GENERATED_IMAGE_REPOSITORY)\" | \
+    		.clouds.dev.environments.$(DEPLOY_ENV).defaults.backend.image.digest = \"$$DIGEST\" \
+    	" > $(OVERRIDE_CONFIG_FILE)
+.PHONY: record-override
+
+deploy: build-and-push record-override
+	make -C .. pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
