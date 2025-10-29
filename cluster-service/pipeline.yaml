@@ -180,6 +180,8 @@ resourceGroups:
       configRef: clustersService.azureRuntimeConfig.tlsCertificatesIssuer
     - name: AVAILABILITY_ZONE_COUNT
       configRef: azureRegionAvailabilityZoneCount
+    - name: DEPLOY_DEBUG_JOB
+      configRef: clustersService.deployDebugJob
     shellIdentity:
       input:
         resourceGroup: global

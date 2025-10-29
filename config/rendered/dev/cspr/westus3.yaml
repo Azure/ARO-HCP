@@ -118,6 +118,7 @@ clustersService:
   batchProcesses: ""
   batchProcessesDryRun: true
   denyAssignments: disabled
+  deployDebugJob: false
   environment: arohcpdev
   image:
     digest: sha256:2ee499bd05a30355150db156e8ee344638897b8a0be16b054a564585638ee141
