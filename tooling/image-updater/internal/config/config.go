@@ -35,8 +35,9 @@ type ImageConfig struct {
 
 // Source defines where to fetch the latest image digest from
 type Source struct {
-	Image      string `yaml:"image"`
-	TagPattern string `yaml:"tagPattern,omitempty"`
+	Image              string `yaml:"image"`
+	TagPattern         string `yaml:"tagPattern,omitempty"`
+	FilterArchitecture bool   `yaml:"filterArchitecture,omitempty"` // Enable architecture filtering to select single-arch amd64 images only
 }
 
 // Target defines where to update the image digest

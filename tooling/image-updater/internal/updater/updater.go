@@ -26,6 +26,11 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
+const (
+	// DefaultArchitecture is the target architecture for container images
+	DefaultArchitecture = "amd64"
+)
+
 // Updater contains all pre-created resources needed for execution
 type Updater struct {
 	Config          *config.Config
@@ -94,6 +99,11 @@ func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 		return "", fmt.Errorf("no registry client available for %s", registry)
 	}
 
+	// Use architecture-specific digest if filtering is enabled
+	// This skips multi-arch manifest lists and only selects single-arch amd64 images
+	if source.FilterArchitecture {
+		return client.GetArchSpecificDigest(repository, source.TagPattern, DefaultArchitecture)
+	} // Default: get latest digest without architecture filtering (for single-arch images)
 	return client.GetLatestDigest(repository, source.TagPattern)
 }
 

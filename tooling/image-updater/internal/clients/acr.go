@@ -108,3 +108,10 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 
 	return allTags, nil
 }
+
+// GetArchSpecificDigest for ACR - ACR images are always single-arch (amd64), so just return the regular digest
+// TODO: If ACR starts hosting multi-arch images in the future, implement manifest inspection here
+func (c *ACRClient) GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error) {
+	// ACR images are single-arch amd64, so we can just use the regular GetLatestDigest
+	return c.GetLatestDigest(repository, tagPattern)
+}
