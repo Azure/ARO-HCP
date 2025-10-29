@@ -96,10 +96,10 @@ def test_get_dry_run_from_automation_variable(monkeypatch):
     monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "false")
     assert get_dry_run() is False
 
-    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "1")
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "TRUE")
     assert get_dry_run() is True
 
-    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "0")
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "FALSE")
     assert get_dry_run() is False
 
 def test_get_dry_run_from_env(monkeypatch):
@@ -111,10 +111,10 @@ def test_get_dry_run_from_env(monkeypatch):
     monkeypatch.setenv("DRY_RUN", "false")
     assert get_dry_run() is False
 
-    monkeypatch.setenv("DRY_RUN", "1")
+    monkeypatch.setenv("DRY_RUN", "TRUE")
     assert get_dry_run() is True
 
-    monkeypatch.setenv("DRY_RUN", "0")
+    monkeypatch.setenv("DRY_RUN", "FALSE")
     assert get_dry_run() is False
 
 def test_get_dry_run_env_invalid(monkeypatch, capsys):
@@ -139,33 +139,15 @@ def test_get_dry_run_default(monkeypatch, capsys):
         ("true", True),
         ("True", True),
         ("TRUE", True),
-        ("t", True),
-        ("T", True),
-        ("yes", True),
-        ("Yes", True),
-        ("YES", True),
-        ("y", True),
-        ("Y", True),
-        ("on", True),
-        ("On", True),
-        ("ON", True),
-        ("1", True),
+        ("TrUe", True),
         ("false", False),
         ("False", False),
         ("FALSE", False),
-        ("f", False),
-        ("F", False),
-        ("no", False),
-        ("No", False),
-        ("NO", False),
-        ("n", False),
-        ("N", False),
-        ("off", False),
-        ("Off", False),
-        ("OFF", False),
-        ("0", False),
+        ("FaLsE", False),
         ("  true  ", True),  # with whitespace
         ("  false  ", False),  # with whitespace
+        ("  TRUE  ", True),
+        ("  FALSE  ", False),
     ]
 )
 def test_get_boolean_from_string(input_str, expected):

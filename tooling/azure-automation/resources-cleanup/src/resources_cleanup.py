@@ -218,9 +218,7 @@ def get_boolean_from_string(val):
     """
     Convert a string representation of truth to True or False.
 
-    True values are 'y', 'yes', 't', 'true', 'on', and '1';
-    False values are 'n', 'no', 'f', 'false', 'off', and '0'.
-    Raises ValueError if 'val' is anything else.
+    Accepts 'true' or 'false' in any capitalization.
 
     Args:
         val (str): The string to convert.
@@ -234,16 +232,11 @@ def get_boolean_from_string(val):
     if not isinstance(val, str):
         raise ValueError(f"Invalid truth value: {val!r} (type: {type(val).__name__}). Expected a string.")
     val_stripped = val.strip().lower()
-    true_set = {'y', 'yes', 't', 'true', 'on', '1'}
-    false_set = {'n', 'no', 'f', 'false', 'off', '0'}
-    if val_stripped in true_set:
+    if val_stripped == 'true':
         return True
-    if val_stripped in false_set:
+    if val_stripped == 'false':
         return False
-    raise ValueError(
-        f"Invalid truth value: {val!r}. "
-        f"Expected one of {sorted(true_set | false_set)} (case-insensitive, whitespace ignored)."
-    )
+    raise ValueError(f"Invalid truth value: {val!r}. Expected 'true' or 'false' (case-insensitive).")
 
 def get_dry_run():
     """
