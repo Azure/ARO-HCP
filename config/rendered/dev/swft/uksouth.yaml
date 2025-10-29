@@ -605,6 +605,10 @@ pko:
     digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
     registry: quay.io
     repository: package-operator/package-operator-package
+  k8s:
+    namespace: package-operator-system
+    serviceAccountName: package-operator
+  managedIdentityName: package-operator
   remotePhaseManager:
     digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
     registry: quay.io

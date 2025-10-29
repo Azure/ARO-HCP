@@ -10,7 +10,7 @@ spec:
     scope: '{{ .Values.pullBinding.scope }}'
   auth:
     workloadIdentity:
-      serviceAccountRef: package-operator
+      serviceAccountRef: '{{ .Values.serviceAccount.name }}'
       clientID: '{{ .Values.pullBinding.workloadIdentityClientId }}'
       tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId }}'
-  serviceAccountName: package-operator
+  serviceAccountName: '{{ .Values.serviceAccount.name }}'
