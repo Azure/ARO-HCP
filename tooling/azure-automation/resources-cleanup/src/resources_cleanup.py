@@ -38,33 +38,22 @@ def get_date_time_from_str(date_time_str: str) -> datetime.datetime:
     return datetime.datetime.fromisoformat(date_time_str)
 
 
-def time_delta_greater_than_two_days(now: datetime.datetime, resource_group_creation_time: datetime.datetime):
-    if now is None:
-        print("now time is None")
-        return False
+def older_than(resource_group_creation_time: datetime.datetime, days: int = 30):
+    """
+    Check if the resource group creation time is older than the specified number of days.
 
-    if resource_group_creation_time is None:
-        print("resource_group_creation_time is None")
-        return False
+    Args:
+        resource_group_creation_time: Creation time of the resource group
+        days: Number of days threshold (default: 30)
 
-    time_delta = resource_group_creation_time - now
+    Returns:
+        bool: True if resource group is older than specified days, False otherwise
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    time_delta = now - resource_group_creation_time
     n_days = abs(time_delta.days)
 
-    return n_days > 2
-
-def time_delta_greater_than_one_month(now: datetime.datetime, resource_group_creation_time: datetime.datetime):
-    if now is None:
-        print("now time is None")
-        return False
-
-    if resource_group_creation_time is None:
-        print("resource_group_creation_time is None")
-        return False
-
-    time_delta = resource_group_creation_time - now
-    n_days = abs(time_delta.days)
-
-    return n_days > 30
+    return n_days > days
 
 def print_resources(resource_list: List[GenericResourceExpanded]):
     for resource in resource_list:
@@ -122,14 +111,13 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
 
     # Special handling for hcp-underlay-pers-* resource groups
     if resource_group_name.startswith("hcp-underlay-pers-"):
-        now = datetime.datetime.now(datetime.timezone.utc)
         resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
 
         if resource_group_creation_time is None:
             print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
             return
 
-        if not time_delta_greater_than_one_month(now, resource_group_creation_time):
+        if not older_than(resource_group_creation_time, days=30):
             print(f"Personal development environment resource group '{resource_group_name}' is not older than one month, skipping.")
             return
 
@@ -157,9 +145,13 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
         print(f"Resource Group is managed, this resource group should NOT be deleted, skipping.")
         return
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
-    if not time_delta_greater_than_two_days(now, resource_group_creation_time):
+
+    if resource_group_creation_time is None:
+        print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
+        return
+
+    if not older_than(resource_group_creation_time, days=2):
         print(f"This resource group should NOT be deleted, it is not older than two days, skipping.")
         return
 
@@ -179,10 +171,23 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
             raise err
 
 def get_creation_time_of_resource_group(resource_group):
+    """
+    Get the creation time of a resource group from its createdAt tag.
+
+    Args:
+        resource_group: The resource group object
+
+    Returns:
+        datetime.datetime or None: The creation time if successfully parsed, None otherwise
+    """
     resource_group_creation_time = None
     created_at_tag = "createdAt"
     if resource_group.tags is not None and created_at_tag in resource_group.tags:
-        resource_group_creation_time = get_date_time_from_str(resource_group.tags[created_at_tag])
+        try:
+            resource_group_creation_time = get_date_time_from_str(resource_group.tags[created_at_tag])
+        except (ValueError, AttributeError) as e:
+            print(f"Warning: Failed to parse createdAt tag '{resource_group.tags[created_at_tag]}' for resource group '{resource_group.name}': {e}")
+            resource_group_creation_time = None
     return resource_group_creation_time
 
 

@@ -1,8 +1,7 @@
 from resources_cleanup import (
     resource_group_has_persist_tag_as_true,
     resource_group_is_managed,
-    time_delta_greater_than_two_days,
-    time_delta_greater_than_one_month,
+    older_than,
     get_date_time_from_str,
     get_dry_run,
     get_boolean_from_string,
@@ -45,15 +44,16 @@ def test_resource_group_is_managed(input_resource_group, expected):
 
 
 @pytest.mark.parametrize(
-    "time1,time2,expected",
+    "now_time,creation_time,expected",
     [
-        (datetime.datetime(year=2024, month=1, day=22), datetime.datetime(year=2024, month=1, day=25), True),
-        (datetime.datetime(year=2024, month=1, day=23), datetime.datetime(year=2024, month=1, day=25), False),
-        (datetime.datetime(year=2024, month=1, day=25), datetime.datetime(year=2024, month=1, day=25), False),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=22, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=23, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), False),
     ]
 )
-def test_time_delta_greater_than_two_days(time1, time2, expected):
-    assert time_delta_greater_than_two_days(time1,time2) == expected
+def test_older_than_two_days(monkeypatch, now_time, creation_time, expected):
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) == expected
 
 
 Expected_date = namedtuple("Expected_date", ["year", "month", "day", "hour", "minute", "second"])
@@ -190,35 +190,22 @@ def test_get_boolean_from_string_none_input():
     assert "Expected a string" in str(exc_info.value)
 
 
-# Tests for time_delta_greater_than_one_month function
+# Tests for older_than with 30 days (one month)
 @pytest.mark.parametrize(
-    "time1,time2,expected",
+    "now_time,creation_time,expected",
     [
-        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=2, day=5), True),
-        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=3, day=1), True),
-        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=31), False),
-        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=30), False),
-        (datetime.datetime(year=2024, month=1, day=1), datetime.datetime(year=2024, month=1, day=1), False),
+        (datetime.datetime(year=2024, month=2, day=5, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=3, day=1, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=1, day=31, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=30, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
         # Test reverse order (creation time before now)
-        (datetime.datetime(year=2024, month=2, day=5), datetime.datetime(year=2024, month=1, day=1), True),
+        (datetime.datetime(year=2024, month=2, day=5, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
     ]
 )
-def test_time_delta_greater_than_one_month(time1, time2, expected):
-    assert time_delta_greater_than_one_month(time1, time2) == expected
-
-
-def test_time_delta_greater_than_one_month_none_now(capsys):
-    result = time_delta_greater_than_one_month(None, datetime.datetime(year=2024, month=1, day=1))
-    assert result is False
-    captured = capsys.readouterr()
-    assert "now time is None" in captured.out
-
-
-def test_time_delta_greater_than_one_month_none_creation_time(capsys):
-    result = time_delta_greater_than_one_month(datetime.datetime(year=2024, month=1, day=1), None)
-    assert result is False
-    captured = capsys.readouterr()
-    assert "resource_group_creation_time is None" in captured.out
+def test_older_than_one_month(monkeypatch, now_time, creation_time, expected):
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=30) == expected
 
 
 # Tests for get_creation_time_of_resource_group function
@@ -253,6 +240,18 @@ def test_get_creation_time_of_resource_group_no_tags():
     )
     creation_time = get_creation_time_of_resource_group(rg)
     assert creation_time is None
+
+
+def test_get_creation_time_of_resource_group_invalid_date_format(capsys):
+    rg = ResourceGroup(
+        location="test_location",
+        tags={"createdAt": "invalid-date-format"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+    captured = capsys.readouterr()
+    assert "Warning: Failed to parse createdAt tag" in captured.out
+    assert "invalid-date-format" in captured.out
 
 
 # Tests for get_subscription_id function
@@ -295,29 +294,17 @@ def test_get_client_id_missing(monkeypatch):
     assert "Client ID missing" in str(exc_info.value)
 
 
-# Edge case tests for time_delta_greater_than_two_days
-def test_time_delta_greater_than_two_days_none_now(capsys):
-    result = time_delta_greater_than_two_days(None, datetime.datetime(year=2024, month=1, day=1))
-    assert result is False
-    captured = capsys.readouterr()
-    assert "now time is None" in captured.out
+# Edge case tests for older_than
+def test_older_than_exactly_two_days(monkeypatch):
+    now_time = datetime.datetime(year=2024, month=1, day=3, hour=12, minute=0, tzinfo=datetime.timezone.utc)
+    creation_time = datetime.datetime(year=2024, month=1, day=1, hour=12, minute=0, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) is False
 
 
-def test_time_delta_greater_than_two_days_none_creation_time(capsys):
-    result = time_delta_greater_than_two_days(datetime.datetime(year=2024, month=1, day=1), None)
-    assert result is False
-    captured = capsys.readouterr()
-    assert "resource_group_creation_time is None" in captured.out
-
-
-def test_time_delta_greater_than_two_days_exactly_two_days():
-    time1 = datetime.datetime(year=2024, month=1, day=1, hour=12, minute=0)
-    time2 = datetime.datetime(year=2024, month=1, day=3, hour=12, minute=0)
-    assert time_delta_greater_than_two_days(time1, time2) is False
-
-
-def test_time_delta_greater_than_two_days_reverse_order():
-    # Test that absolute value is used
-    time1 = datetime.datetime(year=2024, month=1, day=25)
-    time2 = datetime.datetime(year=2024, month=1, day=22)
-    assert time_delta_greater_than_two_days(time1, time2) is True
+def test_older_than_reverse_order(monkeypatch):
+    # Test that absolute value is used (creation time in the future)
+    now_time = datetime.datetime(year=2024, month=1, day=22, tzinfo=datetime.timezone.utc)
+    creation_time = datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) is True
