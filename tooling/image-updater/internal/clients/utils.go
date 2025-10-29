@@ -21,6 +21,7 @@ import (
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
 	GetLatestDigest(repository string, tagPattern string) (string, error)
+	GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error)
 }
 
 // Tag represents a container image tag with metadata

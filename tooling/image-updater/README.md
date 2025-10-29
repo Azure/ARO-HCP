@@ -41,6 +41,15 @@ images:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
 
+  hypershift:
+    source:
+      image: quay.io/acm-d/rhtap-hypershift-operator
+      tagPattern: "^sha256-[a-f0-9]{64}$"
+      filterArchitecture: true  # Skip multi-arch manifests, select single-arch amd64 only
+    targets:
+    - jsonPath: clouds.dev.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
@@ -55,11 +64,30 @@ images:
 Common regex patterns for filtering tags:
 
 - `^[a-f0-9]{40}$` - 40-character commit hashes
+- `^sha256-[a-f0-9]{64}$` - SHA256-prefixed single-arch images
 - `^latest$` - Only 'latest' tag
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
 - `^main-.*` - Tags starting with 'main-'
 
 If no pattern is specified, uses the most recently pushed tag.
+
+## Architecture Filtering
+
+For QUAY repositories with multi-arch images, enable `filterArchitecture` to select only single-arch amd64/linux images:
+
+```yaml
+source:
+  image: quay.io/acm-d/rhtap-hypershift-operator
+  tagPattern: "^sha256-[a-f0-9]{64}$"
+  filterArchitecture: true  # Required for multi-arch repos
+```
+
+**How it works:**
+1. Fetches all tags matching the pattern
+2. Iterates through tags (newest first)
+3. Skips multi-arch manifest lists
+4. Inspects config blob to verify architecture = amd64 and OS = linux
+5. Returns the first matching single-arch image digest
 
 ## Registry Support
 

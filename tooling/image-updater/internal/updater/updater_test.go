@@ -29,13 +29,33 @@ import (
 
 // mockRegistryClient is a simple mock for testing
 type mockRegistryClient struct {
-	digest string
-	err    error
+	digest          string
+	archDigest      string // Separate digest for arch-specific calls
+	err             error
+	archSpecificErr error // Separate error for arch-specific calls
 }
 
 func (m *mockRegistryClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
 	if m.err != nil {
 		return "", m.err
+	}
+	return m.digest, nil
+}
+
+func (m *mockRegistryClient) GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error) {
+	if m.archSpecificErr != nil {
+		return "", m.archSpecificErr
+	}
+	if m.err != nil {
+		return "", m.err
+	}
+	// Verify the architecture passed is the expected constant
+	if arch != DefaultArchitecture {
+		return "", fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
+	}
+	// Return arch-specific digest if set, otherwise return regular digest
+	if m.archDigest != "" {
+		return m.archDigest, nil
 	}
 	return m.digest, nil
 }
@@ -589,4 +609,106 @@ config:
 			}
 		}
 	})
+}
+
+func TestUpdater_ArchitectureFiltering(t *testing.T) {
+	tests := []struct {
+		name               string
+		filterArchitecture bool
+		registryDigest     string
+		archDigest         string
+		wantDigest         string
+	}{
+		{
+			name:               "filterArchitecture disabled uses GetLatestDigest",
+			filterArchitecture: false,
+			registryDigest:     "sha256:regular123",
+			archDigest:         "sha256:arch456",
+			wantDigest:         "sha256:regular123",
+		},
+		{
+			name:               "filterArchitecture enabled uses GetArchSpecificDigest",
+			filterArchitecture: true,
+			registryDigest:     "sha256:regular123",
+			archDigest:         "sha256:arch456",
+			wantDigest:         "sha256:arch456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			tmpDir := t.TempDir()
+			yamlPath := filepath.Join(tmpDir, "test.yaml")
+			yamlContent := `
+image:
+  digest: sha256:olddigest
+`
+			if err := os.WriteFile(yamlPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to create temp yaml: %v", err)
+			}
+
+			cfg := &config.Config{
+				Images: map[string]config.ImageConfig{
+					"test-image": {
+						Source: config.Source{
+							Image:              "quay.io/test/app",
+							FilterArchitecture: tt.filterArchitecture,
+						},
+						Targets: []config.Target{
+							{
+								FilePath: yamlPath,
+								JsonPath: "image.digest",
+							},
+						},
+					},
+				},
+			}
+
+			editor, err := yaml.NewEditor(yamlPath)
+			if err != nil {
+				t.Fatalf("failed to create yaml editor: %v", err)
+			}
+
+			mockClient := &mockRegistryClient{
+				digest:     tt.registryDigest,
+				archDigest: tt.archDigest,
+			}
+
+			registryClients := map[string]clients.RegistryClient{
+				"quay.io": mockClient,
+			}
+
+			u := &Updater{
+				Config:          cfg,
+				DryRun:          false,
+				RegistryClients: registryClients,
+				YAMLEditors: map[string]*yaml.Editor{
+					yamlPath: editor,
+				},
+				Updates: make(map[string][]yaml.Update),
+			}
+
+			err = u.UpdateImages(ctx)
+			if err != nil {
+				t.Fatalf("UpdateImages() failed: %v", err)
+			}
+
+			// Verify the correct digest was used
+			newEditor, err := yaml.NewEditor(yamlPath)
+			if err != nil {
+				t.Fatalf("failed to read updated file: %v", err)
+			}
+
+			_, digest, err := newEditor.GetUpdate("image.digest")
+			if err != nil {
+				t.Fatalf("failed to get digest: %v", err)
+			}
+
+			if digest != tt.wantDigest {
+				t.Errorf("digest = %v, want %v", digest, tt.wantDigest)
+			}
+		})
+	}
 }
