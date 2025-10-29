@@ -849,11 +849,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: '' # if empty uses commit sha of repo
+          digest: sha256:7f0f117f3a3fbb150ae6c72e6af61a831465295517687cbd541f6441b23f1dc7
       # Backend
       backend:
         image:
-          digest: '' # if empty uses commit sha of repo
+          digest: sha256:e4ea396bd51af4be33d4b6c53d635aff15ff39d8777a9a64705150bca2bfe905
       # Image Sync
       imageSync:
         ocMirror:
