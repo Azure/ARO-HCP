@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -148,4 +149,130 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 	}
 
 	return allTags, nil
+}
+
+// GetArchSpecificDigest finds and validates single-arch amd64 images, skipping multi-arch manifests
+func (c *QuayClient) GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error) {
+	// Get all tags
+	tags, err := c.getAllTags(repository)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch all tags: %w", err)
+	}
+
+	if len(tags) == 0 {
+		return "", fmt.Errorf("no tags found for repository %s", repository)
+	}
+
+	// Apply tag pattern filter if provided
+	if tagPattern != "" {
+		filteredTags, err := FilterTagsByPattern(tags, tagPattern)
+		if err != nil {
+			return "", err
+		}
+		tags = filteredTags
+	}
+
+	if len(tags) == 0 {
+		if tagPattern != "" {
+			return "", fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
+		}
+		return "", fmt.Errorf("no valid tags found for repository %s", repository)
+	}
+
+	// Sort by timestamp (most recent first)
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i].LastModified.After(tags[j].LastModified)
+	})
+
+	// Iterate through tags until we find a single-arch amd64 image
+	for _, tag := range tags {
+		// Fetch the manifest for this tag
+		manifestURL := fmt.Sprintf("https://quay.io/v2/%s/manifests/%s", repository, tag.Name)
+
+		req, err := http.NewRequest("GET", manifestURL, nil)
+		if err != nil {
+			continue // Skip this tag on error
+		}
+
+		// Request manifest (check for both single and multi-arch formats)
+		req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			continue // Skip this tag on error
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue // Skip this tag
+		}
+
+		var manifestCheck struct {
+			MediaType string `json:"mediaType"`
+			Config    struct {
+				Digest string `json:"digest"`
+			} `json:"config,omitempty"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&manifestCheck); err != nil {
+			resp.Body.Close()
+			continue // Skip this tag
+		}
+		resp.Body.Close()
+
+		// Skip multi-arch manifest lists
+		if manifestCheck.MediaType == "application/vnd.docker.distribution.manifest.list.v2+json" ||
+			manifestCheck.MediaType == "application/vnd.oci.image.index.v1+json" {
+			continue // Skip multi-arch, look for single-arch
+		}
+
+		// This is a single-arch image - verify it's amd64
+		if manifestCheck.Config.Digest == "" {
+			continue // Invalid manifest
+		}
+
+		// Fetch the config blob to check architecture
+		configURL := fmt.Sprintf("https://quay.io/v2/%s/blobs/%s", repository, manifestCheck.Config.Digest)
+
+		configReq, err := http.NewRequest("GET", configURL, nil)
+		if err != nil {
+		}
+
+		configResp, err := c.httpClient.Do(configReq)
+		if err != nil {
+			continue
+		}
+
+		if configResp.StatusCode != http.StatusOK {
+			configResp.Body.Close()
+			continue
+		}
+
+		var config struct {
+			Architecture string `json:"architecture"`
+			OS           string `json:"os"`
+		}
+
+		if err := json.NewDecoder(configResp.Body).Decode(&config); err != nil {
+			configResp.Body.Close()
+			continue
+		}
+		configResp.Body.Close()
+
+		// Normalize architecture for comparison
+		normalizedArch := config.Architecture
+		if normalizedArch == "x86_64" {
+			normalizedArch = "amd64"
+		}
+
+		// Check if this is the architecture we want
+		if normalizedArch == arch && config.OS == "linux" {
+			// Found a single-arch amd64 image!
+			return tag.Digest, nil
+		}
+		// Otherwise continue to next tag
+	}
+
+	// No single-arch amd64 image found
+	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
