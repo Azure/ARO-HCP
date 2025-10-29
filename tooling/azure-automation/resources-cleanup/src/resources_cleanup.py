@@ -117,11 +117,11 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
             print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
             return
 
-        if not older_than(resource_group_creation_time, days=30):
-            print(f"Personal development environment resource group '{resource_group_name}' is not older than one month, skipping.")
+        if not older_than(resource_group_creation_time, days=15):
+            print(f"Personal development environment resource group '{resource_group_name}' is not older than 2 weeks, skipping.")
             return
 
-        print(f"Personal development environment resource group '{resource_group_name}' is older than one month and should be deleted.\n")
+        print(f"Personal development environment resource group '{resource_group_name}' is older than 2 weeks and should be deleted.\n")
         if DRY_RUN:
             return
 
