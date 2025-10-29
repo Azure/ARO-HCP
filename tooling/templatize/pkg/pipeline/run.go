@@ -36,16 +36,14 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-var DefaultDeploymentTimeoutSeconds = 30 * 60
-
-type subsciptionLookup func(context.Context, string) (string, error)
+var DefaultDeploymentTimeoutSeconds = 30 * 6
 
 type PipelineRunOptions struct {
 	BaseRunOptions
 
 	Step                  string
 	Region                string
-	SubsciptionLookupFunc subsciptionLookup
+	SubsciptionLookupFunc SubscriptionLookup
 
 	TopologyDir string
 	Concurrency int

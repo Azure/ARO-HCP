@@ -17,6 +17,7 @@ package entrypoint
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/cleanup"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/graph"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
@@ -36,6 +37,7 @@ func NewCommand() (*cobra.Command, error) {
 	commands := []func() (*cobra.Command, error){
 		run.NewCommand,
 		graph.NewCommand,
+		cleanup.NewCommand,
 	}
 	for _, newCmd := range commands {
 		c, err := newCmd()
