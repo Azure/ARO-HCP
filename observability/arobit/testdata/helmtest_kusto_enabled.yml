@@ -1,0 +1,9 @@
+values: ../values-mgmt.yaml
+name: helmtest-kusto-enabled
+namespace: arobit
+helmChartDir: ../deploy
+testData:
+  kusto:
+    enabled: true
+    environmentName: test
+    ingestionUrl: http://foobar
