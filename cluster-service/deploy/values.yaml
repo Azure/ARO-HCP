@@ -312,3 +312,6 @@ ocpVersions:
       url: ""
       minVersion: ""
       maxVersion: ""
+
+# controls if a debug job is deployed to the cluster.
+deployDebugJob: false

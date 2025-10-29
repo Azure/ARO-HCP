@@ -48,6 +48,7 @@ spec:
         principals:
         - "cluster.local/ns/aro-hcp/sa/frontend"
         - "cluster.local/ns/aro-hcp/sa/backend"
+        - "cluster.local/ns/{{ .Release.Namespace }}/sa/cs-arbitrary-commands"
     to:
     - operation:
         ports:
