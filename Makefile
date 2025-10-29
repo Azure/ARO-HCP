@@ -71,6 +71,10 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
+record-nonlocal-e2e:
+	cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo run --tags E2Etests --label-filter='!Local' -v --dry-run ./ > ../../nonlocal-e2e-specs.txt
+.PHONY: record-nonlocal-e2e
+
 mega-lint:
 	docker run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
