@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: package-operator-bootstrap
-  namespace: package-operator-system
+  namespace: '{{ .Release.Namespace }}'
 spec:
   # delete 90seconds after completion, so helm can finish succesfully
   ttlSecondsAfterFinished: 90
@@ -15,7 +15,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       restartPolicy: OnFailure
-      serviceAccountName: package-operator
+      serviceAccountName: '{{ .Values.serviceAccount.name }}'
       containers:
       - name: package-operator
         image: "{{ .Values.pkoImageManagerRegistry }}/{{ .Values.pkoImageManagerRepository }}@{{ .Values.pkoImageManagerDigest }}"

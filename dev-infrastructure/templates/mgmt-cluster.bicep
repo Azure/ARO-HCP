@@ -193,6 +193,15 @@ param genevaManageCertificates bool
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+@description('Name of the MSI for the PKO')
+param pkoMIName string
+
+@description('Namespace of the PKO')
+param pkoNamespace string
+
+@description('Service account name of the PKO')
+param pkoServiceAccountName string
+
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -209,9 +218,9 @@ var workloadIdentities = items({
     serviceAccountName: logsServiceAccount
   }
   pko_wi: {
-    uamiName: 'package-operator'
-    namespace: 'package-operator-system'
-    serviceAccountName: 'package-operator'
+    uamiName: pkoMIName
+    namespace: pkoNamespace
+    serviceAccountName: pkoServiceAccountName
   }
   prom_wi: {
     uamiName: 'prometheus'

@@ -7,6 +7,11 @@ pkoImageManagerDigest: "{{ .pko.imageManager.digest }}"
 pkoImagePrefixOverrides: "quay.io/package-operator={{ .acr.svc.name }}.azurecr.io/package-operator"
 pullBinding:
   registry: "{{ .acr.svc.name }}.azurecr.io"
-  scope: "repository:{{ .pko.imagePackage.repository }}:pull,repository:{{ .pko.imageManager.repository }}:pull"
+  scope: "repository:{{ .pko.imagePackage.repository }}:pull repository:{{ .pko.imageManager.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+namespace: "{{ .pko.k8s.namespace }}"
+serviceAccount:
+  name: "{{ .pko.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__pkoMsiClientId__"
+  workloadIdentityTenantId: "__pkoMsiTenantId__"

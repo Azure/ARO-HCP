@@ -75,8 +75,8 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
-    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
-    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    template: ./../dev-infrastructure/templates/pko-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/pko-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: deploy
@@ -95,6 +95,14 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: imagePullerMsiTenantId
+      pkoMsiClientId:
+        resourceGroup: management
+        step: output
+        name: pkoMsiClientId
+      pkoMsiTenantId:
+        resourceGroup: management
+        step: output
+        name: pkoMsiTenantId
     dependsOn:
     - resourceGroup: global
       step: mirror-image-package

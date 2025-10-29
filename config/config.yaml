@@ -597,6 +597,10 @@ defaults:
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   # PKO
   pko:
+    managedIdentityName: package-operator
+    k8s:
+      namespace: package-operator-system
+      serviceAccountName: package-operator
     imagePackage:
       registry: quay.io
       repository: package-operator/package-operator-package

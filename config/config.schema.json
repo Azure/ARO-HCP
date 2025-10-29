@@ -879,10 +879,18 @@
         },
         "remotePhaseManager": {
           "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
+        "managedIdentityName",
+        "k8s",
         "imagePackage",
         "imageManager",
         "remotePhaseManager"
