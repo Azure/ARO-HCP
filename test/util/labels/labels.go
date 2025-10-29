@@ -45,6 +45,7 @@ var (
 var (
 	IntegrationOnly = ginkgo.Label("Integration-Only")
 	StageOnly       = ginkgo.Label("Stage-Only")
+	Local           = ginkgo.Label("Local")
 )
 
 // Environments this test can be used in.

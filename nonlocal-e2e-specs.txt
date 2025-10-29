@@ -1,0 +1,103 @@
+Running Suite: ARO-HCP E2E Tests - /home/ves/Desktop/demo/ARO-HCP/test/e2e
+==========================================================================
+Random Seed: [1m1761728551[0m
+
+Will run [1m20[0m of [1m21[0m specs
+[38;5;243m------------------------------[0m
+[0m[1m[BeforeSuite] [0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/e2e_test.go:32[0m
+[38;5;10m[BeforeSuite] PASSED [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to create an HCP cluster and custom node pool osDisk size using bicep template[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_create_nodepool_osdisk.go:35[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mPut HCPOpenShiftCluster [0m[1mAttempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil[0m [38;5;204m[Create-Cluster, PreLaunchSetup:None, Importance:Medium, Positivity:Negative][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_create_test.go:30[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mHCP Nodepools GPU instances [0m[1mcreates and deletes vm type NC6sv3 in a single cluster[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive, Integration-Only][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/gpu_nodepools_create_delete.go:57[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould not be able to create a 4.18 HCP cluster[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Negative][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_create_missing_info.go:37[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mPut HCPOpenShiftCluster Nodepool [0m[1mAttempts to create a nodepool for a non-existant HCPOpenshiftCluster[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Negative][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/nodepool_create_test.go:40[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mUpdate HCPOpenShiftCluster [38;5;243mNegative [0m[1mcreates a cluster and fails to update its name with a PATCH request[0m [38;5;204m[PreLaunchSetup:None, Importance:Medium, Positivity:Negative][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_update.go:44[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mUpdate HCPOpenShiftCluster [38;5;243mPositive [0m[1mcreates a cluster and updates tags with a PATCH request[0m [38;5;204m[PreLaunchSetup:None, Importance:Medium, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_update.go:102[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to lifecycle and confirm external auth on a cluster[0m [38;5;204m[PreLaunchSetup:None, Importance:High, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/external_auth_list_and_verify.go:45[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to test admin credentials before cluster ready, then full admin credential lifecycle[0m [38;5;204m[PreLaunchSetup:None, Importance:High, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/admin_credential_lifecycle.go:43[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to create an HCP cluster with Image Registry not present[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/image_registry_cluster_create.go:37[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[38;5;14mS[0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to list available HCP OpenShift versions and validate response content[0m [38;5;204m[PreLaunchSetup:None, Importance:Medium, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_versions.go:32[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to create a cluster with an external auth config and get the external auth config[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/external_auth_create.go:46[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mList HCPOpenShiftCluster [38;5;243mPositive [0m[1mSuccessfully lists clusters filtered by subscription ID[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_list_test.go:44[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mList HCPOpenShiftCluster [38;5;243mPositive [0m[1mSuccessfully lists clusters filtered by resource group name[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_list_test.go:69[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to create several HCP clusters in their customer resource group, but not in the same managed resource group[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/clusters_sharing_resgroup.go:33[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mCustomer [0m[1mshould be able to create a HCP cluster without CNI[0m [38;5;204m[PreLaunchSetup:None, Importance:Critical, Positivity:Positive][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_create_no_cni.go:31[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mGet HCPOpenShiftCluster nodepool [38;5;243mPositive [0m[1mGet each nodepool from HCPOpenShiftCluster[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive, Setup-Validation][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/nodepool_get_test.go:45[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mGet HCPOpenShiftCluster [38;5;243mPositive [0m[1mConfirms cluster has been created successfully[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive, Setup-Validation][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_get_test.go:43[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mGet HCPOpenShiftCluster [38;5;243mNegative [0m[1mFails to get a nonexistent cluster with a Not Found error[0m [38;5;204m[PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Negative][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_get_test.go:54[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0mARO-HCP Cluster Deletion [0m[1mshould confirm the HCP cluster is deleted (not found)[0m [38;5;204m[Teardown-Validation, Importance:Critical][0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/cluster_delete_test.go:37[0m
+[38;5;10m• [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+[0m[1m[AfterSuite] [0m
+[38;5;243m/home/ves/Desktop/demo/ARO-HCP/test/e2e/e2e_test.go:38[0m
+[38;5;10m[AfterSuite] PASSED [0.000 seconds][0m
+[38;5;243m------------------------------[0m
+
+[38;5;10m[1mRan 20 of 21 Specs in 0.003 seconds[0m
+[38;5;10m[1mSUCCESS![0m -- [38;5;10m[1m20 Passed[0m | [38;5;9m[1m0 Failed[0m | [38;5;11m[1m0 Pending[0m | [38;5;14m[1m1 Skipped[0m
+PASS
+
+Ginkgo ran 1 suite in 1.957337616s
+Test Suite Passed
