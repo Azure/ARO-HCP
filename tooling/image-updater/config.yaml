@@ -12,7 +12,7 @@ images:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
       tagPattern: "^sha256-[a-f0-9]{64}$"
-      filterArchitecture: true  # Skip multi-arch manifests, select single-arch amd64 image only
+      architecture: amd64 # Target architecture - skips multi-arch manifests, selects single-arch image only
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml

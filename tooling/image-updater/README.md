@@ -45,7 +45,7 @@ images:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
       tagPattern: "^sha256-[a-f0-9]{64}$"
-      filterArchitecture: true  # Skip multi-arch manifests, select single-arch amd64 only
+      architecture: amd64  # Target architecture - skips multi-arch manifests
     targets:
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
@@ -73,26 +73,25 @@ If no pattern is specified, uses the most recently pushed tag.
 
 ## Architecture Filtering
 
-For QUAY repositories with multi-arch images, enable `filterArchitecture` to select only single-arch amd64/linux images:
+The tool **always** filters images by architecture. Specify the target architecture (defaults to `amd64` if not specified):
 
 ```yaml
 source:
   image: quay.io/acm-d/rhtap-hypershift-operator
   tagPattern: "^sha256-[a-f0-9]{64}$"
-  filterArchitecture: true  # Required for multi-arch repos
+  architecture: amd64  # Defaults to amd64 if omitted
 ```
 
 **How it works:**
 1. Fetches all tags matching the pattern
 2. Iterates through tags (newest first)
 3. Skips multi-arch manifest lists
-4. Inspects config blob to verify architecture = amd64 and OS = linux
+4. Verifies architecture matches and OS = linux
 5. Returns the first matching single-arch image digest
 
-## Registry Support
-
-- **Quay.io**: Public repositories (no auth required)
-- **Azure Container Registry**: Requires `az login` authentication
+**Registry-Specific Implementation:**
+- **Quay.io**: Uses `go-containerregistry` to inspect image config blobs
+- **Azure Container Registry**: Uses Azure SDK's `GetManifestProperties` API to read architecture metadata directly from manifest attributes
 
 ## Command Options
 

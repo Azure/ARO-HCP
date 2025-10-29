@@ -43,14 +43,6 @@ func FilterTagsByPattern(tags []Tag, tagPattern string) ([]Tag, error) {
 	return matchingTags, nil
 }
 
-// FindLatestTag returns the latest tag from a sorted list of tags
-func FindLatestTag(tags []Tag) (*Tag, error) {
-	if len(tags) == 0 {
-		return nil, fmt.Errorf("no tags available")
-	}
-	return &tags[0], nil
-}
-
 // ParseTimestamp attempts to parse a timestamp string using the Quay.io format
 func ParseTimestamp(timestampStr string) (time.Time, error) {
 	if t, err := time.Parse(time.RFC1123Z, timestampStr); err == nil {
@@ -60,34 +52,40 @@ func ParseTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
 }
 
-// ProcessTags applies the complete tag processing pipeline:
-func ProcessTags(tags []Tag, repository string, tagPattern string) (string, error) {
-	// Apply tag pattern filter if provided
+// NormalizeArchitecture converts x86_64 to amd64 for consistent comparison
+func NormalizeArchitecture(arch string) string {
+	if arch == "x86_64" {
+		return "amd64"
+	}
+	return arch
+}
+
+// PrepareTagsForArchValidation filters and sorts tags for architecture validation
+func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern string) ([]Tag, error) {
+	if len(tags) == 0 {
+		return nil, fmt.Errorf("no tags found for repository %s", repository)
+	}
+
 	if tagPattern != "" {
 		filteredTags, err := FilterTagsByPattern(tags, tagPattern)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		tags = filteredTags
 	}
 
 	if len(tags) == 0 {
 		if tagPattern != "" {
-			return "", fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
+			return nil, fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
 		}
-		return "", fmt.Errorf("no valid tags found for repository %s", repository)
+		return nil, fmt.Errorf("no valid tags found for repository %s", repository)
 	}
 
 	sort.Slice(tags, func(i, j int) bool {
 		return tags[i].LastModified.After(tags[j].LastModified)
 	})
 
-	latestTag, err := FindLatestTag(tags)
-	if err != nil {
-		return "", err
-	}
-
-	return latestTag.Digest, nil
+	return tags, nil
 }
 
 // NewRegistryClient creates a new registry client based on the registry URL
