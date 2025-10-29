@@ -1,7 +1,12 @@
 **
 !image-environment
-!internal/go.*
-!internal/**/*.go
-!backend/go.*
-!backend/Makefile
-!backend/**/*.go
+!internal/
+!backend/
+
+# https://github.com/containers/podman/discussions/22910
+# !image-environment
+# !internal/go.*
+# !internal/**/*.go
+# !backend/go.*
+# !backend/Makefile
+# !backend/**/*.go
