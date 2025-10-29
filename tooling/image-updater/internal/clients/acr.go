@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
+	"github.com/go-logr/logr"
 )
 
 // ACRClient provides methods to interact with Azure Container Registry
@@ -45,23 +46,6 @@ func NewACRClient(registryURL string) (*ACRClient, error) {
 	}, nil
 }
 
-// GetLatestDigest gets the most recent tag's digest from ACR, optionally filtering by tag pattern
-func (c *ACRClient) GetLatestDigest(repository string, tagPattern string) (string, error) {
-	ctx := context.Background()
-
-	tags, err := c.getAllTags(ctx, repository)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch all tags: %w", err)
-	}
-
-	if len(tags) == 0 {
-		return "", fmt.Errorf("no tags found for repository %s", repository)
-	}
-
-	return ProcessTags(tags, repository, tagPattern)
-}
-
-// getAllTags fetches all tags from all pages for the specified repository
 func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
 	var allTags []Tag
 
@@ -109,9 +93,53 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 	return allTags, nil
 }
 
-// GetArchSpecificDigest for ACR - ACR images are always single-arch (amd64), so just return the regular digest
-// TODO: If ACR starts hosting multi-arch images in the future, implement manifest inspection here
-func (c *ACRClient) GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error) {
-	// ACR images are single-arch amd64, so we can just use the regular GetLatestDigest
-	return c.GetLatestDigest(repository, tagPattern)
+func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	allTags, err := c.getAllTags(ctx, repository)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch all tags: %w", err)
+	}
+
+	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
+	if err != nil {
+		return "", err
+	}
+
+	for _, tag := range tags {
+		logger.Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
+
+		manifestProps, err := c.client.GetManifestProperties(ctx, repository, tag.Digest, nil)
+		if err != nil {
+			logger.Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
+			continue
+		}
+
+		if manifestProps.Manifest == nil {
+			logger.Info("manifest properties has no manifest info, skipping", "tag", tag.Name)
+			continue
+		}
+
+		manifest := manifestProps.Manifest
+
+		if len(manifest.RelatedArtifacts) > 0 {
+			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
+			continue
+		}
+
+		if manifest.Architecture == nil || manifest.OperatingSystem == nil {
+			logger.Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
+			continue
+		}
+
+		normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))
+
+		if normalizedArch == arch && string(*manifest.OperatingSystem) == "linux" {
+			return tag.Digest, nil
+		}
+
+		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
+	}
+
+	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }

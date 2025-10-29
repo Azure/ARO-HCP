@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	// DefaultArchitecture is the target architecture for container images
 	DefaultArchitecture = "amd64"
 )
 
@@ -54,7 +53,7 @@ func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.Reg
 // UpdateImages processes all images in the configuration
 func (u *Updater) UpdateImages(ctx context.Context) error {
 	for name, imageConfig := range u.Config.Images {
-		digest, err := u.fetchLatestDigest(imageConfig.Source)
+		digest, err := u.fetchLatestDigest(ctx, imageConfig.Source)
 		if err != nil {
 			return fmt.Errorf("failed to fetch latest digest for %s: %w", name, err)
 		}
@@ -88,7 +87,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 }
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
-func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
+func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (string, error) {
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return "", fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -99,12 +98,12 @@ func (u *Updater) fetchLatestDigest(source config.Source) (string, error) {
 		return "", fmt.Errorf("no registry client available for %s", registry)
 	}
 
-	// Use architecture-specific digest if filtering is enabled
-	// This skips multi-arch manifest lists and only selects single-arch amd64 images
-	if source.FilterArchitecture {
-		return client.GetArchSpecificDigest(repository, source.TagPattern, DefaultArchitecture)
-	} // Default: get latest digest without architecture filtering (for single-arch images)
-	return client.GetLatestDigest(repository, source.TagPattern)
+	arch := source.Architecture
+	if arch == "" {
+		arch = DefaultArchitecture
+	}
+
+	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch)
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target

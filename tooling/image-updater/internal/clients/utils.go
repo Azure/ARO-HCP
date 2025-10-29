@@ -15,16 +15,15 @@
 package clients
 
 import (
+	"context"
 	"time"
 )
 
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
-	GetLatestDigest(repository string, tagPattern string) (string, error)
-	GetArchSpecificDigest(repository string, tagPattern string, arch string) (string, error)
+	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error)
 }
 
-// Tag represents a container image tag with metadata
 type Tag struct {
 	Name         string
 	Digest       string

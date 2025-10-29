@@ -15,6 +15,7 @@
 package clients
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -122,102 +123,144 @@ func TestFilterTagsByPattern(t *testing.T) {
 	}
 }
 
-func TestProcessTags(t *testing.T) {
-	now := time.Now()
-	oneHourAgo := now.Add(-1 * time.Hour)
-	twoDaysAgo := now.Add(-48 * time.Hour)
-	oneWeekAgo := now.Add(-7 * 24 * time.Hour)
-
+func TestNormalizeArchitecture(t *testing.T) {
 	tests := []struct {
-		name       string
-		tags       []Tag
-		repository string
-		tagPattern string
-		wantDigest string
-		wantErr    bool
-		wantErrMsg string
+		name string
+		arch string
+		want string
 	}{
 		{
-			name: "selects newest tag by date",
-			tags: []Tag{
-				{Name: "v1.0.0", Digest: "sha256:old", LastModified: oneWeekAgo},
-				{Name: "v2.0.0", Digest: "sha256:newest", LastModified: now},
-				{Name: "v1.5.0", Digest: "sha256:middle", LastModified: twoDaysAgo},
-			},
-			repository: "test/repo",
-			tagPattern: "",
-			wantDigest: "sha256:newest",
-			wantErr:    false,
+			name: "x86_64 converted to amd64",
+			arch: "x86_64",
+			want: "amd64",
 		},
 		{
-			name: "filters by pattern then selects newest",
-			tags: []Tag{
-				{Name: "v1.0.0", Digest: "sha256:old-v1", LastModified: oneWeekAgo},
-				{Name: "v2.0.0", Digest: "sha256:new-v2", LastModified: now},
-				{Name: "latest", Digest: "sha256:latest", LastModified: oneHourAgo},
-			},
-			repository: "test/repo",
-			tagPattern: `^v\d+\.\d+\.\d+$`,
-			wantDigest: "sha256:new-v2",
-			wantErr:    false,
+			name: "amd64 unchanged",
+			arch: "amd64",
+			want: "amd64",
 		},
 		{
-			name:       "empty tag list returns error",
-			tags:       []Tag{},
-			repository: "test/repo",
-			tagPattern: "",
-			wantErr:    true,
-			wantErrMsg: "no valid tags found for repository test/repo",
+			name: "arm64 unchanged",
+			arch: "arm64",
+			want: "arm64",
 		},
 		{
-			name: "pattern matches no tags returns error",
-			tags: []Tag{
-				{Name: "v1.0.0", Digest: "sha256:abc", LastModified: now},
-			},
-			repository: "test/repo",
-			tagPattern: `^release-`,
-			wantErr:    true,
-			wantErrMsg: "no tags matching pattern ^release- found for repository test/repo",
+			name: "arm unchanged",
+			arch: "arm",
+			want: "arm",
 		},
 		{
-			name: "invalid regex pattern returns error",
-			tags: []Tag{
-				{Name: "v1.0.0", Digest: "sha256:abc", LastModified: now},
-			},
-			repository: "test/repo",
-			tagPattern: `[invalid(`,
-			wantErr:    true,
-		},
-		{
-			name: "sorts by date descending correctly",
-			tags: []Tag{
-				{Name: "oldest", Digest: "sha256:oldest", LastModified: oneWeekAgo},
-				{Name: "middle", Digest: "sha256:middle", LastModified: twoDaysAgo},
-				{Name: "newer", Digest: "sha256:newer", LastModified: oneHourAgo},
-				{Name: "newest", Digest: "sha256:newest", LastModified: now},
-			},
-			repository: "test/repo",
-			tagPattern: "",
-			wantDigest: "sha256:newest",
-			wantErr:    false,
+			name: "empty string unchanged",
+			arch: "",
+			want: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ProcessTags(tt.tags, tt.repository, tt.tagPattern)
+			got := NormalizeArchitecture(tt.arch)
+			if got != tt.want {
+				t.Errorf("NormalizeArchitecture() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrepareTagsForArchValidation(t *testing.T) {
+	now := time.Now()
+	oneHourAgo := now.Add(-1 * time.Hour)
+	twoDaysAgo := now.Add(-48 * time.Hour)
+
+	tests := []struct {
+		name         string
+		tags         []Tag
+		repository   string
+		tagPattern   string
+		wantTagNames []string
+		wantErr      bool
+		wantErrMsg   string
+	}{
+		{
+			name: "filters and sorts tags",
+			tags: []Tag{
+				{Name: "v1.0.0", Digest: "sha256:old", LastModified: twoDaysAgo},
+				{Name: "v2.0.0", Digest: "sha256:new", LastModified: now},
+				{Name: "latest", Digest: "sha256:latest", LastModified: oneHourAgo},
+			},
+			repository:   "test/repo",
+			tagPattern:   `^v\d+\.\d+\.\d+$`,
+			wantTagNames: []string{"v2.0.0", "v1.0.0"},
+			wantErr:      false,
+		},
+		{
+			name: "no pattern returns all sorted",
+			tags: []Tag{
+				{Name: "old", Digest: "sha256:old", LastModified: twoDaysAgo},
+				{Name: "new", Digest: "sha256:new", LastModified: now},
+				{Name: "middle", Digest: "sha256:middle", LastModified: oneHourAgo},
+			},
+			repository:   "test/repo",
+			tagPattern:   "",
+			wantTagNames: []string{"new", "middle", "old"},
+			wantErr:      false,
+		},
+		{
+			name:       "empty tags returns error",
+			tags:       []Tag{},
+			repository: "test/repo",
+			tagPattern: "",
+			wantErr:    true,
+			wantErrMsg: "no tags found for repository test/repo",
+		},
+		{
+			name: "pattern matches no tags",
+			tags: []Tag{
+				{Name: "latest", Digest: "sha256:abc", LastModified: now},
+			},
+			repository: "test/repo",
+			tagPattern: `^v\d+`,
+			wantErr:    true,
+			wantErrMsg: "no tags matching pattern",
+		},
+		{
+			name: "invalid pattern returns error",
+			tags: []Tag{
+				{Name: "latest", Digest: "sha256:abc", LastModified: now},
+			},
+			repository: "test/repo",
+			tagPattern: `[invalid(`,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := PrepareTagsForArchValidation(tt.tags, tt.repository, tt.tagPattern)
+
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ProcessTags() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("PrepareTagsForArchValidation() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if tt.wantErr {
-				if tt.wantErrMsg != "" && err.Error() != tt.wantErrMsg {
-					t.Errorf("ProcessTags() error message = %v, want %v", err.Error(), tt.wantErrMsg)
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("PrepareTagsForArchValidation() error = %v, should contain %v", err.Error(), tt.wantErrMsg)
 				}
 				return
 			}
-			if got != tt.wantDigest {
-				t.Errorf("ProcessTags() digest = %v, want %v", got, tt.wantDigest)
+
+			if len(got) != len(tt.wantTagNames) {
+				t.Errorf("PrepareTagsForArchValidation() got %d tags, want %d", len(got), len(tt.wantTagNames))
+			}
+
+			for i, wantName := range tt.wantTagNames {
+				if i >= len(got) {
+					t.Errorf("PrepareTagsForArchValidation() missing tag %s at index %d", wantName, i)
+					continue
+				}
+				if got[i].Name != wantName {
+					t.Errorf("PrepareTagsForArchValidation() tag[%d] = %v, want %v", i, got[i].Name, wantName)
+				}
 			}
 		})
 	}
