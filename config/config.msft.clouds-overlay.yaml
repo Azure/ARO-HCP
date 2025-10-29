@@ -93,7 +93,7 @@ clouds:
             mce:
               version: "2.9.1"
               bundle:
-                digest: sha256:18c9ef1a7546469259696e22c85174d11c7205262d1ed03ee4da2121058f27ae # v2.9.1-84
+                digest: sha256:2d4f9b4eded34bf6a9f8a1570f5667101dd2347c969e3f02a2b5a2752dff5850 # v2.9.1-96
           # OCP image sync
           imageSync:
             ocMirror:
