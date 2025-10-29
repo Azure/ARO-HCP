@@ -1,0 +1,17 @@
+forwarder.fluentbit.image.digest: "sha256:foobar"
+forwarder.fluentbit.image.registry: "foobar.azurecr.io"
+forwarder.fluentbit.image.repository: "foobar/fluent-bit"
+arobit.mdsd.enabled: false
+mgmt.aks.name: "foobar"
+mgmt.rg: "foobar"
+region: "foobar"
+mgmtKeyVault.name: "foobar"
+forwarder.serviceAccountName: "arobit-forwarder"
+forwarder.secretProvider.keyVault: "test"
+forwarder.mdsd.geneva.rpSecretName: "foo"
+forwarder.kusto.enabled: true
+forwarder.tenantId: edeb6da8-a476-4c67-9e2a-d61b8ff3315d
+forwarder.msiClientId: bbbeb9f1-95b5-41af-8df7-bbf1a97da822
+forwarder.kusto.ingestionUrl: http://ingest
+forwarder.kusto.clusterLogsDatabase: clDB
+forwarder.kusto.rpDatabase: rpDB
