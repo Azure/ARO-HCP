@@ -1,4 +1,4 @@
--include ../setup-env.mk
+-include setup-env.mk
 
 export OP_CLUSTER_API_AZURE_ROLE_NAME
 export OP_CONTROL_PLANE_ROLE_NAME
