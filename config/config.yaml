@@ -113,11 +113,6 @@ defaults:
     image:
       registry: registry.k8s.io
       repository: secrets-store-sync/controller
-  # Backplane API
-  backplaneAPI:
-    image:
-      registry: quay.io
-      repository: app-sre/backplane-api
   tenantId: ""
   ev2:
     assistedId:
@@ -834,10 +829,6 @@ clouds:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
           digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42 # 1.0-1761243210
-      # Backplane API
-      backplaneAPI:
-        image:
-          digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
       # Admin API
       adminApi:
         image:

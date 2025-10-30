@@ -22,10 +22,6 @@ clouds:
             image:
               digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
           # PKO
           pko:
             imagePackage:
@@ -121,10 +117,6 @@ clouds:
             image:
               digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
           # PKO
           pko:
             imagePackage:
@@ -206,10 +198,6 @@ clouds:
             image:
               digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
-          # Backplane API
-          backplaneAPI:
-            image:
-              digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
           # PKO
           pko:
             imagePackage:

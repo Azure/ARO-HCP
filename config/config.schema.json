@@ -1704,18 +1704,6 @@
         "keyVault"
       ]
     },
-    "backplaneAPI": {
-      "type": "object",
-      "properties": {
-        "image": {
-          "$ref": "#/definitions/containerImage"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "image"
-      ]
-    },
     "hypershift": {
       "type": "object",
       "properties": {
@@ -2480,7 +2468,6 @@
   "required": [
     "administration",
     "kvCertOfficerPrincipalId",
-    "backplaneAPI",
     "clustersService",
     "cxKeyVault",
     "firstPartyAppClientId",
