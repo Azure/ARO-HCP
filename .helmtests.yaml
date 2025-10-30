@@ -1,0 +1,5 @@
+cases:
+- name: mgmt dev
+  namespace: arobit
+  helmChartDir: observability/arobit/deploy
+  setFile: observability/arobit/testdata/mgmt-dev.txt
