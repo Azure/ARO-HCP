@@ -90,3 +90,6 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
   pipelinePath: dev-infrastructure/kusto-pipeline.yaml
   purpose: Deploy the kusto log infrastructure.
+- serviceGroup: Microsoft.Azure.ARO.HCP.CustomMetricsCollector
+  pipelinePath: observability/custom-metrics-collector/pipeline.yaml
+  purpose: Deploy the custom metrics collector for built-in Go collectors.

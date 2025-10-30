@@ -162,6 +162,13 @@ clustersService:
   tracing:
     address: http://ingest.observability:4318
     exporter: otlp
+customMetricsCollector:
+  bundleVersion: v1.0.0
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: custom-metrics-collector
+  servicePrincipalClientId: ""
 cxKeyVault:
   name: ah-prow-cx-usw3j-1
   private: false

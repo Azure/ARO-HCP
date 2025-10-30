@@ -162,6 +162,13 @@ clustersService:
   tracing:
     address: ""
     exporter: ""
+customMetricsCollector:
+  bundleVersion: v1.0.0
+  image:
+    digest: ""
+    registry: arohcpsvcdev.azurecr.io
+    repository: custom-metrics-collector
+  servicePrincipalClientId: ""
 cxKeyVault:
   name: ah-cspr-cx-usw3-1
   private: false

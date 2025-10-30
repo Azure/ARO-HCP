@@ -1,0 +1,15 @@
+imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
+imageRepository: "{{ .customMetricsCollector.image.repository }}"
+imageDigest: "{{ .customMetricsCollector.image.digest }}"
+bundleVersion: "{{ .customMetricsCollector.bundleVersion }}"
+acrName: "{{ .acr.svc.name }}"
+msiClientId: "__msiClientId__"
+msiTenantId: "__msiTenantId__"
+# Service Principal for Microsoft Graph API access
+# This is separate from the MSI used for Key Vault access
+servicePrincipal:
+  clientId: "{{ .customMetricsCollector.servicePrincipalClientId }}"
+# Secret Provider configuration for Key Vault
+secretProvider:
+  keyVault: "{{ .serviceKeyVault.name }}"
+  secretName: "custom-metrics-collector-redhat0-client-secret"

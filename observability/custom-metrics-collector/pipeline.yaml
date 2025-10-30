@@ -1,0 +1,70 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.CustomMetricsCollector
+rolloutName: Custom Metrics Collector Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ../../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: customMetricsCollector.image.registry
+    repository:
+      configRef: customMetricsCollector.image.repository
+    digest:
+      configRef: customMetricsCollector.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: msi-lookup
+    action: ARM
+    template: templates/custom-metrics-collector-lookup.bicep
+    parameters: templates/custom-metrics-collector-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: custom-metrics-collector
+    releaseNamespace: 'observability'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      msiClientId:
+        resourceGroup: management
+        step: msi-lookup
+        name: customMetricsCollectorUAMIClientId
+      msiTenantId:
+        resourceGroup: global
+        step: output
+        name: globalMSITenantId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    - resourceGroup: management
+      step: msi-lookup
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
