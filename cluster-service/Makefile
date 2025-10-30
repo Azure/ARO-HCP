@@ -59,6 +59,7 @@ deploy:
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageDigest=${IMAGE_DIGEST} \
+	  --set global.imageDigest=${IMAGE_DIGEST} \
 	  --set azureFirstPartyApplicationClientId=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  --set batchProcessesDryRun=${CS_BATCH_PROCESSES_DRY_RUN} \
 	  --set batchProcesses="${CS_BATCH_PROCESSES}" \

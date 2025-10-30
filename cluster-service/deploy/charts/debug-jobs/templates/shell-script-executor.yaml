@@ -1,52 +1,22 @@
-{{ if .Values.deployDebugJob }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cs-arbitrary-commands
-  namespace: '{{ .Release.Namespace }}'
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: cs-arbitrary-commands-role
-  namespace: '{{ .Release.Namespace }}'
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cs-arbitrary-commands-rolebinding
-  namespace: '{{ .Release.Namespace }}'
-subjects:
-  - kind: ServiceAccount
-    name: cs-arbitrary-commands
-    namespace: '{{ .Release.Namespace }}'
-roleRef:
-  kind: Role
-  name: cs-arbitrary-commands-role
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cs-arbitrary-commands
+  name: cs-shell-script-executor-{{ randAlphaNum 5 | lower }}
   namespace: '{{ .Release.Namespace }}'
 spec:
   ttlSecondsAfterFinished: 300
   activeDeadlineSeconds: 900
   template:
     spec:
-      serviceAccountName: cs-arbitrary-commands
+      serviceAccountName: cs-shell-script-executor
       restartPolicy: Never
+      volumes:
+      - name: scripts
+        configMap:
+          name: cs-shell-scripts
+          defaultMode: 0755
       containers:
-      - name: cs-arbitrary-commands
+      - name: cs-shell-script-executor
         image: 'mcr.microsoft.com/aks/command/runtime:master.240118.1'
         command: ["/bin/sh", "-c"]
         args:
@@ -55,7 +25,7 @@ spec:
               local EXPECTED_TAG="$1"
               
               # Verifying all running pods have the same image version
-              IMAGES=$(kubectl get pods -l app=clusters-service -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort | uniq)
+              IMAGES=$(kubectl get pods -l app=clusters-service -o jsonpath='{range .items[*]}{.spec.containers[?(@.name=="service")].image}{"\n"}{end}' | sort | uniq)
               IMAGE_COUNT=$(echo "$IMAGES" | wc -l)
               if [ "$IMAGE_COUNT" -ne 1 ]; then
                 echo "Error: Multiple image versions detected:"
@@ -64,7 +34,7 @@ spec:
               fi
               
               # Verifying image tag is the expected one
-              DEPLOYMENT_IMAGE=$(kubectl get deployment clusters-service -o jsonpath='{.spec.template.spec.containers[0].image}')
+              DEPLOYMENT_IMAGE=$(kubectl get deployment clusters-service -o jsonpath='{.spec.template.spec.containers[?(@.name=="service")].image}')
               if [ "${DEPLOYMENT_IMAGE##*@}" != "$EXPECTED_TAG" ]; then
                 echo "Error: Deployment is using the wrong image tag"
                 echo "Current image: $DEPLOYMENT_IMAGE | Expected: $EXPECTED_TAG"
@@ -72,7 +42,7 @@ spec:
               fi
 
               # Check if all running pods also have the correct tag
-              POD_IMAGES=$(kubectl get pods -l app=clusters-service -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort | uniq)
+              POD_IMAGES=$(kubectl get pods -l app=clusters-service -o jsonpath='{range .items[*]}{.spec.containers[?(@.name=="service")].image}{"\n"}{end}' | sort | uniq)
               # Verifying all running pods use the expected tag
               for image in $POD_IMAGES; do
                 if [ "${image##*@}" != "$EXPECTED_TAG" ]; then
@@ -90,14 +60,14 @@ spec:
             kubectl rollout status deployment/clusters-service --timeout=600s
             
             # Set the expected image tag
-            EXPECTED_IMAGE_TAG={{ .Values.imageDigest }}
+            EXPECTED_IMAGE_TAG={{ .Values.global.imageDigest | default .Values.imageDigest }}
             
             checkImageTag "$EXPECTED_IMAGE_TAG"
             
             # Run your arbitrary commands below
-
-            echo "\n=== Testing clusters-service API endpoint ==="
-            curl -sS -X GET http://clusters-service:8000/api/clusters_mgmt/v1/provision_shards
+            /bin/bash /scripts/arbitrary-commands.sh
 
             echo "\n\nExecution completed successfully"
-{{ end }}
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
