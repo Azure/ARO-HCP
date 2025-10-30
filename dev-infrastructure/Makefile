@@ -50,12 +50,19 @@ lint:
 	@echo "Running make lint in parallel across $(NPROC) cores"
 	@$(MAKE) -j$(NPROC) _lint
 
-%.bicepparam:
+.deploy-env-ctx: FORCE
+	@echo "$(DEPLOY_ENV):$(USER):$(REGION)" | cmp -s - $@ || echo "$(DEPLOY_ENV):$(USER):$(REGION)" > $@
+
+FORCE:
+.PHONY: FORCE
+
+%.bicepparam: $(TEMPLATIZE) $(CONFIG_FILE) $(DEV_SETTINGS_FILE) .deploy-env-ctx
 	$(TEMPLATIZE) generate \
 		--config-file $(CONFIG_FILE) \
 		--dev-settings-file $(DEV_SETTINGS_FILE) \
 		--dev-environment $(DEPLOY_ENV) \
 		--input "$(basename $@).tmpl.bicepparam" \
+		--region $(REGION) \
 		--output "$@"
 
 %.bicep.fmt %.bicepparam.fmt:
