@@ -27,15 +27,14 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 )
 
 var _ = Describe("Cluster Pull Secret Management", func() {
@@ -115,12 +114,12 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
 			Eventually(func() error {
 				return verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 2*time.Second).Should(Succeed(), "additional pull secret should be merged into global-pull-secret by HCCO")
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "additional pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			Eventually(func() error {
 				return verifiers.VerifyGlobalPullSecretSyncer().Verify(ctx, adminRESTConfig)
-			}, 60*time.Second, 2*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
+			}, 60*time.Second, 10*time.Second).Should(Succeed(), "global-pull-secret-syncer DaemonSet should be created")
 
 			By("verifying the pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
@@ -190,7 +189,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			By("waiting for HCCO to merge the registry.redhat.io pull secret with the global pull secret")
 			Eventually(func() error {
 				return verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 2*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
 			By("verifying the registry.redhat.io pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
@@ -266,7 +265,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			By("waiting for NFD operator to be installed")
 			Eventually(func() error {
 				return verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd").Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 5*time.Second).Should(Succeed(), "NFD operator should be installed successfully")
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD operator should be installed successfully")
 
 			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
 			nfdGVR := schema.GroupVersionResource{
@@ -295,11 +294,11 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			By("waiting for NFD worker DaemonSet to be ready")
 			Eventually(func() error {
 				return verifiers.VerifyNFDWorkerDaemonSet(nfdNamespace).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 5*time.Second).Should(Succeed(), "NFD worker DaemonSet should be ready")
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker DaemonSet should be ready")
 
 			By("verifying NFD is working by checking node labels")
 			Eventually(func() error {
 				return verifiers.VerifyNFDNodeLabels().Verify(ctx, adminRESTConfig)
-			}, 120*time.Second, 5*time.Second).Should(Succeed(), "NFD should label nodes with hardware features")
+			}, 120*time.Second, 10*time.Second).Should(Succeed(), "NFD should label nodes with hardware features")
 		})
 })

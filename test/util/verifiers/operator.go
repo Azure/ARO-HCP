@@ -26,7 +26,7 @@ import (
 )
 
 type verifyOperatorInstalled struct {
-	namespace     string
+	namespace        string
 	subscriptionName string
 }
 
