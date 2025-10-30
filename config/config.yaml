@@ -825,7 +825,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
+          digest: sha256:7e581495bccf47c426170d34b280b4b812c2c0ce1a8e8ed7be93c8d3840ae1ec
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -957,10 +957,6 @@ clouds:
             useSNI: false
             name: "arohcp-ga-dev" # [tenant-unique]
             ownerIds: "d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, bvesel, goberlec
-            # the GH action does not have permissions yet to manage this app
-            # https://github.com/Azure/ARO-HCP/actions/runs/18850137173/job/53784600689
-            # once this is resolved, set to `true`
-            manage: false
           keyVault:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
