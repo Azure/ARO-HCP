@@ -45,7 +45,7 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
 //   G E N E V A    A C T I O N S   C E R T I F I C A T E
 
 module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (genevaActionsManageCertificates) {
-  name: 'geneva-certificate1-${uniqueString(resourceGroup().name)}'
+  name: 'geneva-certificate-${uniqueString(resourceGroup().name)}'
   params: {
     keyVaultName: genevaActionsKeyVaultName
     subjectName: 'CN=${genevaActionsCertificateDomain}'
