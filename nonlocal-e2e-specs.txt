@@ -1,102 +1,27 @@
 [
-  {
-    "LeafNodeText": "",
-    "LeafNodeType": "BeforeSuite"
-  },
-  {
-    "LeafNodeText": "",
-    "LeafNodeType": "AfterSuite"
-  },
-  {
-    "LeafNodeText": "Attempts to create a nodepool for a non-existant HCPOpenshiftCluster",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Confirms cluster has been created successfully",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Fails to get a nonexistent cluster with a Not Found error",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Get each nodepool from HCPOpenShiftCluster",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Successfully lists clusters filtered by resource group name",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "Successfully lists clusters filtered by subscription ID",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "creates a cluster and fails to update its name with a PATCH request",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "creates a cluster and updates tags with a PATCH request",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "creates and deletes vm type NC6sv3 in a single cluster",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create a HCP cluster without CNI",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create a cluster with an external auth config and get the external auth config",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create an HCP cluster using bicep templates",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create an HCP cluster with Image Registry not present",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to lifecycle and confirm external auth on a cluster",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to list HCP clusters without node pools at both subscription and resource group levels",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to list available HCP OpenShift versions and validate response content",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should confirm the HCP cluster is deleted (not found)",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should create an HCP cluster and validate TLS certificates",
-    "LeafNodeType": "It"
-  },
-  {
-    "LeafNodeText": "should not be able to create a 4.18 HCP cluster",
-    "LeafNodeType": "It"
-  }
+  "",
+  "",
+  "Attempts to create a nodepool for a non-existant HCPOpenshiftCluster",
+  "Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil",
+  "Confirms cluster has been created successfully",
+  "Fails to get a nonexistent cluster with a Not Found error",
+  "Get each nodepool from HCPOpenShiftCluster",
+  "Successfully lists clusters filtered by resource group name",
+  "Successfully lists clusters filtered by subscription ID",
+  "creates a cluster and fails to update its name with a PATCH request",
+  "creates a cluster and updates tags with a PATCH request",
+  "creates and deletes vm type NC6sv3 in a single cluster",
+  "should be able to create a HCP cluster without CNI",
+  "should be able to create a cluster with an external auth config and get the external auth config",
+  "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
+  "should be able to create an HCP cluster using bicep templates",
+  "should be able to create an HCP cluster with Image Registry not present",
+  "should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group",
+  "should be able to lifecycle and confirm external auth on a cluster",
+  "should be able to list HCP clusters without node pools at both subscription and resource group levels",
+  "should be able to list available HCP OpenShift versions and validate response content",
+  "should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
+  "should confirm the HCP cluster is deleted (not found)",
+  "should create an HCP cluster and validate TLS certificates",
+  "should not be able to create a 4.18 HCP cluster"
 ]
