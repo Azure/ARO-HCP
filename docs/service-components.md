@@ -40,7 +40,7 @@
 * ... and transfers status back for Clusters Service to read (e.g. `HostedCluster` status)
 * The Maestro Server runs on the service cluster in the `maestro` namespace
 * The Maestro Server is not exposed outside of the service cluster
-* ... because only Clusters Service and Backplane need to access it
+* ... because only Clusters Service needs to access it
 * It uses a certificate from the mgmt KV to authenticate with the Eventgrid Namespace MQTT broker
 * ... and consums it via CSI secret store
 

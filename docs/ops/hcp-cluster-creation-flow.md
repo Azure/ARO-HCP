@@ -165,7 +165,7 @@ Currently this endpoint does not return yet direct management cluster metadata, 
 
 ### Port Forward to the Maestro Server
 
-The Maestro Server is not exposed at all outside of the service cluster, as it is usually only used by the Clusters Service and Backplane. In order to access it for debugging purposes, you can port forward to the service.
+The Maestro Server is not exposed at all outside of the service cluster, as it is usually only used by the Clusters Service. In order to access it for debugging purposes, you can port forward to the service.
 Keep in mind that the port-forwarded service does not require authentication and does not enforce authorization!
 
 ```sh

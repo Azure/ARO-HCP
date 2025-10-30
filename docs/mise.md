@@ -8,7 +8,7 @@ Microsoft Identity Service Essentials (MISE) is an internal Microsoft service pr
 # Deployment
 
 - MISE is deployed in its own dedicated namespace within the service cluster
-- MISE operates as a central authorization service for the RP frontend and other services requiring secure API validation like the Admin API and Backplane API
+- MISE operates as a central authorization service for the RP frontend and other services requiring secure API validation like the Admin API
 - mTLS is enforced for communication between Istio components, MISE, and the APIs
 
 # Frontend Authorization Model

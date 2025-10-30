@@ -124,4 +124,4 @@ The ingress traffic path is as follows:
 * The gateway routes the request through the mesh to the RP frontend service.
 * ... but only after MISE authorized the request using the external authorization policy
 
-As of now, the ingress setup supports only the RP frontend. However, the architecture is expected to evolve to accommodate additional services such as the admin API and backplane. Future revisions may refactor gateway and routing ownership to a shared location to better support multi-ingress scenarios.
+As of now, the ingress setup supports only the RP frontend and Admin API.

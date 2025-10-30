@@ -6,7 +6,7 @@ This document provides an overview of ingress and egress configurations specific
 
 ### Service Cluster Ingress
 
-This section describes how ingress traffic targeting ARO HCP services—such as the RP frontend, and eventually the Admin API and Backplane—is handled on service clusters. A shared Istio ingress gateway is deployed per service cluster to expose these components securely via a dedicated public IP.
+This section describes how ingress traffic targeting ARO HCP services — such as the RP frontend and the Admin API - is handled on service clusters. A shared Istio ingress gateway is deployed per service cluster to expose these components securely via a dedicated public IP.
 
 ```mermaid
 flowchart TD
@@ -16,8 +16,7 @@ flowchart TD
     AKSCluster --> IstioGateway[Istio Ingress Gateway<br/>aks-istio-ingress namespace]
     IstioGateway --> GatewayResource[Gateway Resource<br/>Hostname-based routing]
     GatewayResource --> RPFrontend[RP Frontend API]
-    GatewayResource --> BackplaneAPI[Backplane API<br/>Future]
-    GatewayResource --> AdminAPI[Admin API<br/>Future]
+    GatewayResource --> AdminAPI[Admin API]
 
     KeyVault[Azure Key Vault] --> TLSCerts[TLS Certificates]
     TLSCerts --> CSIStore[CSI Secret Store]
@@ -28,11 +27,10 @@ flowchart TD
     style AzureLB fill:#e1f5fe
     style IstioGateway fill:#f3e5f5
     style RPFrontend fill:#e8f5e8
-    style BackplaneAPI fill:#fff3e0,stroke-dasharray: 5 5
     style AdminAPI fill:#fff3e0,stroke-dasharray: 5 5
 ```
 
-ARO HCP service clusters expose selected control plane services through a shared Istio ingress gateway. This gateway acts as the central entry point for external traffic targeting these services. This ingress gateway is deployed into the `aks-istio-ingress` namespace and is currently responsible only for exposing the RP frontend API. In the future, the gateway will also serve the Backplane and Admin API.
+ARO HCP service clusters expose selected control plane services through a shared Istio ingress gateway. This gateway acts as the central entry point for external traffic targeting these services. This ingress gateway is deployed into the `aks-istio-ingress` namespace and is currently responsible only for exposing the RP frontend API and admin API.
 
 > [!NOTE]
 > The ingress gateway is currently managed by the RP frontend Helm chart. Once multiple services are exposed via Istio, this might need to be refactored.

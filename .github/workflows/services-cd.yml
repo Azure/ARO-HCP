@@ -91,9 +91,6 @@ jobs:
     - name: 'Deploy Observability/Tracing'
       run: |
         make observability.tracing.deploy_pipeline
-      # - name: 'Deploy Backplane API'
-      #  run: |
-      #     make backplane-api.deploy_pipeline
     - name: 'Deploy CS PR check environment dressup'
       if: inputs.deploy_cs_pr_check_deps
       run: |

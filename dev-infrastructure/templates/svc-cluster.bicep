@@ -416,11 +416,6 @@ var workloadIdentities = items({
     namespace: 'billing'
     serviceAccountName: 'aro-billing'
   }
-  backplane_wi: {
-    uamiName: 'backplane-api'
-    namespace: 'aro-hcp'
-    serviceAccountName: 'backplane-api'
-  }
   maestro_wi: {
     uamiName: maestroMIName
     namespace: maestroNamespace

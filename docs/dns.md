@@ -73,7 +73,7 @@ The Service DNS zone hosts internal Azure infrastructure components and follows 
 Currently, the SVC zone hosts:
 
 - **Resource Provider Frontend**: `rp.{regionalSvcZone}`
-- **Future**: Admin API endpoint, Backplane API endpoint, etc.
+- **Admin API**: `admin.{regionalSvcZone}`
 
 All SVC DNS records are created and managed through Bicep templates during infrastructure deployment.
 
