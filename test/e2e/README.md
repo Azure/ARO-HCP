@@ -187,6 +187,13 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
+After building the test binary , one could execute it using :
+```bash
+./test/aro-hcp-tests list tests --suite "local/parallel" | jq '.[].name'
+./test/aro-hcp-tests run-suite "local/parallel"
+```
+Currently these are filtered using a Label containing Local , future tests would need to have them as we enforce them using CI mechanism .
+
 ## General guidance to write E2E test with ginkgo
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".

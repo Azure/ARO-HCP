@@ -1,0 +1,113 @@
+Running Suite: ARO-HCP E2E Tests - /home/ves/Desktop/dev/ARO-HCP/test/e2e
+=========================================================================
+Random Seed: 1761801845
+
+Will run 23 of 23 specs
+------------------------------
+[BeforeSuite] 
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/e2e_test.go:32
+[BeforeSuite] PASSED [0.000 seconds]
+------------------------------
+ARO-HCP Cluster Deletion should confirm the HCP cluster is deleted (not found) [Teardown-Validation, Importance:Critical]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_delete_test.go:37
+• [0.000 seconds]
+------------------------------
+Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle [PreLaunchSetup:None, Importance:High, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/admin_credential_lifecycle.go:43
+• [0.000 seconds]
+------------------------------
+Customer should be able to create a HCP cluster without CNI [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_create_no_cni.go:31
+• [0.000 seconds]
+------------------------------
+Customer should be able to list HCP clusters without node pools at both subscription and resource group levels [PreLaunchSetup:None, Positivity:Positive, Importance:Medium]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_list_no_infra.go:35
+• [0.000 seconds]
+------------------------------
+HCP Nodepools GPU instances creates and deletes vm type NC6sv3 in a single cluster [PreLaunchSetup:None, Importance:Critical, Positivity:Positive, Integration-Only]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/gpu_nodepools_create_delete.go:57
+• [0.000 seconds]
+------------------------------
+Customer should be able to create a cluster with an external auth config and get the external auth config [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/external_auth_create.go:46
+• [0.000 seconds]
+------------------------------
+Put HCPOpenShiftCluster Nodepool Attempts to create a nodepool for a non-existant HCPOpenshiftCluster [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Negative]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/nodepool_create_test.go:40
+• [0.000 seconds]
+------------------------------
+Put HCPOpenShiftCluster Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil [Create-Cluster, PreLaunchSetup:None, Importance:Medium, Positivity:Negative]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_create_test.go:30
+• [0.000 seconds]
+------------------------------
+Customer should not be able to create a 4.18 HCP cluster [PreLaunchSetup:None, Importance:Critical, Positivity:Negative]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_create_missing_info.go:37
+• [0.000 seconds]
+------------------------------
+Get HCPOpenShiftCluster nodepool Positive Get each nodepool from HCPOpenShiftCluster [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive, Setup-Validation]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/nodepool_get_test.go:45
+• [0.000 seconds]
+------------------------------
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/clusters_sharing_resgroup.go:33
+• [0.000 seconds]
+------------------------------
+Customer should be able to create an HCP cluster and custom node pool osDisk size using bicep template [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_create_nodepool_osdisk.go:35
+• [0.000 seconds]
+------------------------------
+Customer should be able to lifecycle and confirm external auth on a cluster [PreLaunchSetup:None, Importance:High, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/external_auth_list_and_verify.go:45
+• [0.000 seconds]
+------------------------------
+Get HCPOpenShiftCluster Positive Confirms cluster has been created successfully [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive, Setup-Validation]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_get_test.go:43
+• [0.000 seconds]
+------------------------------
+Get HCPOpenShiftCluster Negative Fails to get a nonexistent cluster with a Not Found error [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Negative]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_get_test.go:54
+• [0.000 seconds]
+------------------------------
+Customer should be able to create an HCP cluster with Image Registry not present [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/image_registry_cluster_create.go:37
+• [0.000 seconds]
+------------------------------
+Customer should be able to create an HCP cluster using bicep templates [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/complete_cluster_create.go:38
+• [0.000 seconds]
+------------------------------
+Customer should be able to list available HCP OpenShift versions and validate response content [PreLaunchSetup:None, Importance:Medium, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_versions.go:32
+• [0.000 seconds]
+------------------------------
+Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request [PreLaunchSetup:None, Importance:Medium, Positivity:Negative]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_update.go:44
+• [0.000 seconds]
+------------------------------
+Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request [PreLaunchSetup:None, Importance:Medium, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_update.go:102
+• [0.000 seconds]
+------------------------------
+List HCPOpenShiftCluster Positive Successfully lists clusters filtered by subscription ID [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_list_test.go:44
+• [0.000 seconds]
+------------------------------
+List HCPOpenShiftCluster Positive Successfully lists clusters filtered by resource group name [PreLaunchSetup:HappyPathInfra, Importance:Medium, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_list_test.go:69
+• [0.000 seconds]
+------------------------------
+Customer should create an HCP cluster and validate TLS certificates [PreLaunchSetup:None, Importance:Critical, Positivity:Positive]
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/cluster_tls_endpoints.go:39
+• [0.000 seconds]
+------------------------------
+[AfterSuite] 
+/home/ves/Desktop/dev/ARO-HCP/test/e2e/e2e_test.go:38
+[AfterSuite] PASSED [0.000 seconds]
+------------------------------
+
+Ran 23 of 23 Specs in 0.001 seconds
+SUCCESS! -- 23 Passed | 0 Failed | 0 Pending | 0 Skipped
+PASS
+
+Ginkgo ran 1 suite in 2.158482939s
+Test Suite Passed
