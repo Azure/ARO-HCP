@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -207,6 +208,13 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 		if err := group.Wait(); err != nil {
 			return err
 		}
+	}
+
+	if !o.DryRun {
+		if err := os.RemoveAll(o.StepCacheDir); err != nil {
+			return fmt.Errorf("failed to remove cache dir %s: %w", o.StepCacheDir, err)
+		}
+		logger.Info("Cleaned up step cache dir.", "dir", o.StepCacheDir)
 	}
 	return nil
 }
