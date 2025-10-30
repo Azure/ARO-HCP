@@ -19,9 +19,13 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 type StepInspectScope func(context.Context, *types.Pipeline, string, types.Step, *InspectOptions) error
@@ -106,6 +110,16 @@ func inspectVars(subscriptions map[string]string) func(ctx context.Context, pipe
 }
 
 func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *types.Pipeline, options *InspectOptions, subscriptions map[string]string) (Outputs, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bicepClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		return nil, err
+	}
+
 	inputs := Outputs{
 		pipeline.ServiceGroup: {},
 	}
@@ -116,6 +130,7 @@ func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *
 				Configuration:            options.Configuration,
 				NoPersist:                true,
 				DeploymentTimeoutSeconds: 60,
+				BicepClient:              bicepClient,
 			},
 			Region:                options.Region,
 			Step:                  depStep,

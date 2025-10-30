@@ -19,11 +19,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
 
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
@@ -101,6 +103,8 @@ type completedRolloutOptions struct {
 	Config        config.Configuration
 	Subscriptions map[string]string
 	StepCacheDir  string
+
+	BicepClient *bicep.LSPClient
 }
 
 type RolloutOptions struct {
@@ -164,7 +168,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 	}, nil
 }
 
-func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
+func (o *ValidatedRolloutOptions) Complete(ctx context.Context) (*RolloutOptions, error) {
 	completed, err := o.ValidatedOptions.Complete()
 	if err != nil {
 		return nil, err
@@ -211,6 +215,16 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 	}
 	variables["extraVars"] = extraVars
 
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bicepClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		return nil, err
+	}
+
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			ValidatedRolloutOptions: o,
@@ -218,6 +232,7 @@ func (o *ValidatedRolloutOptions) Complete() (*RolloutOptions, error) {
 			Config:                  variables,
 			Subscriptions:           o.Subscriptions,
 			StepCacheDir:            o.StepCacheDir,
+			BicepClient:             bicepClient,
 		},
 	}, nil
 }

@@ -86,8 +86,8 @@ func (o *RawRunOptions) Validate(ctx context.Context) (*ValidatedRunOptions, err
 	}, nil
 }
 
-func (o *ValidatedRunOptions) Complete() (*RunOptions, error) {
-	completed, err := o.ValidatedPipelineOptions.Complete()
+func (o *ValidatedRunOptions) Complete(ctx context.Context) (*RunOptions, error) {
+	completed, err := o.ValidatedPipelineOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +110,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 			Configuration:            o.PipelineOptions.RolloutOptions.Config,
 			NoPersist:                o.NoPersist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+			BicepClient:              o.PipelineOptions.RolloutOptions.BicepClient,
 		},
 		Region:                o.PipelineOptions.RolloutOptions.Region,
 		Step:                  o.PipelineOptions.Step,

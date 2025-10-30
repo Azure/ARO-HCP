@@ -100,8 +100,8 @@ func (o *RawPipelineOptions) Validate(ctx context.Context) (*ValidatedPipelineOp
 	}, nil
 }
 
-func (o *ValidatedPipelineOptions) Complete() (*PipelineOptions, error) {
-	completed, err := o.ValidatedRolloutOptions.Complete()
+func (o *ValidatedPipelineOptions) Complete(ctx context.Context) (*PipelineOptions, error) {
+	completed, err := o.ValidatedRolloutOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}

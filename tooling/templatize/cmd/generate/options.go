@@ -100,8 +100,8 @@ func (o *RawGenerationOptions) Validate(ctx context.Context) (*ValidatedGenerati
 	}, nil
 }
 
-func (o *ValidatedGenerationOptions) Complete() (*GenerationOptions, error) {
-	completed, err := o.ValidatedRolloutOptions.Complete()
+func (o *ValidatedGenerationOptions) Complete(ctx context.Context) (*GenerationOptions, error) {
+	completed, err := o.ValidatedRolloutOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}

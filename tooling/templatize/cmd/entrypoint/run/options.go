@@ -95,8 +95,8 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 	}, nil
 }
 
-func (o *ValidatedOptions) Complete() (*Options, error) {
-	completed, err := o.ValidatedOptions.Complete()
+func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	completed, err := o.ValidatedOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +123,7 @@ func (o *Options) Run(ctx context.Context) error {
 			NoPersist:                o.NoPersist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 			StepCacheDir:             o.StepCacheDir,
+			BicepClient:              o.BicepClient,
 		},
 		TopologyDir:           o.TopoDir,
 		Region:                o.Region,

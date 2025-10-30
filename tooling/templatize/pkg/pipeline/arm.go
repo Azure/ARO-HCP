@@ -32,9 +32,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 type armClient struct {
+	bicepClient *bicep.LSPClient
+
 	deploymentClient        *armresources.DeploymentsClient
 	resourceGroupClient     *armresources.ResourceGroupsClient
 	deploymentRetryWaitTime int
@@ -43,7 +47,7 @@ type armClient struct {
 	GetDeployment func(ctx context.Context, rgName, deploymentName string) (armresources.DeploymentsClientGetResponse, error)
 }
 
-func newArmClient(subscriptionID, region string) (*armClient, error) {
+func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (*armClient, error) {
 	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
@@ -57,6 +61,7 @@ func newArmClient(subscriptionID, region string) (*armClient, error) {
 		return nil, fmt.Errorf("failed to create resource group client: %w", err)
 	}
 	return &armClient{
+		bicepClient:             bicepClient,
 		deploymentClient:        deploymentClient,
 		deploymentRetryWaitTime: 15,
 		resourceGroupClient:     resourceGroupClient,
@@ -124,10 +129,10 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
+		return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 	}
 
-	return doDryRun(ctx, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
+	return doDryRun(ctx, a.bicepClient, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 }
 
 func recursivePrint(level int, change *armresources.WhatIfPropertyChange) {
@@ -206,7 +211,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -216,7 +221,7 @@ func doDryRun(ctx context.Context, client *armresources.DeploymentsClient, sgNam
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
@@ -302,7 +307,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -312,7 +317,7 @@ func doWaitForDeployment(ctx context.Context, client *armresources.DeploymentsCl
 		return nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMDeployment(ctx, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
