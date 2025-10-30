@@ -1,11 +1,11 @@
 global:
   registryOverride: "registry.redhat.io/rhacm2"
   imageOverrides:
-    governance_policy_propagator: "governance-policy-propagator-rhel9@sha256:57f28e416e9d84a9d690b6d262a4263d8da060a3254253c68aa7945414f15535"
-    governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:6cc12edafea8f130331797349cc9f1c06853cef5ee0a238d20205894a77aec96"
+    governance_policy_propagator: "governance-policy-propagator-rhel9@sha256:3a396d8fc2b2e105d066aa41adbd061112101bdf87354f94af99655796c606a1"
+    governance_policy_addon_controller: "acm-governance-policy-addon-controller-rhel9@sha256:61f6ae6a88feffef2c3d5adbc99ed9059d5f2a3d204e91e4fea340947118bf5b"
     config_policy_controller: "config-policy-controller-rhel9@sha256:7ca1b3ffb295e55b4b6d08ffad5d5a982c8e9d8ce7638eb956ea877580a57975"
-    governance_policy_framework_addon: "acm-governance-policy-framework-addon-rhel9@sha256:f60071d35949e2e53cb0b8eec84f7d5c1e24bfd5f3165b34707059b61bb98cb0"
-    klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:b297b4deda5906897b8d1949ddbabb6fb90224244ff2b6d86139110ac900fd9b"
+    governance_policy_framework_addon: "acm-governance-policy-framework-addon-rhel9@sha256:c2ed548da82a8cbc4aa39868ca723858824760ced09db1b888633fdbd6bb1f13"
+    klusterlet_addon_controller: "klusterlet-addon-controller-rhel9@sha256:0c9c5db4c5771d14bbc352effed6ce676a3467c587c640b6a2cfbc4e3a021f5e"
   namespace: multicluster-engine
   pullSecret: open-cluster-management-image-pull-credentials
   cma:
