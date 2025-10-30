@@ -469,7 +469,7 @@ secrets-yes-i-want-to-update-the-shared-secrets:
 # Operator roles for platform workload identity
 #
 
-operator-roles: configurations/dev-operator-roles.bicepparam
+operator-roles:
 	az deployment sub create \
 	    --location westus3 \
 		--name operator-roles \
@@ -478,7 +478,7 @@ operator-roles: configurations/dev-operator-roles.bicepparam
 		--parameters configurations/dev-operator-roles.bicepparam
 .PHONY: operator-roles
 
-operator-roles.what-if: configurations/dev-operator-roles.bicepparam
+operator-roles.what-if:
 	az deployment sub what-if \
 	    --location westus3 \
 		--name operator-roles \
