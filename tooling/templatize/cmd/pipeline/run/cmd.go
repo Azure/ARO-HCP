@@ -92,7 +92,7 @@ func RunPipeline(ctx context.Context, opts *RawRunOptions) error {
 	if err != nil {
 		return err
 	}
-	completed, err := validated.Complete()
+	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
 	}

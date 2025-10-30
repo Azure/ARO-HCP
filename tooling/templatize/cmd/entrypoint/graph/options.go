@@ -78,8 +78,8 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 	}, nil
 }
 
-func (o *ValidatedOptions) Complete() (*Options, error) {
-	completed, err := o.ValidatedOptions.Complete()
+func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	completed, err := o.ValidatedOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}

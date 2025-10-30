@@ -34,6 +34,8 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
@@ -58,6 +60,7 @@ type BaseRunOptions struct {
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
 	StepCacheDir             string
+	BicepClient              *bicep.LSPClient
 }
 
 type StepRunOptions struct {
@@ -454,7 +457,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return nil, nil
 	case *types.ARMStep:
-		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion())
+		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}

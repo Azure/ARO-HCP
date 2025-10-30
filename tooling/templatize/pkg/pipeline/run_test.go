@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 func TestMockedPipelineRun(t *testing.T) {
@@ -127,9 +129,22 @@ func TestMockedPipelineRun(t *testing.T) {
 		return nil, nil
 	}
 
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -267,9 +282,22 @@ func TestMockedPipelineRunError(t *testing.T) {
 		return nil, nil
 	}
 
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -314,9 +342,22 @@ func TestPipelineRun(t *testing.T) {
 		},
 	}
 
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
 	output, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},

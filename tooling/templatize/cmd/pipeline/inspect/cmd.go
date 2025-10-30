@@ -42,7 +42,7 @@ func runInspect(ctx context.Context, opts *RawInspectOptions) error {
 	if err != nil {
 		return err
 	}
-	completed, err := validated.Complete()
+	completed, err := validated.Complete(ctx)
 	if err != nil {
 		return err
 	}
