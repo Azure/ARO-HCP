@@ -76,6 +76,16 @@ jobs:
           git diff
           exit 1
         fi
+    - name: 'Check E2E test specs'
+      run: |
+        make record-nonlocal-e2e
+        if [[ ! -z "$(git status --short)" ]]
+        then
+          echo "E2E test specs have changed. All new tests must have the 'Local' label and support local env run or be included in the non-Local baseline. Run 'make record-nonlocal-e2e' to update the baseline if needed."
+          git status
+          git diff
+          exit 1
+        fi
     - name: 'Test'
       run: E2E_MC_CLUSTER=dev-westus3-mgmt-1 JOB_ID=${{ github.job }} PRINCIPAL_ID=${{ secrets.GHA_PRINCIPAL_ID }} make test
   lint:
