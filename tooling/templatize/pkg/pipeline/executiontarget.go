@@ -24,7 +24,9 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
 
-func LookupSubscriptionID(subscriptions map[string]string) func(ctx context.Context, subscriptionName string) (string, error) {
+type SubscriptionLookup func(ctx context.Context, subscriptionName string) (string, error)
+
+func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 	return func(ctx context.Context, subscriptionName string) (string, error) {
 		// First, check in the explicit registry
 		if id, found := subscriptions[subscriptionName]; found {

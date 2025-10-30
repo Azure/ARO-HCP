@@ -81,7 +81,7 @@ resourceGroups:
     externalDependsOn:
     - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
       resourceGroup: management
-      step: deploy
+      step: deploy-mce-config
     identityFrom:
       resourceGroup: global
       step: output

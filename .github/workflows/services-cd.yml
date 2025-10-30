@@ -74,13 +74,16 @@ jobs:
         make svc.aks.kubeconfig
     - name: 'Deploy Frontend'
       run: |
-        make frontend.deploy_pipeline
+        make -C frontend/ record-override OVERRIDE_CONFIG_FILE=frontend-override.yaml
+        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=frontend-override.yaml
     - name: 'Deploy Admin API'
       run: |
-        make pipeline/AdminAPI
+        make -C admin/ record-override OVERRIDE_CONFIG_FILE=admin-api-override.yaml
+        make pipeline/AdminAPI OVERRIDE_CONFIG_FILE=admin-api-override.yaml
     - name: 'Deploy Backend'
       run: |
-        make backend.deploy_pipeline
+        make -C backend/ record-override OVERRIDE_CONFIG_FILE=backend-override.yaml
+        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=backend-override.yaml
     - name: 'Deploy Cluster Service'
       if: ${{ ! inputs.deploy_cs_pr_check_deps }}
       run: |

@@ -16,74 +16,56 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: deploy
+  - name: deploy-mce-crds
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ARO_HCP_IMAGE_ACR
-      configRef: acr.svc.name
-    - name: MCE_PAUSE_RECONCILIATION
-      configRef: acm.mce.pauseReconciliation
-    - name: MCE_BUNDLE_REGISTRY
-      configRef: acm.mce.bundle.registry
-    - name: MCE_BUNDLE_REPOSITORY
-      configRef: acm.mce.bundle.repository
-    - name: MCE_BUNDLE_DIGEST
-      configRef: acm.mce.bundle.digest
-    - name: ACM_BUNDLE_REGISTRY
-      configRef: acm.operator.bundle.registry
-    - name: ACM_BUNDLE_REPOSITORY
-      configRef: acm.operator.bundle.repository
-    - name: ACM_BUNDLE_DIGEST
-      configRef: acm.operator.bundle.digest
-    - name: ACM_VERSION
-      configRef: acm.operator.version
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    action: Helm
+    releaseName: 'mce-crds'
+    releaseNamespace: 'multicluster-engine'
+    chartDir: ./deploy/helm/multicluster-engine-crds
+    valuesFile: multicluster-engine-crds.values.yaml
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: deploy-mce
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'mce'
+    releaseNamespace: 'multicluster-engine'
+    chartDir: ./deploy/helm/multicluster-engine
+    valuesFile: multicluster-engine.values.yaml
+    dependsOn:
+    - resourceGroup: management
+      step: deploy-mce-crds
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: deploy-mce-config
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'mce-config'
+    releaseNamespace: 'multicluster-engine'
+    chartDir: ./deploy/helm/multicluster-engine-config
+    valuesFile: multicluster-engine-config.values.yaml
+    dependsOn:
+    - resourceGroup: management
+      step: deploy-mce
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: deploy-policies
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make deploy-policies
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: ARO_HCP_IMAGE_ACR
-      configRef: acr.svc.name
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    action: Helm
+    releaseName: 'policy'
+    releaseNamespace: 'open-cluster-management-policies'
+    chartDir: ./deploy/helm/policies
+    valuesFile: policies.values.yaml
     dependsOn:
     - resourceGroup: management
-      step: deploy
-  - name: scale-down
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make scale
-    workingDir: ./
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: MCE_PAUSE_RECONCILIATION
-      configRef: acm.mce.pauseReconciliation
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: deploy
+      step: deploy-mce-config
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

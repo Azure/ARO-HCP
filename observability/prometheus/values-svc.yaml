@@ -1,0 +1,33 @@
+crds:
+  enabled: true
+kube-prometheus-stack:
+  prometheusOperator:
+    enabled: true
+    image:
+      registry: "{{ .svc.prometheus.prometheusOperator.image.registry }}"
+      repository: "{{ .svc.prometheus.prometheusOperator.image.repository }}"
+      sha: "{{ .svc.prometheus.prometheusOperator.image.sha }}"
+    prometheusConfigReloader:
+      image:
+        registry: "{{ .svc.prometheus.prometheusConfigReloader.image.registry }}"
+        repository: "{{ .svc.prometheus.prometheusConfigReloader.image.repository }}"
+        sha: "{{ .svc.prometheus.prometheusConfigReloader.image.sha }}"
+prometheusSpec:
+  image:
+    registry: "{{ .svc.prometheus.prometheusSpec.image.registry }}"
+    repository: "{{ .svc.prometheus.prometheusSpec.image.repository }}"
+    sha: "{{ .svc.prometheus.prometheusSpec.image.sha }}"
+  version: "{{ .svc.prometheus.prometheusSpec.version }}"
+  externalLabels:
+    cluster: "{{ .svc.aks.name }}"
+  remoteWriteUrl: "__dcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
+  zoneCount: {{ .availabilityZoneCount }}
+  maximumStartupDurationSeconds: 360
+prometheus:
+  prometheusSpec:
+    shards: {{ .svc.prometheus.prometheusSpec.shards }}
+    replicas: {{ .svc.prometheus.prometheusSpec.replicas }}
+  serviceAccount:
+    managedIdentity: "__prometheusUAMIClientId__"
+environment: "{{ .clustersService.environment }}"

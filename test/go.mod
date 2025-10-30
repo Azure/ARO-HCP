@@ -5,7 +5,7 @@ go 1.24.3
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools v0.0.0-20251028171912-ae538c991b1d
+	github.com/Azure/ARO-Tools v0.0.0-20251029144111-5a1731bc7ae8
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0

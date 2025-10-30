@@ -1,20 +1,3 @@
-Microsoft.Azure.ARO.HCP.ACM:
-  management:
-    deploy: helm step needing migration
-    deploy-policies: helm step needing migration
 Microsoft.Azure.ARO.HCP.ClusterService:
   service:
     deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.Management.Infra:
-  management:
-    fixes: helm step needing migration
-    prometheus: helm step needing migration
-Microsoft.Azure.ARO.HCP.RP.Backend:
-  service:
-    deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.RP.Frontend:
-  service:
-    deploy: helm step needing migration
-Microsoft.Azure.ARO.HCP.Service.Infra:
-  service:
-    prometheus: helm step needing migration

@@ -26,6 +26,7 @@ defaults:
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
+  availabilityZoneCount: {{ .ev2.availabilityZoneCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
   acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
@@ -320,18 +321,18 @@ defaults:
       clusterOutboundIPAddressIPTags: ""
     prometheus:
       namespace: prometheus
-      namespaceLabel: ""
+      namespaceNetworkPolicyGroup: ""
       prometheusOperator:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+          sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+          sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
         version: ""
         replicas: 2
         shards: 2
@@ -339,7 +340,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+          sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
   # MGMT cluster specifics
   mgmt:
     subscription:
@@ -411,7 +412,7 @@ defaults:
       enableSwiftV2Nodepools: true
     prometheus:
       namespace: prometheus
-      namespaceLabel: network.openshift.io/policy-group=monitoring
+      namespaceNetworkPolicyGroup: monitoring
       prometheusOperator:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -428,7 +429,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+          sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
   # Backend
   backend:
     image:
@@ -625,7 +626,6 @@ defaults:
     mce:
       version: "2.9.1"
       mirrorAdditionalVersions: "2.8.1,2.8.2,2.9.0"
-      pauseReconciliation: false
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
@@ -849,11 +849,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: '' # if empty uses commit sha of repo
+          digest: sha256:7f0f117f3a3fbb150ae6c72e6af61a831465295517687cbd541f6441b23f1dc7
       # Backend
       backend:
         image:
-          digest: '' # if empty uses commit sha of repo
+          digest: sha256:e4ea396bd51af4be33d4b6c53d635aff15ff39d8777a9a64705150bca2bfe905
       # Image Sync
       imageSync:
         ocMirror:
@@ -889,10 +889,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+              sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
           prometheusSpec:
             image:
-              digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+              sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
       mgmt:
         subscription:
@@ -922,10 +922,10 @@ clouds:
         prometheus:
           prometheusOperator:
             image:
-              digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+              sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
           prometheusSpec:
             image:
-              digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+              sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
       # ACRs
       acr:

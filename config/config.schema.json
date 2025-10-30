@@ -548,6 +548,26 @@
         "digest"
       ]
     },
+    "containerImageSha": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string",
+          "pattern": "^$|^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "repository",
+        "sha"
+      ]
+    },
     "keyColonValueCSV": {
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
@@ -607,7 +627,7 @@
         "namespace": {
           "type": "string"
         },
-        "namespaceLabel": {
+        "namespaceNetworkPolicyGroup": {
           "type": "string"
         },
         "prometheusOperator": {
@@ -615,7 +635,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             },
             "version": {
               "type": "string"
@@ -627,7 +647,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             },
             "version": {
               "type": "string"
@@ -645,7 +665,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             }
           }
         }
@@ -765,6 +785,9 @@
     "cloud": {
       "type": "string"
     },
+    "availabilityZoneCount": {
+      "type": "integer"
+    },
     "kvCertOfficerPrincipalId": {
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
@@ -847,18 +870,13 @@
             },
             "bundle": {
               "$ref": "#/definitions/containerImage"
-            },
-            "pauseReconciliation": {
-              "type": "boolean",
-              "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."
             }
           },
           "additionalProperties": false,
           "required": [
             "version",
             "mirrorAdditionalVersions",
-            "bundle",
-            "pauseReconciliation"
+            "bundle"
           ]
         }
       },

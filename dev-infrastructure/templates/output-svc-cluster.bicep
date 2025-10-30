@@ -23,4 +23,5 @@ resource prometheusUAMI 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-1
 }
 
 output dcrRemoteWriteUrl string = '${dce.properties.metricsIngestion.endpoint}/dataCollectionRules/${dcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
+output hcpDcrRemoteWriteUrl string = 'NONE'
 output prometheusUAMIClientId string = prometheusUAMI.properties.clientId

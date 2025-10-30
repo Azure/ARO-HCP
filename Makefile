@@ -258,15 +258,13 @@ PERSIST ?= "false"
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
-								 --config-file-override "${OVERRIDE_CONFIG_FILE}" \
-	                             --topology-config topology.yaml \
-	                             --dev-settings-file tooling/templatize/settings.yaml \
-	                             --dev-environment $(DEPLOY_ENV) \
-	                             $(WHAT) \
-	                             --persist-tag=$(PERSIST) \
-	                             --dry-run=$(DRY_RUN) \
-	                             --verbosity=$(LOG_LEVEL) \
-	                             --timing-output=timing.yaml
+								     --config-file-override "${OVERRIDE_CONFIG_FILE}" \
+	                                 --topology-config topology.yaml \
+	                                 --dev-settings-file tooling/templatize/settings.yaml \
+	                                 --dev-environment $(DEPLOY_ENV) \
+	                                 $(WHAT) \
+	                                 --dry-run=$(DRY_RUN) \
+	                                 --verbosity=$(LOG_LEVEL)
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/entrypoint/,$(entrypoints)):
@@ -286,3 +284,29 @@ graph: $(TEMPLATIZE)
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
 	                               $(WHAT) > .graph.dot
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix cleanup-entrypoint/,$(entrypoints)):
+endif
+cleanup-entrypoint/%:
+	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix cleanup-pipeline/,$(pipelines)):
+endif
+cleanup-pipeline/%:
+	$(MAKE) cleanup WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+CLEANUP_DRY_RUN ?= true
+CLEANUP_WAIT ?= true
+
+cleanup: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint cleanup --config-file "${CONFIG_FILE}" \
+								     --config-file-override "${OVERRIDE_CONFIG_FILE}" \
+								     --topology-config topology.yaml \
+								     --dev-settings-file tooling/templatize/settings.yaml \
+								     --dev-environment $(DEPLOY_ENV) \
+								     $(WHAT) \
+								     --dry-run=$(CLEANUP_DRY_RUN) \
+								     --wait=$(CLEANUP_WAIT) \
+								     --verbosity=$(LOG_LEVEL)
