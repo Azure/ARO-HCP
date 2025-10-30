@@ -31,7 +31,7 @@ build: $(BINARY)
 $(BINARY): $(ADMIN_API_SOURCES)
 	go build $(LDFLAGS) -o $(BINARY) .
 
-run: build
+run: $(BINARY)
 	./${BINARY} --location ${LOCATION}
 .PHONY: run
 
