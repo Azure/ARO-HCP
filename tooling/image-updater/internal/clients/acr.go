@@ -19,9 +19,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
-	"github.com/go-logr/logr"
 )
 
 // ACRClient provides methods to interact with Azure Container Registry
