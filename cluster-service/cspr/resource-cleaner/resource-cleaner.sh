@@ -111,8 +111,9 @@ CUTOFF_DATE=$(date -u -d "@${CUTOFF_TIME}" '+%Y-%m-%dT%H:%M:%S.000000Z')
 if "${SCRIPT_DIR}/cleanup-bundles.sh" "${MAESTRO_URL}" "${CUTOFF_DATE}" "${DRY_RUN}"; then
     log_info "✓ Bundle cleanup completed"
 else
-    log_error "✗ Bundle cleanup failed"
+    log_error "✗ Bundle cleanup failed. Aborting cleanup."
     FAILED_SCRIPTS+=("cleanup-bundles.sh")
+    exit 1
 fi
 
 # Step 3: Delete managed resource groups

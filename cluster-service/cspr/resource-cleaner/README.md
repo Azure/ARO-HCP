@@ -353,3 +353,156 @@ fi
 
 4. Update this README to document the new cleanup step
 
+## Kubernetes Deployment
+
+The resource cleaner can be deployed as a Kubernetes CronJob that runs automatically on a schedule. Scripts are loaded from the actual `.sh` files into a ConfigMap, making them easy to debug and maintain in a single location.
+
+### Prerequisites for Kubernetes Deployment
+
+1. **Azure Workload Identity** configured on your cluster
+2. **Managed Identity** with appropriate permissions:
+   - Key Vault: `Key Vault Secrets Officer`, `Key Vault Certificates Officer`
+   - Resource Groups: `Contributor` (for deletion)
+   - Container Registry: `AcrDelete` (for token deletion)
+3. **Federated Identity Credential** linking the Kubernetes ServiceAccount to the Azure Managed Identity
+
+### Deploy the CronJob
+
+The deployment consists of:
+- **Namespace**: `resource-cleaner`
+- **ServiceAccount** with Azure Workload Identity annotations
+- **ClusterRole** with permissions for secrets and namespaces
+- **ConfigMap** created from actual script files (`*.sh`)
+- **CronJob** that runs daily at midnight UTC
+
+**Configuration:**
+- **Hardcoded values** (in `common.sh`): Key vault names, ACR name, subscription ID, resource group prefixes
+- **Deployment-time parameters**: Azure Client ID, Maestro URL, Retention Hours
+- **Runtime control**: Dry-run mode (via environment variable)
+
+#### Option 1: Using the deployment script (recommended)
+
+```bash
+cd cluster-service/cspr
+
+# Deploy with required parameters
+./deploy-resource-cleaner.sh \
+  --azure-client-id "<your-managed-identity-client-id>" \
+  --maestro-url "http://maestro.maestro.svc.cluster.local:8000" \
+  --retention-hours 3
+```
+
+The deployment script will:
+1. Verify all required scripts exist
+2. Create a ConfigMap from the actual `.sh` files in `resource-cleaner/`
+3. Deploy the CronJob using the OpenShift template
+
+#### Option 2: Manual deployment
+
+```bash
+# Create namespace
+oc create namespace resource-cleaner
+
+# Create ConfigMap from script files
+oc create configmap resource-cleaner-scripts \
+  --from-file=resource-cleaner/ \
+  --namespace=resource-cleaner
+
+# Deploy the template
+oc process -f resource-cleaner.yaml \
+  -p AZURE_CLIENT_ID="<your-managed-identity-client-id>" \
+  -p MAESTRO_URL="http://maestro.maestro.svc.cluster.local:8000" \
+  -p RETENTION_HOURS="3" \
+  | oc apply -f -
+```
+
+### Updating Scripts or Configuration
+
+Since scripts are maintained as separate files, you can update them and redeploy:
+
+```bash
+# Edit any script (e.g., to change hardcoded values like keyvault names)
+vim resource-cleaner/common.sh
+vim resource-cleaner/cleanup-bundles.sh
+
+# Recreate the ConfigMap and redeploy
+./deploy-resource-cleaner.sh --azure-client-id "<your-client-id>"
+
+# Or manually recreate just the ConfigMap
+oc delete configmap resource-cleaner-scripts -n resource-cleaner
+oc create configmap resource-cleaner-scripts \
+  --from-file=resource-cleaner/ \
+  --namespace=resource-cleaner
+```
+
+**Hardcoded configuration** (in `common.sh`):
+- Key Vault names: `MI_KEYVAULT`, `CX_KEYVAULT`
+- ACR name: `ACR_NAME`
+- Azure subscription: `ARO_HCP_DEV_SUBSCRIPTION`
+- Resource group prefixes: `MANAGED_RG_PREFIX`, `CUSTOMER_RG_PREFIX`
+
+To change these values, edit `resource-cleaner/common.sh` and redeploy the ConfigMap.
+
+**How the job runs:**
+1. Uses Azure CLI base image (`mcr.microsoft.com/azure-cli:2.78.0`)
+2. Installs `jq` and `bash` via `apk add` (Alpine package manager)
+3. Copies scripts from ConfigMap to `/tmp` and makes them executable
+4. Authenticates to Azure using workload identity (`az login --identity`)
+5. Runs the resource cleaner script with configured parameters
+6. Cleans up temporary files and reports results
+
+### CronJob Schedule
+
+The CronJob runs **once daily at midnight UTC** by default. The schedule can be modified in the template:
+
+```yaml
+spec:
+  schedule: "0 0 * * *"  # Once a day at midnight
+```
+
+Common schedule examples:
+- `0 */6 * * *` - Every 6 hours
+- `0 2 * * *` - Daily at 2 AM UTC
+- `0 0 * * 0` - Weekly on Sunday at midnight
+
+### Monitoring
+
+Check the CronJob status:
+
+```bash
+# View CronJob
+oc get cronjob -n resource-cleaner
+
+# View recent jobs
+oc get jobs -n resource-cleaner
+
+# View pod logs from latest job
+oc logs -n resource-cleaner -l job-name=$(oc get jobs -n resource-cleaner --sort-by=.metadata.creationTimestamp -o name | tail -1 | cut -d/ -f2)
+```
+
+### Manual Trigger
+
+Trigger a cleanup job manually:
+
+```bash
+# Create a one-time job from the cronjob
+oc create job -n resource-cleaner manual-cleanup-$(date +%s) --from=cronjob/resource-cleaner
+
+# Watch the job
+oc get jobs -n resource-cleaner -w
+```
+
+### Dry-Run Testing
+
+To test without deleting resources, set `DRY_RUN` to `true` in the template or manually:
+
+```bash
+oc set env cronjob/resource-cleaner -n resource-cleaner DRY_RUN=true
+```
+
+Don't forget to set it back to `false` for production:
+
+```bash
+oc set env cronjob/resource-cleaner -n resource-cleaner DRY_RUN=false
+```
+
