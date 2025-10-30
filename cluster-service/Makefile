@@ -42,7 +42,7 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	helm.sh cluster-service deploy ${NAMESPACE} \
+	./helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
