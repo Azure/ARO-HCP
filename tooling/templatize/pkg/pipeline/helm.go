@@ -116,14 +116,15 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	// then, run the helm release
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
 	opts := helm.RawOptions{
-		NamespaceFiles:   namespaceFiles,
-		ReleaseName:      step.ReleaseName,
-		ReleaseNamespace: step.ReleaseNamespace,
-		ChartDir:         chartDir,
-		ValuesFile:       values,
-		Timeout:          5 * time.Minute,
-		KubeconfigFile:   kubeconfig,
-		DryRun:           options.DryRun,
+		NamespaceFiles:    namespaceFiles,
+		ReleaseName:       step.ReleaseName,
+		ReleaseNamespace:  step.ReleaseNamespace,
+		ChartDir:          chartDir,
+		ValuesFile:        values,
+		Timeout:           5 * time.Minute,
+		KubeconfigFile:    kubeconfig,
+		DryRun:            options.DryRun,
+		RollbackOnFailure: step.RollbackOnFailure,
 	}
 
 	chartData := map[string][]byte{}
