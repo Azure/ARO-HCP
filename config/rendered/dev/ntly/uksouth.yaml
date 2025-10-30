@@ -5,7 +5,6 @@ acm:
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     mirrorAdditionalVersions: 2.8.1,2.8.2,2.9.0
-    pauseReconciliation: false
     version: 2.9.1
   operator:
     bundle:

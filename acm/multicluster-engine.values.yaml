@@ -1,0 +1,2 @@
+imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
+imageRootRepository: acm-d-cache

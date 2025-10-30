@@ -870,18 +870,13 @@
             },
             "bundle": {
               "$ref": "#/definitions/containerImage"
-            },
-            "pauseReconciliation": {
-              "type": "boolean",
-              "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."
             }
           },
           "additionalProperties": false,
           "required": [
             "version",
             "mirrorAdditionalVersions",
-            "bundle",
-            "pauseReconciliation"
+            "bundle"
           ]
         }
       },

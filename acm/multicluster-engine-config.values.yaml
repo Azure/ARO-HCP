@@ -1,0 +1,2 @@
+global:
+  registryOverride: "{{ .acr.svc.name }}.azurecr.io/acm-d-cache"
