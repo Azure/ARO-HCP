@@ -72,7 +72,7 @@ all-tidy: tidy fmt licenses
 	go work sync
 
 record-nonlocal-e2e:
-	cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo run --no-color --tags E2Etests --label-filter='!Local' -v --dry-run ./ > ../../nonlocal-e2e-specs.txt
+	cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo run --no-color --tags E2Etests --label-filter='!Local' --dry-run   --output-dir=. --json-report=report.json ./ && jq '[.[] | .SpecReports[]? | {LeafNodeType, LeafNodeText}]' report.json > ../../nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
 mega-lint:
