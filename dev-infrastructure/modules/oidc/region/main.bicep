@@ -16,6 +16,7 @@ param deploymentScriptLocation string
 param storageAccountBlobPublicAccess bool
 param globalMSIId string
 param storageAccountAccessPrincipalId string
+param frontDoorManage bool
 
 var certificateName = 'afd-oic-${location}'
 var requestMessage = 'Requested by OIDC pipeline'
@@ -37,7 +38,7 @@ module storageAccount 'storage.bicep' = {
 }
 
 // Custom Domain, Route, Origin deployment
-module configureFrontDoor 'customDomain-route-origin.bicep' = {
+module configureFrontDoor 'customDomain-route-origin.bicep' = if (frontDoorManage) {
   name: 'configureFrontDoor-${location}'
   scope: resourceGroup(gblSubscription, gblRgName)
   params: {
@@ -59,7 +60,7 @@ module configureFrontDoor 'customDomain-route-origin.bicep' = {
   }
 }
 
-module StorageEndpoint 'privateConnectionEndpoint.bicep' = {
+module StorageEndpoint 'privateConnectionEndpoint.bicep' = if (frontDoorManage) {
   name: 'storage-endpoint'
   params: {
     storageName: storageAccount.outputs.storageName
@@ -71,7 +72,7 @@ module StorageEndpoint 'privateConnectionEndpoint.bicep' = {
 }
 
 // WAF deployment
-module waf 'WAF.bicep' = {
+module waf 'WAF.bicep' = if (frontDoorManage) {
   name: 'waf-policy-${location}'
   scope: resourceGroup(gblSubscription, gblRgName)
   params: {
