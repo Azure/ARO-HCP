@@ -344,12 +344,8 @@ func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client,
 	return errors.Join(errs...)
 }
 
-func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context, OperationType ...OpsType) *armresources.ClientFactory {
-	var operation = ARM
-	if len(OperationType) > 0 {
-		operation = OperationType[0]
-	}
-	return Must(tc.GetARMResourcesClientFactory(ctx, operation))
+func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactoryOrDie(ctx context.Context) *armresources.ClientFactory {
+	return Must(tc.GetARMResourcesClientFactory(ctx))
 }
 
 func (tc *perItOrDescribeTestContext) Get20240610ClientFactoryOrDie(ctx context.Context) *hcpsdk20240610preview.ClientFactory {
@@ -379,7 +375,7 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := armsubscriptions.NewClientFactory(creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions(ARM))
+	clientFactory, err := armsubscriptions.NewClientFactory(creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -388,40 +384,24 @@ func (tc *perItOrDescribeTestContext) getARMSubscriptionsClientFactoryUnlocked()
 	return tc.armSubscriptionsClientFactory, nil
 }
 
-func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context, OperationType ...OpsType) (*armresources.ClientFactory, error) {
-	var operation = ARM
+func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armResourcesClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armResourcesClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
 
-	if len(OperationType) > 0 {
-		operation = OperationType[0]
-	}
-	// Skip caching in development environment - create fresh client every time
-	if !tc.perBinaryInvocationTestContext.isDevelopmentEnvironment && operation == ARM {
-		tc.contextLock.RLock()
-		if tc.armResourcesClientFactory != nil {
-			defer tc.contextLock.RUnlock()
-			return tc.armResourcesClientFactory, nil
-		}
-		tc.contextLock.RUnlock()
-	}
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()
 
-	return tc.getARMResourcesClientFactoryUnlocked(ctx, operation)
+	return tc.getARMResourcesClientFactoryUnlocked(ctx)
 }
 
-func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx context.Context, OperationType ...OpsType) (*armresources.ClientFactory, error) {
-	var operation = ARM
-
-	if len(OperationType) > 0 {
-		operation = OperationType[0]
+func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx context.Context) (*armresources.ClientFactory, error) {
+	if tc.armResourcesClientFactory != nil {
+		return tc.armResourcesClientFactory, nil
 	}
-	// Skip caching in development environment - create fresh client every time
-	if !tc.perBinaryInvocationTestContext.isDevelopmentEnvironment && operation == ARM {
-		if tc.armResourcesClientFactory != nil {
-			return tc.armResourcesClientFactory, nil
-		}
-	}
-
 	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
 	if err != nil {
 		return nil, err
@@ -430,7 +410,7 @@ func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx c
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := armresources.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions(operation))
+	clientFactory, err := armresources.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +446,7 @@ func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions(HCP))
+	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}
