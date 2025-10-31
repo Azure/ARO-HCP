@@ -61,6 +61,7 @@ param azureFrontDoorUseManagedCertificates bool
 param azureFrontDoorSkuName string
 param keyVaultAdminPrincipalId string
 param oidcMsiName string
+param azureFrontDoorManage bool
 
 @description('KV certificate officer principal ID')
 param kvCertOfficerPrincipalId string
@@ -370,7 +371,7 @@ module globalNSPProfile '../modules/network/nsp-profile.bicep' = {
 //   A Z U R E   F R O N T   D O O R
 //
 
-module azureFrontDoor '../modules/oidc/global/main.bicep' = {
+module azureFrontDoor '../modules/oidc/global/main.bicep' = if (azureFrontDoorManage) {
   name: 'azureFrontDoor'
   params: {
     subdomain: oidcSubdomain

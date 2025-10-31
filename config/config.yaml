@@ -709,6 +709,7 @@ defaults:
       public: false
       privateLinkLocation: "{{ .ctx.region }}"
     frontdoor:
+      manage: true
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
@@ -804,6 +805,7 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
+          manage: false
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com

@@ -586,6 +586,7 @@ oidc:
       softDelete: true
       tagKey: aroHCPPurpose
       tagValue: afd
+    manage: false
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor
