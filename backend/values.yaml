@@ -11,6 +11,7 @@ configMap:
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 serviceAccount:
   name: "{{ .backend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__backendMsiClientId__"

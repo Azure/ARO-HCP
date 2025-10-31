@@ -13,6 +13,7 @@ credsKeyVault:
 deployment:
   replicas: {{ .frontend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 serviceAccount:
   name: "{{ .frontend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__frontendMsiClientId__"

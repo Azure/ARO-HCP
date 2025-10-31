@@ -306,3 +306,5 @@ ocpVersions:
       url: ""
       minVersion: ""
       maxVersion: ""
+deployment:
+  zoneCount: ""

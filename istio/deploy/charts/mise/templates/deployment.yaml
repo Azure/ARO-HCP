@@ -13,21 +13,19 @@ spec:
       labels:
         app: mise
     spec:
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: mise
-              topologyKey: topology.kubernetes.io/zone
-          - weight: 50
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: mise
-              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: '{{ if eq (int .Values.deployment.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
       containers:
       - name: mise
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"

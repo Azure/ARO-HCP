@@ -21,3 +21,5 @@ sideCar:
     registry: "{{ .maestro.agent.sidecar.image.registry }}"
     repository: "{{ .maestro.agent.sidecar.image.repository }}"
     digest: "{{ .maestro.agent.sidecar.image.digest }}"
+deployment:
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}

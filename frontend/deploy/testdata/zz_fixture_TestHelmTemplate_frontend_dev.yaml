@@ -94,21 +94,19 @@ spec:
         app: aro-hcp-frontend
         azure.workload.identity/use: "true"
     spec:
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: aro-hcp-frontend
-              topologyKey: topology.kubernetes.io/zone
-          - weight: 50
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: aro-hcp-frontend
-              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-frontend
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: aro-hcp-frontend
       serviceAccountName: 'frontend'
       containers:
       - name: aro-hcp-frontend
