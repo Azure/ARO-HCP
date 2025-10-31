@@ -164,6 +164,15 @@ Set the **LOCATION** environment variable to the Azure region (e.g., "uksouth") 
 ### *Optional:* Development Environment
 To run the E2E test suite against the development environment, set the environment variable **AROHCP_ENV** to `development`. This environment requires port-forwarding to be set up before running the tests.
 
+## Guidelines for Writing E2E Test Cases
+
+For instructions and best practices on creating ARO HCP E2E test cases, refer to [this document](https://docs.google.com/document/d/1e0ZTi8qbM3oO-sq0NVJ6gLlj1S9S5iKIGaKQIXxonfk/edit?tab=t.0#heading=h.4oto1giw5qo8). The resource:
+
+- Provides essential background and guidance for test developers to write maintainable E2E tests.
+- Serves as the source for creating the `AGENTS.md` file found in the test directory, which is used to inform code generation agents.
+
+Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
+
 ## General guidance to write E2E test with ginkgo
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".
