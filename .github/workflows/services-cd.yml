@@ -75,15 +75,15 @@ jobs:
     - name: 'Deploy Frontend'
       run: |
         make -C frontend/ record-override OVERRIDE_CONFIG_FILE=frontend-override.yaml
-        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=frontend-override.yaml
+        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=frontend/frontend-override.yaml
     - name: 'Deploy Admin API'
       run: |
         make -C admin/ record-override OVERRIDE_CONFIG_FILE=admin-api-override.yaml
-        make pipeline/AdminAPI OVERRIDE_CONFIG_FILE=admin-api-override.yaml
+        make pipeline/AdminAPI OVERRIDE_CONFIG_FILE=admin/admin-api-override.yaml
     - name: 'Deploy Backend'
       run: |
         make -C backend/ record-override OVERRIDE_CONFIG_FILE=backend-override.yaml
-        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=backend-override.yaml
+        make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=backend/backend-override.yaml
     - name: 'Deploy Cluster Service'
       if: ${{ ! inputs.deploy_cs_pr_check_deps }}
       run: |
