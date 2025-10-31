@@ -31,6 +31,7 @@ param azureFrontDoorKeyVaultTagValue = '{{ .oidc.frontdoor.keyVault.tagValue }}'
 param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
 param keyVaultAdminPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
 param oidcMsiName = '{{ .oidc.frontdoor.msiName }}'
+param azureFrontDoorManage = {{ .oidc.frontdoor.manage }}
 
 // SP for KV certificate issuer registration
 param kvCertOfficerPrincipalId = '{{ .kvCertOfficerPrincipalId }}'

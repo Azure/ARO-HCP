@@ -2272,6 +2272,9 @@
             },
             "msiName": {
               "type": "string"
+            },
+            "manage": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false,
@@ -2281,7 +2284,8 @@
             "sku",
             "keyVault",
             "useManagedCertificates",
-            "msiName"
+            "msiName",
+            "manage"
           ]
         }
       },
