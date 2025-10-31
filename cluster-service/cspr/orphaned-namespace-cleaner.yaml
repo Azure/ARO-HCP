@@ -66,8 +66,7 @@ objects:
                 echo "Starting to clear orphaned namespaces"
                 # `select((now - (.metadata.creationTimestamp | fromdate)) / 120 > 120)` selects the namespaces which are older than 120 minutes.
                 NAMESPACES=$(kubectl get namespaces -o json | jq -r '.items[] | select(.metadata.labels."sandbox-jenkins-type"=="aro-hcp") | select((now - (.metadata.creationTimestamp | fromdate)) / 120 > 120) | .metadata.name')
-                NUMBER_OF_NAMESPACES=$(printf "%s" "$NAMESPACES" | wc -l);
-                if [ $NUMBER_OF_NAMESPACES -lt 1 ]; then
+                if [ -z "$NAMESPACES" ]; then
                   echo "no namespaces matching the criteria to delete, exiting"
                   exit 0
                 fi
