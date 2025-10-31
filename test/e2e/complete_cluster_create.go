@@ -114,23 +114,12 @@ var _ = Describe("Customer", func() {
 			clusterParams.KeyVaultName = keyVaultNameStr
 			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyNameStr
 
-			// Use direct API calls with typed params for cluster creation .
 			err = framework.CreateHCPClusterFromParam(ctx,
 				tc,
 				*resourceGroup.Name,
 				clusterParams,
 				45*time.Minute,
 			)
-			// } else {
-			// 	_, err = framework.CreateBicepTemplateAndWait(ctx,
-			// 		tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-			// 		*resourceGroup.Name,
-			// 		"cluster",
-			// 		framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-			// 		params,
-			// 		45*time.Minute,
-			// 	)
-			// }
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
@@ -151,7 +140,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams(customerClusterName, customerNodePoolName)
 			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
 			nodePoolParams.Replicas = int32(2)
-			// Use direct API calls with typed params for nodepool creation.
+
 			err = framework.CreateNodePoolFromParam(ctx,
 				tc,
 				*resourceGroup.Name,
@@ -159,15 +148,6 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			// 	_, err = framework.CreateBicepTemplateAndWait(ctx,
-			// 		tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
-			// 		*resourceGroup.Name,
-			// 		"node-pool",
-			// 		framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-			// 		params,
-			// 		45*time.Minute,
-			// 	)
-			// }
 			Expect(err).NotTo(HaveOccurred())
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
