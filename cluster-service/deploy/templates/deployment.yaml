@@ -28,6 +28,21 @@ spec:
         checksum/cloudres: '{{ include (print $.Template.BasePath "/cloud-resources-config.configmap.yaml") . | sha256sum }}'
         checksum/sa: '{{ include (print $.Template.BasePath "/serviceaccount.yaml") . | sha256sum }}'
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: clusters-service
+              topologyKey: topology.kubernetes.io/zone
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: clusters-service
+              topologyKey: kubernetes.io/hostname
       serviceAccount: '{{ .Values.serviceAccountName }}'
       serviceAccountName: '{{ .Values.serviceAccountName }}'
       volumes:
