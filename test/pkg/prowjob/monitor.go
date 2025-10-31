@@ -67,7 +67,7 @@ func (m *Monitor) WaitForCompletion(ctx context.Context, prowExecutionID string)
 
 			switch status {
 			case string(prowjobs.SuccessState):
-				logger.WithField("prowExecutionID", prowExecutionID).Info("Job completed successfully")
+				logger.WithField("prowExecutionID", prowExecutionID, "prowUrl", job.Status.URL).Info("Job completed successfully")
 				return nil
 			case string(prowjobs.FailureState):
 				return fmt.Errorf("job %s failed - check the Prow UI for detailed logs: %s", prowExecutionID, job.Status.URL)
