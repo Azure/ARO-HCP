@@ -193,24 +193,18 @@ func ListAllOperations(
 	return allOperations, nil
 }
 
-// CreateHCPClusterFromBicepDev creates an HCP cluster from bicep template in development environment
-// by converting it to direct API calls to localhost:8443
-func CreateHCPClusterFromBicepDev(
+func CreateHCPClusterFromParam(
 	ctx context.Context,
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
-	compiledTemplate []byte,
-	parameters map[string]interface{},
+	parameters ClusterParams,
 	timeout time.Duration,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Extract cluster name from parameters
-	clusterName, ok := parameters["clusterName"].(string)
-	if !ok {
-		return fmt.Errorf("clusterName parameter not found or not a string")
-	}
+	clusterName := parameters.ClusterName
 
 	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API in dev environment\n", clusterName)
 
@@ -220,12 +214,11 @@ func CreateHCPClusterFromBicepDev(
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
 
-	// Convert compiled template + parameters to HCP cluster object to match generated artifacts
-	cluster, err := BuildHCPClusterFromCompiledTemplate(ctx, compiledTemplate, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
+	// Build cluster object from parameters (no ARM/Bicep templates)
+	cluster, err := BuildHCPClusterFromParams(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
 	if err != nil {
 		return fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
 	}
-	// Create the cluster directly via API
 	_, err = CreateHCPClusterAndWait(
 		ctx,
 		testContext.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -241,24 +234,21 @@ func CreateHCPClusterFromBicepDev(
 	return nil
 }
 
-// CreateNodePoolFromBicepDev creates a NodePool from bicep template in development environment
-// by converting it to direct API calls to localhost:8443
-func CreateNodePoolFromBicepDev(
+func CreateNodePoolFromParam(
 	ctx context.Context,
 	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
 	hcpClusterName string,
-	compiledTemplate []byte,
-	parameters map[string]interface{},
+	parameters NodePoolParams,
 	timeout time.Duration,
 ) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Extract nodepool name from parameters
-	nodePoolName, ok := parameters["nodePoolName"].(string)
-	if !ok {
-		return fmt.Errorf("nodePoolName parameter not found or not a string")
+	nodePoolName := parameters.NodePoolName
+	if nodePoolName == "" {
+		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
 	fmt.Printf("DEBUG: Creating NodePool %s via direct API in dev environment\n", nodePoolName)
@@ -269,13 +259,12 @@ func CreateNodePoolFromBicepDev(
 		return fmt.Errorf("failed to get subscription ID: %w", err)
 	}
 
-	// Convert compiled template + parameters to NodePool object
-	nodePool, err := BuildNodePoolFromCompiledTemplate(ctx, compiledTemplate, parameters, testContext.Location(), subscriptionId, resourceGroupName)
+	// Build NodePool object from parameters (no ARM/Bicep templates)
+	nodePool, err := BuildNodePoolFromParams(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName)
 	if err != nil {
 		return fmt.Errorf("failed to build NodePool from bicep: %w", err)
 	}
 
-	// Create the nodepool directly via API
 	_, err = CreateNodePoolAndWait(
 		ctx,
 		testContext.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),

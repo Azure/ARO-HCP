@@ -138,7 +138,6 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
 		// Add other headers that demo scripts include
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
-		fmt.Printf("DEBUG: Added ARM system data header for localhost request\n")
 	}
 	return req.Next()
 }
