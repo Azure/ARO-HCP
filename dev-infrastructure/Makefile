@@ -172,7 +172,7 @@ create-mock-identities: configurations/mock-identities.bicepparam
 #
 
 global:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run
+	make -C .. pipeline/Global DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: global
 
 global.what-if:
@@ -184,7 +184,7 @@ global.what-if:
 #
 
 region:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run
+	make -C .. pipeline/Region DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region
 
 region.clean:
@@ -195,7 +195,7 @@ region.clean:
 .PHONY: region.clean
 
 region.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run -d
+	make -C .. pipeline/Region DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region.what-if
 
 #
@@ -203,7 +203,7 @@ region.what-if:
 #
 
 svc:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run
+	make -C .. pipeline/Service.Infra DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc
 
 svc.cs-pr-check-msi: configurations/cs-integ-msi.bicepparam
@@ -252,7 +252,7 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.dev.permissions
 .PHONY: svc.init
 
 svc.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run -d
+	make -C .. pipeline/Service.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc.what-if
 
 svc.dev-role-assignments: configurations/dev-role-assignments.bicepparam
