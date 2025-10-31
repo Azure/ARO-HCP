@@ -141,7 +141,6 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 
 func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
-		fmt.Printf("DEBUG: Returning localhost:8443 config for HCP operations\n")
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloud.Configuration{

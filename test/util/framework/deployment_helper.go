@@ -206,8 +206,6 @@ func CreateHCPClusterFromParam(
 	// Extract cluster name from parameters
 	clusterName := parameters.ClusterName
 
-	fmt.Printf("DEBUG: Creating HCP cluster %s via direct API in dev environment\n", clusterName)
-
 	// Get subscription ID from test context
 	subscriptionId, err := testContext.getSubscriptionIDUnlocked(ctx)
 	if err != nil {
@@ -250,8 +248,6 @@ func CreateNodePoolFromParam(
 	if nodePoolName == "" {
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
-
-	fmt.Printf("DEBUG: Creating NodePool %s via direct API in dev environment\n", nodePoolName)
 
 	// Get subscription ID from test context
 	subscriptionId, err := testContext.getSubscriptionIDUnlocked(ctx)
