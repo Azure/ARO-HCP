@@ -100,4 +100,7 @@ resource genevaApp 'Microsoft.Graph/applications@beta' = if (genevaActionApplica
 
 resource genevaSp 'Microsoft.Graph/servicePrincipals@beta' = if (genevaActionApplicationManage) {
   appId: genevaApp.appId
+  owners: {
+    relationships: [for ownerId in csvToArray(genevaActionApplicationOwnerIds): ownerId]
+  }
 }
