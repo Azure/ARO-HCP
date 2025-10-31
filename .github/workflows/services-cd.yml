@@ -75,17 +75,17 @@ jobs:
     - name: 'Deploy Frontend'
       run: |
         OVERRIDE_CONFIG_FILE="${RUNNER_TEMP}/frontend-$(uuidgen).yaml"
-        make -C frontend/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" EXPECT_CLEAN_GIT_WORKTREE=1
+        make -C frontend/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" DETECT_DIRTY_GIT_WORKTREE=0
         make pipeline/RP.Frontend OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}"
     - name: 'Deploy Admin API'
       run: |
         OVERRIDE_CONFIG_FILE="${RUNNER_TEMP}/admin-$(uuidgen).yaml"
-        make -C admin/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" EXPECT_CLEAN_GIT_WORKTREE=1
+        make -C admin/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" DETECT_DIRTY_GIT_WORKTREE=0
         make pipeline/AdminAPI OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}"
     - name: 'Deploy Backend'
       run: |
         OVERRIDE_CONFIG_FILE="${RUNNER_TEMP}/backend-$(uuidgen).yaml"
-        make -C backend/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" EXPECT_CLEAN_GIT_WORKTREE=1
+        make -C backend/ record-override OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" DETECT_DIRTY_GIT_WORKTREE=0
         make pipeline/RP.Backend OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}"
     - name: 'Deploy Cluster Service'
       if: ${{ ! inputs.deploy_cs_pr_check_deps }}
