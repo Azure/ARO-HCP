@@ -121,13 +121,6 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	return tc.azureCredentials, nil
 }
 
-type OpsType string
-
-const (
-	ARM OpsType = "ARM"
-	HCP OpsType = "HCP"
-)
-
 // armSystemDataPolicy adds ARM system data headers for localhost requests
 type armSystemDataPolicy struct{}
 
@@ -142,9 +135,12 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
-func (tc *perBinaryInvocationTestContext) getClientFactoryOptions(OpsType OpsType) *azcorearm.ClientOptions {
-	fmt.Printf("DEBUG: getClientFactoryOptions called with OpsType=%s, isDevelopmentEnvironment=%t\n", OpsType, tc.isDevelopmentEnvironment)
-	if tc.isDevelopmentEnvironment && OpsType == HCP {
+func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	return nil
+}
+
+func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
+	if tc.isDevelopmentEnvironment {
 		fmt.Printf("DEBUG: Returning localhost:8443 config for HCP operations\n")
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
@@ -164,7 +160,6 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions(OpsType OpsTyp
 			},
 		}
 	}
-	fmt.Printf("DEBUG: Returning nil (default Azure endpoints) for OpsType=%s\n", OpsType)
 	return nil
 }
 
