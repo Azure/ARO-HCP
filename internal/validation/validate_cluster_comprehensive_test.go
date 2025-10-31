@@ -28,6 +28,7 @@ import (
 )
 
 // Comprehensive tests for ValidateClusterCreate
+// using a subscription without AllowNonStableChannel flags
 func TestValidateClusterCreate(t *testing.T) {
 	ctx := context.Background()
 
@@ -49,17 +50,6 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []expectedError{},
-		},
-		{
-			name: "invalid version - create",
-			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "invalid-version"
-				return c
-			}(),
-			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
-			},
 		},
 		{
 			name: "invalid DNS prefix - create",
@@ -461,14 +451,12 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "multiple validation errors - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "invalid-version"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "Invalid-Name"
 				c.CustomerProperties.Network.NetworkType = "InvalidType"
 				c.CustomerProperties.API.Visibility = "InvalidVisibility"
 				return c
 			}(),
 			expectErrors: []expectedError{
-				{message: "Malformed version", fieldPath: "customerProperties.version.id"},
 				{message: "must be a valid DNS RFC 1035 label", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "Unsupported value", fieldPath: "customerProperties.network.networkType"},
 				{message: "Unsupported value", fieldPath: "customerProperties.api.visiblity"},
@@ -903,17 +891,32 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable version ID - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.15"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.16"
 				return c
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "must be specified as MAJOR.MINOR", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "immutable version ChannelGroup - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "stable"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 			},
 		},
 		{
@@ -1321,21 +1324,23 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "multiple immutable field changes - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.2"
+				c.CustomerProperties.Version.ID = "4.16"
+				c.CustomerProperties.Version.ChannelGroup = "fast"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "new-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPrivate
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Version.ID = "4.15.1"
+				c.CustomerProperties.Version.ID = "4.15"
+				c.CustomerProperties.Version.ChannelGroup = "stable"
 				c.CustomerProperties.DNS.BaseDomainPrefix = "old-prefix"
 				c.CustomerProperties.API.Visibility = api.VisibilityPublic
 				return c
 			}(),
 			expectErrors: []expectedError{
 				{message: "field is immutable", fieldPath: "customerProperties.version.id"},
-				{message: "must be specified as MAJOR.MINOR; the PATCH value is managed", fieldPath: "customerProperties.version.id"},
+				{message: "field is immutable", fieldPath: "customerProperties.version.channelGroup"},
 				{message: "field is immutable", fieldPath: "customerProperties.dns.baseDomainPrefix"},
 				{message: "field is immutable", fieldPath: "customerProperties.api.visiblity"},
 			},

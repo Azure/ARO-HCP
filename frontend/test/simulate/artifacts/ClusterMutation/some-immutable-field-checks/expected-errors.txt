@@ -18,4 +18,3 @@ InvalidRequestContent: properties.network.networkType: Forbidden: field is immut
 InvalidRequestContent: properties.network.podCidr: Forbidden: field is immutable
 InvalidRequestContent: properties.network.serviceCidr: Forbidden: field is immutable
 InvalidRequestContent: properties.version.id: Forbidden: field is immutable
-InvalidRequestContent: properties.version.id: Invalid value: "illegal-change": Malformed version: illegal-change

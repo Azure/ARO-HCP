@@ -589,7 +589,7 @@ func (csc *clusterServiceClient) ListVersions() *VersionsListIterator {
 }
 
 // NewOpenShiftVersionXY parses the given version, stripping off any
-// OpenShift prefix ("openshift-"), and returns a new Version X.Y.
+// OpenShift prefix ("openshift-"), and suffix ("-<channel_group>") and returns a new Version X.Y.
 func NewOpenShiftVersionXY(v string) string {
 	v = ConvertOpenShiftVersionNoPrefix(v)
 	parts := strings.Split(v, ".")
@@ -600,27 +600,53 @@ func NewOpenShiftVersionXY(v string) string {
 }
 
 // NewOpenShiftVersionXYZ parses the given version and converts it to CS readable version
-func NewOpenShiftVersionXYZ(v string) string {
+// CS readable version "openshift-v<X.Y.Z>" or "openshift-v<X.Y.Z>-channel_group"
+func NewOpenShiftVersionXYZ(v, cg string) string {
 	var csVersion string
 
 	if len(v) > 0 {
-		parts := strings.Split(v, ".")
+		// Separate version from prerelease (e.g., "4.19.0" from "0.nightly-2025-01-01")
+		versionPart := v
+		prereleasePart := ""
+		if hyphenIndex := strings.Index(v, "-"); hyphenIndex != -1 {
+			versionPart = v[:hyphenIndex]
+			prereleasePart = v[hyphenIndex:] // includes the hyphen
+		}
+
+		parts := strings.Split(versionPart, ".")
 		if len(parts) == 1 {
 			parts = append(parts, "0")
 		}
 
-		// TODO: Will change once we support allowing users to select a cluster installation version.
-		// hardcode patch versions for now
-		switch v {
-		case "4.19":
-			parts = append(parts, OpenShift419Patch)
-		case "4.20":
-			parts = append(parts, OpenShift420Patch)
-		default:
-			parts = append(parts, "0")
+		// If no patch version provided (X.Y format), append default patch version
+		// Otherwise preserve the provided patch version (X.Y.Z format)
+		if len(parts) == 2 {
+			// TODO: Will change once we support allowing users to select a cluster installation version.
+			// hardcode patch versions for now
+			switch v {
+			case "4.19":
+				parts = append(parts, OpenShift419Patch)
+			case "4.20":
+				parts = append(parts, OpenShift420Patch)
+			default:
+				parts = append(parts, "0")
+			}
 		}
 
-		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".")
+		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".") + prereleasePart
+
+		// Only append channel group if it's not empty and not "stable"
+		// Versions will look as:
+		// stable: opensfhit-vX.Y.Z
+		// candidate: openshift-vX.Y.Z-candidate
+		// or candidate: openshift-vX.Y.Z[-prerelease]-candidate
+		// which can be <-rc.V> or <-ec.V>
+		// nightly: openshift-vX.Y.Z[-prerelease]-candidate
+		// [-prerelease] is in the format -0.nightly-<arch>-<timestamp>
+		// i.e. `-0.nightly-multi-2025-11-07-08293`
+		if len(cg) > 0 && cg != "stable" {
+			csVersion = csVersion + "-" + cg
+		}
 	}
 
 	return csVersion
