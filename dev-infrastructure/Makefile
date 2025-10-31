@@ -2,8 +2,9 @@ SHELL = /bin/bash
 DEPLOY_ENV ?= pers
 CLOUD ?= dev
 PRINCIPAL_ID ?= $(shell az ad signed-in-user show -o json | jq -r '.id')
-$(shell ./create-config.sh $(DEPLOY_ENV))
-include config.mk
+
+-include ../setup-templatize-env.mk
+-include ../.bingo/Variables.mk
 
 # Set SKIP_CONFIRM to a non-empty value to skip "what-if" confirmation prompts.
 ifndef SKIP_CONFIRM
@@ -49,6 +50,21 @@ lint:
 	@echo "Running make lint in parallel across $(NPROC) cores"
 	@$(MAKE) -j$(NPROC) _lint
 
+.deploy-env-ctx: FORCE
+	@echo "$(DEPLOY_ENV):$(USER):$(REGION)" | cmp -s - $@ || echo "$(DEPLOY_ENV):$(USER):$(REGION)" > $@
+
+FORCE:
+.PHONY: FORCE
+
+%.bicepparam: $(TEMPLATIZE) $(CONFIG_FILE) $(DEV_SETTINGS_FILE) .deploy-env-ctx
+	$(TEMPLATIZE) generate \
+		--config-file $(CONFIG_FILE) \
+		--dev-settings-file $(DEV_SETTINGS_FILE) \
+		--dev-environment $(DEPLOY_ENV) \
+		--input "$(basename $@).tmpl.bicepparam" \
+		--region $(REGION) \
+		--output "$@"
+
 %.bicep.fmt %.bicepparam.fmt:
 	@AZURE_BICEP_CHECK_VERSION=False az bicep format --file $(basename $@) 2>&1 | awk 'NF'
 
@@ -66,7 +82,7 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 # Create mock identities for the INT environment
 # This is done within the subscription the customer MRG / nodepools would be created
 # Manually lift/shift the cert/keys to the MSIT environment keyvault
-create-int-mock-identities:
+create-int-mock-identities: configurations/mock-identities.bicepparam
 	MSI_MOCK_ROLE_NAME=int-msi-mock && \
 	FIRST_PARTY_ROLE_NAME=int-first-party && \
 	FIRST_PARTY_CERT_NAME=intFirstPartyCert && \
@@ -115,7 +131,7 @@ create-int-mock-identities:
 
 .PHONY: create-mock-identities
 
-create-mock-identities:
+create-mock-identities: configurations/mock-identities.bicepparam
 	az deployment group wait --created --name "aro-hcp-dev-mock-certificates" --resource-group $(GLOBAL_RESOURCEGROUP) --interval 10
 	az deployment group create \
 		--name "aro-hcp-dev-mock-certificates" \
@@ -156,11 +172,11 @@ create-mock-identities:
 #
 
 global:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run
+	make -C .. pipeline/Global DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: global
 
 global.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Global -P run -d
+	make -C .. pipeline/Global DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: global.what-if
 
 #
@@ -168,7 +184,7 @@ global.what-if:
 #
 
 region:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run
+	make -C .. pipeline/Region DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region
 
 region.clean:
@@ -179,7 +195,7 @@ region.clean:
 .PHONY: region.clean
 
 region.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Region -P run -d
+	make -C .. pipeline/Region DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: region.what-if
 
 #
@@ -187,10 +203,10 @@ region.what-if:
 #
 
 svc:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run
+	make -C .. pipeline/Service.Infra DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc
 
-svc.cs-pr-check-msi:
+svc.cs-pr-check-msi: configurations/cs-integ-msi.bicepparam
 	az deployment group create \
 		--name cs-integ-msi \
 		--resource-group $(SVC_RESOURCEGROUP) \
@@ -236,10 +252,10 @@ svc.init: region svc svc.aks.admin-access svc.aks.kubeconfig svc.dev.permissions
 .PHONY: svc.init
 
 svc.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Service.Infra -P run -d
+	make -C .. pipeline/Service.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: svc.what-if
 
-svc.dev-role-assignments:
+svc.dev-role-assignments: configurations/dev-role-assignments.bicepparam
 	az deployment group create \
 		--name ${ROLE_ASSIGNMENTS_DEPLOYMENT_NAME} \
 		--resource-group "${REGIONAL_RESOURCEGROUP}" \
@@ -263,7 +279,7 @@ svc.clean: svc.clean-nsp-associations
 #
 
 mgmt:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run
+	make -C .. pipeline/Management.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: mgmt
 
 mgmt.aks.admin-access:
@@ -283,7 +299,7 @@ mgmt.init: region mgmt mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permis
 .PHONY: mgmt.init
 
 mgmt.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra -P run -d
+	make -C .. pipeline/Management.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: mgmt.what-if
 
 mgmt.clean-nsp-associations:
@@ -305,17 +321,11 @@ mgmt.kv.permission:
 mgmt.dev.permissions: mgmt.kv.permission
 .PHONY: mgmt.dev.permissions
 
-mgmt.solo.init: region mgmt.solo mgmt.aks.admin-access mgmt.aks.kubeconfig mgmt.dev.permissions
-
-mgmt.solo:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Management.Infra.Solo -P run
-.PHONY: mgmt.solo
-
 #
 # Monitoring
 #
 
-kusto:
+kusto: configurations/kusto-dev.bicepparam
 	az deployment group create \
 		--name kusto-dev \
  		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -325,7 +335,7 @@ kusto:
 		--parameters configurations/kusto-dev.bicepparam
 .PHONY: kusto
 
-kusto.what-if:
+kusto.what-if: configurations/kusto-dev.bicepparam
 	az deployment group what-if \
 		--name kusto-dev \
  		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -370,16 +380,16 @@ kusto.grant.ingest:
 .PHONY: kusto.grant.ingest
 
 monitoring:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run
+	make -C .. pipeline/Monitoring DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: monitoring
 
 monitoring.what-if:
-	../templatize.sh $(DEPLOY_ENV) -p Microsoft.Azure.ARO.HCP.Monitoring -P run -d
+	make -C .. pipeline/Monitoring DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: monitoring.what-if
 
 # Release Information
 
-release-information:
+release-information: configurations/release-information.bicepparam
 	az deployment group create \
 		--name release-information \
  		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -397,7 +407,7 @@ acr: acr-svc-cfg
 acr.what-if: acr-svc-cfg.what-if
 .PHONY: acr.what-if
 
-acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
+acr-svc-cfg: configurations/acr-svc.bicepparam # DEV only setup of caching rules in OCP ACR
 	az deployment group create \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -407,7 +417,7 @@ acr-svc-cfg: # DEV only setup of caching rules in OCP ACR
 			configurations/acr-svc.bicepparam
 .PHONY: acr-svc-cfg
 
-acr-svc-cfg.what-if:
+acr-svc-cfg.what-if: configurations/acr-svc.bicepparam
 	az deployment group what-if \
 		--name ${GLOBAL_RG_DEPLOYMENT_NAME}-acr-svc \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
@@ -511,7 +521,7 @@ automation-account.what-if:
 	done
 .PHONY: automation-account.what-if
 
-$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%:
+$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%: configurations/automation-account.bicepparam
 	$(eval _aa_env = $(subst automation-account-,,$@))
 	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
 	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
@@ -529,7 +539,7 @@ $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS)):automation-account-%
 		--parameters environment=$(_aa_env)
 .PHONY: $(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))
 
-$(addsuffix .what-if,$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))):automation-account-%.what-if:
+$(addsuffix .what-if,$(addprefix automation-account-,$(AUTOMATION_ACCOUNT_ENVS))):automation-account-%.what-if: configurations/automation-account.bicepparam
 	$(eval _aa_env = $(subst .what-if,,$(subst automation-account-,,$@)))
 	$(eval _aa_resource_group = hcp-$(_aa_env)-automation-account)
 	$(eval _aa_subscription_id = $($(shell tr '[:lower:]' '[:upper:]' <<< $(_aa_env))_TESTING_SUBSCRIPTION_ID))
