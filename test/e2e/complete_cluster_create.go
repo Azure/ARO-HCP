@@ -75,6 +75,8 @@ var _ = Describe("Customer", func() {
 			By("creating a managed identities")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
+			keyVaultNameStr, ok := keyVaultName.(string)
+			Expect(ok).To(BeTrue())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
@@ -98,39 +100,37 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
+			etcdEncryptionKeyNameStr, ok := etcdEncryptionKeyName.(string)
+			Expect(ok).To(BeTrue())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			params := map[string]interface{}{
-				"openshiftVersionId":          openshiftControlPlaneVersionId,
-				"clusterName":                 customerClusterName,
-				"managedResourceGroupName":    managedResourceGroupName,
-				"nsgName":                     customerNetworkSecurityGroupName,
-				"subnetName":                  customerVnetSubnetName,
-				"vnetName":                    customerVnetName,
-				"userAssignedIdentitiesValue": userAssignedIdentities,
-				"identityValue":               identity,
-				"keyVaultName":                keyVaultName,
-				"etcdEncryptionKeyName":       etcdEncryptionKeyName}
+			clusterParams := framework.NewDefaultClusterParams(customerClusterName)
+			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			clusterParams.NsgName = customerNetworkSecurityGroupName
+			clusterParams.SubnetName = customerVnetSubnetName
+			clusterParams.VnetName = customerVnetName
+			clusterParams.UserAssignedIdentitiesValue = userAssignedIdentities
+			clusterParams.IdentityValue = identity
+			clusterParams.KeyVaultName = keyVaultNameStr
+			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyNameStr
 
-			if framework.IsDevelopmentEnvironment() {
-				// Development: Use direct API calls with compiled template to avoid drift
-				compiledTemplate := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json"))
-				err = framework.CreateHCPClusterFromBicepDev(ctx,
-					tc,
-					*resourceGroup.Name,
-					compiledTemplate,
-					params,
-					45*time.Minute,
-				)
-			} else {
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-					*resourceGroup.Name,
-					"cluster",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-					params,
-					45*time.Minute,
-				)
-			}
+			// Use direct API calls with typed params for cluster creation .
+			err = framework.CreateHCPClusterFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			// } else {
+			// 	_, err = framework.CreateBicepTemplateAndWait(ctx,
+			// 		tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			// 		*resourceGroup.Name,
+			// 		"cluster",
+			// 		framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
+			// 		params,
+			// 		45*time.Minute,
+			// 	)
+			// }
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
@@ -146,35 +146,28 @@ var _ = Describe("Customer", func() {
 			By("ensuring the cluster is viable")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
-			params = map[string]interface{}{
-				"openshiftVersionId": openshiftNodeVersionId,
-				"clusterName":        customerClusterName,
-				"nodePoolName":       customerNodePoolName,
-				"replicas":           2,
-			}
 
 			By("creating the node pool")
-			if framework.IsDevelopmentEnvironment() {
-				// Development: Use direct API calls with compiled template to avoid drift
-				compiledNodepool := framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json"))
-				err = framework.CreateNodePoolFromBicepDev(ctx,
-					tc,
-					*resourceGroup.Name,
-					customerClusterName,
-					compiledNodepool,
-					params,
-					45*time.Minute,
-				)
-			} else {
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
-					*resourceGroup.Name,
-					"node-pool",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-					params,
-					45*time.Minute,
-				)
-			}
+			nodePoolParams := framework.NewDefaultNodePoolParams(customerClusterName, customerNodePoolName)
+			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
+			nodePoolParams.Replicas = int32(2)
+			// Use direct API calls with typed params for nodepool creation.
+			err = framework.CreateNodePoolFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			// 	_, err = framework.CreateBicepTemplateAndWait(ctx,
+			// 		tc.GetARMResourcesClientFactoryOrDie(ctx, framework.HCP).NewDeploymentsClient(),
+			// 		*resourceGroup.Name,
+			// 		"node-pool",
+			// 		framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+			// 		params,
+			// 		45*time.Minute,
+			// 	)
+			// }
 			Expect(err).NotTo(HaveOccurred())
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
