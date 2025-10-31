@@ -107,3 +107,22 @@ func ListSubscriptionStates() iter.Seq[SubscriptionState] {
 		SubscriptionStateSuspended,
 	})
 }
+
+// HasRegisteredFeature checks if a subscription has a specific feature registered.
+// The feature name should be in the format "Microsoft.Provider/FeatureName".
+// Returns true if the feature is present and its state is "Registered", false otherwise.
+func (s *Subscription) HasRegisteredFeature(featureName string) bool {
+	if s.Properties == nil || s.Properties.RegisteredFeatures == nil {
+		return false
+	}
+
+	for _, feature := range *s.Properties.RegisteredFeatures {
+		if feature.Name != nil && *feature.Name == featureName {
+			if feature.State != nil && *feature.State == "Registered" {
+				return true
+			}
+		}
+	}
+
+	return false
+}

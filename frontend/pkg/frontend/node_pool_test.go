@@ -96,7 +96,7 @@ func TestCreateNodePool(t *testing.T) {
 		Labels(make(map[string]string)).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v" + dummyVersionID).
+			ID(ocm.NewOpenShiftVersionXYZ(dummyVersionID, "stable")).
 			ChannelGroup("stable"),
 		).
 		Replicas(0).
