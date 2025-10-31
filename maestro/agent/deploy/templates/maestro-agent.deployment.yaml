@@ -18,21 +18,19 @@ spec:
         checksum/credsstore: '{{ include (print $.Template.BasePath "/maestro.secretproviderclass.yaml") . | sha256sum }}'
         checksum/config: '{{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}'
     spec:
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: maestro-agent
-              topologyKey: topology.kubernetes.io/zone
-          - weight: 50
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app: maestro-agent
-              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: '{{ if eq (int .Values.deployment.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: maestro-agent
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: maestro-agent
       initContainers:
       - name: init
         image: "{{ .Values.sideCar.image.registry }}/{{ .Values.sideCar.image.repository }}@{{ .Values.sideCar.image.digest }}"
