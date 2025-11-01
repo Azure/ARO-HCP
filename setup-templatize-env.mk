@@ -11,7 +11,7 @@ DEV_SETTINGS_FILE := $(PROJECT_ROOT_DIR)tooling/templatize/settings.yaml
 DEPLOY_ENV ?= pers
 ENV_MK_TMPL ?= Env.mk
 LOG_LEVEL ?= "0"
-HASH = $(shell echo -n "$(DEPLOY_ENV)$(ENV_MK_TMPL)$(PWD)$(LOG_LEVEL)" | sha256sum | cut -d " " -f 1)
+HASH = $(shell echo -n "$(DEPLOY_ENV)$(abspath $(ENV_MK_TMPL))$(LOG_LEVEL)" | sha256sum | cut -d " " -f 1)
 ENV_VARS_FILE ?= /tmp/env.$(HASH).mk
 
 # Target to generate the environment variables file
