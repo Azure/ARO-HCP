@@ -10,7 +10,7 @@ COPY . .
 ARG TAG
 # https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
-RUN make --directory backend ARO_HCP_IMAGE_TAG=${TAG} ENV_VARS_FILE=/app/image-environment
+RUN make --directory backend ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG}
 
 
 # Deployment image copies aro-hcp-backend from builder image
@@ -18,6 +18,6 @@ FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532
 WORKDIR /
 COPY --from=builder /app/backend/aro-hcp-backend .
-ARG REVISION
-LABEL vcs-ref="${REVISION}"
+ARG ARO_HCP_REVISION
+LABEL vcs-ref="${ARO_HCP_REVISION}"
 ENTRYPOINT ["/aro-hcp-backend"]

@@ -31,11 +31,11 @@ $(BINARY): $(BACKEND_SOURCES)
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run: $(BINARY)
-	DB_URL=$$(az cosmosdb show -n ${DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
-	./$(BINARY)--location ${LOCATION} \
+	./$(BINARY) --location ${LOCATION} \
 		--clusters-service-url http://localhost:8000 \
 		--cosmos-name ${DB_NAME} \
-		--cosmos-url $${DB_URL}
+		--cosmos-url ${DB_URL} \
+		--namespace ${RP_NAMESPACE}
 .PHONY: run
 
 clean:
