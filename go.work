@@ -8,6 +8,7 @@ use (
 	./frontend
 	./internal
 	./test
+	./tooling/digest-analyzer
 	./tooling/hcpctl
 	./tooling/image-updater
 	./tooling/olm-bundle-repkg
