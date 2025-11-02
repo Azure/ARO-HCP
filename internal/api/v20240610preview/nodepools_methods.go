@@ -19,6 +19,8 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
@@ -77,7 +79,7 @@ func (h *NodePool) GetVersion() api.Version {
 
 func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 	if h.ID != nil {
-		out.ID = *h.ID
+		out.ID = api.Must(azcorearm.ParseResourceID(*h.ID))
 	}
 	if h.Name != nil {
 		out.Name = *h.Name
@@ -140,32 +142,45 @@ func (h *NodePool) Normalize(out *api.HCPOpenShiftClusterNodePool) {
 				out.Properties.AutoScaling.Min = *h.Properties.AutoScaling.Min
 			}
 		}
-		out.Properties.Labels = make(map[string]string)
-		for _, v := range h.Properties.Labels {
-			if v != nil && v.Key != nil {
+		if h.Properties.Labels != nil {
+			out.Properties.Labels = make(map[string]string)
+			for _, v := range h.Properties.Labels {
+				if v == nil {
+					continue
+				}
 				var value string
 
 				if v.Value != nil {
 					value = *v.Value
 				}
 
-				out.Properties.Labels[*v.Key] = value
+				// "" becomes nil when going internal -> external
+				// that means to round trip, we must go "" -> nil -> ""
+				key := ptr.Deref(v.Key, "")
+				out.Properties.Labels[key] = value
 			}
 		}
-		out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
-		for i := range h.Properties.Taints {
-			if h.Properties.Taints[i].Effect != nil {
-				out.Properties.Taints[i].Effect = api.Effect(*h.Properties.Taints[i].Effect)
-			}
-			if h.Properties.Taints[i].Key != nil {
-				out.Properties.Taints[i].Key = *h.Properties.Taints[i].Key
-			}
-			if h.Properties.Taints[i].Value != nil {
-				out.Properties.Taints[i].Value = *h.Properties.Taints[i].Value
+
+		if h.Properties.Taints != nil {
+			out.Properties.Taints = make([]api.Taint, len(h.Properties.Taints))
+			for i := range h.Properties.Taints {
+				if h.Properties.Taints[i].Effect != nil {
+					out.Properties.Taints[i].Effect = api.Effect(*h.Properties.Taints[i].Effect)
+				}
+				if h.Properties.Taints[i].Key != nil {
+					out.Properties.Taints[i].Key = *h.Properties.Taints[i].Key
+				}
+				if h.Properties.Taints[i].Value != nil {
+					out.Properties.Taints[i].Value = *h.Properties.Taints[i].Value
+				}
 			}
 		}
+
 		out.Properties.NodeDrainTimeoutMinutes = h.Properties.NodeDrainTimeoutMinutes
 	}
+
+	out.Identity = normalizeManagedIdentity(h.Identity)
+
 }
 
 func normalizeNodePoolVersion(p *generated.NodePoolVersionProfile, out *api.NodePoolVersionProfile) {
@@ -270,9 +285,14 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		return ret
 	}
 
+	idString := ""
+	if from.ID != nil {
+		idString = from.ID.String()
+	}
+
 	out := &NodePool{
 		generated.NodePool{
-			ID:         api.PtrOrNil(from.ID),
+			ID:         api.PtrOrNil(idString),
 			Name:       api.PtrOrNil(from.Name),
 			Type:       api.PtrOrNil(from.Type),
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
@@ -287,9 +307,13 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				Replicas:                api.PtrOrNil(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
 			},
+			Identity: newManagedServiceIdentity(from.Identity),
 		},
 	}
 
+	if from.Properties.Labels != nil {
+		out.Properties.Labels = make([]*generated.Label, 0, len(from.Properties.Labels))
+	}
 	for k, v := range from.Properties.Labels {
 		out.Properties.Labels = append(out.Properties.Labels, &generated.Label{
 			Key:   api.PtrOrNil(k),
@@ -297,6 +321,9 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 		})
 	}
 
+	if from.Properties.Taints != nil {
+		out.Properties.Taints = make([]*generated.Taint, 0, len(from.Properties.Taints))
+	}
 	for _, t := range from.Properties.Taints {
 		out.Properties.Taints = append(out.Properties.Taints, &generated.Taint{
 			Effect: api.PtrOrNil(generated.Effect(t.Effect)),

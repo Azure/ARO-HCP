@@ -23,6 +23,8 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type FakeTransport struct{}
@@ -98,7 +100,7 @@ func TestInternalID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			internalID, err := NewInternalID(tt.path)
+			internalID, err := api.NewInternalID(tt.path)
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -106,9 +108,9 @@ func TestInternalID(t *testing.T) {
 			}
 
 			transport := &FakeTransport{}
-			_, ok := internalID.GetClusterClient(transport)
+			_, ok := GetClusterClient(internalID, transport)
 			assert.NotEqual(t, tt.expectErr, ok)
-			_, ok = internalID.GetAroHCPClusterClient(transport)
+			_, ok = GetAroHCPClusterClient(internalID, transport)
 			assert.NotEqual(t, tt.expectErr, ok)
 
 			if tt.expectErr {
@@ -129,12 +131,12 @@ func TestInternalID(t *testing.T) {
 			assert.Equal(t, tt.path, str)
 
 			if kind == arohcpv1alpha1.NodePoolKind {
-				_, ok := internalID.GetNodePoolClient(transport)
+				_, ok := GetNodePoolClient(internalID, transport)
 				assert.True(t, ok, "failed to get node pool client")
 			}
 
 			if kind == arohcpv1alpha1.ExternalAuthKind {
-				_, ok := internalID.GetExternalAuthClient(transport)
+				_, ok := GetExternalAuthClient(internalID, transport)
 				assert.True(t, ok, "failed to get node pool client")
 			}
 

@@ -26,7 +26,6 @@ import (
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestFrontendClusterRead(t *testing.T) {
@@ -48,7 +47,7 @@ func TestFrontendClusterRead(t *testing.T) {
 
 	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
 	require.NoError(t, err)
-	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(ocm.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
 
 	resourceGroup := "some-resource-group"
 	hcpClusterName := "some-hcp-cluster"

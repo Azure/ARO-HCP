@@ -26,7 +26,8 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
-	Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties" validate:"required"`
+	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties" validate:"required"`
+	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -37,6 +38,11 @@ type HCPOpenShiftClusterExternalAuthProperties struct {
 	Issuer            TokenIssuerProfile          `json:"issuer"                  visibility:"read create update"       validate:"required"`
 	Clients           []ExternalAuthClientProfile `json:"clients"                 visibility:"read create update"       validate:"omitempty,max=20,dive"`
 	Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"       validate:"required"`
+}
+
+type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
+	CosmosUID        string     `json:"cosmosUID,omitempty"`
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
 }
 
 // Condition defines an observation of the external auth state.
