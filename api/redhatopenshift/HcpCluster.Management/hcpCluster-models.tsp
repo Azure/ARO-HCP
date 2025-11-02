@@ -1,10 +1,12 @@
 import "@typespec/rest";
+import "@typespec/versioning";
 import "@typespec/http";
 import "@azure-tools/typespec-azure-core";
 import "@azure-tools/typespec-azure-resource-manager";
 import "@azure-tools/typespec-client-generator-core";
 
 using TypeSpec.Rest;
+using TypeSpec.Versioning;
 using Azure.Core;
 using Azure.ResourceManager;
 using Azure.ClientGenerator.Core;
@@ -145,6 +147,13 @@ union ExternalAuthProvisioningState {
 model VersionProfile {
   /** ID is the unique identifier of the version. */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @removed(Versions.v2025_12_23_preview)
+  @renamedFrom(Versions.v2025_12_23_preview, "id")
+  idNoUpdate?: string;
+
+  /** ID is the unique identifier of the version. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   id?: string;
 
   /** ChannelGroup is the name of the set to which this version belongs.
