@@ -182,7 +182,7 @@ func TestClusterRequired(t *testing.T) {
 				resource = api.ClusterTestCase(t, tt.tweaks)
 			}
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			actualErrors := ValidateClusterCreate(context.TODO(), nil, resource, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}
@@ -789,7 +789,7 @@ func TestClusterValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resource := api.ClusterTestCase(t, tt.tweaks)
 
-			actualErrors := ValidateClusterCreate(context.TODO(), resource, nil)
+			actualErrors := ValidateClusterCreate(context.TODO(), nil, resource, nil)
 			verifyErrorsMatch(t, tt.expectErrors, actualErrors)
 		})
 	}

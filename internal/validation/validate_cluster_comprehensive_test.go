@@ -28,6 +28,7 @@ import (
 )
 
 // Comprehensive tests for ValidateClusterCreate
+// using a subscription without AllowNonStableChannel flags
 func TestValidateClusterCreate(t *testing.T) {
 	ctx := context.Background()
 
@@ -747,11 +748,21 @@ func TestValidateClusterCreate(t *testing.T) {
 				{message: "invalid CIDR address", fieldPath: "customerProperties.network.machineCidr"},
 			},
 		},
+		{
+			name: "valid cluster with fast channel group",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				c.CustomerProperties.Version.ID = "4.17"
+				return c
+			}(),
+			expectErrors: []expectedError{{message: "Unsupported value", fieldPath: "customerProperties.version.channelGroup"}},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterCreate(ctx, tt.cluster, nil)
+			errs := ValidateClusterCreate(ctx, nil, tt.cluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -1344,7 +1355,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := ValidateClusterUpdate(ctx, tt.newCluster, tt.oldCluster, nil)
+			errs := ValidateClusterUpdate(ctx, nil, tt.newCluster, tt.oldCluster, nil)
 			verifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -1378,4 +1389,211 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	}
 
 	return cluster
+}
+
+// Helper function to create a subscription with AllowNonStableChannels feature flag
+func createSubscriptionWithNonStableChannels() *arm.Subscription {
+	return &arm.Subscription{
+		State:            arm.SubscriptionStateRegistered,
+		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.AllowNonStableChannels),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+}
+
+// Helper function to create a subscription with AllowNonStableChannels feature flag not registered
+func createUserSubscription() *arm.Subscription {
+	return &arm.Subscription{
+		State:            arm.SubscriptionStateRegistered,
+		RegistrationDate: ptr.To(time.Now().Format(time.RFC1123)),
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.AllowNonStableChannels),
+					State: ptr.To("NotRegistered"),
+				},
+			},
+		},
+	}
+}
+
+// Tests for ValidateClusterCreate with AllowNonStableChannels feature flag enabled
+func TestValidateClusterCreateWithNonStableChannels(t *testing.T) {
+	ctx := context.Background()
+	subscription := createSubscriptionWithNonStableChannels()
+
+	tests := []struct {
+		name         string
+		cluster      *api.HCPOpenShiftCluster
+		expectErrors []expectedError
+	}{
+		{
+			name: "valid cluster with candidate channel group",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "candidate"
+				c.CustomerProperties.Version.ID = "4.15"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster with nightly channel group",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				c.CustomerProperties.Version.ID = "4.16"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "valid cluster with fast channel group",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				c.CustomerProperties.Version.ID = "4.17"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "candidate channel group requires version ID",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "candidate"
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "nightly channel group requires version ID",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "fast channel group requires version ID",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				c.CustomerProperties.Version.ID = ""
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Required value", fieldPath: "customerProperties.version.id"},
+			},
+		},
+		{
+			name: "version ID with semver format allowed for non-stable channels",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "candidate"
+				c.CustomerProperties.Version.ID = "4.15.1"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "stable channel group still works with feature flag",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ID = "4.15"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := ValidateClusterCreate(ctx, subscription, tt.cluster, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
+
+// Tests for ValidateClusterCreate WITHOUT AllowNonStableChannels feature flag
+func TestValidateClusterCreateWithoutNonStableChannels(t *testing.T) {
+	ctx := context.Background()
+
+	// Also test with a subscription that has the feature but NOT registered
+	subscription := createUserSubscription()
+
+	tests := []struct {
+		name         string
+		cluster      *api.HCPOpenShiftCluster
+		expectErrors []expectedError
+	}{
+		{
+			name: "stable channel group is allowed without feature flag",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "stable"
+				c.CustomerProperties.Version.ID = "4.15"
+				return c
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "candidate channel group is rejected without feature flag",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "candidate"
+				c.CustomerProperties.Version.ID = "4.15"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Unsupported value", fieldPath: "customerProperties.version.channelGroup"},
+			},
+		},
+		{
+			name: "nightly channel group is rejected without feature flag",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "nightly"
+				c.CustomerProperties.Version.ID = "4.16"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Unsupported value", fieldPath: "customerProperties.version.channelGroup"},
+			},
+		},
+		{
+			name: "fast channel group is rejected without feature flag",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Version.ChannelGroup = "fast"
+				c.CustomerProperties.Version.ID = "4.17"
+				return c
+			}(),
+			expectErrors: []expectedError{
+				{message: "Unsupported value", fieldPath: "customerProperties.version.channelGroup"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Pass nil subscription (no feature flags)
+			errs := ValidateClusterCreate(ctx, subscription, tt.cluster, nil)
+			verifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
 }

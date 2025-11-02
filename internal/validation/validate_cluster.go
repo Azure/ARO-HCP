@@ -32,14 +32,14 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func ValidateClusterCreate(ctx context.Context, newCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
+func ValidateClusterCreate(ctx context.Context, subscription *arm.Subscription, newCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
-	return validateCluster(ctx, op, newCluster, nil, validationPathMapper)
+	return validateCluster(ctx, subscription, op, newCluster, nil, validationPathMapper)
 }
 
-func ValidateClusterUpdate(ctx context.Context, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
+func ValidateClusterUpdate(ctx context.Context, subscription *arm.Subscription, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
 	op := operation.Operation{Type: operation.Update}
-	return validateCluster(ctx, op, newCluster, oldCluster, validationPathMapper)
+	return validateCluster(ctx, subscription, op, newCluster, oldCluster, validationPathMapper)
 }
 
 var (
@@ -53,14 +53,14 @@ var (
 	toClusterIdentity = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
 
-func validateCluster(ctx context.Context, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
+func validateCluster(ctx context.Context, subscription *arm.Subscription, op operation.Operation, newCluster, oldCluster *api.HCPOpenShiftCluster, validationPathMapper api.ValidationPathMapperFunc) field.ErrorList {
 	errs := field.ErrorList{}
 
 	//arm.TrackedResource
 	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, toTrackedResource))...)
 
 	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty" validate:"required"`
-	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, toClusterCustomerProperties))...)
+	errs = append(errs, validateClusterCustomerProperties(ctx, subscription, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, toClusterCustomerProperties))...)
 
 	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty" validate:"required"`
 	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, toClusterServiceProviderProperties))...)
@@ -250,11 +250,11 @@ var (
 	}
 )
 
-func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+func validateClusterCustomerProperties(ctx context.Context, subscription *arm.Subscription, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
-	errs = append(errs, validateVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toVersion))...)
+	errs = append(errs, validateVersionProfile(ctx, subscription, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toVersion))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateCustomerDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toCustomerDNS))...)
@@ -334,22 +334,38 @@ var (
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
-func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
+func validateVersionProfile(ctx context.Context, subscription *arm.Subscription, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
 	// ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+
+	// Check if AllowNonStableChannels feature is enabled
+	allowNonStableChannels := subscription != nil && subscription.HasRegisteredFeature(api.AllowNonStableChannels)
+
+	// Version ID is required for non-stable channel groups
 	if newObj.ChannelGroup != "stable" {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
-	errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+
+	// Version format validation depends on channel group and feature flag
+	if allowNonStableChannels && newObj.ChannelGroup != "stable" {
+		// For non-stable channels with feature flag: allow full semver format (X.Y.Z-prerelease)
+		errs = append(errs, OpenshiftVersionWithOptionalMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	} else {
+		// For stable or without feature flag: only MAJOR.MINOR format
+		errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
+	}
 
 	// ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
-	// XXX For now, "stable" is the only accepted value. In the future, we may
-	//     allow unlocking other channel groups through Azure Feature Exposure
-	//     Control (AFEC) flags or some other mechanism.
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable"))...)
+
+	// Channel group validation based on subscription feature flags
+	if subscription == nil || !allowNonStableChannels {
+		// Without feature flag: only "stable" is allowed
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable"))...)
+	}
+	// With AllowNonStableChannels feature flag: any channel group is allowed (no enum validation)
 
 	return errs
 }
