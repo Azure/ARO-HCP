@@ -26,10 +26,10 @@ import (
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         string      `json:"id,omitempty"         visibility:"read nocase"`
-	Name       string      `json:"name,omitempty"       visibility:"read nocase"`
-	Type       string      `json:"type,omitempty"       visibility:"read nocase"`
-	SystemData *SystemData `json:"systemData,omitempty" visibility:"read"`
+	ID         *azcorearm.ResourceID `json:"id,omitempty"         visibility:"read nocase"`
+	Name       string                `json:"name,omitempty"       visibility:"read nocase"`
+	Type       string                `json:"type,omitempty"       visibility:"read nocase"`
+	SystemData *SystemData           `json:"systemData,omitempty" visibility:"read"`
 }
 
 // NewResource returns a Resource initialized from resourceID.
@@ -37,7 +37,7 @@ func NewResource(resourceID *azcorearm.ResourceID) Resource {
 	var resource Resource
 
 	if resourceID != nil {
-		resource.ID = resourceID.String()
+		resource.ID = resourceID
 		resource.Name = resourceID.Name
 		resource.Type = resourceID.ResourceType.String()
 	}
