@@ -9,3 +9,7 @@ dependencies:
   version: 0.1.0
   repository: "file://charts/database"
   condition: deployLocalDatabase
+- name: debug-jobs
+  version: 0.1.0
+  repository: "file://charts/debug-jobs"
+  condition: deployDebugJob
