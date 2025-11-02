@@ -2,7 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: aro-hcp-frontend
-  namespace: '{{ .Release.namespace }}'
+  namespace: '{{ .Release.Namespace }}'
 spec:
   endpoints:
   - interval: 30s
@@ -11,7 +11,7 @@ spec:
     scheme: http
   namespaceSelector:
     matchNames:
-    - '{{ .Release.namespace }}'
+    - '{{ .Release.Namespace }}'
   selector:
     matchLabels:
       app: aro-hcp-frontend
