@@ -1,5 +1,3 @@
--include ../../setup-env.mk
-
 all: deploy
 	@echo "Observability services are now configured and enabled."
 	@echo "Run the following command to port-forward traffic to the Jaeger or LGTM service:"

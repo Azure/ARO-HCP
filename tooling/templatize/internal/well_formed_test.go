@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
-	"github.com/Azure/ARO-HCP/tooling/templatize/internal/testutil"
 )
 
 func TestStepsWellFormed(t *testing.T) {
@@ -125,10 +124,9 @@ func TestStepsWellFormed(t *testing.T) {
 						illFormed[serviceGroupName][resourceGroupName] = map[string]string{}
 					}
 					illFormed[serviceGroupName][resourceGroupName][stepName] = reason
+					t.Errorf("%s/%s/%s: step is ill-formed over inputs: %v", serviceGroupName, resourceGroupName, stepName, reason)
 				}
 			}
 		}
 	}
-
-	testutil.CompareWithFixture(t, illFormed, testutil.WithoutDirMangling())
 }

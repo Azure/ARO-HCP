@@ -1,4 +1,4 @@
--include ../setup-env.mk
+-include setup-env.mk
 
 export OP_CLUSTER_API_AZURE_ROLE_NAME
 export OP_CONTROL_PLANE_ROLE_NAME
@@ -42,7 +42,7 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
+	./helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
