@@ -129,7 +129,6 @@
           "type": "string",
           "description": "ICM routing ID"
         },
-
         "automitigationEnabled": {
           "type": "string",
           "description": "ICM automitigation enabled ID"
@@ -215,6 +214,7 @@
     },
     "certificateRef": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "keyVault": {
           "$ref": "#/definitions/keyVaultName"
@@ -270,6 +270,7 @@
       "patternProperties": {
         "^.+$": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "poll": {
               "type": "boolean"
@@ -341,6 +342,7 @@
         },
         "untaggedImagesRetention": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean"
@@ -761,7 +763,7 @@
         "providers": {
           "$ref": "#/definitions/registrationConfig"
         },
-        "usePlannedQuota":{
+        "usePlannedQuota": {
           "type": "boolean"
         },
         "featureFlags": {
@@ -842,6 +844,7 @@
       "properties": {
         "operator": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "version": {
               "type": "string"
@@ -975,7 +978,7 @@
             "roleSetName"
           ]
         },
-        "azureRuntimeConfig" : {
+        "azureRuntimeConfig": {
           "type": "object",
           "properties": {
             "tlsCertificatesIssuer": {
@@ -1240,6 +1243,7 @@
         },
         "aub": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "accountName": {
               "type": "string"
@@ -1255,6 +1259,7 @@
         },
         "pav2": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "cloudName": {
               "type": "string"
@@ -1266,6 +1271,7 @@
         },
         "kusto": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "sku": {
               "type": "string"
@@ -1300,6 +1306,7 @@
         },
         "eventHub": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "namespace": {
               "type": "string"
@@ -1403,7 +1410,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "adminCertName":{
+            "adminCertName": {
               "type": "string"
             },
             "adminCertificateDomain": {
@@ -1808,6 +1815,7 @@
     },
     "arobit": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "forwarder": {
           "type": "object",
