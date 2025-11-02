@@ -24,4 +24,6 @@ alerts: kubernetesControlPlane-prometheusRule
 recording-rules:
 	make -C ../tooling/prometheus-rules run-recording-rules
 	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-recording-rules.yaml)
+	make -C ../tooling/prometheus-rules run-hcp-recording-rules
+	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp-recording-rules.yaml)
 .PHONY: recording-rules
