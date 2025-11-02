@@ -41,7 +41,7 @@ func TestNodePoolJSONRoundTripThroughResourceDocument(t *testing.T) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
 		func(j *ocm.InternalID, c randfill.Continue) {
-			*j = api.Must(ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/fixed-value"))
+			*j = api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/fixed-value"))
 		},
 	}, rand.NewSource(seed))
 

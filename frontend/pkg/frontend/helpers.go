@@ -262,7 +262,7 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 		}
-		responseBody, err = marshalCSVersion(*resourceID, version, versionedInterface)
+		responseBody, err = marshalCSVersion(resourceID, version, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
@@ -288,7 +288,13 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 		}
-		responseBody, err = marshalCSNodePool(csNodePool, doc, versionedInterface)
+		internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterNodePool, database.NodePool](doc)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+
+		responseBody, err = marshalCSNodePool(csNodePool, internalObj, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()
@@ -300,7 +306,13 @@ func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.Re
 			logger.Error(err.Error())
 			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 		}
-		responseBody, err = marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
+		internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](doc)
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, arm.NewInternalServerError()
+		}
+
+		responseBody, err = marshalCSExternalAuth(csExternalAuth, internalObj, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			return nil, arm.NewInternalServerError()

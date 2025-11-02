@@ -18,12 +18,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/rand"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	"sigs.k8s.io/randfill"
 
@@ -31,7 +32,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
@@ -44,7 +44,7 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 		},
 		func(j *arm.Resource, c randfill.Continue) {
 			c.FillNoCustom(j)
-			j.ID = "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"
+			j.ID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/change-channel"))
 			j.Name = "change-channel"
 			j.Type = "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 		},
@@ -54,8 +54,8 @@ func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 				return
 			}
 			// we must always have an internal ID
-			foo := api.Must(ocm.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
-			j.ClusterServiceID = foo.String()
+			foo := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/r" + strings.ReplaceAll(c.String(10), "/", "-")))
+			j.ClusterServiceID = foo
 		},
 		func(j *arm.ManagedServiceIdentity, c randfill.Continue) {
 			c.FillNoCustom(j)
@@ -89,11 +89,11 @@ func roundTripInternalToCosmosToInternal[InternalAPIType, CosmosAPIType any](t *
 	//finalJSON, _ := json.MarshalIndent(final, "", "    ")
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
-	if !reflect.DeepEqual(original, final) {
+	if !equality.Semantic.DeepEqual(original, final) {
 		//t.Logf("original\n%s", string(originalBeforeJSON))
 		//t.Logf("intermediate\n%s", string(intermediateBeforeJSON))
 		//t.Logf("final\n%s", string(finalJSON))
-		t.Errorf("Round trip failed: %v", cmp.Diff(original, final))
+		t.Errorf("Round trip failed: %v", cmp.Diff(original, final, api.CmpDiffOptions...))
 	}
 
 	// now check to be sure we didn't mutate the originals.  The copies still aren't deep, but at least we didn't nuke the inputs
