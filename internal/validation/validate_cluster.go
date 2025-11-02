@@ -143,30 +143,29 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 }
 
 func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Operation, newCluster, _ *api.HCPOpenShiftCluster) field.ErrorList {
-	clusterResourceID, err := azcorearm.ParseResourceID(newCluster.ID)
-	if err != nil {
+	if newCluster.ID == nil {
 		return nil
 	}
 
 	errs := field.ErrorList{}
 
 	// Validate that managed resource group is different from cluster resource group
-	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, clusterResourceID.ResourceGroupName)...)
-	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, clusterResourceID.SubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), &newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "controlPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators {
 		fldPath := field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "dataPlaneOperators").Key(operatorName)
-		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+		errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op, fldPath, &operatorIdentity, nil, newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	}
 	errs = append(errs, ValidateUserAssignedIdentityLocation(ctx, op,
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
 		&newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
-		clusterResourceID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 
 	return errs
 }
@@ -192,7 +191,7 @@ func validateTrackedResource(ctx context.Context, op operation.Operation, fldPat
 }
 
 var (
-	toResourceID         = func(oldObj *arm.Resource) *string { return &oldObj.ID }
+	toResourceID         = func(oldObj *arm.Resource) *azcorearm.ResourceID { return oldObj.ID }
 	toResourceName       = func(oldObj *arm.Resource) *string { return &oldObj.Name }
 	toResourceType       = func(oldObj *arm.Resource) *string { return &oldObj.Type }
 	toResourceSystemData = func(oldObj *arm.Resource) *arm.SystemData { return oldObj.SystemData }
@@ -203,8 +202,9 @@ func validateResource(ctx context.Context, op operation.Operation, fldPath *fiel
 	errs := field.ErrorList{}
 
 	//ID         string      `json:"id,omitempty"         visibility:"read"`
-	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toResourceID))...)
-	errs = append(errs, ResourceID(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toResourceID))...)
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
+	// TODO need to determine whether can require this on pre-flight checks
+	//errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("id"), newObj.ID, safe.Field(oldObj, toResourceID))...)
 
 	//Name       string      `json:"name,omitempty"       visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toResourceName))...)
@@ -295,6 +295,12 @@ var (
 	toServiceProviderDNS = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderDNSProfile {
 		return &oldObj.DNS
 	}
+	toServiceProviderCosmosUID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.CosmosUID
+	}
+	toServiceProviderClusterServiceID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.InternalID {
+		return &oldObj.ClusterServiceID
+	}
 	toServiceProviderConsole = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *api.ServiceProviderConsoleProfile {
 		return &oldObj.Console
 	}
@@ -311,6 +317,15 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 
 	// ProvisioningState       arm.ProvisioningState       `json:"provisioningState,omitempty"       visibility:"read"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toHCPOpenShiftClusterServiceProviderPropertiesProvisioningState))...)
+
+	//CosmosUID         string                         `json:"cosmosUID,omitempty"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, safe.Field(oldObj, toServiceProviderCosmosUID))...)
+	if oldObj == nil { // must be unset on creation because we don't know it yet.
+		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
+	}
+
+	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toServiceProviderClusterServiceID))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateServiceProviderDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toServiceProviderDNS))...)
