@@ -38,19 +38,22 @@ def get_date_time_from_str(date_time_str: str) -> datetime.datetime:
     return datetime.datetime.fromisoformat(date_time_str)
 
 
-def time_delta_greater_than_two_days(now: datetime.datetime, resource_group_creation_time: datetime.datetime):
-    if now is None:
-        print("now time is None")
-        return False
+def older_than(resource_group_creation_time: datetime.datetime, days: int = 30):
+    """
+    Check if the resource group creation time is older than the specified number of days.
 
-    if resource_group_creation_time is None:
-        print("resource_group_creation_time is None")
-        return False
+    Args:
+        resource_group_creation_time: Creation time of the resource group
+        days: Number of days threshold (default: 30)
 
-    time_delta = resource_group_creation_time - now
+    Returns:
+        bool: True if resource group is older than specified days, False otherwise
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    time_delta = now - resource_group_creation_time
     n_days = abs(time_delta.days)
 
-    return n_days > 2
+    return n_days > days
 
 def print_resources(resource_list: List[GenericResourceExpanded]):
     for resource in resource_list:
@@ -106,6 +109,34 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
         print(f"This resource group has {len(resource_list)} resources \n")
         print_resources(resource_list)
 
+    # Special handling for hcp-underlay-pers-* resource groups
+    if resource_group_name.startswith("hcp-underlay-pers-"):
+        resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
+
+        if resource_group_creation_time is None:
+            print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
+            return
+
+        if not older_than(resource_group_creation_time, days=15):
+            print(f"Personal development environment resource group '{resource_group_name}' is not older than 2 weeks, skipping.")
+            return
+
+        print(f"Personal development environment resource group '{resource_group_name}' is older than 2 weeks and should be deleted.\n")
+        if DRY_RUN:
+            return
+
+        try:
+            print(f"\nBeginning deletion of personal development environment resource group '{resource_group_name}' ...")
+            result_poller = resource_client.resource_groups.begin_delete(resource_group_name)
+            print(f"result_poller of resource group deletion: {result_poller}")
+        except HttpResponseError as err:
+            error_codes = ("DenyAssignmentAuthorizationFailed", "ScopeLocked")
+            if err.error.code in error_codes:
+                print(f"skipping deletion of resource group due to error code {err.error.code}")
+            else:
+                raise err
+        return
+
     if resource_group_has_persist_tag_as_true(resource_group):
         print(f"Persist tag is true, this resource group should NOT be deleted, skipping.")
         return
@@ -114,9 +145,13 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
         print(f"Resource Group is managed, this resource group should NOT be deleted, skipping.")
         return
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     resource_group_creation_time = get_creation_time_of_resource_group(resource_group)
-    if not time_delta_greater_than_two_days(now, resource_group_creation_time):
+
+    if resource_group_creation_time is None:
+        print(f"Resource group '{resource_group_name}' has no createdAt tag, skipping deletion for safety.")
+        return
+
+    if not older_than(resource_group_creation_time, days=2):
         print(f"This resource group should NOT be deleted, it is not older than two days, skipping.")
         return
 
@@ -136,10 +171,23 @@ def process_resource_group(resource_group: ResourceGroup, resource_client: Resou
             raise err
 
 def get_creation_time_of_resource_group(resource_group):
+    """
+    Get the creation time of a resource group from its createdAt tag.
+
+    Args:
+        resource_group: The resource group object
+
+    Returns:
+        datetime.datetime or None: The creation time if successfully parsed, None otherwise
+    """
     resource_group_creation_time = None
     created_at_tag = "createdAt"
     if resource_group.tags is not None and created_at_tag in resource_group.tags:
-        resource_group_creation_time = get_date_time_from_str(resource_group.tags[created_at_tag])
+        try:
+            resource_group_creation_time = get_date_time_from_str(resource_group.tags[created_at_tag])
+        except (ValueError, AttributeError) as e:
+            print(f"Warning: Failed to parse createdAt tag '{resource_group.tags[created_at_tag]}' for resource group '{resource_group.name}': {e}")
+            resource_group_creation_time = None
     return resource_group_creation_time
 
 
@@ -170,9 +218,7 @@ def get_boolean_from_string(val):
     """
     Convert a string representation of truth to True or False.
 
-    True values are 'y', 'yes', 't', 'true', 'on', and '1';
-    False values are 'n', 'no', 'f', 'false', 'off', and '0'.
-    Raises ValueError if 'val' is anything else.
+    Accepts 'true' or 'false' in any capitalization.
 
     Args:
         val (str): The string to convert.
@@ -186,16 +232,11 @@ def get_boolean_from_string(val):
     if not isinstance(val, str):
         raise ValueError(f"Invalid truth value: {val!r} (type: {type(val).__name__}). Expected a string.")
     val_stripped = val.strip().lower()
-    true_set = {'y', 'yes', 't', 'true', 'on', '1'}
-    false_set = {'n', 'no', 'f', 'false', 'off', '0'}
-    if val_stripped in true_set:
+    if val_stripped == 'true':
         return True
-    if val_stripped in false_set:
+    if val_stripped == 'false':
         return False
-    raise ValueError(
-        f"Invalid truth value: {val!r}. "
-        f"Expected one of {sorted(true_set | false_set)} (case-insensitive, whitespace ignored)."
-    )
+    raise ValueError(f"Invalid truth value: {val!r}. Expected 'true' or 'false' (case-insensitive).")
 
 def get_dry_run():
     """
