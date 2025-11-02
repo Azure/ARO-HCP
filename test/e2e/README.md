@@ -163,6 +163,12 @@ Set the **LOCATION** environment variable to the Azure region (e.g., "uksouth") 
 
 ### *Optional:* Development Environment
 To run the E2E test suite against the development environment, set the environment variable **AROHCP_ENV** to `development`. This environment requires port-forwarding to be set up before running the tests.
+After building the test binary , one could execute it using :
+```bash
+./test/aro-hcp-tests list tests --suite "local/parallel" | jq '.[].name'
+./test/aro-hcp-tests run-suite "local/parallel"
+```
+Currently these are filtered using a Label containing Local , future tests would need to have them as we enforce them using CI mechanism .
 
 ## Guidelines for Writing E2E Test Cases
 

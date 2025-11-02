@@ -16,7 +16,9 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -31,6 +33,9 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -79,6 +84,13 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Skip TLS verification for development environments with self-signed certificates
+	if IsDevelopmentEnvironment() {
+		ret.Insecure = true
+		ret.CAData = nil
+		ret.CAFile = ""
 	}
 
 	return ret, nil
@@ -373,4 +385,246 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	}
 
 	return nil
+}
+
+// CreateHCPClusterAndWait creates an HCP cluster via direct API call and waits for completion , this is to support lower environments .
+func CreateHCPClusterAndWait(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+		return &m.HcpOpenShiftCluster, nil
+	default:
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// BuildHCPClusterFromParams builds an HCP cluster object using provided parameters and
+// baked-in defaults that mirror our former module values.
+func BuildHCPClusterFromParams(
+	ctx context.Context,
+	parameters ClusterParams,
+	location string,
+	subscriptionId string,
+	resourceGroupName string,
+	testContext *perItOrDescribeTestContext,
+) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	// Start with a blank cluster and fill in from params/defaults
+	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
+		Location:   &location,
+		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
+	}
+	cluster.Properties.Platform = &hcpsdk20240610preview.PlatformProfile{}
+
+	// Version and channelGroup (use params; constructors carry defaults)
+	if parameters.OpenshiftVersionId != "" {
+		versionID := parameters.OpenshiftVersionId
+		cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{ID: &versionID}
+		if cluster.Properties.Version.ChannelGroup == nil {
+			cluster.Properties.Version.ChannelGroup = to.Ptr("stable")
+		}
+	}
+
+	// Managed RG
+	if parameters.ManagedResourceGroupName != "" {
+		cluster.Properties.Platform.ManagedResourceGroup = &parameters.ManagedResourceGroupName
+	}
+
+	// NSG/Subnet/VNET to IDs
+	if parameters.NsgName != "" {
+		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionId, resourceGroupName, parameters.NsgName)
+		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgID
+	}
+	if parameters.SubnetName != "" && parameters.VnetName != "" {
+		subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, parameters.VnetName, parameters.SubnetName)
+		cluster.Properties.Platform.SubnetID = &subnetID
+	}
+
+	// OperatorsAuthentication (UAMIs)
+	if parameters.UserAssignedIdentitiesValue != nil {
+		if b, err := json.Marshal(parameters.UserAssignedIdentitiesValue); err == nil {
+			var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
+			if err := json.Unmarshal(b, &uamis); err == nil {
+				cluster.Properties.Platform.OperatorsAuthentication = &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: &uamis,
+				}
+			}
+		}
+	}
+
+	// Network (use params; constructors carry defaults)
+	if (parameters.Network != NetworkConfig{}) {
+		hostPrefix := parameters.Network.HostPrefix
+		netType := parameters.Network.NetworkType
+		cluster.Properties.Network = &hcpsdk20240610preview.NetworkProfile{
+			NetworkType: (*hcpsdk20240610preview.NetworkType)(to.Ptr(netType)),
+			PodCIDR:     to.Ptr(parameters.Network.PodCIDR),
+			ServiceCIDR: to.Ptr(parameters.Network.ServiceCIDR),
+			MachineCIDR: to.Ptr(parameters.Network.MachineCIDR),
+			HostPrefix:  &hostPrefix,
+		}
+	}
+
+	// Etcd KMS (resolve version via Key Vault if not provided directly)
+	if parameters.KeyVaultName != "" && parameters.EtcdEncryptionKeyName != "" {
+		kv := parameters.KeyVaultName
+		key := parameters.EtcdEncryptionKeyName
+		ver := ""
+		if ver == "" {
+			azureCredentials, err := azidentity.NewAzureCLICredential(nil)
+			if err != nil {
+				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed building development environment CLI credential: %w", err)
+			}
+			client, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net/", kv), azureCredentials, nil)
+			if err != nil {
+				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to create key vault client: %w", err)
+			}
+			versions := client.NewListKeyPropertiesVersionsPager(key, nil)
+			page, err := versions.NextPage(ctx)
+			if err != nil {
+				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to list key versions: %w", err)
+			}
+			if len(page.Value) == 0 || page.Value[0].KID == nil {
+				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no key versions found for key %s", key)
+			}
+			keyID := string(*page.Value[0].KID)
+			parts := strings.Split(keyID, "/")
+			ver = parts[len(parts)-1]
+		}
+		cluster.Properties.Etcd = &hcpsdk20240610preview.EtcdProfile{
+			DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
+				KeyManagementMode: (*hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType)(to.Ptr("CustomerManaged")),
+				CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
+					EncryptionType: (*hcpsdk20240610preview.CustomerManagedEncryptionType)(to.Ptr("KMS")),
+					Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
+						ActiveKey: &hcpsdk20240610preview.KmsKey{VaultName: &kv, Name: &key, Version: &ver},
+					},
+				},
+			},
+		}
+	}
+
+	// Identity
+	if parameters.IdentityValue != nil {
+		if b, err := json.Marshal(parameters.IdentityValue); err == nil {
+			var msi hcpsdk20240610preview.ManagedServiceIdentity
+			if err := json.Unmarshal(b, &msi); err == nil {
+				cluster.Identity = &msi
+			}
+		}
+	}
+
+	// API visibility and image registry state (use params; constructors carry defaults)
+	if parameters.APIVisibility != "" {
+		cluster.Properties.API = &hcpsdk20240610preview.APIProfile{Visibility: (*hcpsdk20240610preview.Visibility)(to.Ptr(parameters.APIVisibility))}
+	}
+	if parameters.ImageRegistryState != "" {
+		cluster.Properties.ClusterImageRegistry = &hcpsdk20240610preview.ClusterImageRegistryProfile{State: (*hcpsdk20240610preview.ClusterImageRegistryProfileState)(to.Ptr(parameters.ImageRegistryState))}
+	}
+
+	return cluster, nil
+}
+
+// CreateNodePoolAndWait creates a NodePool via direct API call and waits for completion, this is to support lower environments.
+func CreateNodePoolAndWait(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	nodePool hcpsdk20240610preview.NodePool,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.NodePool, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for nodepool=%q for cluster %q in resourcegroup=%q to finish creating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
+		return &m.NodePool, nil
+	default:
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+// BuildNodePoolFromCompiledTemplate builds a NodePool object from the compiled nodepool template JSON
+// and the provided parameters, keeping the dev path aligned with test artifacts.
+func BuildNodePoolFromParams(
+	ctx context.Context,
+	parameters NodePoolParams,
+	location string,
+	subscriptionId string,
+	resourceGroupName string,
+) (hcpsdk20240610preview.NodePool, error) {
+	nodePool := hcpsdk20240610preview.NodePool{
+		Location:   &location,
+		Properties: &hcpsdk20240610preview.NodePoolProperties{},
+	}
+	nodePool.Properties.Platform = &hcpsdk20240610preview.NodePoolPlatformProfile{}
+
+	// Version (use params; constructor carries defaults)
+	if parameters.OpenshiftVersionId != "" {
+		versionID := parameters.OpenshiftVersionId
+		nodePool.Properties.Version = &hcpsdk20240610preview.NodePoolVersionProfile{ID: &versionID}
+		if nodePool.Properties.Version.ChannelGroup == nil {
+			nodePool.Properties.Version.ChannelGroup = to.Ptr("stable")
+		}
+	}
+
+	// Replicas
+	if parameters.Replicas > 0 {
+		v := parameters.Replicas
+		nodePool.Properties.Replicas = &v
+	}
+
+	// VM Size
+	if parameters.VMSize != "" {
+		vmSize := parameters.VMSize
+		nodePool.Properties.Platform.VMSize = &vmSize
+	}
+
+	// OSDisk
+	if nodePool.Properties.Platform.OSDisk == nil {
+		nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
+	}
+	if parameters.OSDiskSizeGiB > 0 {
+		v := parameters.OSDiskSizeGiB
+		nodePool.Properties.Platform.OSDisk.SizeGiB = &v
+	}
+	if parameters.DiskStorageAccountType != "" {
+		nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = (*hcpsdk20240610preview.DiskStorageAccountType)(to.Ptr(parameters.DiskStorageAccountType))
+	}
+
+	return nodePool, nil
 }

@@ -16,6 +16,7 @@ package verifiers
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"fmt"
 	"net/http"
@@ -34,6 +35,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 //go:embed artifacts
@@ -135,6 +138,16 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	// wait for a response
 	lastErr = nil
 	url := "https://" + host
+
+	// Create HTTP client with TLS skip for development environments
+	client := &http.Client{}
+	if framework.IsDevelopmentEnvironment() {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
@@ -154,7 +167,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 5-10 minutes: url=%s elapsed=%v\n", url, elapsed)
 			logged5Min = true
 		}
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				klog.Info(err, "failed to get response from route",

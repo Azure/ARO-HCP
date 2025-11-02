@@ -192,3 +192,87 @@ func ListAllOperations(
 
 	return allOperations, nil
 }
+
+func CreateHCPClusterFromParam(
+	ctx context.Context,
+	testContext *perItOrDescribeTestContext,
+	resourceGroupName string,
+	parameters ClusterParams,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Extract cluster name from parameters
+	clusterName := parameters.ClusterName
+
+	// Get subscription ID from test context
+	subscriptionId, err := testContext.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	// Build cluster object from parameters (no ARM/Bicep templates)
+	cluster, err := BuildHCPClusterFromParams(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName, testContext)
+	if err != nil {
+		return fmt.Errorf("failed to build HCP cluster from bicep: %w", err)
+	}
+	_, err = CreateHCPClusterAndWait(
+		ctx,
+		testContext.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+	return nil
+}
+
+func CreateNodePoolFromParam(
+	ctx context.Context,
+	testContext *perItOrDescribeTestContext,
+	resourceGroupName string,
+	hcpClusterName string,
+	parameters NodePoolParams,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Extract nodepool name from parameters
+	nodePoolName := parameters.NodePoolName
+	if nodePoolName == "" {
+		return fmt.Errorf("nodePoolName parameter not found or empty")
+	}
+
+	// Get subscription ID from test context
+	subscriptionId, err := testContext.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get subscription ID: %w", err)
+	}
+
+	// Build NodePool object from parameters (no ARM/Bicep templates)
+	nodePool, err := BuildNodePoolFromParams(ctx, parameters, testContext.Location(), subscriptionId, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("failed to build NodePool from bicep: %w", err)
+	}
+
+	_, err = CreateNodePoolAndWait(
+		ctx,
+		testContext.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+		resourceGroupName,
+		hcpClusterName,
+		nodePoolName,
+		nodePool,
+		timeout,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
+	}
+
+	return nil
+}

@@ -69,6 +69,15 @@ func main() {
 		Parallelism: 15,
 	})
 
+	ext.AddSuite(e.Suite{
+		Name: "local/parallel",
+		Qualifiers: []string{
+			// tests to run against personal environment .
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Local[0]),
+		},
+		Parallelism: 15,
+	})
+
 	// If using Ginkgo, build test specs automatically
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
