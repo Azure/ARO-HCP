@@ -1,0 +1,5 @@
+values: ../multicluster-engine/values.yaml
+name: helmtest-mce
+namespace: multicluster-engine
+helmChartDir: ../multicluster-engine
+testData: {}

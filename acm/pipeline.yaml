@@ -16,6 +16,22 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: deploy
+    action: Shell
+    command: echo "1"
+    variables:
+    - name: MCE_BUNDLE_REGISTRY
+      configRef: acm.mce.bundle.registry
+    - name: MCE_BUNDLE_REPOSITORY
+      configRef: acm.mce.bundle.repository
+    - name: MCE_BUNDLE_DIGEST
+      configRef: acm.mce.bundle.digest
+    - name: ACM_BUNDLE_REGISTRY
+      configRef: acm.operator.bundle.registry
+    - name: ACM_BUNDLE_REPOSITORY
+      configRef: acm.operator.bundle.repository
+    - name: ACM_BUNDLE_DIGEST
+      configRef: acm.operator.bundle.digest
   - name: deploy-mce-crds
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
