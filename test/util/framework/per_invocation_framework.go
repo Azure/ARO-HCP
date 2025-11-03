@@ -126,10 +126,8 @@ type armSystemDataPolicy struct{}
 
 func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 	if req.Raw().URL.Host == "localhost:8443" {
-		// Add the ARM system data header that the frontend expects
 		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "User", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
-		// Add other headers that demo scripts include
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
 	}
 	return req.Next()
@@ -176,7 +174,6 @@ func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context,
 	if len(tc.subscriptionID) > 0 {
 		return tc.subscriptionID, nil
 	}
-	// In non-development environments, use the original ARM client approach , for development env too we want to use ARM.
 	subscriptionID, err := GetSubscriptionID(ctx, subscriptionClient, tc.subscriptionName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get subscription ID: %w", err)

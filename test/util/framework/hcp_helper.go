@@ -383,7 +383,6 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
-// CreateHCPClusterAndWait creates an HCP cluster via direct API call and waits for completion , this is to support lower environments .
 func CreateHCPClusterAndWait(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -470,7 +469,6 @@ func BuildHCPClusterFromParams(
 	}
 }
 
-// CreateNodePoolAndWait creates a NodePool via direct API call and waits for completion, this is to support lower environments.
 func CreateNodePoolAndWait(
 	ctx context.Context,
 	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
