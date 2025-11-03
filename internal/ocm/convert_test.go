@@ -352,7 +352,10 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 	// valid RP cluster, using constants from internal/api/testhelpers.go.
 	return arohcpv1alpha1.NewCluster().
 		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(arohcpv1alpha1.ListeningMethodExternal)).
+			Listening(arohcpv1alpha1.ListeningMethodExternal).
+			CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+				Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
+					Mode(csCIDRBlockAllowAccessModeAllowAll)))).
 		Azure(arohcpv1alpha1.NewAzure().
 			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
