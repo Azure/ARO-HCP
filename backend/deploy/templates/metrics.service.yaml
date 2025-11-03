@@ -5,7 +5,7 @@ metadata:
     app: aro-hcp-backend
     port: metrics
   name: aro-hcp-backend-metrics
-  namespace: '{{ .Release.namespace }}'
+  namespace: '{{ .Release.Namespace }}'
 spec:
   ports:
   - port: 8081

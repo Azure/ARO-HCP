@@ -2,7 +2,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: allow-admin-api-to-frontend
-  namespace: '{{ .Release.namespace }}'
+  namespace: '{{ .Release.Namespace }}'
 spec:
   action: "ALLOW"
   rules:

@@ -39,25 +39,25 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+                  sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+                  sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
               prometheusConfigReloader:
                 image:
-                  digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+                  sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
           # MC cluster settings
           mgmt:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+                  sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
+                  sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
               prometheusConfigReloader:
                 image:
-                  digest: sha256:32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+                  sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
           # RP Frontend
           frontend:
             image:
@@ -75,7 +75,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42 # 1.0-1761243210
+              digest: sha256:e6f352ba5923feaa7e0094c441a530d544c04d3450520567f4b813c4a46d9319
           # Maestro
           maestro:
             image:
@@ -110,8 +110,6 @@ clouds:
           clustersService:
             image:
               digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
-            batchProcessesDryRun: false
-            batchProcesses: "ARO-20736"
           # ACR Pull
           acrPull:
             image:
@@ -144,7 +142,7 @@ clouds:
                   sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
               prometheusConfigReloader:
                 image:
-                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+                  sha: b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # MC cluster settings
           mgmt:
             prometheus:
@@ -167,6 +165,10 @@ clouds:
           backend:
             image:
               digest: "sha256:1113d23109bc8f3a9b5aa5ebf36bdda80d123cb3533b8497f7f8fc97562d6adb"
+          # Admin API
+          adminApi:
+            image:
+              digest: "sha256:da53a468fd70ddddfd21c23115ef709e2dece6d8e19f5161e417b878f80917a6"
           # Hypershift
           hypershift:
             image:

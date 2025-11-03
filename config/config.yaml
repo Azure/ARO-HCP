@@ -709,6 +709,7 @@ defaults:
       public: false
       privateLinkLocation: "{{ .ctx.region }}"
     frontdoor:
+      manage: true
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
@@ -804,6 +805,7 @@ clouds:
           public: true
         frontdoor:
           name: arohcpdev
+          manage: false
       # Maestro
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com
@@ -833,7 +835,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42 # 1.0-1761243210
+          digest: sha256:e6f352ba5923feaa7e0094c441a530d544c04d3450520567f4b813c4a46d9319
       # Backplane API
       backplaneAPI:
         image:
@@ -955,10 +957,6 @@ clouds:
             useSNI: false
             name: "arohcp-ga-dev" # [tenant-unique]
             ownerIds: "d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4" # aro-github-actions-identity, bvesel, goberlec
-            # the GH action does not have permissions yet to manage this app
-            # https://github.com/Azure/ARO-HCP/actions/runs/18850137173/job/53784600689
-            # once this is resolved, set to `true`
-            manage: false
           keyVault:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:

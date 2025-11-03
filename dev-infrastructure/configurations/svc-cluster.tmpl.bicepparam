@@ -112,6 +112,7 @@ param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorKeyTagKey = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorKeyTagValue = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
+param azureFrontDoorManage = {{ .oidc.frontdoor.manage }}
 
 param globalMSIId = '__globalMSIId__'
 

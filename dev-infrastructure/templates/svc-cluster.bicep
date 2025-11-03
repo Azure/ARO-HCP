@@ -273,6 +273,9 @@ param azureFrontDoorKeyTagValue string
 @description('Whether to use managed certificates for the Azure Front Door')
 param azureFrontDoorUseManagedCertificates bool
 
+@description('Whether to manage the Azure Front Door integration with the OIDC storage account')
+param azureFrontDoorManage bool
+
 @description('MSI that will be used to run the deploymentScript')
 param globalMSIId string
 
@@ -778,6 +781,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     globalMSIId: globalMSIId
     deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
+    frontDoorManage: azureFrontDoorManage
   }
 }
 

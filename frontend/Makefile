@@ -5,7 +5,7 @@ FRONTEND_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
-FRONTEND_IMAGE_TAG ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
+FRONTEND_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
 FRONTEND_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${FRONTEND_IMAGE_REPOSITORY} ../generate-repo.sh)
 FRONTEND_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(FRONTEND_GENERATED_IMAGE_REPOSITORY):$(FRONTEND_IMAGE_TAG)
 
@@ -59,15 +59,15 @@ OVERRIDE_CONFIG_FILE ?= /tmp/frontend-override-config-$(date +%s).yaml
 
 record-override: $(YQ) $(ORAS)
 	@az acr login --name ${ARO_HCP_IMAGE_ACR} --expose-token --output tsv --query accessToken | \
-    		$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
-    			--username 00000000-0000-0000-0000-000000000000 \
-    			--password-stdin
+	$(ORAS) login ${ARO_HCP_IMAGE_REGISTRY} \
+		--username 00000000-0000-0000-0000-000000000000 \
+		--password-stdin
 
-    	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${FRONTEND_TAGGED_IMAGE} | $(YQ) .digest); \
-    	$(YQ) eval -n "\
-    		.clouds.dev.environments.$(DEPLOY_ENV).defaults.frontend.image.repository = \"$(FRONTEND_GENERATED_IMAGE_REPOSITORY)\" | \
-    		.clouds.dev.environments.$(DEPLOY_ENV).defaults.frontend.image.digest = \"$$DIGEST\" \
-    	" > $(OVERRIDE_CONFIG_FILE)
+	@DIGEST=$$($(ORAS) manifest fetch --descriptor ${FRONTEND_TAGGED_IMAGE} | $(YQ) .digest); \
+	$(YQ) eval -n "\
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.frontend.image.repository = \"$(FRONTEND_GENERATED_IMAGE_REPOSITORY)\" | \
+		.clouds.dev.environments.$(DEPLOY_ENV).defaults.frontend.image.digest = \"$$DIGEST\" \
+	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
 
 deploy: build-and-push record-override

@@ -218,7 +218,7 @@ geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension
     application:
-      manage: false
+      manage: true
       name: arohcp-ga-dev
       ownerIds: d8837611-f550-4f0a-af48-575a7178adfb,16ea1e12-7ef3-4613-bea4-3d4a20cbc38c,770ce6b0-5afe-472d-ac0d-1fae72acc4e4
       useSNI: false
@@ -306,7 +306,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42
+    digest: sha256:e6f352ba5923feaa7e0094c441a530d544c04d3450520567f4b813c4a46d9319
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -586,6 +586,7 @@ oidc:
       softDelete: true
       tagKey: aroHCPPurpose
       tagValue: afd
+    manage: false
     msiName: arohcp-afd
     name: arohcpdev
     sku: Premium_AzureFrontDoor
