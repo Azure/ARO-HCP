@@ -64,7 +64,7 @@ arobit:
       registry: linuxgeneva-microsoft.azurecr.io
       repository: genevamdsd
 automationDryRun: false
-availabilityZoneCount: 4
+azureRegionAvailabilityZoneCount: 4
 backend:
   image:
     digest: sha256:cc1b508566123dae182bd0dcedc8471cbab67185b8426929dd57b16884d87b11
