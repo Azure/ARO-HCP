@@ -22,7 +22,7 @@ prometheusSpec:
     cluster: "{{ .svc.aks.name }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
-  zoneCount: {{ .availabilityZoneCount }}
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
 prometheus:
   prometheusSpec:
