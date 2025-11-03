@@ -25,6 +25,7 @@ import (
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
+	"helm.sh/helm/v4/pkg/release"
 
 	"sigs.k8s.io/yaml"
 
@@ -58,8 +59,7 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	}
 
 	in := action.NewInstall(&cfg)
-	in.DryRun = true
-	in.ClientOnly = true
+	in.DryRunStrategy = action.DryRunClient
 	in.ReleaseName = testCase.Name
 
 	cfgYaml, err := loadConfigAndMerge(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
@@ -87,7 +87,11 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	if err != nil {
 		return "", fmt.Errorf("error running helm, %v", err)
 	}
-	return rel.Manifest, nil
+	accessor, err := release.NewAccessor(rel)
+	if err != nil {
+		return "", fmt.Errorf("error creating accessor, %v", err)
+	}
+	return accessor.Manifest(), nil
 }
 
 func TestHelmTemplate(t *testing.T) {
