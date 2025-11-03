@@ -12,7 +12,7 @@ credsKeyVault:
   secret: "{{ .frontend.cert.name }}"
 deployment:
   replicas: {{ .frontend.k8s.replicas }}
-  imageName: "{{ .frontend.image.registry }}/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
+  imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
 serviceAccount:
   name: "{{ .frontend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__frontendMsiClientId__"

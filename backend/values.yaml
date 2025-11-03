@@ -10,7 +10,7 @@ configMap:
   databaseName: "{{ .frontend.cosmosDB.name }}"
 deployment:
   replicas: {{ .backend.k8s.replicas }}
-  imageName: "{{ .backend.image.registry }}/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
+  imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"
 serviceAccount:
   name: "{{ .backend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__backendMsiClientId__"
