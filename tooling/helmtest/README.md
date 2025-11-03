@@ -3,11 +3,28 @@
 
 Generate/use golden test files to ensure helm charts are valid.
 
-## .helmtest
+## testdata
 
-Add your testfiles to `.helmtest.yaml` to ensure it is picked up.
+Create a testdata folder near your chart, i.e. `helmtest_kusto_enabled.yml`
 
-Specify `setFile` and add the required parameters (values file can not be used with template mode). The format for this file is `key: value`. Where key is the parameter as you would use it in CLI with `--set` parameter.
+Sample content:
+
+```yaml
+# point to the values file used for testing this chart
+values: ../values-mgmt.yaml
+# name of the test/release
+name: helmtest-kusto-enabled
+# namespace to use
+namespace: arobit
+# path to the chart to test
+helmChartDir: ../deploy
+# override data, test is based on dev config
+testData:
+  kusto:
+    enabled: true
+    environmentName: test
+    ingestionUrl: http://foobar
+```
 
 ## Update
 
