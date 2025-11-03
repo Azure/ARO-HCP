@@ -26,7 +26,7 @@ defaults:
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   cloud: "{{ .ev2.cloudName }}"
-  availabilityZoneCount: {{ .ev2.availabilityZoneCount }}
+  azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
   acrDNSSuffix: "{{ .ev2.azureContainerRegistry.domainNameSuffix }}"
   administration:
