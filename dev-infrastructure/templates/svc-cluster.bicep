@@ -330,6 +330,9 @@ param azureMonitoringWorkspaceId string
 @description('The Grafana resource ID')
 param grafanaResourceId string
 
+@description('The Grafana managed identity principal ID')
+param grafanaPrincipalId string
+
 @description('The name of the CS managed identity')
 param csMIName string
 
@@ -777,7 +780,7 @@ module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep
   name: 'grafana-afd-permissions'
   scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
   params: {
-    grafanaResourceId: grafanaResourceId
+    grafanaPrincipalId: grafanaPrincipalId
     logAnalyticsWorkspaceId: '' // Log Analytics permissions granted in region.bicep
     frontDoorProfileId: azureFrontDoorResourceId
   }

@@ -1,20 +1,11 @@
-@description('The Grafana resource ID')
-param grafanaResourceId string
+@description('The Grafana managed identity principal ID')
+param grafanaPrincipalId string
 
 @description('The Log Analytics workspace resource ID (optional)')
 param logAnalyticsWorkspaceId string = ''
 
 @description('The Azure Front Door profile resource ID (optional)')
 param frontDoorProfileId string = ''
-
-import * as res from '../resource.bicep'
-
-var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
-
-resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
-  name: grafanaRef.name
-  scope: resourceGroup(grafanaRef.resourceGroup.subscriptionId, grafanaRef.resourceGroup.name)
-}
 
 // Azure built-in role definition IDs - these are global constants across all Azure environments
 // They are the same in every subscription, tenant, and cloud (public, gov, etc.)
@@ -35,8 +26,7 @@ module logAnalyticsRoleAssignment './observability-role-assignment.bicep' = if (
   scope: resourceGroup(split(logAnalyticsWorkspaceId, '/')[2], split(logAnalyticsWorkspaceId, '/')[4])
   params: {
     resourceId: logAnalyticsWorkspaceId
-    grafanaResourceId: grafanaResourceId
-    grafanaPrincipalId: grafana.identity.principalId
+    grafanaPrincipalId: grafanaPrincipalId
     roleDefinitionId: logAnalyticsReader
   }
 }
@@ -48,8 +38,7 @@ module frontDoorRoleAssignment './observability-role-assignment.bicep' = if (fro
   scope: resourceGroup(split(frontDoorProfileId, '/')[2], split(frontDoorProfileId, '/')[4])
   params: {
     resourceId: frontDoorProfileId
-    grafanaResourceId: grafanaResourceId
-    grafanaPrincipalId: grafana.identity.principalId
+    grafanaPrincipalId: grafanaPrincipalId
     roleDefinitionId: monitoringReader
   }
 }

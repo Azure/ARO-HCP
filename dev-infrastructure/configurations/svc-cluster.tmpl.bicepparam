@@ -135,6 +135,7 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
 // Grafana
 param grafanaResourceId = '__grafanaResourceId__'
+param grafanaPrincipalId = '__grafanaPrincipalId__'
 
 // MDSD / Genevabits
 @description('The namespace of the logs')

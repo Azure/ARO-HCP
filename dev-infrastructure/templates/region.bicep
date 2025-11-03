@@ -36,6 +36,9 @@ param enableLogAnalytics bool
 @description('Grafana resource ID')
 param grafanaResourceId string
 
+@description('Grafana managed identity principal ID')
+param grafanaPrincipalId string
+
 @description('Name of the Azure Monitor Workspace for services')
 param svcMonitorName string
 
@@ -161,7 +164,7 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
 module grafanaObservabilityPermissions '../modules/grafana/observability-permissions.bicep' = if (enableLogAnalytics) {
   name: 'grafana-observability-permissions'
   params: {
-    grafanaResourceId: grafanaResourceId
+    grafanaPrincipalId: grafanaPrincipalId
     logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
     // AFD permissions will be granted in svc-cluster.bicep where AFD resource ID is available
     frontDoorProfileId: ''

@@ -66,6 +66,7 @@ resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' existing = {
 }
 
 output grafanaResourceId string = grafana.id
+output grafanaPrincipalId string = grafana.identity.principalId
 
 //
 //   A Z U R E   F R O N T   D O O R
