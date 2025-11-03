@@ -15,13 +15,8 @@
 package framework
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -93,29 +88,6 @@ func NewDefaultNodePoolParams(clusterName, nodePoolName string) NodePoolParams {
 		DiskStorageAccountType: "StandardSSD_LRS",
 		ChannelGroup:           "stable",
 	}
-}
-
-func GetLatestKeyVaultKeyVersion(ctx context.Context, keyVaultName, keyName string) (string, error) {
-	azureCredentials, err := azidentity.NewAzureCLICredential(nil)
-	if err != nil {
-		return "", fmt.Errorf("failed building development environment CLI credential: %w", err)
-	}
-	client, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net/", keyVaultName), azureCredentials, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create key vault client: %w", err)
-	}
-	versions := client.NewListKeyPropertiesVersionsPager(keyName, nil)
-	page, err := versions.NextPage(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to list key versions: %w", err)
-	}
-	if len(page.Value) == 0 || page.Value[0].KID == nil {
-		return "", fmt.Errorf("no key versions found for key %s", keyName)
-	}
-
-	keyID := string(*page.Value[0].KID)
-	parts := strings.Split(keyID, "/")
-	return parts[len(parts)-1], nil
 }
 
 func ConvertToUserAssignedIdentitiesProfile(value interface{}) (*hcpsdk20240610preview.UserAssignedIdentitiesProfile, error) {

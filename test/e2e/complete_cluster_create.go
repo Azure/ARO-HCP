@@ -125,7 +125,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.EncryptionType = "KMS"
 			clusterParams.KeyVaultName = keyVaultNameStr
 			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyNameStr
-			clusterParams.EtcdEncryptionKeyVersion, err = framework.GetLatestKeyVaultKeyVersion(ctx, clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName)
+			clusterParams.EtcdEncryptionKeyVersion, err = tc.GetLatestKeyVaultKeyVersion(ctx, clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName)
 			Expect(err).NotTo(HaveOccurred())
 			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
 			Expect(err).NotTo(HaveOccurred())
