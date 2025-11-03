@@ -138,10 +138,10 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+                  sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
               prometheusSpec:
                 image:
-                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
+                  sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
               prometheusConfigReloader:
                 image:
                   digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
@@ -150,13 +150,13 @@ clouds:
             prometheus:
               prometheusOperator:
                 image:
-                  digest: sha256:0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+                  sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
               prometheusSpec:
                 image:
-                  digest: sha256:706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
+                  sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
               prometheusConfigReloader:
                 image:
-                  digest: sha256:b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
+                  sha: b112cdc776c740261d812ab544261b781f9cb3520d7b400a353993d3be9c6df1
           # RP Frontend
           frontend:
             image:
@@ -188,7 +188,7 @@ clouds:
             mce:
               version: "2.9.1"
               bundle:
-                digest: sha256:2d4f9b4eded34bf6a9f8a1570f5667101dd2347c969e3f02a2b5a2752dff5850 # v2.9.1-96                  
+                digest: sha256:2d4f9b4eded34bf6a9f8a1570f5667101dd2347c969e3f02a2b5a2752dff5850 # v2.9.1-96
           # OCP image sync
           imageSync:
             ocMirror:
