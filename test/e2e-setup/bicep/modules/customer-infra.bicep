@@ -111,3 +111,9 @@ output keyVaultName string = customerKeyVaultName
 
 @description('The name of the encryption key for etcd')
 output etcdEncryptionKeyName string = customerEtcdEncryptionKeyName
+
+@description('Network Security Group Resource ID')
+output nsgID string = customerNsg.id
+
+@description('Customer VNet Subnet Resource ID')
+output vnetSubnetID string = '${customerVnet.id}/subnets/${customerVnetSubnetName}'

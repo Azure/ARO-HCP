@@ -102,17 +102,35 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			etcdEncryptionKeyNameStr, ok := etcdEncryptionKeyName.(string)
 			Expect(ok).To(BeTrue())
+			nsgID, err := framework.GetOutputValue(customerInfraDeploymentResult, "nsgID")
+			Expect(err).NotTo(HaveOccurred())
+			nsgResourceID, ok := nsgID.(string)
+			Expect(ok).To(BeTrue())
+			vnetSubnetID, err := framework.GetOutputValue(customerInfraDeploymentResult, "vnetSubnetID")
+			Expect(err).NotTo(HaveOccurred())
+			vnetSubnetResourceID, ok := vnetSubnetID.(string)
+			Expect(ok).To(BeTrue())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams := framework.NewDefaultClusterParams(customerClusterName)
 			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.NsgName = customerNetworkSecurityGroupName
-			clusterParams.SubnetName = customerVnetSubnetName
+			clusterParams.NsgResourceID = nsgResourceID
+			clusterParams.SubnetResourceID = vnetSubnetResourceID
 			clusterParams.VnetName = customerVnetName
-			clusterParams.UserAssignedIdentitiesValue = userAssignedIdentities
-			clusterParams.IdentityValue = identity
+			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+			Expect(err).NotTo(HaveOccurred())
+			clusterParams.Identity, err = framework.ConvertToManagedServiceIdentity(identity)
+			Expect(err).NotTo(HaveOccurred())
+			clusterParams.EncryptionKeyManagementMode = "CustomerManaged"
+			clusterParams.EncryptionType = "KMS"
 			clusterParams.KeyVaultName = keyVaultNameStr
 			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyNameStr
+			clusterParams.EtcdEncryptionKeyVersion, err = framework.GetLatestKeyVaultKeyVersion(ctx, clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName)
+			Expect(err).NotTo(HaveOccurred())
+			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+			Expect(err).NotTo(HaveOccurred())
+			clusterParams.Identity, err = framework.ConvertToManagedServiceIdentity(identity)
+			Expect(err).NotTo(HaveOccurred())
 
 			err = framework.CreateHCPClusterFromParam(ctx,
 				tc,

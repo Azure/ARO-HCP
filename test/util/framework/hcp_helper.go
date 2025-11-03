@@ -16,9 +16,7 @@ package framework
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -34,8 +32,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -420,130 +416,58 @@ func CreateHCPClusterAndWait(
 	}
 }
 
-// BuildHCPClusterFromParams builds an HCP cluster object using provided parameters and
-// baked-in defaults that mirror our former module values.
 func BuildHCPClusterFromParams(
 	ctx context.Context,
 	parameters ClusterParams,
 	location string,
-	subscriptionId string,
-	resourceGroupName string,
 	testContext *perItOrDescribeTestContext,
-) (hcpsdk20240610preview.HcpOpenShiftCluster, error) {
-	// Start with a blank cluster and fill in from params/defaults
-	cluster := hcpsdk20240610preview.HcpOpenShiftCluster{
-		Location:   &location,
-		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{},
-	}
-	cluster.Properties.Platform = &hcpsdk20240610preview.PlatformProfile{}
+) hcpsdk20240610preview.HcpOpenShiftCluster {
 
-	// Version and channelGroup (use params; constructors carry defaults)
-	if parameters.OpenshiftVersionId != "" {
-		versionID := parameters.OpenshiftVersionId
-		cluster.Properties.Version = &hcpsdk20240610preview.VersionProfile{ID: &versionID}
-		if cluster.Properties.Version.ChannelGroup == nil {
-			cluster.Properties.Version.ChannelGroup = to.Ptr("stable")
-		}
-	}
-
-	// Managed RG
-	if parameters.ManagedResourceGroupName != "" {
-		cluster.Properties.Platform.ManagedResourceGroup = &parameters.ManagedResourceGroupName
-	}
-
-	// NSG/Subnet/VNET to IDs
-	if parameters.NsgName != "" {
-		nsgID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s", subscriptionId, resourceGroupName, parameters.NsgName)
-		cluster.Properties.Platform.NetworkSecurityGroupID = &nsgID
-	}
-	if parameters.SubnetName != "" && parameters.VnetName != "" {
-		subnetID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", subscriptionId, resourceGroupName, parameters.VnetName, parameters.SubnetName)
-		cluster.Properties.Platform.SubnetID = &subnetID
-	}
-
-	// OperatorsAuthentication (UAMIs)
-	if parameters.UserAssignedIdentitiesValue != nil {
-		if b, err := json.Marshal(parameters.UserAssignedIdentitiesValue); err == nil {
-			var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
-			if err := json.Unmarshal(b, &uamis); err == nil {
-				cluster.Properties.Platform.OperatorsAuthentication = &hcpsdk20240610preview.OperatorsAuthenticationProfile{
-					UserAssignedIdentities: &uamis,
-				}
-			}
-		}
-	}
-
-	// Network (use params; constructors carry defaults)
-	if (parameters.Network != NetworkConfig{}) {
-		hostPrefix := parameters.Network.HostPrefix
-		netType := parameters.Network.NetworkType
-		cluster.Properties.Network = &hcpsdk20240610preview.NetworkProfile{
-			NetworkType: (*hcpsdk20240610preview.NetworkType)(to.Ptr(netType)),
-			PodCIDR:     to.Ptr(parameters.Network.PodCIDR),
-			ServiceCIDR: to.Ptr(parameters.Network.ServiceCIDR),
-			MachineCIDR: to.Ptr(parameters.Network.MachineCIDR),
-			HostPrefix:  &hostPrefix,
-		}
-	}
-
-	// Etcd KMS (resolve version via Key Vault if not provided directly)
-	if parameters.KeyVaultName != "" && parameters.EtcdEncryptionKeyName != "" {
-		kv := parameters.KeyVaultName
-		key := parameters.EtcdEncryptionKeyName
-		ver := ""
-		if ver == "" {
-			azureCredentials, err := azidentity.NewAzureCLICredential(nil)
-			if err != nil {
-				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed building development environment CLI credential: %w", err)
-			}
-			client, err := azkeys.NewClient(fmt.Sprintf("https://%s.vault.azure.net/", kv), azureCredentials, nil)
-			if err != nil {
-				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to create key vault client: %w", err)
-			}
-			versions := client.NewListKeyPropertiesVersionsPager(key, nil)
-			page, err := versions.NextPage(ctx)
-			if err != nil {
-				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("failed to list key versions: %w", err)
-			}
-			if len(page.Value) == 0 || page.Value[0].KID == nil {
-				return hcpsdk20240610preview.HcpOpenShiftCluster{}, fmt.Errorf("no key versions found for key %s", key)
-			}
-			keyID := string(*page.Value[0].KID)
-			parts := strings.Split(keyID, "/")
-			ver = parts[len(parts)-1]
-		}
-		cluster.Properties.Etcd = &hcpsdk20240610preview.EtcdProfile{
-			DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
-				KeyManagementMode: (*hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType)(to.Ptr("CustomerManaged")),
-				CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
-					EncryptionType: (*hcpsdk20240610preview.CustomerManagedEncryptionType)(to.Ptr("KMS")),
-					Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
-						ActiveKey: &hcpsdk20240610preview.KmsKey{VaultName: &kv, Name: &key, Version: &ver},
+	return hcpsdk20240610preview.HcpOpenShiftCluster{
+		Location: to.Ptr(location),
+		Identity: parameters.Identity,
+		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
+			Version: &hcpsdk20240610preview.VersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			Platform: &hcpsdk20240610preview.PlatformProfile{
+				ManagedResourceGroup:   to.Ptr(parameters.ManagedResourceGroupName),
+				NetworkSecurityGroupID: to.Ptr(parameters.NsgResourceID),
+				SubnetID:               to.Ptr(parameters.SubnetResourceID),
+				OperatorsAuthentication: &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: parameters.UserAssignedIdentitiesProfile,
+				}},
+			Network: &hcpsdk20240610preview.NetworkProfile{
+				NetworkType: to.Ptr(hcpsdk20240610preview.NetworkType(parameters.Network.NetworkType)),
+				PodCIDR:     to.Ptr(parameters.Network.PodCIDR),
+				ServiceCIDR: to.Ptr(parameters.Network.ServiceCIDR),
+				MachineCIDR: to.Ptr(parameters.Network.MachineCIDR),
+				HostPrefix:  to.Ptr(parameters.Network.HostPrefix),
+			},
+			API: &hcpsdk20240610preview.APIProfile{
+				Visibility: to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+			},
+			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
+				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
+			},
+			Etcd: &hcpsdk20240610preview.EtcdProfile{
+				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: to.Ptr(hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType(parameters.EncryptionKeyManagementMode)),
+					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
+						EncryptionType: to.Ptr(hcpsdk20240610preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
+						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
+							ActiveKey: &hcpsdk20240610preview.KmsKey{
+								VaultName: to.Ptr(parameters.KeyVaultName),
+								Name:      to.Ptr(parameters.EtcdEncryptionKeyName),
+								Version:   to.Ptr(parameters.EtcdEncryptionKeyVersion),
+							},
+						},
 					},
 				},
 			},
-		}
+		},
 	}
-
-	// Identity
-	if parameters.IdentityValue != nil {
-		if b, err := json.Marshal(parameters.IdentityValue); err == nil {
-			var msi hcpsdk20240610preview.ManagedServiceIdentity
-			if err := json.Unmarshal(b, &msi); err == nil {
-				cluster.Identity = &msi
-			}
-		}
-	}
-
-	// API visibility and image registry state (use params; constructors carry defaults)
-	if parameters.APIVisibility != "" {
-		cluster.Properties.API = &hcpsdk20240610preview.APIProfile{Visibility: (*hcpsdk20240610preview.Visibility)(to.Ptr(parameters.APIVisibility))}
-	}
-	if parameters.ImageRegistryState != "" {
-		cluster.Properties.ClusterImageRegistry = &hcpsdk20240610preview.ClusterImageRegistryProfile{State: (*hcpsdk20240610preview.ClusterImageRegistryProfileState)(to.Ptr(parameters.ImageRegistryState))}
-	}
-
-	return cluster, nil
 }
 
 // CreateNodePoolAndWait creates a NodePool via direct API call and waits for completion, this is to support lower environments.
@@ -578,53 +502,27 @@ func CreateNodePoolAndWait(
 	}
 }
 
-// BuildNodePoolFromCompiledTemplate builds a NodePool object from the compiled nodepool template JSON
-// and the provided parameters, keeping the dev path aligned with test artifacts.
 func BuildNodePoolFromParams(
 	ctx context.Context,
 	parameters NodePoolParams,
 	location string,
-	subscriptionId string,
-	resourceGroupName string,
-) (hcpsdk20240610preview.NodePool, error) {
-	nodePool := hcpsdk20240610preview.NodePool{
-		Location:   &location,
-		Properties: &hcpsdk20240610preview.NodePoolProperties{},
-	}
-	nodePool.Properties.Platform = &hcpsdk20240610preview.NodePoolPlatformProfile{}
+) hcpsdk20240610preview.NodePool {
 
-	// Version (use params; constructor carries defaults)
-	if parameters.OpenshiftVersionId != "" {
-		versionID := parameters.OpenshiftVersionId
-		nodePool.Properties.Version = &hcpsdk20240610preview.NodePoolVersionProfile{ID: &versionID}
-		if nodePool.Properties.Version.ChannelGroup == nil {
-			nodePool.Properties.Version.ChannelGroup = to.Ptr("stable")
-		}
+	return hcpsdk20240610preview.NodePool{
+		Location: to.Ptr(location),
+		Properties: &hcpsdk20240610preview.NodePoolProperties{
+			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			Replicas: to.Ptr(parameters.Replicas),
+			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
+				VMSize: to.Ptr(parameters.VMSize),
+				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
+					SizeGiB:                to.Ptr(parameters.OSDiskSizeGiB),
+					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(parameters.DiskStorageAccountType)),
+				},
+			},
+		},
 	}
-
-	// Replicas
-	if parameters.Replicas > 0 {
-		v := parameters.Replicas
-		nodePool.Properties.Replicas = &v
-	}
-
-	// VM Size
-	if parameters.VMSize != "" {
-		vmSize := parameters.VMSize
-		nodePool.Properties.Platform.VMSize = &vmSize
-	}
-
-	// OSDisk
-	if nodePool.Properties.Platform.OSDisk == nil {
-		nodePool.Properties.Platform.OSDisk = &hcpsdk20240610preview.OsDiskProfile{}
-	}
-	if parameters.OSDiskSizeGiB > 0 {
-		v := parameters.OSDiskSizeGiB
-		nodePool.Properties.Platform.OSDisk.SizeGiB = &v
-	}
-	if parameters.DiskStorageAccountType != "" {
-		nodePool.Properties.Platform.OSDisk.DiskStorageAccountType = (*hcpsdk20240610preview.DiskStorageAccountType)(to.Ptr(parameters.DiskStorageAccountType))
-	}
-
-	return nodePool, nil
 }
