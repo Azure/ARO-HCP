@@ -37,7 +37,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
   image:
-    digest: sha256:da53a468fd70ddddfd21c23115ef709e2dece6d8e19f5161e417b878f80917a6
+    digest: sha256:9b14303b5d975b23d734215e52676c30e198d781ac340c5048078513c36ec793
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -67,7 +67,7 @@ automationDryRun: false
 availabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:e4ea396bd51af4be33d4b6c53d635aff15ff39d8777a9a64705150bca2bfe905
+    digest: sha256:cc1b508566123dae182bd0dcedc8471cbab67185b8426929dd57b16884d87b11
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -203,7 +203,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:7f0f117f3a3fbb150ae6c72e6af61a831465295517687cbd541f6441b23f1dc7
+    digest: sha256:705d0e20f47c2885905c9c5169561de4f48b6b89ffb8ad6c27a149bd7db488c6
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
