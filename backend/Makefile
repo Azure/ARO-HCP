@@ -44,7 +44,7 @@ clean:
 
 image: Dockerfile $(BACKEND_SOURCES) Makefile
 	cd $(BACKEND_DIR)/.. && \
-	docker build . --file frontend/Dockerfile \
+	docker build . --file backend/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_IMAGE_TAG=${BACKEND_IMAGE_TAG} \
@@ -71,5 +71,5 @@ record-override: $(YQ) $(ORAS)
 .PHONY: record-override
 
 deploy: build-and-push record-override
-	make -C .. pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
+	make -C .. pipeline/RP.Backend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
