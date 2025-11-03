@@ -136,6 +136,16 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: azureFrontDoorResourceId
+    - name: grafanaResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer
