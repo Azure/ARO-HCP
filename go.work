@@ -7,8 +7,8 @@ use (
 	./internal
 	./test
 	./tooling/hcpctl
-	./tooling/image-updater
 	./tooling/helmtest
+	./tooling/image-updater
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
