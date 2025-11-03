@@ -94,17 +94,14 @@ func ConvertToUserAssignedIdentitiesProfile(value interface{}) (*hcpsdk20240610p
 	if value == nil {
 		return nil, nil
 	}
-
 	b, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal UserAssignedIdentitiesValue: %w", err)
 	}
-
 	var uamis hcpsdk20240610preview.UserAssignedIdentitiesProfile
 	if err := json.Unmarshal(b, &uamis); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal UserAssignedIdentitiesValue: %w", err)
 	}
-
 	return &uamis, nil
 }
 

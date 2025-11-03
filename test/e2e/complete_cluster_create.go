@@ -77,6 +77,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			keyVaultNameStr, ok := keyVaultName.(string)
 			Expect(ok).To(BeTrue())
+			etcdEncryptionKeyVersion, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
+			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
@@ -100,8 +102,6 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyNameStr, ok := etcdEncryptionKeyName.(string)
-			Expect(ok).To(BeTrue())
 			nsgID, err := framework.GetOutputValue(customerInfraDeploymentResult, "nsgID")
 			Expect(err).NotTo(HaveOccurred())
 			nsgResourceID, ok := nsgID.(string)
@@ -124,9 +124,10 @@ var _ = Describe("Customer", func() {
 			clusterParams.EncryptionKeyManagementMode = "CustomerManaged"
 			clusterParams.EncryptionType = "KMS"
 			clusterParams.KeyVaultName = keyVaultNameStr
-			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyNameStr
-			clusterParams.EtcdEncryptionKeyVersion, err = tc.GetLatestKeyVaultKeyVersion(ctx, clusterParams.KeyVaultName, clusterParams.EtcdEncryptionKeyName)
-			Expect(err).NotTo(HaveOccurred())
+			clusterParams.EtcdEncryptionKeyName, ok = etcdEncryptionKeyName.(string)
+			Expect(ok).To(BeTrue())
+			clusterParams.EtcdEncryptionKeyVersion, ok = etcdEncryptionKeyVersion.(string)
+			Expect(ok).To(BeTrue())
 			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
 			Expect(err).NotTo(HaveOccurred())
 			clusterParams.Identity, err = framework.ConvertToManagedServiceIdentity(identity)
