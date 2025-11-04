@@ -60,6 +60,18 @@ spec:
           value: '{{ .Values.armAppId }}'
         - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
           value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
+        {{- if .Values.genevaActionsPolicy.enabled }}
+        - name: AzureAd__InboundPolicies__1__Label
+          value: "Geneva Actions"
+        - name: AzureAd__InboundPolicies__1__Authority
+          value: "{{ .Values.genevaActionsPolicy.authority }}"
+        - name: AzureAd__InboundPolicies__1__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__1__ValidAudiences__0
+          value: '{{ .Values.genevaActionsPolicy.audience }}'
+        - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
+          value: "{{ .Values.genevaActionsPolicy.applicationId }}"
+        {{- end }}
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url

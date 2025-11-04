@@ -12,3 +12,8 @@ tracing:
   exporter: ""
 deployment:
   zoneCount: ""
+genevaActionsPolicy:
+  enabled: true
+  authority: ""
+  audience: ""
+  applicationId: ""

@@ -19,8 +19,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/Azure/ARO-HCP/admin/cmd"
-	"github.com/Azure/ARO-HCP/admin/pkg/admin"
+	"github.com/Azure/ARO-HCP/admin/api/cmd"
+	"github.com/Azure/ARO-HCP/admin/api/pkg/admin"
 )
 
 func main() {

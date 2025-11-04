@@ -27,7 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/admin/pkg/admin"
+	"github.com/Azure/ARO-HCP/admin/api/pkg/admin"
 )
 
 type AdminOpts struct {
@@ -43,9 +43,9 @@ func NewRootCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		Short:   "Serve the ARO HCP Admin",
 		Long: `Serve the ARO HCP Admin
-	This command runs the ARO HCP Admin. 
-	# Run ARO HCP Admin locally 
-	./aro-hcp-admin --location ${LOCATION} 
+	This command runs the ARO HCP Admin.
+	# Run ARO HCP Admin locally
+	./aro-hcp-admin --location ${LOCATION}
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run()

@@ -1,6 +1,7 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 -include ../setup-templatize-env.mk
+-include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
@@ -11,6 +12,7 @@ ADMIN_API_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(ADMIN_API_GENERATED_IMAGE_
 
 # Binary name
 BINARY = aro-hcp-admin
+CLI_BINARY = aro-hcp-admin-cli
 
 # Build flags
 BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -19,7 +21,8 @@ LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/admin/pkg/version.buildDate=${BUILD_DATE}"
 
 # Source files
-ADMIN_API_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+ADMIN_API_SOURCES = $(shell find api -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+CLI_SOURCES = $(shell find cli -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 
 # Default target
 .DEFAULT_GOAL := build
@@ -29,7 +32,7 @@ build: $(BINARY)
 .PHONY: build
 
 $(BINARY): $(ADMIN_API_SOURCES)
-	go build $(LDFLAGS) -o $(BINARY) .
+	cd api && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
 	./${BINARY} --location ${LOCATION}
@@ -69,3 +72,39 @@ record-override: $(YQ) $(ORAS)
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+build-cli: $(CLI_BINARY)
+.PHONY: build-cli
+
+$(CLI_BINARY): $(CLI_SOURCES)
+	cd cli && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
+
+run-hello-world-test: $(CLI_BINARY)
+	@./${CLI_BINARY} auth-test \
+		--ga-auth-cert-kv ${GA_AUTH_CERT_KV} \
+		--ga-auth-cert-secret ${GA_AUTH_CERT_SECRET} \
+		--ga-auth-tenant-id ${GA_AUTH_TENANT_ID} \
+		--ga-auth-client-id ${GA_AUTH_CLIENT_ID} \
+		--ga-auth-scopes ${GA_AUTH_SCOPES} \
+		--host ${ADMIN_API_HOST} \
+		--admin-api-endpoint ${ADMIN_API_ENDPOINT_BASE}/admin/helloworld \
+		--insecure-skip-verify
+.PHONY: run-hello-world-test
+
+run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
+	@CLI_BINARY=$(ADMIN_DIR)/$(CLI_BINARY) \
+	GA_AUTH_CERT_KV=$(GA_AUTH_CERT_KV) \
+	GA_AUTH_CERT_SECRET=$(GA_AUTH_CERT_SECRET) \
+	GA_AUTH_TENANT_ID=$(GA_AUTH_TENANT_ID) \
+	GA_AUTH_CLIENT_ID=$(GA_AUTH_CLIENT_ID) \
+	GA_AUTH_SCOPES=$(GA_AUTH_SCOPES) \
+	ADMIN_API_HOST=$(ADMIN_API_HOST) \
+	ADMIN_API_ENDPOINT=https://localhost:$(PORT_FORWARD_LOCAL_PORT)/admin/helloworld \
+	NAMESPACE=aks-istio-ingress \
+	SERVICE_NAME=aks-istio-ingressgateway-external \
+	LOCAL_PORT=$(PORT_FORWARD_LOCAL_PORT) \
+	REMOTE_PORT=443 \
+	SVC_CLUSTER=$(SVC_CLUSTER) \
+	HCPCTL=$(HCPCTL) \
+	./hack/with-port-forward.sh
+.PHONY: run-hello-world-test-with-port-forward

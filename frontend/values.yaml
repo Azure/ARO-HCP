@@ -1,7 +1,7 @@
 azure:
   clientId: "__csiSecretStoreClientId__"
   tenantId: "__tenantId__"
-deployMise: true
+deployMise: {{ .mise.deploy }}
 configMap:
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   frontendMiClientId: "__frontendMsiClientId__"
@@ -35,3 +35,5 @@ adminApi:
   namespace: "{{ .adminApi.k8s.namespace }}"
   serviceAccount: "{{ .adminApi.k8s.serviceAccountName }}"
 apiBindPort: 8443
+virtualService:
+  host: "rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"

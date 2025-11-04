@@ -1476,6 +1476,7 @@
         },
         "actions": {
           "type": "object",
+          "description": "Geneva Actions related configuration",
           "additionalProperties": false,
           "required": [
             "serviceTag",
@@ -1487,13 +1488,16 @@
           ],
           "properties": {
             "serviceTag": {
-              "type": "string"
+              "type": "string",
+              "description": "The Service Tag used by Geneva Actions for their egress traffic."
             },
             "keyVault": {
-              "$ref": "#/definitions/keyVault"
+              "$ref": "#/definitions/keyVault",
+              "description": "Here we store the certificate for the app defined in .application"
             },
             "certificate": {
               "type": "object",
+              "description": "This is the certificate for the app defined in .application",
               "properties": {
                 "name": {
                   "type": "string"
@@ -1516,13 +1520,15 @@
               "type": "string"
             },
             "genevaActionsPrincipalId": {
-              "type": "string"
+              "type": "string",
+              "description": "This is the principal ID of the MSFT owned Geneva Actions identity that will call into our Geneva Actions."
             },
             "enabled": {
               "type": "boolean"
             },
             "application": {
-              "$ref": "#/definitions/entraApplication"
+              "$ref": "#/definitions/entraApplication",
+              "description": "This is the app our Geneva Actions will use to talk to the Admin API"
             }
           }
         }
@@ -1567,23 +1573,30 @@
           "type": "boolean"
         },
         "azureAdInstance": {
-          "type": "string"
+          "type": "string",
+          "description": "The Azue Ad Instance that holds the ARM Application (see armAppId property)"
         },
         "firstPartyAppId": {
-          "type": "string"
+          "type": "string",
+          "description": "This is the app ID that is used in MISE audit logs. Not used for verification of any kind."
         },
         "armAppId": {
           "type": "string",
           "description": "The valid app ID for mise, which is the ARM Application Id, this is common across all clouds (MSIT/AME/FF)"
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "The tenant ID where the ARM Application (see armAppId property) lives. Usually AME"
+        },
+        "bearerTokenAuthorityFQDN": {
+          "type": "string",
+          "description": "The FQDN of the bearer token authority"
         },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
         "tracing": {
           "$ref": "#/definitions/tracing"
-        },
-        "tenantId": {
-          "type": "string"
         }
       },
       "required": [
@@ -1592,7 +1605,9 @@
         "azureAdInstance",
         "firstPartyAppId",
         "armAppId",
-        "tenantId"
+        "tenantId",
+        "bearerTokenAuthorityFQDN",
+        "tracing"
       ]
     },
     "msiRp": {
