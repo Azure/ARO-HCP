@@ -112,10 +112,18 @@ var _ = Describe("Customer", func() {
 			identityProfile, err := framework.ConvertToManagedServiceIdentity(identity)
 			Expect(err).NotTo(HaveOccurred())
 
-			clusterParams := framework.NewClusterParams().ClusterName(customerClusterName).OpenshiftVersionId(openshiftControlPlaneVersionId).ManagedResourceGroupName(managedResourceGroupName).
-				NsgResourceID(nsgResourceID).SubnetResourceID(vnetSubnetResourceID).VnetName(customerVnetName).UserAssignedIdentitiesProfile(userAssignedIdentitiesProfile).
-				Identity(identityProfile).KeyVaultName(keyVaultNameStr).EtcdEncryptionKeyName(etcdEncryptionKeyName).
-				EtcdEncryptionKeyVersion(etcdEncryptionKeyVersion).Build()
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			clusterParams.NsgResourceID = nsgResourceID
+			clusterParams.SubnetResourceID = vnetSubnetResourceID
+			clusterParams.VnetName = customerVnetName
+			clusterParams.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
+			clusterParams.Identity = identityProfile
+			clusterParams.KeyVaultName = keyVaultNameStr
+			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyName
+			clusterParams.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 
 			err = framework.CreateHCPClusterFromParam(ctx,
 				tc,
@@ -140,8 +148,11 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewNodePoolParams().ClusterName(customerClusterName).NodePoolName(customerNodePoolName).OpenshiftVersionId(openshiftNodeVersionId).
-				Replicas(int32(2)).Build()
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
+			nodePoolParams.Replicas = int32(2)
 
 			err = framework.CreateNodePoolFromParam(ctx,
 				tc,
