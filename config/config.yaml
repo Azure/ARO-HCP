@@ -99,8 +99,8 @@ defaults:
     mdsd:
       enabled: true
       image:
-        registry: linuxgeneva-microsoft.azurecr.io
-        repository: genevamdsd
+        registry: mcr.microsoft.com
+        repository: geneva/distroless/mdsd
         digest: sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
   # Kube Events
   kubeEvents:
