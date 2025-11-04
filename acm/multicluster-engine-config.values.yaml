@@ -1,6 +1,5 @@
 global:
   registryOverride: "{{ .acr.svc.name }}.azurecr.io/acm-d-cache"
-
 localCluster:
   kubeApiUrl: https://kubernetes.default.svc
   addonConfig:
@@ -8,7 +7,6 @@ localCluster:
     certPolicyControllerEnabled: false
     policyControllerEnabled: true
     searchCollectorEnabled: false
-
 policy:
   grc:
     hubconfig:
