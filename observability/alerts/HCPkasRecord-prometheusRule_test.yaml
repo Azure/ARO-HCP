@@ -21,7 +21,6 @@ tests:
     exp_samples:
     - labels: '{__name__="probe_availability:ratio_avg_7d", cluster="test-cluster-1", namespace="prod"}'
       value: 1
-
 # Test 2: 50% Success
 - interval: 1m
   input_series:
@@ -42,7 +41,6 @@ tests:
     # Expects 5/11 = 0.4545...
     - labels: '{__name__="probe_availability:ratio_avg_7d", cluster="test-cluster-2", namespace="staging"}'
       value: 0.45454545454545453
-
 # Test 3: 0% Success (Complete Failure)
 - interval: 1m
   input_series:
