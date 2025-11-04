@@ -38,7 +38,7 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"       visibility:"read"`
 	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
 	Platform                NodePoolPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
-	Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
+	Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,max=200,excluded_with=AutoScaling"`
 	AutoRepair              bool                    `json:"autoRepair,omitempty"              visibility:"read create"`
 	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"             visibility:"read create update"`
 	Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
@@ -79,8 +79,8 @@ type OSDiskProfile struct {
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty" validate:"min=1"`
-	Max int32 `json:"max,omitempty" validate:"gtefield=Min"`
+	Min int32 `json:"min,omitempty" validate:"min=1,max=200"`
+	Max int32 `json:"max,omitempty" validate:"gtefield=Min,max=200"`
 }
 
 // Taint represents a Kubernetes taint for a node.
