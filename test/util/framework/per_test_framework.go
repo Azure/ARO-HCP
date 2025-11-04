@@ -748,6 +748,23 @@ func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context
 	return selected, nil
 }
 
+func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
+	tc.contextLock.RLock()
+	if len(tc.subscriptionID) > 0 {
+		defer tc.contextLock.RUnlock()
+		return tc.subscriptionID, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	return tc.getSubscriptionIDUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential, error) {
+	return tc.perBinaryInvocationTestContext.getAzureCredentials()
+}
+
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
