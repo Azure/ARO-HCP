@@ -133,6 +133,10 @@ type Identifier struct {
 	Step          string `json:"step"`
 }
 
+func (i Identifier) String() string {
+	return fmt.Sprintf("%s/%s/%s", i.ServiceGroup, i.ResourceGroup, i.Step)
+}
+
 func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
