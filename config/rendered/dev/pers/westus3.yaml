@@ -137,10 +137,10 @@ clustersService:
   ocpVersions:
     channelGroups:
       stable:
-        maxVersion: 4.19.8
+        maxVersion: 4.20.2
         minVersion: 4.19.0
     defaultVersion:
-      version: 4.19.7
+      version: 4.20.2
   postgres:
     backupRetentionDays: 7
     containerizedDb:
@@ -341,7 +341,7 @@ kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 logs:
   loganalytics:
-    enable: false
+    enable: true
   mdsd:
     cert:
       issuer: ""

@@ -8,6 +8,7 @@ RUN set -eux; \
 
 ENV OC_MIRROR_4_16_VERSION=4.16.3
 ENV OC_MIRROR_4_18_VERSION=4.18.7
+ENV OC_MIRROR_4_20_VERSION=4.20.0
 ENV OC_VERSION=4.18.0-rc.9
 ENV YQ_VERSION=v4.45.1
 
@@ -24,6 +25,11 @@ RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_MIR
     -o oc-mirror.tar.gz && \
     tar -zvxf oc-mirror.tar.gz && \
     mv oc-mirror /usr/local/bin/oc-mirror-4.18
+
+RUN curl -sfL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_MIRROR_4_20_VERSION}/oc-mirror.tar.gz \
+    -o oc-mirror.tar.gz && \
+    tar -zvxf oc-mirror.tar.gz && \
+    mv oc-mirror /usr/local/bin/oc-mirror-4.20
 
 RUN curl -sfL https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz \
     -o yq.tar.gz && \
@@ -47,6 +53,7 @@ ADD docker-login.sh /usr/local/bin/docker-login.sh
 COPY --chown=0:0 --chmod=755 --from=downloader \
     /usr/local/bin/oc-mirror-4.16 \
     /usr/local/bin/oc-mirror-4.18 \
+    /usr/local/bin/oc-mirror-4.20 \
     /usr/local/bin/oc \
     /usr/local/bin/kubectl \
     /usr/local/bin/yq \

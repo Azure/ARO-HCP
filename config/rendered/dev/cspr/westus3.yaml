@@ -137,10 +137,10 @@ clustersService:
   ocpVersions:
     channelGroups:
       stable:
-        maxVersion: 4.19.8
+        maxVersion: 4.20.2
         minVersion: 4.19.0
     defaultVersion:
-      version: 4.19.7
+      version: 4.20.2
   postgres:
     backupRetentionDays: 7
     containerizedDb:
