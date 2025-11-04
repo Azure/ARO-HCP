@@ -33,6 +33,18 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config/types"
 )
 
+func replaceImageDigest(yamlCfg map[string]any) map[string]any {
+	for key, value := range yamlCfg {
+		if _, ok := value.(map[string]any); ok {
+			yamlCfg[key] = replaceImageDigest(value.(map[string]any))
+		}
+		if key == "digest" {
+			yamlCfg[key] = "sha256:1234567890"
+		}
+	}
+	return yamlCfg
+}
+
 func loadConfigAndMerge(configPath string, configOverride map[string]any) (map[string]any, error) {
 	rawCfg, err := os.ReadFile(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"))
 	if err != nil {
@@ -46,6 +58,7 @@ func loadConfigAndMerge(configPath string, configOverride map[string]any) (map[s
 	}
 
 	cfgYaml = types.MergeConfiguration(cfgYaml, configOverride)
+	cfgYaml = replaceImageDigest(cfgYaml)
 
 	return cfgYaml, nil
 }

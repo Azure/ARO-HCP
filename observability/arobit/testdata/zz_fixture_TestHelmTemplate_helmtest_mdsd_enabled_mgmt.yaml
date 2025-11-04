@@ -368,7 +368,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: fluentbit
-          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
+          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
             - /fluent-bit/bin/fluent-bit
@@ -423,7 +423,7 @@ spec:
               mountPath: /forwarder/etc
               readOnly: true
         - name: mdsd
-          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
+          image: linuxgeneva-microsoft.azurecr.io/genevamdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
               - /start_mdsd.sh
@@ -512,7 +512,7 @@ spec:
               name: geneva-certs
               readOnly: true
         - name: mdsd-clusterlogs
-          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
+          image: linuxgeneva-microsoft.azurecr.io/genevamdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
               - /start_mdsd.sh
