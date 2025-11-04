@@ -7,41 +7,56 @@ spec:
   imagePullSecret: open-cluster-management-image-pull-credentials
   overrides:
     components:
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: local-cluster
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: cluster-manager
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: server-foundation
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: hypershift-local-hosting
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: hypershift
-    - enabled: true
+    - configOverrides: {}
+      enabled: true
       name: cluster-lifecycle
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: discovery
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: console-mce
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: hive
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: assisted-service
-    - enabled: false
-      name: image-based-install-operator-preview
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: cluster-proxy-addon
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: managedserviceaccount
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: cluster-api
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: cluster-api-provider-aws
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: cluster-api-provider-metal3-preview
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: cluster-api-provider-openshift-assisted-preview
-    - enabled: false
+    - configOverrides: {}
+      enabled: false
       name: image-based-install-operator
   targetNamespace: '{{ .Release.Namespace }}'
   tolerations:
