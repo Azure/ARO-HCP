@@ -449,6 +449,11 @@ mgmt:
     accessMode: Learning
     name: nsp-ln-mgmt-1
   prometheus:
+    kubeStateMetrics:
+      image:
+        digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191
+        registry: mcr.microsoft.com/oss/v2
+        repository: kubernetes/kube-state-metrics
     namespace: prometheus
     namespaceNetworkPolicyGroup: monitoring
     prometheusConfigReloader:
@@ -469,7 +474,6 @@ mgmt:
         sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
       replicas: 2
       shards: 1
-      version: v2.55.1-4
   rg: hcp-underlay-ntly-uksouth-mgmt-1
   subscription:
     certificateDomains:
@@ -689,6 +693,11 @@ svc:
     accessMode: Learning
     name: nsp-ln-svc
   prometheus:
+    kubeStateMetrics:
+      image:
+        digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191
+        registry: mcr.microsoft.com/oss/v2
+        repository: kubernetes/kube-state-metrics
     namespace: prometheus
     namespaceNetworkPolicyGroup: ""
     prometheusConfigReloader:
