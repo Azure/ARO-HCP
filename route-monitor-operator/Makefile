@@ -1,4 +1,4 @@
-include ../.bingo/Variables.mk
+-include ../.bingo/Variables.mk
 
 RMO_BUNDLE_VERSION ?= 0.1.852-g7f505c9
 RMO_CHART_DIR ?= ${HELM_BASE_DIR}/route-monitor-operator
