@@ -126,7 +126,7 @@ type armSystemDataPolicy struct{}
 
 func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 	if req.Raw().URL.Host == "localhost:8443" {
-		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "User", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
+		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
 		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
 		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
 	}

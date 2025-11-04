@@ -77,7 +77,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			keyVaultNameStr, ok := keyVaultName.(string)
 			Expect(ok).To(BeTrue())
-			etcdEncryptionKeyVersion, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
+			etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
@@ -100,38 +100,22 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
 			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+			etcdEncryptionKeyName, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 			Expect(err).NotTo(HaveOccurred())
-			nsgID, err := framework.GetOutputValue(customerInfraDeploymentResult, "nsgID")
+			nsgResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "nsgID")
 			Expect(err).NotTo(HaveOccurred())
-			nsgResourceID, ok := nsgID.(string)
-			Expect(ok).To(BeTrue())
-			vnetSubnetID, err := framework.GetOutputValue(customerInfraDeploymentResult, "vnetSubnetID")
+			vnetSubnetResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
 			Expect(err).NotTo(HaveOccurred())
-			vnetSubnetResourceID, ok := vnetSubnetID.(string)
-			Expect(ok).To(BeTrue())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			clusterParams := framework.NewDefaultClusterParams(customerClusterName)
-			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.NsgResourceID = nsgResourceID
-			clusterParams.SubnetResourceID = vnetSubnetResourceID
-			clusterParams.VnetName = customerVnetName
-			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+			userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
 			Expect(err).NotTo(HaveOccurred())
-			clusterParams.Identity, err = framework.ConvertToManagedServiceIdentity(identity)
+			identityProfile, err := framework.ConvertToManagedServiceIdentity(identity)
 			Expect(err).NotTo(HaveOccurred())
-			clusterParams.EncryptionKeyManagementMode = "CustomerManaged"
-			clusterParams.EncryptionType = "KMS"
-			clusterParams.KeyVaultName = keyVaultNameStr
-			clusterParams.EtcdEncryptionKeyName, ok = etcdEncryptionKeyName.(string)
-			Expect(ok).To(BeTrue())
-			clusterParams.EtcdEncryptionKeyVersion, ok = etcdEncryptionKeyVersion.(string)
-			Expect(ok).To(BeTrue())
-			clusterParams.UserAssignedIdentitiesProfile, err = framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
-			Expect(err).NotTo(HaveOccurred())
-			clusterParams.Identity, err = framework.ConvertToManagedServiceIdentity(identity)
-			Expect(err).NotTo(HaveOccurred())
+
+			clusterParams := framework.NewClusterParams().ClusterName(customerClusterName).OpenshiftVersionId(openshiftControlPlaneVersionId).ManagedResourceGroupName(managedResourceGroupName).
+				NsgResourceID(nsgResourceID).SubnetResourceID(vnetSubnetResourceID).VnetName(customerVnetName).UserAssignedIdentitiesProfile(userAssignedIdentitiesProfile).
+				Identity(identityProfile).EncryptionKeyManagementMode("CustomerManaged").EncryptionType("KMS").KeyVaultName(keyVaultNameStr).EtcdEncryptionKeyName(etcdEncryptionKeyName).
+				EtcdEncryptionKeyVersion(etcdEncryptionKeyVersion).Build()
 
 			err = framework.CreateHCPClusterFromParam(ctx,
 				tc,
@@ -156,9 +140,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams(customerClusterName, customerNodePoolName)
-			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
-			nodePoolParams.Replicas = int32(2)
+			nodePoolParams := framework.NewNodePoolParams().ClusterName(customerClusterName).NodePoolName(customerNodePoolName).OpenshiftVersionId(openshiftNodeVersionId).
+				Replicas(int32(2)).Build()
 
 			err = framework.CreateNodePoolFromParam(ctx,
 				tc,
