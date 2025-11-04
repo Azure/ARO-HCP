@@ -668,6 +668,15 @@
               "$ref": "#/definitions/containerImageSha"
             }
           }
+        },
+        "kubeStateMetrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImage"
+            }
+          }
         }
       }
     },

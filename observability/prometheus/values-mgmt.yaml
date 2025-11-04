@@ -1,7 +1,7 @@
-crds:
-  enabled: true
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
+  crds:
+    enabled: true
   global:
     rbac:
       create: true
@@ -44,14 +44,37 @@ kube-prometheus-stack:
         registry: "{{ .mgmt.prometheus.prometheusConfigReloader.image.registry }}"
         repository: "{{ .mgmt.prometheus.prometheusConfigReloader.image.repository }}"
         sha: "{{ .mgmt.prometheus.prometheusConfigReloader.image.sha }}"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: aro-hcp.azure.com/role
+              operator: In
+              values:
+              - "infra"
+    tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
   ## Setting to true produces cleaner resource names, but requires a data migration because the name of the persistent volume changes. Therefore this should only be set once on initial installation.
   cleanPrometheusOperatorObjectNames: true
+
+  # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
+  kube-state-metrics:
+    image:
+      registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+      repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+      sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+
+# this is our own config for the files in templates/
 prometheusSpec:
   image:
     registry: "{{ .mgmt.prometheus.prometheusSpec.image.registry }}"
     repository: "{{ .mgmt.prometheus.prometheusSpec.image.repository }}"
     sha: "{{ .mgmt.prometheus.prometheusSpec.image.sha }}"
-  version: "{{ .mgmt.prometheus.prometheusSpec.version }}"
+  version: "" # derived from the sha
   externalLabels:
     cluster: "{{ .mgmt.aks.name }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
