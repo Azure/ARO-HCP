@@ -1,6 +1,6 @@
 # ARO HCP Personal DEV Environment
 
-A personal DEV environment is a fully-fledged ARO HCP instance that provides all major infrastructure and service components required to create hosted control planes. Each ARO HCP team member creates their own personal DEV environment for development purposes.
+A personal DEV environment is a fully-fledged ARO HCP service stack that provides all major infrastructure and service components required to create hosted control planes in a region. Each ARO HCP team member creates their own personal DEV environment for development purposes.
 
 These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#aro-hcp-azure-tenant-overview) of that tenant apply.
 
@@ -15,19 +15,25 @@ Ensure you have access to the RH Azure tenant:
 - **RH account**: You need to have a Red Hat account to access the Red Hat Azure tenant (`redhat0.onmicrosoft.com`) where personal DEV environments are created
 - **Subscription access**: You need access to the `ARO Hosted Control Planes (EA Subscription 1)` subscription in the Red Hat Azure tenant. Consult the [ARO HCP onboarding guide](https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/)
 - `az` utility >= `2.68.0`
-- `az bicep` version >= 0.36
-- `az login` with your Red Hat account
+- `az bicep` at the latest version, use `az bicep install` to add this to your system
+- `az login` with your Red Hat account:
+
+```bash
+az login --tenant 64dc69e4-d083-49fc-9569-ebece1dd1408 --use-device-code
+az account set --subscription 1d3378d3-5a3f-4712-85a1-2485495dfc4b
+```
+
+> [!TIP]
+> If you connect to more than one tenant in Azure regularly, use the `$AZURE_CONFIG_DIR` to segregate your logins.
+> The `az` CLI will ask you to re-login when switching tenants normally, but passing different configuration directories
+> allows for seamless switching without having to log in again.
 
 The following additional tools are also required:
 
-- `jq`
-- `yq`
 - `make`
-- `kubelogin` - download from <https://azure.github.io/kubelogin/install.html>
-- `kubectl` version >= 1.30
-- `helm` version >= 3.15
-- `openssl`
-- `psql` - client CLI for direct Postgres access
+- `kubectl` at the latest version - use `az aks install-cli` to add this to your system
+
+All other tools should be transparently installed by the `make` targets that require them - if you find any missing dependencies, please send a pull request to make sure that the next person to onboard doesn't hit any issues!
 
 ## Full Personal DEV Environment Setup
 
@@ -35,52 +41,28 @@ The following additional tools are also required:
 > A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
 > Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
 
-The creation process can take up to 45 minutes.
+The creation process can take up to 20 minutes.
 
    ```bash
-   make infra.all deployall
+   make entrypoint/Region
    ```
 
 This command creates a personal DEV environment with a unique name that is derived from your username and deploys all required infrastructure components.
 
 > [!TIP]
-> This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services.
-> If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions as it will save you a lot of time.
+> This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
+> If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
 
 ## Partial Personal DEV Environment Setup
 
-The process described in the previous section takes a lot of time. In case you want to install or update only a specific part of the environment, you can use the following commands.
+The process described in the previous section caches steps, but even the process of determining that a step should not run again will take a second or two. In case you want to install or update only a specific part of the environment for maximum speed, you can use the following commands.
 
 > [!IMPORTANT]
 > Please understand the ARO HCP [architecture](high-level-architecture.md) and the [service deployment concept](service-deployment-concept.md) before proceeding with the partial setup. Not every command can be run in isolation without it's prerequisites being met, e.g. before deploying services, you need to provision the cluster
 
-### Infrastructure Commands
+### Partial Commands
 
-| Command           | Description                                                                                                     |
-| :---------------- | :-------------------------------------------------------------------------------------------------------------- |
-| make infra.all    | Deploys or updates a full environment with regional, service and management infrastructure resources           |
-| make infra.region | Deploys or updates the regional resources like eventgrid, DNS zones etc                                        |
-| make infra.svc    | Deploys or updates the service cluster including the supporting infrastructure for the services (postgres, KV) |
-| make infra.mgmt   | Deploys or updates the management cluster including the supporting infrastructure for the services (KVs)       |
-
-### Services Commands
-
-| Command                                 | Description                                                                                              |
-| :-------------------------------------- | :------------------------------------------------------------------------------------------------------- |
-| make deployall                          | Deploys or updates all service to the service and management cluster                                     |
-| make svc.deployall                      | Deploys or updates all services to the service cluster                                                   |
-| make mgmt.deployall                     | Deploys or updates all services to the management clusters                                               |
-| make backend.deploy_pipeline            | Deploys or updates the RP backend on the service cluster                                                 |
-| make frontend.deploy_pipeline           | Deploys or updates the RP frontend on the service cluster                                                |
-| make cluster-service.deploy_pipeline    | Deploys or updates CS on the service cluster                                                             |
-| make maestro.server.deploy_pipeline     | Deploys or updates the Maestro server on the service cluster                                             |
-| make acm.deploy_pipeline                | Deploys or updates ACM on the management cluster                                                         |
-| make maestro.agent.deploy_pipeline      | Deploys or updates the Maestro agent on the management cluster and registers it with the service cluster |
-| make hypershiftoperator.deploy_pipeline | Deploys or updates the Hypershift operator on the management cluster                                     |
-
-## Developer Machine Environments
-
-Service component development teams can choose to have only partial personal DEV environments set up to support their development flow. Respective documentation about the actual creation flow can be found in the service component documentation.
+The `make entrypoint/<name>` and `make pipeline/<name>` targets select entrypoints or pipelines from the [`topology.yaml`](./pipeline-topology.md) to run. Use tab completion in your editor to find the available options.
 
 ## Accessing the environment
 
@@ -142,12 +124,10 @@ Refer to the [Tracing docs](../observability/tracing/README.md) for more details
 
 ## Cleanup
 
-Besides the automated cleanup for non-persistent environments, you can manually delete your personal DEV environment with the following command:
+Besides the automated cleanup for non-persistent environments, you can manually delete your personal DEV environment with the following command, choosing to wait for the deletion to complete or not:
 
   ```bash
-  make infra.svc.clean
-  make infra.mgmt.clean
-  make infra.region.clean
+  make cleanup-entrypoint/Region CLEANUP_DRY_RUN=false CLEANUP_WAIT=true
   ```
 
 ## Responsibilities
