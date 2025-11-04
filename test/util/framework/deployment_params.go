@@ -46,6 +46,7 @@ type ClusterParams struct {
 	APIVisibility                 string
 	ImageRegistryState            string
 	ChannelGroup                  string
+	AuthorizedCIDRs               []*string
 }
 
 type NetworkConfig struct {
