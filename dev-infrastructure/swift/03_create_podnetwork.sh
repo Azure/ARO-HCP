@@ -27,14 +27,3 @@ spec:
   subnetGUID: $subnet_guid 
   deviceType: acn.azure.com/vnet-nic
 EOF
-
-
-# ---
-# apiVersion: multitenancy.acn.azure.com/v1alpha1
-# kind: PodNetworkInstance
-# metadata:
-#   name: pni1
-# spec:
-#   podNetworkConfigs:
-#     - podNetwork: pn1
-#       podIPReservationSize: 5

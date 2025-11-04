@@ -21,7 +21,7 @@ is_service_principal(){
     return $(test "$(az account show --query user.type --output tsv)" = "servicePrincipal")
 }
 
-export resource_group=$MANAGED_RESOURCE_GROUP
+export resource_group=$CUSTOMER_RG_NAME
 export vnet_name=$CUSTOMER_VNET_NAME
 export subnet_name=$CUSTOMER_VNET_SUBNET1
 export subscription=1d3378d3-5a3f-4712-85a1-2485495dfc4b
