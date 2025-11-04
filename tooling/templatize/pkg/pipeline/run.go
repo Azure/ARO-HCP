@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -56,7 +57,7 @@ type PipelineRunOptions struct {
 type BaseRunOptions struct {
 	DryRun                   bool
 	Cloud                    string
-	Configuration            config.Configuration
+	Configuration            configtypes.Configuration
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
 	StepCacheDir             string
