@@ -279,7 +279,7 @@ svc.clean: svc.clean-nsp-associations
 #
 
 mgmt:
-	make -C .. pipeline/Management.Infra DRY_RUN=true DEPLOY_ENV=$(DEPLOY_ENV)
+	make -C .. pipeline/Management.Infra DEPLOY_ENV=$(DEPLOY_ENV)
 .PHONY: mgmt
 
 mgmt.aks.admin-access:
