@@ -8,12 +8,11 @@ data:
         ccs_only: false
   instance-type-constraints.yaml: |
     instance_types:
-    # hand-crafted list to the ones mentioned in https://issues.redhat.com/browse/XCMSTRAT-1002
-    # those are the instance types that are also enabled in ARO Classic
+    # hand-crafted list to the ones mentioned in
+    # https://issues.redhat.com/browse/XCMSTRAT-1002
+    # those are the instance types that are also enabled in ARO Classic.
+    # We also include the ones mentioned in https://issues.redhat.com/browse/ARO-22443
     - id: Standard_D8s_v3
-      ccs_only: true
-      enabled: true
-    - id: Standard_D8ps_v6
       ccs_only: true
       enabled: true
     - ccs_only: true
@@ -274,6 +273,150 @@ data:
     - ccs_only: true
       enabled: true
       id: Standard_NC24s_v3
+    - id: Standard_D2pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D4pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D16pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D32pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D48pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D64pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D96pls_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D2plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D4plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D16plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D32plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D48plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D64plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D96plds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D2ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D4ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D16ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D32ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D48ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D64ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D96ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D2pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D4pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D8pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D16pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D32pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D48pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D64pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_D96pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E2ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E4ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E8ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E16ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E32ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E48ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E64ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E96ps_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E2pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E4pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E8pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E16pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E32pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E48pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E64pds_v6
+      ccs_only: true
+      enabled: true
+    - id: Standard_E96pds_v6
+      ccs_only: true
+      enabled: true
 kind: ConfigMap
 metadata:
   name: cloud-resource-constraints-config
