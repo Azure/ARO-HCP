@@ -1,0 +1,10 @@
+branch: main
+cloud: fairfax
+environment: prod
+pullRequestId: 11111111
+revision: 111222333
+serviceGroup: Microsoft.Azure.ARO.HCP.Global
+serviceGroupBase: Microsoft.Azure.ARO.HCP
+timestamp: "2025-11-05T11:00:00Z"
+upstreamRevision: aaabbbccc
+

@@ -1,0 +1,13 @@
+branch: release-v2
+cloud: public
+environment: prod
+pullRequestId: 99999999
+regionConfigs:
+- westus2
+- eastus2
+sourceRevision: new-source-123
+pipelineRevision: new-pipeline-456
+serviceGroup: Microsoft.Azure.ARO.HCP.Global
+serviceGroupBase: Microsoft.Azure.ARO.HCP
+timestamp: "2025-12-01T00:00:00Z"
+
