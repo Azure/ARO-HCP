@@ -478,7 +478,8 @@ func BuildHCPClusterFromParams(
 				HostPrefix:  to.Ptr(parameters.Network.HostPrefix),
 			},
 			API: &hcpsdk20240610preview.APIProfile{
-				Visibility: to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+				Visibility:      to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
 			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
 				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
