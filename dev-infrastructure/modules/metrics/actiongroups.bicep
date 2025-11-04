@@ -46,11 +46,14 @@ param icmRoutingIdMSFT string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledMSFT string
 
+@description('Indicates if the region is in buildout mode. When true, action groups will be disabled.')
+param regionBuildout bool
+
 resource icmsre 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-sre'
   location: 'global'
   properties: {
-    enabled: true
+    enabled: !regionBuildout
     groupShortName: icmActionGroupShortNameSRE
     incidentReceivers: [
       {
@@ -74,7 +77,7 @@ resource icmsl 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-sl'
   location: 'global'
   properties: {
-    enabled: true
+    enabled: !regionBuildout
     groupShortName: icmActionGroupShortNameSL
     incidentReceivers: [
       {
@@ -98,7 +101,7 @@ resource icmmsft 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'icm-action-group-msft'
   location: 'global'
   properties: {
-    enabled: true
+    enabled: !regionBuildout
     groupShortName: icmActionGroupShortNameMSFT
     incidentReceivers: [
       {

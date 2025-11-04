@@ -4,6 +4,7 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
 param manageConnection = {{ .monitoring.icm.manageConnection }}
+param regionBuildout = {{ .regionBuildout }}
 param icmEnvironment = '{{ .monitoring.icm.environment }}'
 param icmConnectionName = '{{ .monitoring.icm.connectionName }}'
 param icmConnectionId = '{{ .monitoring.icm.connectionId }}'

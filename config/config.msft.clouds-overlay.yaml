@@ -200,6 +200,9 @@ clouds:
                 digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       prod:
         # this is the MSFT PRODUCTION environment
+        regions:
+          westeurope:
+            regionBuildout: true
         defaults:
           # E2E
           e2e:
