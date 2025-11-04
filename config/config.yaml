@@ -340,7 +340,10 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+      kubeStateMetrics:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: kubernetes/kube-state-metrics
   # MGMT cluster specifics
   mgmt:
     subscription:
@@ -422,14 +425,16 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-        version: "v2.55.1-4"
         replicas: 2
         shards: 2
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+      kubeStateMetrics:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: kubernetes/kube-state-metrics
   # Backend
   backend:
     image:
@@ -889,6 +894,12 @@ clouds:
           systemAgentPool:
             poolCount: 1
         prometheus:
+          prometheusConfigReloader:
+            image:
+              sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+          kubeStateMetrics:
+            image:
+              digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191 # v2.15.0-7
           prometheusOperator:
             image:
               sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
@@ -922,6 +933,12 @@ clouds:
         nsp:
           accessMode: 'Learning'
         prometheus:
+          prometheusConfigReloader:
+            image:
+              sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+          kubeStateMetrics:
+            image:
+              digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191 # v2.15.0-7
           prometheusOperator:
             image:
               sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1

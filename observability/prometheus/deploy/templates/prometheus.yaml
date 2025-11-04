@@ -5,7 +5,7 @@ metadata:
   namespace: '{{ .Release.Namespace }}'
 spec:
   image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
-  version: '{{ .Values.prometheusSpec.version}}'
+  version: '{{ .Values.prometheusSpec.version}}' # todo: can this be removed? we control the version via image
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
