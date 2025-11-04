@@ -204,7 +204,7 @@ func CreateHCPClusterFromParam(
 	defer cancel()
 	clusterName := parameters.ClusterName
 
-	cluster := BuildHCPClusterFromParams(ctx, parameters, testContext.Location(), testContext)
+	cluster := BuildHCPClusterFromParams(parameters, testContext.Location(), testContext)
 
 	if _, err := CreateHCPClusterAndWait(
 		ctx,
@@ -235,7 +235,7 @@ func CreateNodePoolFromParam(
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
-	nodePool := BuildNodePoolFromParams(ctx, parameters, testContext.Location())
+	nodePool := BuildNodePoolFromParams(parameters, testContext.Location())
 
 	if _, err := CreateNodePoolAndWait(
 		ctx,

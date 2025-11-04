@@ -416,7 +416,6 @@ func CreateHCPClusterAndWait(
 }
 
 func BuildHCPClusterFromParams(
-	ctx context.Context,
 	parameters ClusterParams,
 	location string,
 	testContext *perItOrDescribeTestContext,
@@ -501,7 +500,6 @@ func CreateNodePoolAndWait(
 }
 
 func BuildNodePoolFromParams(
-	ctx context.Context,
 	parameters NodePoolParams,
 	location string,
 ) hcpsdk20240610preview.NodePool {
