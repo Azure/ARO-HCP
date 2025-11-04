@@ -361,7 +361,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: fluentbit
-          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
+          image: mcr.microsoft.com/oss/v2/fluent/fluent-bit@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
             - /fluent-bit/bin/fluent-bit
