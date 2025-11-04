@@ -64,9 +64,11 @@ func NewClusterParams() *ClusterParamsBuilder {
 				MachineCIDR: "10.0.0.0/16",
 				HostPrefix:  23,
 			},
-			APIVisibility:      "Public",
-			ImageRegistryState: "Enabled",
-			ChannelGroup:       "stable",
+			EncryptionKeyManagementMode: "CustomerManaged",
+			EncryptionType:              "KMS",
+			APIVisibility:               "Public",
+			ImageRegistryState:          "Enabled",
+			ChannelGroup:                "stable",
 		},
 	}
 }

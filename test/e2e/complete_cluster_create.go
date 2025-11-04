@@ -114,7 +114,7 @@ var _ = Describe("Customer", func() {
 
 			clusterParams := framework.NewClusterParams().ClusterName(customerClusterName).OpenshiftVersionId(openshiftControlPlaneVersionId).ManagedResourceGroupName(managedResourceGroupName).
 				NsgResourceID(nsgResourceID).SubnetResourceID(vnetSubnetResourceID).VnetName(customerVnetName).UserAssignedIdentitiesProfile(userAssignedIdentitiesProfile).
-				Identity(identityProfile).EncryptionKeyManagementMode("CustomerManaged").EncryptionType("KMS").KeyVaultName(keyVaultNameStr).EtcdEncryptionKeyName(etcdEncryptionKeyName).
+				Identity(identityProfile).KeyVaultName(keyVaultNameStr).EtcdEncryptionKeyName(etcdEncryptionKeyName).
 				EtcdEncryptionKeyVersion(etcdEncryptionKeyVersion).Build()
 
 			err = framework.CreateHCPClusterFromParam(ctx,
