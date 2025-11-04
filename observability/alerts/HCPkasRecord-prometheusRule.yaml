@@ -8,4 +8,6 @@ spec:
   - name: kas-monitor-recording-rules
     rules:
     - record: probe_availability:ratio_avg_30d
-      expr: avg_over_time(probe_success[30d])
+      expr: avg_over_time(probe_success[30d:5m])
+    - record: probe_availability:ratio_avg_7d
+      expr: avg_over_time(probe_success[7d:1m])
