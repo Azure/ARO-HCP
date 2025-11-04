@@ -684,7 +684,7 @@ defaults:
       channelGroups:
         stable:
           minVersion: 4.19.0
-          maxVersion: 4.20.2
+          maxVersion: 4.20.3
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync

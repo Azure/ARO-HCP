@@ -137,7 +137,7 @@ clustersService:
   ocpVersions:
     channelGroups:
       stable:
-        maxVersion: 4.20.2
+        maxVersion: 4.20.3
         minVersion: 4.19.0
     defaultVersion:
       version: 4.20.2
