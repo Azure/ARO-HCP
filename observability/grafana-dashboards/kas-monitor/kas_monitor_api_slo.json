@@ -55,28 +55,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "hidden",
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -218,26 +197,28 @@
       "id": 1,
       "maxDataPoints": 949,
       "options": {
-        "barRadius": 0,
-        "barWidth": 0.97,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
+        "displayMode": "gradient",
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
-        "orientation": "auto",
-        "showValue": "auto",
-        "stacking": "none",
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
       },
       "pluginVersion": "11.6.3",
       "targets": [
@@ -248,10 +229,10 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(avg by (namespace) (probe_availability:ratio_avg_30d) * 100 > 99.99)",
+          "expr": "count(avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 > 99.99) or vector(0)",
           "format": "time_series",
           "instant": true,
-          "legendFormat": "__auto",
+          "legendFormat": "> 99.99%",
           "range": false,
           "refId": "A"
         },
@@ -262,7 +243,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(\n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 > 99.95) \n  and \n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 <= 99.99)\n)",
+          "expr": "count((avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 > 99.95) and (avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 <= 99.99)) or vector(0)",
           "hide": false,
           "instant": true,
           "legendFormat": "__auto",
@@ -276,7 +257,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(\n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 > 99.9) \n  and \n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 <= 99.95)\n)\n",
+          "expr": "count((avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 > 99.9) and (avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 <= 99.95)) or vector(0)",
           "hide": false,
           "instant": true,
           "legendFormat": "__auto",
@@ -290,7 +271,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(\n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 > 99.5) \n  and \n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 <= 99.9)\n)",
+          "expr": "count((avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 > 99.5) and (avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 <= 99.9)) or vector(0)",
           "hide": false,
           "instant": true,
           "legendFormat": "__auto",
@@ -304,7 +285,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(\n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 > 99) \n  and \n  (avg by (namespace) (probe_availability:ratio_avg_30d) * 100 <= 99.5)\n)",
+          "expr": "count((avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 > 99) and (avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 <= 99.5)) or vector(0)",
           "hide": false,
           "instant": true,
           "legendFormat": "__auto",
@@ -318,7 +299,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "count(\n  avg by (namespace) (probe_availability:ratio_avg_30d) * 100 <= 99\n)",
+          "expr": "count(avg by (namespace) (probe_availability:ratio_avg_30d{cluster!=\"\"}) * 100 <= 99) or vector(0)",
           "hide": false,
           "instant": true,
           "legendFormat": "__auto",
@@ -327,7 +308,7 @@
         }
       ],
       "title": "KAS API Server Availability Distribution",
-      "type": "barchart"
+      "type": "bargauge"
     }
   ],
   "preload": false,
@@ -352,12 +333,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-30d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "KAS API SLO",
   "uid": "fezhc0hbfefb4f",
-  "version": 5
+  "version": 7
 }
