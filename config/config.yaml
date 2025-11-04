@@ -101,7 +101,7 @@ defaults:
       image:
         registry: linuxgeneva-microsoft.azurecr.io
         repository: genevamdsd
-        digest: sha256:c63187bb16b7cf83940b3223643d4582aa4fe3d38940b5e34d12672f443914bc
+        digest: sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
   # Kube Events
   kubeEvents:
     enabled: true
