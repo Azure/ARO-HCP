@@ -61,8 +61,8 @@ arobit:
     enabled: false
     image:
       digest: sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
-      registry: linuxgeneva-microsoft.azurecr.io
-      repository: genevamdsd
+      registry: mcr.microsoft.com
+      repository: geneva/distroless/mdsd
 automationDryRun: false
 azureRegionAvailabilityZoneCount: 3
 backend:

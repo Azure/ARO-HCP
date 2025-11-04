@@ -435,7 +435,7 @@ spec:
               mountPath: /forwarder/etc
               readOnly: true
         - name: mdsd
-          image: linuxgeneva-microsoft.azurecr.io/genevamdsd@sha256:1234567890
+          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
               - /start_mdsd.sh

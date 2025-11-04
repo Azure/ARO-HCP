@@ -423,7 +423,7 @@ spec:
               mountPath: /forwarder/etc
               readOnly: true
         - name: mdsd
-          image: linuxgeneva-microsoft.azurecr.io/genevamdsd@sha256:1234567890
+          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
               - /start_mdsd.sh
@@ -512,7 +512,7 @@ spec:
               name: geneva-certs
               readOnly: true
         - name: mdsd-clusterlogs
-          image: linuxgeneva-microsoft.azurecr.io/genevamdsd@sha256:1234567890
+          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
           command:
               - /start_mdsd.sh
