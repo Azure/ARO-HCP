@@ -418,7 +418,6 @@ func CreateHCPClusterAndWait(
 func BuildHCPClusterFromParams(
 	parameters ClusterParams,
 	location string,
-	testContext *perItOrDescribeTestContext,
 ) hcpsdk20240610preview.HcpOpenShiftCluster {
 
 	return hcpsdk20240610preview.HcpOpenShiftCluster{

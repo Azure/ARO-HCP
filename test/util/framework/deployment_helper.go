@@ -204,7 +204,7 @@ func CreateHCPClusterFromParam(
 	defer cancel()
 	clusterName := parameters.ClusterName
 
-	cluster := BuildHCPClusterFromParams(parameters, testContext.Location(), testContext)
+	cluster := BuildHCPClusterFromParams(parameters, testContext.Location())
 
 	if _, err := CreateHCPClusterAndWait(
 		ctx,
