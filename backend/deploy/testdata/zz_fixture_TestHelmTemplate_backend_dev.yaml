@@ -242,3 +242,4 @@ spec:
     matchLabels:
       app: aro-hcp-backend
       port: metrics
+
