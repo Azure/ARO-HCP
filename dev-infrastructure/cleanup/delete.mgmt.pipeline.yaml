@@ -5,11 +5,11 @@ resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
-  # executionConstraints:
-  # - clouds:
-  #   - public
-  #   regions:
-  #   - uksouth
+  executionConstraints:
+  - clouds:
+    - public
+    regions:
+    - eastus2
   steps:
   - name: output
     action: ARM
@@ -34,7 +34,7 @@ resourceGroups:
         name: globalMSIId
   - name: delete-mgmt
     action: Shell
-    command: ./delete.sh
+    command: ./delete-aks-cluster.sh
     dryRun:
       variables:
       - name: DRY_RUN
