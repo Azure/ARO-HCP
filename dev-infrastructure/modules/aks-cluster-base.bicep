@@ -487,7 +487,7 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     poolZones: userAgentPoolZones
     poolCount: userAgentPoolCount
     poolRole: 'worker'
-    enableSwitftV2: enableSwiftV2Nodepools
+    enableSwiftV2: enableSwiftV2Nodepools
     minCount: userAgentMinCount
     maxCount: userAgentMaxCount
     vmSize: userAgentVMSize
@@ -507,7 +507,7 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     poolZones: infraAgentPoolZones
     poolCount: infraAgentPoolCount
     poolRole: 'infra'
-    enableSwitftV2: false
+    enableSwiftV2: false
     minCount: infraAgentMinCount
     maxCount: infraAgentMaxCount
     vmSize: infraAgentVMSize

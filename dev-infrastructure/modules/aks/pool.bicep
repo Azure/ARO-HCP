@@ -6,7 +6,7 @@ param poolCount int
 param zoneRedundantMode string
 
 param poolRole string
-param enableSwitftV2 bool
+param enableSwiftV2 bool
 
 param vmSize string
 param minCount int
@@ -68,7 +68,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' exis
   name: aksClusterName
 }
 
-var swiftNodepoolTags = enableSwitftV2
+var swiftNodepoolTags = enableSwiftV2
   ? {
       'aks-nic-enable-multi-tenancy': 'true'
     }
