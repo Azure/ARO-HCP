@@ -8,20 +8,49 @@ The flowchart folder contains a flowchart with details about what the script doe
 ---
 title: for each resource group in current subscription
 ---
-flowchart LR
-    rg[Resource Group] --> persist{Contains a 'persist': 'true' tag?}
-    persist -->|Yes| skip[Skip deletion]
+flowchart TD
+    rg[Resource Group] --> pers{Name starts with 'hcp-underlay-pers-'?}
+    pers -->|Yes| pers_ts{Has a creation timestamp tag?}
+    pers_ts -->|No| skip[Skip deletion]
+    pers_ts -->|Yes| pers_older{Is the creation date older than 1 month?}
+    pers_older -->|No| skip
+    pers_older -->|Yes| delete[Delete resource group]
+
+    pers -->|No| persist{Contains a 'persist': 'true' tag?}
+    persist -->|Yes| skip
     persist -->|No| managed{Is managed?}
     managed -->|Yes| skip
     managed -->|No| ts{Has a creation timestamp tag?}
     ts -->|No| skip
     ts -->|Yes| older{Is the creation date older than 2 days?}
     older -->|No| skip
-    older -->|Yes| delete[Delete resource group]
+    older -->|Yes| delete
 
 style skip fill:#5CE65C,color:#000
 style delete fill:#BB2528,color:#fff
 ```
+
+### Resource Group Deletion Logic
+
+The script implements different deletion policies based on resource group type:
+
+#### Personal Development Environment Resource Groups (`hcp-underlay-pers-*`)
+Resource groups with names starting with `hcp-underlay-pers-` are treated as personal development environments and have a special deletion policy:
+- **Deletion threshold**: 1 month (30 days)
+- **Required tag**: Must have a `createdAt` tag (for safety, resource groups without this tag are skipped)
+- **Bypass rules**: The `persist` tag and `managed_by` field are ignored for these resource groups
+- **Purpose**: These are temporary personal development environments that should be cleaned up after 30 days of inactivity
+
+#### Regular Resource Groups
+All other resource groups follow the standard deletion policy:
+- **Deletion threshold**: 2 days
+- **Skip conditions**:
+  - Resource group has a `persist: true` tag
+  - Resource group is managed (has a `managed_by` field)
+  - Resource group doesn't have a `createdAt` tag
+- **Purpose**: Clean up short-lived test or temporary resource groups while preserving important infrastructure
+
+Both policies respect Azure deny assignment rules and will skip deletion if such rules are in place.
 
 ## Azure Automation
 We use the Azure Automation service which includes a range of tools to integrate different aspects of automation of tasks in Azure.
