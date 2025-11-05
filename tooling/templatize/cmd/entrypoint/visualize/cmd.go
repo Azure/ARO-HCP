@@ -17,6 +17,7 @@ package visualize
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
@@ -40,11 +41,16 @@ func NewCommand() (*cobra.Command, error) {
 }
 
 func Visualize(ctx context.Context, opts *RawOptions) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	validated, err := opts.Validate()
 	if err != nil {
 		return err
 	}
-	completed, err := validated.Complete()
+	completed, err := validated.Complete(logger)
 	if err != nil {
 		return err
 	}

@@ -183,6 +183,36 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		Outputs:  make(Outputs),
 	}
 
+	if options.TimingOutputFile != "" {
+		if err := os.MkdirAll(filepath.Dir(options.TimingOutputFile), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create timing output dir: %w", err)
+		}
+		defer func() {
+			state.RLock()
+			timing := state.Timing
+			details := state.Details
+			state.RUnlock()
+			var times []NodeInfo
+			for id, info := range timing {
+				times = append(times, NodeInfo{
+					Identifier: Identifier{
+						ServiceGroup:  id.ServiceGroup,
+						ResourceGroup: id.ResourceGroup,
+						Step:          id.Step,
+					},
+					Info:    *info,
+				})
+			}
+			encodedTiming, err := yaml.Marshal(times)
+			if err != nil {
+				logger.Error(err, "error marshalling timing")
+			}
+			if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+				logger.Error(err, "error writing timing")
+			}
+		}()
+	}
+
 	state.Lock()
 	for _, node := range executionGraph.Nodes {
 		state.Timing[node.Identifier] = &ExecutionInfo{}
@@ -272,6 +302,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
 					state.Lock()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					s := "succeeded"
+					if err != nil {
+						s = "failed"
+					}
+					state.Timing[step].State = s
 					state.Unlock()
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -312,29 +347,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	}
 	state.RLock()
 	outputs := state.Outputs
-	timing := state.Timing
 	state.RUnlock()
-
-	if options.TimingOutputFile != "" {
-		var times []NodeInfo
-		for id, info := range timing {
-			times = append(times, NodeInfo{
-				Identifier: Identifier{
-					ServiceGroup:  id.ServiceGroup,
-					ResourceGroup: id.ResourceGroup,
-					Step:          id.Step,
-				},
-				Info: *info,
-			})
-		}
-		encodedTiming, err := yaml.Marshal(times)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling timing: %v", err)
-		}
-		if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
-			return nil, fmt.Errorf("error writing timing: %v", err)
-		}
-	}
 
 	return outputs, nil
 }

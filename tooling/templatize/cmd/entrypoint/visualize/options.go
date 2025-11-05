@@ -108,15 +108,18 @@ func (o *ValidatedOptions) Complete() (*Options, error) {
 	for _, item := range rawTimes {
 		q, err := time.Parse(time.RFC3339Nano, item.Info.QueuedAt)
 		if err != nil {
-			return nil, fmt.Errorf("%s: failed to parse queue date: %w", item.Identifier, err)
+			logger.Error(err, "failed to parse queue date", "identifier", item.Identifier)
+			continue
 		}
 		s, err := time.Parse(time.RFC3339Nano, item.Info.StartedAt)
 		if err != nil {
-			return nil, fmt.Errorf("%s: failed to parse start date: %w", item.Identifier, err)
+			logger.Error(err, "failed to parse start date", "identifier", item.Identifier)
+			continue
 		}
 		f, err := time.Parse(time.RFC3339Nano, item.Info.FinishedAt)
 		if err != nil {
-			return nil, fmt.Errorf("%s: failed to parse finish date: %w", item.Identifier, err)
+			logger.Error(err, "failed to parse finish date", "identifier", item.Identifier)
+			continue
 		}
 		times = append(times, NodeInfo{
 			Identifier: item.Identifier,
