@@ -115,10 +115,10 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		logger.Info("running step", "resourceGroup", executionTarget.GetResourceGroup(), "step", s.StepName())
 
@@ -126,7 +126,7 @@ func TestMockedPipelineRun(t *testing.T) {
 		defer lock.Unlock()
 		order = append(order, types.StepDependency{ResourceGroup: executionTarget.GetResourceGroup(), Step: s.StepName()})
 
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	t.Helper()
@@ -264,10 +264,10 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		logger.Info("running step", "resourceGroup", executionTarget.GetResourceGroup(), "step", s.StepName())
 
@@ -276,10 +276,10 @@ func TestMockedPipelineRunError(t *testing.T) {
 		order = append(order, types.StepDependency{ResourceGroup: executionTarget.GetResourceGroup(), Step: s.StepName()})
 
 		if s.StepName() == "second" {
-			return nil, fmt.Errorf("oops")
+			return nil, nil, fmt.Errorf("oops")
 		}
 
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	t.Helper()

@@ -40,6 +40,7 @@ type armClient struct {
 	bicepClient *bicep.LSPClient
 
 	deploymentClient        *armresources.DeploymentsClient
+	operationsClient        *armresources.DeploymentOperationsClient
 	resourceGroupClient     *armresources.ResourceGroupsClient
 	deploymentRetryWaitTime int
 
@@ -56,6 +57,10 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment client: %w", err)
 	}
+	operationsClient, err := armresources.NewDeploymentOperationsClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployment operations client: %w", err)
+	}
 	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group client: %w", err)
@@ -63,6 +68,7 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	return &armClient{
 		bicepClient:             bicepClient,
 		deploymentClient:        deploymentClient,
+		operationsClient:        operationsClient,
 		deploymentRetryWaitTime: 15,
 		resourceGroupClient:     resourceGroupClient,
 		Region:                  region,
@@ -114,22 +120,22 @@ func (a *armClient) waitForExistingDeployment(ctx context.Context, timeOutInSeco
 	return fmt.Errorf("timeout exeeded waiting for deployment %s in rg %s", deploymentName, rgName)
 }
 
-func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, error) {
+func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgName string, id graph.Identifier, step *types.ARMStep, state *ExecutionState) (Output, DetailsProducer, error) {
 	// Ensure resourcegroup exists
 	err := ensureResourceGroupExists(ctx, a.resourceGroupClient, a.Region, rgName, !options.NoPersist)
 	if err != nil {
-		return nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
+		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
 	// Run deployment
 	deploymentName := generateDeploymentName(step)
 
 	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, deploymentName); err != nil {
-		return nil, fmt.Errorf("error waiting for deploymenty %w", err)
+		return nil, nil, fmt.Errorf("error waiting for deploymenty %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
-		return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
+		return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.operationsClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
 	}
 
 	return doDryRun(ctx, a.bicepClient, a.deploymentClient, id.ServiceGroup, rgName, deploymentName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, state)
@@ -211,19 +217,19 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
 	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get input values: %w", err)
+		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
 	deploymentProperties, err := transformBicepToARMWhatIfDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
+		return nil, nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
 
 	// Create the deployment
@@ -239,10 +245,10 @@ func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armreso
 
 	skip, commit, err := checkSentinel(logger, inputs, stepCacheDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if skip {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if step.DeploymentLevel == "Subscription" {
@@ -250,26 +256,26 @@ func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armreso
 		deployment.Location = to.Ptr("eastus2")
 		poller, err := client.BeginWhatIfAtSubscriptionScope(ctx, deploymentName, deployment, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+			return nil, nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
 		}
 		logger.Info("WhatIf Deployment started", "deployment", deploymentName)
 		err = pollAndPrint(ctx, poller)
 		if err != nil {
-			return nil, fmt.Errorf("failed to poll and print: %w", err)
+			return nil, nil, fmt.Errorf("failed to poll and print: %w", err)
 		}
 	} else {
 		poller, err := client.BeginWhatIf(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
+			return nil, nil, fmt.Errorf("failed to create WhatIf Deployment: %w", err)
 		}
 		logger.Info("WhatIf Deployment started", "deployment", deploymentName)
 		err = pollAndPrint(ctx, poller)
 		if err != nil {
-			return nil, fmt.Errorf("failed to poll and print: %w", err)
+			return nil, nil, fmt.Errorf("failed to poll and print: %w", err)
 		}
 	}
 
-	return nil, commit()
+	return nil, nil, commit()
 }
 
 type whatIfInputs struct {
@@ -307,23 +313,23 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
 	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
 	state.RUnlock()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get input values: %w", err)
+		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
 	deploymentProperties, err := transformBicepToARMDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
+		return nil, nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
 
 	if hasTemplateResources(deploymentProperties.Template) && step.OutputOnly {
-		return nil, fmt.Errorf("deployment step %s is outputOnly, but contains resources", step.Name)
+		return nil, nil, fmt.Errorf("deployment step %s is outputOnly, but contains resources", step.Name)
 	}
 
 	// Create the deployment
@@ -339,38 +345,41 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 	skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, stepCacheDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if skip != nil {
-		return skip, nil
+		return skip, nil, nil
 	}
 
 	var output ArmOutput
+	var details DetailsProducer
 	var pollErr error
 	if step.DeploymentLevel == "Subscription" {
+		details = DetermineOperationsForSubscriptionDeployment(operationsClient, deploymentName)
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
 		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, deploymentName, deployment, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create deployment: %w", err)
+			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
 		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	} else {
+		details = DetermineOperationsForResourceGroupDeployment(operationsClient, rgName, deploymentName)
 		poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create deployment: %w", err)
+			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
 		}
 		logger.V(1).Info("Deployment started", "deployment", deploymentName)
 
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	}
 	if pollErr != nil {
-		return nil, fmt.Errorf("failed to poll deployment: %w", pollErr)
+		return nil, nil, fmt.Errorf("failed to poll deployment: %w", pollErr)
 	}
 
-	return output, commit(output)
+	return output, details, commit(output)
 }
 
 type deploymentInputs struct {

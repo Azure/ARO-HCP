@@ -264,7 +264,8 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) \
 	                                 --dry-run=$(DRY_RUN) \
-	                                 --verbosity=$(LOG_LEVEL)
+	                                 --verbosity=$(LOG_LEVEL) \
+	                                 --timing-output=timing/steps.yaml
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/entrypoint/,$(entrypoints)):
@@ -284,6 +285,9 @@ graph: $(TEMPLATIZE)
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
 	                               $(WHAT) > .graph.dot
+
+visualize: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint visualize --timing-input timing/steps.yaml --output timing/
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-entrypoint/,$(entrypoints)):

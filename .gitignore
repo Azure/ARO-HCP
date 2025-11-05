@@ -23,8 +23,8 @@ CLAUDE.local.md
 .claude/*.local.json
 go.work.sum
 .step-cache
-timing.yaml
 .graph.dot
 .graph.svg
 .tool-versions
 resourcegroups
+timing
