@@ -39,6 +39,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.Local,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
@@ -74,6 +75,10 @@ var _ = Describe("Customer", func() {
 			By("creating a managed identities")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
+			keyVaultNameStr, ok := keyVaultName.(string)
+			Expect(ok).To(BeTrue())
+			etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
+			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
 				*resourceGroup.Name,
@@ -95,26 +100,35 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
 			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+			etcdEncryptionKeyName, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+			Expect(err).NotTo(HaveOccurred())
+			nsgResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "nsgID")
+			Expect(err).NotTo(HaveOccurred())
+			vnetSubnetResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
 			Expect(err).NotTo(HaveOccurred())
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+			Expect(err).NotTo(HaveOccurred())
+			identityProfile, err := framework.ConvertToManagedServiceIdentity(identity)
+			Expect(err).NotTo(HaveOccurred())
+
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			clusterParams.NsgResourceID = nsgResourceID
+			clusterParams.SubnetResourceID = vnetSubnetResourceID
+			clusterParams.VnetName = customerVnetName
+			clusterParams.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
+			clusterParams.Identity = identityProfile
+			clusterParams.KeyVaultName = keyVaultNameStr
+			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyName
+			clusterParams.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
+
+			err = framework.CreateHCPClusterFromParam(ctx,
+				tc,
 				*resourceGroup.Name,
-				"cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-				map[string]interface{}{
-					"openshiftVersionId":          openshiftControlPlaneVersionId,
-					"clusterName":                 customerClusterName,
-					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
-					"userAssignedIdentitiesValue": userAssignedIdentities,
-					"identityValue":               identity,
-					"keyVaultName":                keyVaultName,
-					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-				},
+				clusterParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -134,21 +148,20 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
+			nodePoolParams.Replicas = int32(2)
+
+			err = framework.CreateNodePoolFromParam(ctx,
+				tc,
 				*resourceGroup.Name,
-				"node-pool",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
-					"openshiftVersionId": openshiftNodeVersionId,
-					"clusterName":        customerClusterName,
-					"nodePoolName":       customerNodePoolName,
-					"replicas":           2,
-				},
+				customerClusterName,
+				nodePoolParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
-
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())

@@ -192,3 +192,62 @@ func ListAllOperations(
 
 	return allOperations, nil
 }
+
+func CreateHCPClusterFromParam(
+	ctx context.Context,
+	testContext *perItOrDescribeTestContext,
+	resourceGroupName string,
+	parameters ClusterParams,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	clusterName := parameters.ClusterName
+
+	cluster := BuildHCPClusterFromParams(parameters, testContext.Location())
+
+	if _, err := CreateHCPClusterAndWait(
+		ctx,
+		testContext.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	); err != nil {
+		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+	return nil
+}
+
+func CreateNodePoolFromParam(
+	ctx context.Context,
+	testContext *perItOrDescribeTestContext,
+	resourceGroupName string,
+	hcpClusterName string,
+	parameters NodePoolParams,
+	timeout time.Duration,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	nodePoolName := parameters.NodePoolName
+	if nodePoolName == "" {
+		return fmt.Errorf("nodePoolName parameter not found or empty")
+	}
+
+	nodePool := BuildNodePoolFromParams(parameters, testContext.Location())
+
+	if _, err := CreateNodePoolAndWait(
+		ctx,
+		testContext.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+		resourceGroupName,
+		hcpClusterName,
+		nodePoolName,
+		nodePool,
+		timeout,
+	); err != nil {
+		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
+	}
+
+	return nil
+}
