@@ -1,0 +1,12 @@
+branch: main
+cloud: public
+environment: int
+pullRequestId: 13525689
+regionConfigs:
+- uksouth
+revision: 000779a4
+serviceGroup: Microsoft.Azure.ARO.HCP.Global
+serviceGroupBase: Microsoft.Azure.ARO.HCP
+timestamp: "2025-09-21T00:38:14Z"
+upstreamRevision: 43697e5fa59a
+
