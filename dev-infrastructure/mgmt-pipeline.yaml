@@ -291,6 +291,8 @@ resourceGroups:
     releaseNamespace: 'aro-hcp-mitigations'
     chartDir: ../mgmt-fixes/deploy/mitigations
     valuesFile: ../mgmt-fixes/mitigations.values.yaml
+    # Bump timeout to help with scaling event related issues
+    timeout: 15m
     dependsOn:
     - resourceGroup: management
       step: cluster
