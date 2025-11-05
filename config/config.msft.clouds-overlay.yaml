@@ -29,11 +29,11 @@ clouds:
           # PKO
           pko:
             imagePackage:
-              digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+              digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e
             imageManager:
-              digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+              digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638
             remotePhaseManager:
-              digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+              digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71
           # SVC cluster settings
           svc:
             prometheus:
@@ -67,13 +67,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:705d0e20f47c2885905c9c5169561de4f48b6b89ffb8ad6c27a149bd7db488c6"
+              digest: "sha256:a4ff5bc53cd015380b314ba2bedb5408af7a1d7be9bed221f56f31cf110d9ad4"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:cc1b508566123dae182bd0dcedc8471cbab67185b8426929dd57b16884d87b11"
+              digest: "sha256:5999536c1b4829e0fe344485b9e3e8b3de043cdafe39b967e873c87d3bad7d4f"
           # Admin API
           adminApi:
             image:
@@ -81,11 +81,11 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:75ba18994921469d9a64638a19213a6c4fd3764c97a9638314be5c3c119f11d7
+              digest: sha256:390cf0591acfd15d8a318fa355fe40ed528cbec4dede40784934ce03938f1ee8
           # Maestro
           maestro:
             image:
-              digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
+              digest: sha256:046a87fd9d477ca16eb92a627e832a6c5c844393231b171c4470da6df17c0f0a
             agent:
               sidecar:
                 image:
