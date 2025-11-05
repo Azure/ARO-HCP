@@ -74,6 +74,9 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	in := action.NewInstall(&cfg)
 	in.DryRunStrategy = action.DryRunClient
 	in.ReleaseName = testCase.Name
+	in.Namespace = testCase.Namespace
+	in.DisableHooks = false
+	in.IncludeCRDs = true
 
 	cfgYaml, err := loadConfigAndMerge(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
 	if err != nil {
@@ -104,7 +107,16 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	if err != nil {
 		return "", fmt.Errorf("error creating accessor, %v", err)
 	}
-	return accessor.Manifest(), nil
+
+	allHooks := ""
+	for _, hook := range accessor.Hooks() {
+		ha, err := release.NewHookAccessor(hook)
+		if err != nil {
+			return "", fmt.Errorf("error creating hook accessor, %v", err)
+		}
+		allHooks = fmt.Sprintf("%s---\n# Source: %s\n%s\n", allHooks, ha.Path(), ha.Manifest())
+	}
+	return fmt.Sprintf("%s\n%s", accessor.Manifest(), allHooks), nil
 }
 
 func TestHelmTemplate(t *testing.T) {
