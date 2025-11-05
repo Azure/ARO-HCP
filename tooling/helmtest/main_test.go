@@ -25,6 +25,7 @@ import (
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
+	"helm.sh/helm/v4/pkg/kube"
 	"helm.sh/helm/v4/pkg/release"
 
 	"sigs.k8s.io/yaml"
@@ -74,6 +75,13 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	in := action.NewInstall(&cfg)
 	in.DryRunStrategy = action.DryRunClient
 	in.ReleaseName = testCase.Name
+	in.WaitStrategy = kube.StatusWatcherStrategy
+	in.WaitForJobs = true
+	in.Namespace = testCase.Namespace
+	in.ServerSideApply = true
+	in.ForceConflicts = true
+	in.SkipCRDs = false
+	in.TakeOwnership = true
 
 	cfgYaml, err := loadConfigAndMerge(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
 	if err != nil {

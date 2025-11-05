@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: 'arobit-forwarder'
-  namespace: ''
+  namespace: 'arobit'
   labels:
     app.kubernetes.io/name: 'arobit-forwarder'
     app.kubernetes.io/instance: 'helmtest-mgmt-dev'
@@ -16,7 +16,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: arobit-forwarder
-  namespace: ''
+  namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: 'helmtest-mgmt-dev'
@@ -298,14 +298,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: 'arobit-forwarder'
-  namespace: ''
+  namespace: 'arobit'
 ---
 # Source: arobit/templates/forwarder-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: arobit-forwarder
-  namespace: ''
+  namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: 'helmtest-mgmt-dev'
@@ -334,7 +334,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: arobit-forwarder
-  namespace: ''
+  namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
     app.kubernetes.io/instance: 'helmtest-mgmt-dev'
@@ -444,7 +444,7 @@ apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
   name: arobit-secretprovider
-  namespace: ''
+  namespace: 'arobit'
 spec:
   provider: azure
   parameters:
@@ -464,7 +464,7 @@ apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
   name: arobit-secretprovider-clusterlogs
-  namespace: ''
+  namespace: 'arobit'
 spec:
   provider: azure
   parameters:
@@ -484,7 +484,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: arobit-forwarder
-  namespace: ''
+  namespace: 'arobit'
 spec:
   endpoints:
   - interval: 30s
@@ -493,7 +493,7 @@ spec:
     scheme: http
   namespaceSelector:
     matchNames:
-    - ''
+    - 'arobit'
   selector:
     matchLabels:
       app: arobit-forwarder

@@ -1,0 +1,33 @@
+---
+# Source: aro-hcp-hypershift-operator/templates/installer.serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: null
+  name: hypershift-installer
+  namespace: 'hypershift'
+---
+# Source: aro-hcp-hypershift-operator/templates/pull-secret.secret.yaml
+apiVersion: v1
+data:
+  .dockerconfigjson: e30K
+kind: Secret
+metadata:
+  name: pull-secret
+  namespace: 'hypershift'
+type: kubernetes.io/dockerconfigjson
+---
+# Source: aro-hcp-hypershift-operator/templates/installer.clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  creationTimestamp: null
+  name: hypershift-installer-cluster-role
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: hypershift-installer
+  namespace: 'hypershift'
