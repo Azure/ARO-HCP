@@ -1,0 +1,5 @@
+values: ../server/values.yaml
+name: server-dev
+namespace: aro-hcp
+helmChartDir: ../server/deploy
+testData: {}

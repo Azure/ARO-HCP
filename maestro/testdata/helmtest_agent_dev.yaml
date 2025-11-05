@@ -1,0 +1,5 @@
+values: ../agent/values.yaml
+name: agent-dev
+namespace: aro-hcp
+helmChartDir: ../agent/deploy
+testData: {}

@@ -1,0 +1,5 @@
+values: ../values.yaml
+name: istio-dev
+namespace: aro-hcp
+helmChartDir: ../deploy
+testData: {}

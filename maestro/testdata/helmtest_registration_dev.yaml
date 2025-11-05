@@ -1,0 +1,5 @@
+values: ../registration/values.yaml
+name: registration-dev
+namespace: aro-hcp
+helmChartDir: ../registration/deploy
+testData: {}

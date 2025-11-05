@@ -1,0 +1,5 @@
+values: ../values.yaml
+name: pko-dev
+namespace: aro-hcp
+helmChartDir: ../deploy
+testData: {}

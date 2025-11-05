@@ -1,0 +1,5 @@
+values: ../helm/values.yaml
+name: route-monitor-operator-dev
+namespace: aro-hcp
+helmChartDir: ../helm/route-monitor-operator
+testData: {}
