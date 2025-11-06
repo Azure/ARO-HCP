@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOURCE_CLEANER_DIR="${SCRIPT_DIR}/resource-cleaner"
 
 # Default values
-AZURE_CLIENT_ID=""
+AZURE_CLIENT_ID="4579fe55-83eb-45a5-ba5e-ca90ffadd763"
 MAESTRO_URL="http://maestro.maestro.svc.cluster.local:8000"
 RETENTION_HOURS="3"
 NAMESPACE="resource-cleaner"
