@@ -20,7 +20,7 @@ clouds:
           # Secret Sync Controller
           secretSyncController:
             image:
-              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 #v0.0.2
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
           # Backplane API
           backplaneAPI:
@@ -123,7 +123,7 @@ clouds:
           # Secret Sync Controller
           secretSyncController:
             image:
-              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 #v0.0.2
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
           # Backplane API
           backplaneAPI:
@@ -221,7 +221,7 @@ clouds:
           # Secret Sync Controller
           secretSyncController:
             image:
-              digest: sha256:31535c9687ecf49a8654bdc6baeb0ae498cf1dcf04e73cf1f99c5376f777712a #v0.0.1
+              digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 #v0.0.2
             providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
           # Backplane API
           backplaneAPI:
