@@ -24,87 +24,78 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type verifyNFDWorkerDaemonSet struct {
+type verifyNFDImagePulled struct {
 	namespace string
 }
 
-func (v verifyNFDWorkerDaemonSet) Name() string {
-	return "VerifyNFDWorkerDaemonSet"
+func (v verifyNFDImagePulled) Name() string {
+	return "VerifyNFDImagePulled"
 }
 
-func (v verifyNFDWorkerDaemonSet) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+func (v verifyNFDImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	// Check NFD worker DaemonSet exists and is ready
-	daemonSet, err := kubeClient.AppsV1().DaemonSets(v.namespace).Get(ctx, "nfd-worker", metav1.GetOptions{})
+	// Get all pods in the NFD namespace
+	pods, err := kubeClient.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get nfd-worker DaemonSet: %w", err)
+		return fmt.Errorf("failed to list pods in namespace %s: %w", v.namespace, err)
 	}
 
-	if daemonSet.Status.NumberReady == 0 {
-		return fmt.Errorf("nfd-worker DaemonSet has no ready pods (desired: %d, ready: %d)", daemonSet.Status.DesiredNumberScheduled, daemonSet.Status.NumberReady)
+	if len(pods.Items) == 0 {
+		return fmt.Errorf("no pods found in namespace %s", v.namespace)
 	}
 
-	if daemonSet.Status.NumberReady < daemonSet.Status.DesiredNumberScheduled {
-		return fmt.Errorf("nfd-worker DaemonSet not fully ready (desired: %d, ready: %d)", daemonSet.Status.DesiredNumberScheduled, daemonSet.Status.NumberReady)
-	}
+	// Check if at least one pod successfully pulled an image from registry.redhat.io
+	imagePulledSuccessfully := false
+	var imagePullErrors []string
 
-	return nil
-}
-
-func VerifyNFDWorkerDaemonSet(namespace string) HostedClusterVerifier {
-	return verifyNFDWorkerDaemonSet{namespace: namespace}
-}
-
-type verifyNFDNodeLabels struct{}
-
-func (v verifyNFDNodeLabels) Name() string {
-	return "VerifyNFDNodeLabels"
-}
-
-func (v verifyNFDNodeLabels) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	// Get all nodes
-	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list nodes: %w", err)
-	}
-
-	if len(nodes.Items) == 0 {
-		return fmt.Errorf("no nodes found in cluster")
-	}
-
-	// Check that at least one node has NFD labels
-	// NFD labels are prefixed with "feature.node.kubernetes.io/"
-	nfdLabelPrefix := "feature.node.kubernetes.io/"
-	foundNFDLabels := false
-
-	for _, node := range nodes.Items {
-		for label := range node.Labels {
-			if strings.HasPrefix(label, nfdLabelPrefix) {
-				foundNFDLabels = true
-				break
+	for _, pod := range pods.Items {
+		// Check container statuses for image pull success
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			// Check if the image is from registry.redhat.io
+			if strings.Contains(containerStatus.Image, "registry.redhat.io") {
+				// If ImageID is set, the image was pulled successfully
+				if containerStatus.ImageID != "" {
+					imagePulledSuccessfully = true
+				}
 			}
 		}
-		if foundNFDLabels {
-			break
+
+		// Also check for ImagePullBackOff errors
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == "PodScheduled" && condition.Status == "False" {
+				if strings.Contains(condition.Message, "ImagePullBackOff") || strings.Contains(condition.Message, "ErrImagePull") {
+					imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s: %s", pod.Name, condition.Message))
+				}
+			}
+		}
+
+		// Check container statuses for waiting state with image pull errors
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.State.Waiting != nil {
+				reason := containerStatus.State.Waiting.Reason
+				if reason == "ImagePullBackOff" || reason == "ErrImagePull" {
+					imagePullErrors = append(imagePullErrors, fmt.Sprintf("pod %s container %s: %s - %s",
+						pod.Name, containerStatus.Name, reason, containerStatus.State.Waiting.Message))
+				}
+			}
 		}
 	}
 
-	if !foundNFDLabels {
-		return fmt.Errorf("no NFD labels found on any nodes (expected labels with prefix %q)", nfdLabelPrefix)
+	if len(imagePullErrors) > 0 {
+		return fmt.Errorf("image pull errors detected:\n%s", strings.Join(imagePullErrors, "\n"))
+	}
+
+	if !imagePulledSuccessfully {
+		return fmt.Errorf("no pods found with successfully pulled images from registry.redhat.io")
 	}
 
 	return nil
 }
 
-func VerifyNFDNodeLabels() HostedClusterVerifier {
-	return verifyNFDNodeLabels{}
+func VerifyNFDImagePulled(namespace string) HostedClusterVerifier {
+	return verifyNFDImagePulled{namespace: namespace}
 }

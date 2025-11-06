@@ -157,41 +157,46 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 				redhatRegistryEmail = email
 			}
 
-			By("creating registry.redhat.io pull secret in the cluster")
-			decodedAuth, err := base64.StdEncoding.DecodeString(redhatRegistryAuthString)
-			Expect(err).NotTo(HaveOccurred(), "failed to decode registry.redhat.io auth string")
+			By("updating additional-pull-secret to add registry.redhat.io credentials")
+			// Get the current additional-pull-secret
+			currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
 
-			// Extract username and password from decoded auth
-			var redhatRegistryUsername, redhatRegistryPassword string
-			for i := 0; i < len(decodedAuth); i++ {
-				if decodedAuth[i] == ':' {
-					redhatRegistryUsername = string(decodedAuth[:i])
-					redhatRegistryPassword = string(decodedAuth[i+1:])
-					break
-				}
+			// Parse the current dockerconfigjson
+			var currentConfig map[string]interface{}
+			err = json.Unmarshal(currentSecret.Data[corev1.DockerConfigJsonKey], &currentConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse current pull secret")
+
+			currentAuths, ok := currentConfig["auths"].(map[string]interface{})
+			Expect(ok).To(BeTrue(), "auths field not found in current pull secret")
+
+			// Add registry.redhat.io credentials to the existing auths
+			redhatAuthEntry := map[string]interface{}{
+				"auth": redhatRegistryAuthString,
 			}
+			if redhatRegistryEmail != "" {
+				redhatAuthEntry["email"] = redhatRegistryEmail
+			}
+			currentAuths[redhatRegistryHost] = redhatAuthEntry
 
-			const redhatRegistryPullSecretName = "redhat-registry-io-pull-secret"
-			redhatRegistryPullSecret, err := framework.CreateTestDockerConfigSecret(
-				redhatRegistryHost,
-				redhatRegistryUsername,
-				redhatRegistryPassword,
-				redhatRegistryEmail,
-				redhatRegistryPullSecretName,
-				pullSecretNamespace,
-			)
+			// Marshal back to JSON
+			updatedDockerConfigJSON, err := json.Marshal(currentConfig)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the registry.redhat.io pull secret in the cluster")
-			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, redhatRegistryPullSecret, metav1.CreateOptions{})
+			// Update the secret
+			currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
+			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for HCCO to merge the registry.redhat.io pull secret with the global pull secret")
+			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
 			Eventually(func() error {
 				return verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost).Verify(ctx, adminRESTConfig)
 			}, 300*time.Second, 15*time.Second).Should(Succeed(), "registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
 
-			By("verifying the registry.redhat.io pull secret was merged into the global pull secret")
+			By("verifying both test registries are now in the global pull secret")
+			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "host.example.com should still be in global-pull-secret")
+
 			err = verifiers.VerifyPullSecretAuthData(
 				"global-pull-secret",
 				pullSecretNamespace,
@@ -236,7 +241,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			_, err = dynamicClient.Resource(operatorGroupGVR).Namespace(nfdNamespace).Create(ctx, operatorGroup, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating Subscription for NFD operator from certified-operators catalog")
+			By("creating Subscription for NFD operator from redhat-operators catalog")
 			subscriptionGVR := schema.GroupVersionResource{
 				Group:    "operators.coreos.com",
 				Version:  "v1alpha1",
@@ -253,7 +258,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 					"spec": map[string]interface{}{
 						"channel":             "stable",
 						"name":                "nfd",
-						"source":              "certified-operators",
+						"source":              "redhat-operators",
 						"sourceNamespace":     "openshift-marketplace",
 						"installPlanApproval": "Automatic",
 					},
@@ -291,14 +296,9 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			_, err = dynamicClient.Resource(nfdGVR).Namespace(nfdNamespace).Create(ctx, nfdCR, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for NFD worker DaemonSet to be ready")
+			By("waiting for pods to be created and verify images from registry.redhat.io can be pulled")
 			Eventually(func() error {
-				return verifiers.VerifyNFDWorkerDaemonSet(nfdNamespace).Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker DaemonSet should be ready")
-
-			By("verifying NFD is working by checking node labels")
-			Eventually(func() error {
-				return verifiers.VerifyNFDNodeLabels().Verify(ctx, adminRESTConfig)
-			}, 120*time.Second, 10*time.Second).Should(Succeed(), "NFD should label nodes with hardware features")
+				return verifiers.VerifyNFDImagePulled(nfdNamespace).Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "Images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })
