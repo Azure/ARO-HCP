@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251105022430-1d9e50082003
+	github.com/Azure/ARO-Tools v0.0.0-20251106113945-b350ba3386bc
 	github.com/Azure/azure-kusto-go v0.16.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
