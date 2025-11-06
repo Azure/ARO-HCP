@@ -51,9 +51,13 @@ images:
     targets:
     - jsonPath: clouds.public.environments.int.defaults.frontend.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.frontend.image.digest
+      filePath: ../../config/config.yaml
   arohcpbackend:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpbackend
     targets:
     - jsonPath: clouds.public.environments.int.defaults.backend.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.backend.image.digest
+      filePath: ../../config/config.yaml
