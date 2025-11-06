@@ -57,7 +57,36 @@ images:
     targets:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
+
+  public-acr-image:
+    source:
+      image: publicacr.azurecr.io/myimage
+      requiresAuthentication: false  # Use anonymous access for public ACRs
+    targets:
+    - jsonPath: defaults.myimage.digest
+      filePath: ../../config/config.yaml
 ```
+
+## Authentication
+
+By default, the image-updater authenticates to registries using Azure credentials (for ACR) or anonymous access (for public registries like Quay.io).
+
+### Anonymous ACR Access
+
+For Azure Container Registries that allow anonymous/public access, you can disable authentication:
+
+```yaml
+source:
+  image: publicacr.azurecr.io/myimage
+  requiresAuthentication: false  # Use anonymous access
+```
+
+**Automatic Fallback**: If authentication is enabled (default) but fails with an auth error, the tool automatically falls back to anonymous access for that registry.
+
+**Benefits**:
+- Access public ACR images without Azure credentials
+- Useful in CI/CD environments without ACR authentication
+- Automatic retry on auth failures
 
 ## Tag Patterns
 
