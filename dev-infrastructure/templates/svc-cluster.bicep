@@ -327,6 +327,12 @@ param genevaActionsServiceTag string
 @description('The Azure Resource ID of the Azure Monitor Workspace (stores prometheus metrics)')
 param azureMonitoringWorkspaceId string
 
+@description('The Grafana resource ID')
+param grafanaResourceId string
+
+@description('The Grafana managed identity principal ID')
+param grafanaPrincipalId string
+
 @description('The name of the CS managed identity')
 param csMIName string
 
@@ -757,6 +763,29 @@ module cs '../modules/cluster-service.bicep' = {
 //
 
 var frontDoorRef = res.frontdoorProfileRefFromId(azureFrontDoorResourceId)
+
+// Export AFD metrics and logs to Log Analytics for Grafana visibility
+module afdDataCollection '../modules/oidc/afd-datacollection.bicep' = if (logAnalyticsWorkspaceId != '') {
+  name: 'afd-datacollection'
+  scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
+  params: {
+    frontDoorProfileName: frontDoorRef.name
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+  }
+}
+
+// Grant Grafana permissions to query AFD metrics directly from Azure Monitor
+// This enables real-time AFD metrics visualization in Grafana dashboards
+module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = {
+  name: 'grafana-afd-permissions'
+  scope: resourceGroup(frontDoorRef.resourceGroup.subscriptionId, frontDoorRef.resourceGroup.name)
+  params: {
+    grafanaPrincipalId: grafanaPrincipalId
+    logAnalyticsWorkspaceId: '' // Log Analytics permissions granted in region.bicep
+    frontDoorProfileId: azureFrontDoorResourceId
+  }
+}
+
 module oidc '../modules/oidc/region/main.bicep' = {
   name: 'oidc-storage'
   scope: resourceGroup(regionalResourceGroup)
