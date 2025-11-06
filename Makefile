@@ -278,14 +278,16 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/pipeline/,$(pipelines)):
 endif
 graph/pipeline/%:
-	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) graph WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 graph: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint graph --config-file "${CONFIG_FILE}" \
 	                               --topology-config topology.yaml \
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
-	                               $(WHAT) > .graph.dot
+	                               $(WHAT) \
+	                               --output-dot .graph.dot \
+	                               --output-html .graph.html
 
 VISUALIZATION_OUTPUT ?= timing/
 

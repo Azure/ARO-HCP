@@ -28,3 +28,4 @@ go.work.sum
 .tool-versions
 resourcegroups
 timing
+.graph.html

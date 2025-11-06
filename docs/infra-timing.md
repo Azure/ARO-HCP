@@ -43,9 +43,12 @@ tooling/templatize/templatize entrypoint graph --config-file "config/config.yaml
                                --topology-config topology.yaml \
                                --dev-settings-file tooling/templatize/settings.yaml \
                                --dev-environment pers \
-                               --entrypoint Microsoft.Azure.ARO.HCP.Region > .graph.dot
+                               --entrypoint Microsoft.Azure.ARO.HCP.Region \
+                               --output-dot .graph.dot \
+                               --output-html .graph.html
 $ dot -T svg .graph.dot -o .graph.svg
 $ # now open .graph.svg
+$ # or, just open .graph.html
 ```
 
 Use the HTML visualizer to create an interactive web view for the timing of steps, which will not explicitly detail the dependencies between steps, but will show their runtime relative to each other. Combining this with the graph from above should give insights on what step or steps are blocking others. Similarly, the HTML visualization for ARM deployment operations will show the timeline, but not necessarily the dependencies. Remember that `.bicep` modules run their own deployments, and ARM will parallelize resources inside a deployment, but not across deployments.
