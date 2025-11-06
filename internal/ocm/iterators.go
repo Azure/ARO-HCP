@@ -133,6 +133,12 @@ func (iter *clusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1al
 				//     ClusterList.Slice() may be less efficient but
 				//     is easier to work with.
 				for _, item := range items.Slice() {
+					item, err = resolveClusterLinks(ctx, iter.conn, item)
+					if err != nil {
+						iter.err = err
+						return
+					}
+
 					if !yield(item) {
 						return
 					}

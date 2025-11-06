@@ -153,6 +153,30 @@ func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBu
 	return builder.Properties(additionalProperties)
 }
 
+// resolveClusterLinks replaces link objects with full objects that are
+// necessary to fully construct an HCPOpenShiftCluster model.
+func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+	builder := arohcpv1alpha1.NewCluster().Copy(cluster)
+
+	autoscaler, ok := cluster.GetAutoscaler()
+	if ok && autoscaler.Link() {
+		autoscalerClient := arohcpv1alpha1.NewAutoscalerClient(conn, autoscaler.HREF())
+
+		autoscalerGetResponse, err := autoscalerClient.Get().SendContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		autoscaler, ok = autoscalerGetResponse.GetBody()
+		if !ok {
+			return nil, fmt.Errorf("empty autoscaler response body")
+		}
+
+		builder.Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler))
+	}
+
+	return builder.Build()
+}
+
 func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
@@ -166,7 +190,7 @@ func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID Inte
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
 func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
@@ -214,7 +238,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, builder *arohc
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
@@ -234,7 +258,7 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
 func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
