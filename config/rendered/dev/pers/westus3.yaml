@@ -327,9 +327,9 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: ""
-    registry: ""
-    repository: ""
+    digest: sha256:3ff86f15b342e59319512f2ef5ac4919e58765192b5b6bbc4cfda5fcf40539f4
+    registry: kubernetesshared.azurecr.io
+    repository: shared/kube-events
 kusto:
   cluster: ""
   enabled: false
