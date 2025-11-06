@@ -88,12 +88,10 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 	}
 
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
-	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, builder *csarhcpv1alpha1.ClusterBuilder) (*csarhcpv1alpha1.Cluster, error) {
+	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
-		builder.ID(justID)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
-		builder = builder.HREF(internalID)
-		ret, err := builder.Build()
+		ret, err := clusterBuilder.ID(justID).HREF(internalID).Build()
 		if err != nil {
 			return nil, err
 		}

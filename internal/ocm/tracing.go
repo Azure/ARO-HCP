@@ -83,11 +83,11 @@ func (csc *clusterServiceClientWithTracing) GetClusterInflightChecks(ctx context
 	return csc.csc.GetClusterInflightChecks(ctx, internalID)
 }
 
-func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+func (csc *clusterServiceClientWithTracing) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.PostCluster")
 	defer span.End()
 
-	cluster, err := csc.csc.PostCluster(ctx, builder)
+	cluster, err := csc.csc.PostCluster(ctx, clusterBuilder, autoscalerBuilder)
 	if err != nil {
 		span.RecordError(err)
 	} else {
