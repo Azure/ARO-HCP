@@ -294,11 +294,31 @@ func (o *Options) Visualize(ctx context.Context) error {
 	})
 
 	startTime := o.Times[0].Info.QueuedAt
+	endTime := startTime
+
+	serviceGroupSet := sets.New[string]()
+	for _, item := range o.Times {
+		serviceGroupSet.Insert(item.Identifier.ServiceGroup)
+	}
+	serviceGroups := sets.List(serviceGroupSet)
 
 	var names []string
 	var highWaterMark []opts.BarData
-	var bars []opts.BarData
+	data := map[string][]opts.BarData{}
+	for _, serviceGroup := range serviceGroups {
+		data[serviceGroup] = []opts.BarData{}
+	}
+	startTimes := map[string]time.Time{}
+	for _, serviceGroup := range serviceGroups {
+		startTimes[serviceGroup] = time.Now() // will be after any start time in the set
+	}
 	for _, item := range o.Times {
+		if item.Info.FinishedAt.After(endTime) {
+			endTime = item.Info.FinishedAt
+		}
+		if item.Info.QueuedAt.Before(startTimes[item.Identifier.ServiceGroup]) {
+			startTimes[item.Identifier.ServiceGroup] = item.Info.QueuedAt
+		}
 		if item.Info.FinishedAt.Sub(item.Info.StartedAt) < time.Second {
 			continue
 		}
@@ -310,9 +330,33 @@ func (o *Options) Visualize(ctx context.Context) error {
 				Show: ptr.To(false),
 			},
 		})
-		bars = append(bars, opts.BarData{
-			Value: item.Info.FinishedAt.Sub(item.Info.StartedAt).Seconds(),
-		})
+		for serviceGroup := range data {
+			if serviceGroup == item.Identifier.ServiceGroup {
+				data[serviceGroup] = append(data[serviceGroup], opts.BarData{
+					Value: item.Info.FinishedAt.Sub(item.Info.StartedAt).Seconds(),
+				})
+			} else {
+				data[serviceGroup] = append(data[serviceGroup], opts.BarData{
+					Value: 0,
+					Tooltip: &opts.Tooltip{
+						Show: ptr.To(false),
+					},
+				})
+			}
+		}
+	}
+
+	// insert data into the graph in order of start time so we are unlikely to end up with data series next to each other with the same color
+	slices.SortFunc(serviceGroups, func(a, b string) int {
+		return startTimes[a].Compare(startTimes[b])
+	})
+	var shortServiceGroups []string
+	for _, serviceGroup := range serviceGroups {
+		parts := strings.Split(serviceGroup, ".")
+		if len(parts) < 5 {
+			return fmt.Errorf("service group only had %d parts: %s", len(parts), serviceGroup)
+		}
+		shortServiceGroups = append(shortServiceGroups, strings.Join(parts[4:], "."))
 	}
 
 	waterfall := charts.NewBar()
@@ -324,6 +368,7 @@ func (o *Options) Visualize(ctx context.Context) error {
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:      "ARO HCP entrypoint/Region Deployment Timing",
+			Subtitle:   fmt.Sprintf("Overall Runtime: %s", endTime.Sub(startTime).String()),
 			TitleStyle: &opts.TextStyle{Align: "left"},
 			TextAlign:  "left",
 			Left:       "center",
@@ -334,7 +379,15 @@ func (o *Options) Visualize(ctx context.Context) error {
 				Type: "shadow",
 			},
 		}),
-		charts.WithLegendOpts(opts.Legend{Show: ptr.To(false)}),
+		charts.WithGridOpts(opts.Grid{
+			Left: "200",
+		}),
+		charts.WithLegendOpts(opts.Legend{
+			Left:   "left",
+			Top:    "middle",
+			Orient: "vertical",
+			Data:   append([]string{""}, shortServiceGroups...),
+		}),
 		charts.WithYAxisOpts(opts.YAxis{Show: ptr.To(false)}),
 		charts.WithXAxisOpts(opts.XAxis{AxisLabel: &opts.AxisLabel{Rotate: -22.5}}),
 	)
@@ -351,11 +404,13 @@ func (o *Options) Visualize(ctx context.Context) error {
 				BorderColor: "transparent",
 				Color:       "transparent",
 			})).
-		AddSeries("Step Timing", bars,
+		XYReversal()
+	for i, serviceGroup := range serviceGroups {
+		waterfall.AddSeries(shortServiceGroups[i], data[serviceGroup],
 			charts.WithBarChartOpts(opts.BarChart{
 				Stack: "total",
-			})).
-		XYReversal()
+			}))
+	}
 
 	if err := os.MkdirAll(o.OutputDir, 0755); err != nil {
 		return fmt.Errorf("unable to create output directory: %w", err)
@@ -387,21 +442,26 @@ func (o *Options) Visualize(ctx context.Context) error {
 }
 
 const valueFormatter = `(params) => {
-	const totalSeconds = params[1].value;
+	for (const item of params.slice(1)) {
+		if (item.value == 0) {
+			continue
+		}
+		const totalSeconds = item.value;
     
-	const hours = Math.floor(totalSeconds / (60 * 60));
-    const minutes = Math.floor((totalSeconds % (60 * 60)) / (60));
-    const seconds = Math.floor(totalSeconds % (60));
+		const hours = Math.floor(totalSeconds / (60 * 60));
+    	const minutes = Math.floor((totalSeconds % (60 * 60)) / (60));
+    	const seconds = Math.floor(totalSeconds % (60));
 
-    let result = '';
-    if (hours > 0) {
-        result += ` + "`${hours}h`" + `;
-    }
-    if (minutes > 0 || hours > 0) {
-        result += ` + "`${minutes}m`" + `;
-    }
-    result += ` + "`${seconds}s`" + `;
-    return params[1].name + ": " + result;
+	    let result = '';
+	    if (hours > 0) {
+	        result += ` + "`${hours}h`" + `;
+	    }
+	    if (minutes > 0 || hours > 0) {
+	        result += ` + "`${minutes}m`" + `;
+    	}
+    	result += ` + "`${seconds}s`" + `;
+    	return item.name + ": " + result;
+	}
 }`
 
 func axisFormatter(base time.Time) string {
@@ -453,7 +513,7 @@ func (o *Options) visualizeARM(ctx context.Context, item NodeInfo) error {
 			Height:    "1024px",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:      "ARM Deployment Operation Timing",
+			Title:      "ARM Deployment Operation Timing: " + item.Identifier.String(),
 			TitleStyle: &opts.TextStyle{Align: "left"},
 			TextAlign:  "left",
 			Left:       "center",
