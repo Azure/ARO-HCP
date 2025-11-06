@@ -219,7 +219,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:7966fb31c657d9ccd6333c40d30079f8fa9ced7cf1d89fcaf784c6f4ba569d30
+              digest: sha256:ce22a392a836a3f415f11fe07e18d171ec5455608be905d2b460b67f6beedf1d
             batchProcessesDryRun: false
             batchProcesses: "ARO-20736"
           # ACR Pull
@@ -238,11 +238,11 @@ clouds:
           # PKO
           pko:
             imagePackage:
-              digest: sha256:7e4f7c28650951bbbd73fb42b4780883118d6289f19a3fed4ba5831d32f5f795
+              digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e
             imageManager:
-              digest: sha256:f2f24e36b097da44f4b598f930cce6c1658be3381d21d7fdf92d26b4dadd1a2f
+              digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638
             remotePhaseManager:
-              digest: sha256:f15aa252f69357fbdb2a1b5141badfe9c1f036c800dbfed9d28dc583044e4b4e
+              digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71
           # SVC cluster settings
           svc:
             prometheus:
@@ -276,13 +276,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:f4c13871fd7af7c11d5a6e0ef36da0f9e89e146c49c70bfaf41b571b5b278efc"
+              digest: "sha256:a4ff5bc53cd015380b314ba2bedb5408af7a1d7be9bed221f56f31cf110d9ad4"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:1113d23109bc8f3a9b5aa5ebf36bdda80d123cb3533b8497f7f8fc97562d6adb"
+              digest: "sha256:5999536c1b4829e0fe344485b9e3e8b3de043cdafe39b967e873c87d3bad7d4f"
           # Admin API
           adminApi:
             image:
@@ -290,11 +290,11 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:4d4b3048fc313232fbbad5d56c260ebcf898cc0c248df367ad73a369282c6e42
+              digest: sha256:390cf0591acfd15d8a318fa355fe40ed528cbec4dede40784934ce03938f1ee8
           # Maestro
           maestro:
             image:
-              digest: sha256:4cd299203a02271d58b1eb03a8186293e686833c6e4f5cee3cde6adf77715e2b
+              digest: sha256:046a87fd9d477ca16eb92a627e832a6c5c844393231b171c4470da6df17c0f0a
             agent:
               sidecar:
                 image:
