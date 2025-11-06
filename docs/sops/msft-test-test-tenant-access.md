@@ -69,7 +69,7 @@ Once approved, verify your access:
    Name                       CloudName    SubscriptionId                        State    IsDefault
    -------------------------  -----------  ------------------------------------  -------  -----------
    ARO HCP E2E - Staging      AzureCloud   99399281-00a2-4b39-bb3d-b2645bbbdb93  Enabled  False
-   ARO HCP E2E                AzureCloud   <prod-subscription-id>                Enabled  False
+   ARO HCP E2E                AzureCloud   403d9de9-132b-4974-94a5-5b78bdfa191e  Enabled  False
    ```
 
 3. **Set the subscription**
