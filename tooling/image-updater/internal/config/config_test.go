@@ -474,6 +474,97 @@ images:
 	}
 }
 
+func TestConfigLoad_WithRequiresAuthentication(t *testing.T) {
+	tests := []struct {
+		name                       string
+		configContent              string
+		wantImageName              string
+		wantRequiresAuthentication *bool
+	}{
+		{
+			name: "requiresAuthentication set to false",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+      requiresAuthentication: false
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName:              "test",
+			wantRequiresAuthentication: boolPtr(false),
+		},
+		{
+			name: "requiresAuthentication set to true",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+      requiresAuthentication: true
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName:              "test",
+			wantRequiresAuthentication: boolPtr(true),
+		},
+		{
+			name: "requiresAuthentication not set (defaults to nil)",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName:              "test",
+			wantRequiresAuthentication: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.yaml")
+
+			if err := os.WriteFile(configPath, []byte(tt.configContent), 0644); err != nil {
+				t.Fatalf("failed to create config file: %v", err)
+			}
+
+			cfg, err := Load(configPath)
+			if err != nil {
+				t.Fatalf("Load() unexpected error = %v", err)
+			}
+
+			img, exists := cfg.Images[tt.wantImageName]
+			if !exists {
+				t.Fatalf("Load() missing expected image %s", tt.wantImageName)
+			}
+
+			if tt.wantRequiresAuthentication == nil {
+				if img.Source.RequiresAuthentication != nil {
+					t.Errorf("Load() RequiresAuthentication = %v, want nil", img.Source.RequiresAuthentication)
+				}
+			} else {
+				if img.Source.RequiresAuthentication == nil {
+					t.Errorf("Load() RequiresAuthentication = nil, want %v", *tt.wantRequiresAuthentication)
+				} else if *img.Source.RequiresAuthentication != *tt.wantRequiresAuthentication {
+					t.Errorf("Load() RequiresAuthentication = %v, want %v", *img.Source.RequiresAuthentication, *tt.wantRequiresAuthentication)
+				}
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func TestSource_ParseImageReference(t *testing.T) {
 	tests := []struct {
 		name           string

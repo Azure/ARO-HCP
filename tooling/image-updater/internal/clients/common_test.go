@@ -270,30 +270,35 @@ func TestNewRegistryClient(t *testing.T) {
 	tests := []struct {
 		name        string
 		registryURL string
+		useAuth     bool
 		wantType    string
 		wantErr     bool
 	}{
 		{
-			name:        "quay.io registry",
+			name:        "quay.io registry with auth",
 			registryURL: "quay.io",
+			useAuth:     true,
 			wantType:    "*clients.QuayClient",
 			wantErr:     false,
 		},
 		{
-			name:        "quay.io with subdomain",
+			name:        "quay.io with subdomain without auth",
 			registryURL: "registry.quay.io",
+			useAuth:     false,
 			wantType:    "*clients.QuayClient",
 			wantErr:     false,
 		},
 		{
 			name:        "unsupported registry",
 			registryURL: "docker.io",
+			useAuth:     true,
 			wantType:    "",
 			wantErr:     true,
 		},
 		{
 			name:        "empty registry URL",
 			registryURL: "",
+			useAuth:     true,
 			wantType:    "",
 			wantErr:     true,
 		},
@@ -301,7 +306,7 @@ func TestNewRegistryClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewRegistryClient(tt.registryURL)
+			got, err := NewRegistryClient(tt.registryURL, tt.useAuth)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRegistryClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
