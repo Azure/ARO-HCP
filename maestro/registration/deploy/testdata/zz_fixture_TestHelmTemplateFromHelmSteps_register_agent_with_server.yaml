@@ -1,0 +1,79 @@
+---
+# Source: maestro-agent-registration/templates/script.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registration-hcp-underlay-usw3-mgmt-1
+  namespace: 'maestro'
+data:
+  registration.py: |
+    import sys
+    import http.client
+    import json
+    import urllib.parse
+
+    def main():
+        if len(sys.argv) != 3:
+            print("Usage: register-maestro-consumer.py <MAESTRO_BASE_URL> <CONSUMER_NAME>")
+            sys.exit(1)
+
+        maestro_base_url = sys.argv[1]
+        consumer_name = sys.argv[2]
+
+        # Parse the base URL
+        parsed_url = urllib.parse.urlparse(maestro_base_url)
+        conn = http.client.HTTPConnection(parsed_url.netloc)
+
+        # Check if the consumer is already registered
+        search_query = urllib.parse.urlencode({"search": f"name='{consumer_name}'"})
+        conn.request("GET", f"{parsed_url.path}/api/maestro/v1/consumers?{search_query}")
+        response = conn.getresponse()
+        if response.status != 200:
+            print(f"Error checking consumer: {response.status} {response.reason}")
+            sys.exit(1)
+
+        data = response.read()
+        found = json.loads(data).get('total', 0)
+
+        if found == 0:
+            # Register the consumer
+            headers = {"Content-Type": "application/json"}
+            consumer_data = json.dumps({"name": consumer_name})
+            conn.request("POST", f"{parsed_url.path}/api/maestro/v1/consumers", body=consumer_data, headers=headers)
+            response = conn.getresponse()
+            if response.status != 201:
+                print(f"Error registering consumer: {response.status} {response.reason}")
+                sys.exit(1)
+            print(f"Maestro consumer {consumer_name} registered successfully")
+        else:
+            print(f"Maestro consumer {consumer_name} already registered")
+
+        conn.close()
+
+    if __name__ == "__main__":
+        main()
+---
+# Source: maestro-agent-registration/templates/registration.job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: registration-hcp-underlay-usw3-mgmt-1
+  namespace: 'maestro'
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+      - name: python
+        image: "mcr.microsoft.com/cbl-mariner/base/python:3.9"
+        command: ["python3.9", "/scripts/registration.py", "http://maestro.maestro.svc.cluster.local:8000", "hcp-underlay-usw3-mgmt-1"]
+        volumeMounts:
+        - name: script-volume
+          mountPath: /scripts
+      restartPolicy: Never
+      volumes:
+      - name: script-volume
+        configMap:
+          name: registration-hcp-underlay-usw3-mgmt-1
+  backoffLimit: 4
+

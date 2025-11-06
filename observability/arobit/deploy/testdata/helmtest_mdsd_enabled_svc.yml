@@ -1,7 +1,7 @@
-values: ../values-svc.yaml
+values: ../../values-svc.yaml
 name: helmtest-mdsd-enabled-svc
 namespace: arobit
-helmChartDir: ../deploy
+helmChartDir: ..
 testData:
   arobit:
     mdsd:

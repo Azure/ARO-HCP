@@ -7,7 +7,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: 'arobit-forwarder'
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
   annotations:
     azure.workload.identity/client-id: '__msiClientId__'
 ---
@@ -19,7 +19,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
@@ -143,7 +143,7 @@ data:
         Match kubernetes.var.log.containers.*
         Add environment dev
         Add region westus3
-        Add cluster dev-westus3-mgmt-1
+        Add cluster dev-westus3-svc-1
 
     [FILTER]
         Name                kubernetes
@@ -187,15 +187,28 @@ data:
         Host  0.0.0.0
         Port  9090
     [OUTPUT]
-        Match ocm.logs
+        Match aro-hcp-frontend.logs
         Name azure_kusto
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
         Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        Database_Name HCPCustomerLogs
-        Table_Name containerLogs
+        Database_Name HCPServiceLogs
+        Table_Name frontendContainerLogs
+        ingestion_mapping_reference ingestionMapping
+        buffer_dir /var/kusto
+
+    [OUTPUT]
+        Match aro-hcp-backend.logs
+        Name azure_kusto
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
+        Database_Name HCPServiceLogs
+        Table_Name backendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
     [OUTPUT]
@@ -270,7 +283,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
 rules:
 - apiGroups:
   - ""
@@ -290,7 +303,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
@@ -308,7 +321,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
     app: arobit-forwarder
 spec:
   type: ClusterIP
@@ -327,7 +340,7 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
 ---
 # Source: arobit/templates/forwarder-daemonset.yaml
 apiVersion: apps/v1
@@ -337,14 +350,14 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'arobit'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: arobit-forwarder
-      app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+      app.kubernetes.io/instance: 'arobit'
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -353,7 +366,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: arobit-forwarder
-        app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+        app.kubernetes.io/instance: 'arobit'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
     spec:
@@ -432,8 +445,6 @@ spec:
             path: /etc/ssl/certs/ca-certificates.crt
         - name: mdsd-run
           emptyDir: {}
-        - name: mdsd-run-clusterlogs
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
@@ -449,31 +460,11 @@ spec:
   provider: azure
   parameters:
     clientID: '__msiClientId__'
-    keyvaultName: "ah-dev-mg-usw3-1"
+    keyvaultName: "aro-hcp-dev-svc-kv"
     objects: |
       array:
         - |
           objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider-clusterlogs
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    keyvaultName: "ah-dev-mg-usw3-1"
-    objects: |
-      array:
-        - |
-          objectName: "clusterlogs"
           objectAlias: "gcscert.pem"
           objectType: secret
     tenantId: "__tenantId__"

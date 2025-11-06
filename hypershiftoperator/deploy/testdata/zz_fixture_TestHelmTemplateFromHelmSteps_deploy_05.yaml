@@ -691,7 +691,7 @@ spec:
             --hypershift-image arohcpsvcdev.azurecr.io/acm-d/rhtap-hypershift-operator@sha256:1234567890 \
             --platform-monitoring=None \
             --enable-size-tagging=true \
-            --foo=bar
+            --enable-cpo-overrides
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---

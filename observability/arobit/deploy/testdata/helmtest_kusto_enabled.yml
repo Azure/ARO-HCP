@@ -1,7 +1,7 @@
-values: ../values-mgmt.yaml
+values: ../../values-mgmt.yaml
 name: helmtest-kusto-enabled
 namespace: arobit
-helmChartDir: ../deploy
+helmChartDir: ..
 testData:
   kusto:
     enabled: true
