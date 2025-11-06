@@ -255,6 +255,7 @@ pipeline/%:
 LOG_LEVEL ?= 3
 DRY_RUN ?= "false"
 PERSIST ?= "false"
+TIMING_OUTPUT ?= timing/steps.yaml
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
@@ -264,7 +265,8 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) \
 	                                 --dry-run=$(DRY_RUN) \
-	                                 --verbosity=$(LOG_LEVEL)
+	                                 --verbosity=$(LOG_LEVEL) \
+	                                 --timing-output=$(TIMING_OUTPUT)
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/entrypoint/,$(entrypoints)):
@@ -284,6 +286,11 @@ graph: $(TEMPLATIZE)
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
 	                               $(WHAT) > .graph.dot
+
+VISUALIZATION_OUTPUT ?= timing/
+
+visualize: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint visualize --timing-input $(TIMING_OUTPUT) --output $(VISUALIZATION_OUTPUT)
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-entrypoint/,$(entrypoints)):

@@ -105,7 +105,8 @@ func (o ShellOutput) GetValue(_ string) (*OutPutValue, error) {
 // Outputs stores output values indexed by service group, resource group and step name.
 type Outputs map[string]map[string]map[string]Output
 
-type Executor func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error)
+type Executor func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error)
+type DetailsProducer func(ctx context.Context) (*ExecutionDetails, error)
 
 type ExecutionState struct {
 	*sync.RWMutex
@@ -114,18 +115,28 @@ type ExecutionState struct {
 	Queued   sets.Set[graph.Identifier]
 	Outputs  Outputs
 
-	Timing map[graph.Identifier]*ExecutionInfo
+	Timing  map[graph.Identifier]*ExecutionInfo
+	Details map[graph.Identifier]*ExecutionDetails
 }
 
 type ExecutionInfo struct {
 	QueuedAt   string `json:"queuedAt"`
 	StartedAt  string `json:"startedAt"`
 	FinishedAt string `json:"finishedAt"`
+	State      string `json:"state"`
+}
+type NodeInfo struct {
+	Identifier Identifier        `json:"identifier"`
+	Info       ExecutionInfo     `json:"info"`
+	Details    *ExecutionDetails `json:"details,omitempty"`
 }
 
-type NodeInfo struct {
-	Identifier Identifier    `json:"identifier"`
-	Info       ExecutionInfo `json:"info"`
+type ExecutionDetails struct {
+	ARM *ARMExecutionDetails `json:"arm,omitempty"`
+}
+
+type ARMExecutionDetails struct {
+	Operations []Operation `json:"operations,omitempty"`
 }
 
 type Identifier struct {
@@ -180,7 +191,39 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		Executed: sets.Set[graph.Identifier]{},
 		Queued:   sets.Set[graph.Identifier]{},
 		Timing:   make(map[graph.Identifier]*ExecutionInfo),
+		Details:  make(map[graph.Identifier]*ExecutionDetails),
 		Outputs:  make(Outputs),
+	}
+
+	if options.TimingOutputFile != "" {
+		if err := os.MkdirAll(filepath.Dir(options.TimingOutputFile), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create timing output dir: %w", err)
+		}
+		defer func() {
+			state.RLock()
+			timing := state.Timing
+			details := state.Details
+			state.RUnlock()
+			var times []NodeInfo
+			for id, info := range timing {
+				times = append(times, NodeInfo{
+					Identifier: Identifier{
+						ServiceGroup:  id.ServiceGroup,
+						ResourceGroup: id.ResourceGroup,
+						Step:          id.Step,
+					},
+					Info:    *info,
+					Details: details[id],
+				})
+			}
+			encodedTiming, err := yaml.Marshal(times)
+			if err != nil {
+				logger.Error(err, "error marshalling timing")
+			}
+			if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+				logger.Error(err, "error writing timing")
+			}
+		}()
 	}
 
 	state.Lock()
@@ -269,9 +312,31 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					details, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					if details != nil {
+						consumerWg.Add(1)
+						go func(step graph.Identifier, logger logr.Logger) {
+							defer func() {
+								consumerWg.Done()
+								stepLogger.V(4).Info("Finished fetching execution details.")
+							}()
+							stepLogger.V(4).Info("Fetching execution details.")
+							d, err := details(consumerCtx)
+							if err != nil {
+								logger.Error(err, "error fetching execution details")
+							}
+							state.Lock()
+							state.Details[step] = d
+							state.Unlock()
+						}(step, stepLogger)
+					}
 					state.Lock()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					s := "succeeded"
+					if err != nil {
+						s = "failed"
+					}
+					state.Timing[step].State = s
 					state.Unlock()
 					if err != nil {
 						stepLogger.V(4).Error(err, "Step errored.")
@@ -312,56 +377,34 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	}
 	state.RLock()
 	outputs := state.Outputs
-	timing := state.Timing
 	state.RUnlock()
-
-	if options.TimingOutputFile != "" {
-		var times []NodeInfo
-		for id, info := range timing {
-			times = append(times, NodeInfo{
-				Identifier: Identifier{
-					ServiceGroup:  id.ServiceGroup,
-					ResourceGroup: id.ResourceGroup,
-					Step:          id.Step,
-				},
-				Info: *info,
-			})
-		}
-		encodedTiming, err := yaml.Marshal(times)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling timing: %v", err)
-		}
-		if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
-			return nil, fmt.Errorf("error writing timing: %v", err)
-		}
-	}
 
 	return outputs, nil
 }
 
-func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) error {
+func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, error) {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
 	state.RUnlock()
 	if alreadyDone {
 		logger.V(4).Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
-		return nil
+		return nil, nil
 	}
 
 	resourceGroup, exists := graphCtx.ResourceGroups[node.ResourceGroup]
 	if !exists {
-		return fmt.Errorf("could not find resource group %s", node.ResourceGroup)
+		return nil, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
 	}
 
 	step, exists := graphCtx.Steps[node.ServiceGroup][node.ResourceGroup][node.Step]
 	if !exists {
-		return fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
+		return nil, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
 	}
 
 	subscriptionID, err := options.SubsciptionLookupFunc(ctx, resourceGroup.Subscription)
 	if err != nil {
-		return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+		return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 	}
 	target := &executionTargetImpl{
 		subscriptionName: resourceGroup.Subscription,
@@ -371,19 +414,20 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	}
 
 	var output Output
+	var details DetailsProducer
 	var stepRunErr error
 	if options.Step != "" && step.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		output = nil
 		stepRunErr = nil
 	} else {
-		output, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+		output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 			BaseRunOptions:    options.BaseRunOptions,
 			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 		}, state)
 	}
 	if stepRunErr != nil {
-		return stepRunErr
+		return details, stepRunErr
 	}
 
 	state.Lock()
@@ -399,10 +443,10 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
-	return nil
+	return details, nil
 }
 
-func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	if options.DryRun {
 		logger.Info("This is a dry run!")
@@ -415,16 +459,16 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 
 		if step.CopyFrom == "oci-layout" {
 			logger.Info("OCI layout image copy is not supported for run step, skipping")
-			return nil, nil
+			return nil, nil, nil
 		}
 
 		err := runImageMirrorStep(id, ctx, step, options, state, &buf)
 		if err != nil {
-			return nil, fmt.Errorf("error running Image Mirror Step, %v", err)
+			return nil, nil, fmt.Errorf("error running Image Mirror Step, %v", err)
 		}
 		output := buf.String()
 		fmt.Println(output)
-		return ShellOutput(output), nil
+		return ShellOutput(output), nil, nil
 	case *types.ShellStep:
 		var buf bytes.Buffer
 
@@ -436,50 +480,50 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 				}
 			}()
 		} else if err != nil {
-			return nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
+			return nil, nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
 		err = runShellStep(id, step, ctx, kubeconfigFile, options, state, &buf)
 		if err != nil {
-			return nil, fmt.Errorf("error running Shell Step, %v", err)
+			return nil, nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
 		output := buf.String()
 		fmt.Println(output)
-		return ShellOutput(output), nil
+		return ShellOutput(output), nil, nil
 	case *types.SecretSyncStep:
 		if err := runSecretSyncStep(step, ctx, options); err != nil {
-			return nil, fmt.Errorf("error running secret sync Step, %v", err)
+			return nil, nil, fmt.Errorf("error running secret sync Step, %v", err)
 		}
-		return nil, nil
+		return nil, nil, nil
 	case *types.ProviderFeatureRegistrationStep:
 		if err := runRegistrationStep(step, ctx, options, executionTarget); err != nil {
-			return nil, fmt.Errorf("error running provider and feature registration Step, %v", err)
+			return nil, nil, fmt.Errorf("error running provider and feature registration Step, %v", err)
 		}
-		return nil, nil
+		return nil, nil, nil
 	case *types.HelmStep:
 		if err := runHelmStep(id, step, ctx, options, executionTarget, state); err != nil {
-			return nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
+			return nil, nil, fmt.Errorf("error running Helm release deployment Step, %v", err)
 		}
-		return nil, nil
+		return nil, nil, nil
 	case *types.ARMStep:
 		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create ARM clients: %w", err)
+			return nil, nil, fmt.Errorf("failed to create ARM clients: %w", err)
 		}
-		output, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
+		output, details, err := a.runArmStep(ctx, options, executionTarget.GetResourceGroup(), id, step, state)
 		if err != nil {
-			return nil, fmt.Errorf("failed to run ARM step: %w", err)
+			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
-		return output, nil
+		return output, details, nil
 	case *types.ARMStackStep:
-		output, err := runArmStackStep(ctx, options, executionTarget, id, step, state)
+		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state)
 		if err != nil {
-			return nil, fmt.Errorf("failed to run ARM step: %w", err)
+			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
-		return output, nil
+		return output, details, nil
 	default:
 		logger.Info("No implementation for action type - skip", "actionType", s.ActionType())
-		return nil, nil
+		return nil, nil, nil
 	}
 }
 
