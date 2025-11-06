@@ -107,9 +107,9 @@ defaults:
   kubeEvents:
     enabled: true
     image:
-      registry: ""
-      repository: ""
-      digest: ""
+      registry: kubernetesshared.azurecr.io
+      repository: shared/kube-events
+      digest: sha256:3ff86f15b342e59319512f2ef5ac4919e58765192b5b6bbc4cfda5fcf40539f4
   # Secret Sync Controller
   secretSyncController:
     image:
