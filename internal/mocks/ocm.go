@@ -893,6 +893,45 @@ func (c *MockClusterServiceClientSpecUpdateClusterCall) DoAndReturn(f func(conte
 	return c
 }
 
+// UpdateClusterAutoscaler mocks base method.
+func (m *MockClusterServiceClientSpec) UpdateClusterAutoscaler(ctx context.Context, internalID ocm.InternalID, builder *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.ClusterAutoscaler, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateClusterAutoscaler", ctx, internalID, builder)
+	ret0, _ := ret[0].(*v1alpha1.ClusterAutoscaler)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateClusterAutoscaler indicates an expected call of UpdateClusterAutoscaler.
+func (mr *MockClusterServiceClientSpecMockRecorder) UpdateClusterAutoscaler(ctx, internalID, builder any) *MockClusterServiceClientSpecUpdateClusterAutoscalerCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterAutoscaler", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).UpdateClusterAutoscaler), ctx, internalID, builder)
+	return &MockClusterServiceClientSpecUpdateClusterAutoscalerCall{Call: call}
+}
+
+// MockClusterServiceClientSpecUpdateClusterAutoscalerCall wrap *gomock.Call
+type MockClusterServiceClientSpecUpdateClusterAutoscalerCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecUpdateClusterAutoscalerCall) Return(arg0 *v1alpha1.ClusterAutoscaler, arg1 error) *MockClusterServiceClientSpecUpdateClusterAutoscalerCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecUpdateClusterAutoscalerCall) Do(f func(context.Context, ocm.InternalID, *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.ClusterAutoscaler, error)) *MockClusterServiceClientSpecUpdateClusterAutoscalerCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecUpdateClusterAutoscalerCall) DoAndReturn(f func(context.Context, ocm.InternalID, *v1alpha1.ClusterAutoscalerBuilder) (*v1alpha1.ClusterAutoscaler, error)) *MockClusterServiceClientSpecUpdateClusterAutoscalerCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpdateExternalAuth mocks base method.
 func (m *MockClusterServiceClientSpec) UpdateExternalAuth(ctx context.Context, internalID ocm.InternalID, builder *v1alpha1.ExternalAuthBuilder) (*v1alpha1.ExternalAuth, error) {
 	m.ctrl.T.Helper()

@@ -111,6 +111,21 @@ func (csc *clusterServiceClientWithTracing) UpdateCluster(ctx context.Context, i
 	return cluster, err
 }
 
+func (csc *clusterServiceClientWithTracing) UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.UpdateClusterAutoscaler")
+	defer span.End()
+
+	autoscaler, err := csc.csc.UpdateClusterAutoscaler(ctx, internalID, builder)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	// FIXME Can't call tracing.SetClusterAttributes to identify the cluster.
+	//       Do we need a tracing function that picks apart an InternalID?
+
+	return autoscaler, err
+}
+
 func (csc *clusterServiceClientWithTracing) DeleteCluster(ctx context.Context, internalID InternalID) error {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.DeleteCluster")
 	defer span.End()
