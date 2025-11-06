@@ -715,7 +715,7 @@ defaults:
       public: false
       privateLinkLocation: "{{ .ctx.region }}"
     frontdoor:
-      manage: false
+      manage: true
       subdomain: oic
       name: arohcp{{ .ctx.environment }}
       sku: Premium_AzureFrontDoor
