@@ -632,14 +632,14 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, nil)
+	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
@@ -885,7 +885,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -893,6 +893,12 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+	_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldCosmosCluster.InternalID, newClusterServiceAutoscalerBuilder)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
+		return
+	}
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldCosmosCluster.InternalID, newClusterServiceClusterBuilder)
 	if err != nil {
 		logger.Error(err.Error())
