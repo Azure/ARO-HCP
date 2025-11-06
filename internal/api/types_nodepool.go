@@ -79,7 +79,7 @@ type OSDiskProfile struct {
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty" validate:"min=1,max=200"`
+	Min int32 `json:"min,omitempty" validate:"min=0,max=200"`
 	Max int32 `json:"max,omitempty" validate:"gtefield=Min,max=200"`
 }
 

@@ -246,14 +246,14 @@ func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fl
 
 	errs := field.ErrorList{}
 
-	//Min int32 `json:"min,omitempty" validate:"min=1,max=200"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 1)...)
+	//Min int32 `json:"min,omitempty" validate:"min=0,max=200"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 0)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), MaxNodePoolNodes)...)
 
 	//Max int32 `json:"max,omitempty" validate:"gtefield=Min,max=200"`
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("max"), &newObj.Max, safe.Field(oldObj, toNodePoolAutoScalingMax), MaxNodePoolNodes)...)
 
-	if newObj.Min >= 1 && newObj.Min <= MaxNodePoolNodes && newObj.Max <= MaxNodePoolNodes {
+	if newObj.Min >= 0 && newObj.Min <= MaxNodePoolNodes && newObj.Max <= MaxNodePoolNodes {
 		errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("max"), &newObj.Max, safe.Field(oldObj, toNodePoolAutoScalingMax), newObj.Min)...)
 	}
 

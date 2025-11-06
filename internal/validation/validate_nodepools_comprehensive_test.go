@@ -60,6 +60,19 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
+			name: "valid nodepool with autoscaling min=0 - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				np.Properties.Replicas = 0
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "valid nodepool with labels - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -323,13 +336,13 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
-					Min: 0,
+					Min: -1,
 					Max: 5,
 				}
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 1", fieldPath: "properties.autoScaling.min"},
+				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -355,13 +368,13 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
-					Min: 0,
+					Min: -1,
 					Max: 100,
 				}
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 1", fieldPath: "properties.autoScaling.min"},
+				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
