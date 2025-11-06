@@ -51,7 +51,7 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 		timeout := lockClient.GetDefaultTimeToLive()
 		lock, err := lockClient.AcquireLock(ctx, subscriptionID, &timeout)
 		if err != nil {
-			message := fmt.Sprintf("Failed to acquire lock for subscription '%s': ", subscriptionID)
+			message := "Failed to acquire lock: "
 			if errors.Is(err, context.DeadlineExceeded) {
 				message += "timed out"
 				lockClient.SetRetryAfterHeader(w.Header())
@@ -65,7 +65,7 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 			logger.Error(message)
 			return
 		}
-		logger.Info(fmt.Sprintf("Acquired lock for subscription '%s'", subscriptionID))
+		logger.Info("Acquired lock")
 
 		// Hold the lock until the remaining handlers complete.
 		// If we lose the lock the context will be cancelled.
@@ -76,11 +76,11 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 			if lock != nil {
 				err = lockClient.ReleaseLock(ctx, lock)
 				if err == nil {
-					logger.Info(fmt.Sprintf("Released lock for subscription '%s'", subscriptionID))
+					logger.Info("Released lock")
 				} else {
 					// Failure here is non-fatal but still log the error.
 					// The lock's TTL ensures it will be released eventually.
-					logger.Error(fmt.Sprintf("Failed to release lock for subscription '%s': %v", subscriptionID, err))
+					logger.Error(fmt.Sprintf("Failed to release lock: %v", err))
 				}
 			}
 		}()

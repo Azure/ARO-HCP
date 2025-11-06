@@ -740,6 +740,7 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *sl
 		span.RecordError(err)
 		return
 	}
+	logger.Info("Acquired lock")
 
 	lockedCtx, stop := s.lockClient.HoldLock(ctx, lock)
 	fn(lockedCtx)
@@ -747,7 +748,9 @@ func (s *OperationsScanner) withSubscriptionLock(ctx context.Context, logger *sl
 
 	if lock != nil {
 		nonFatalErr := s.lockClient.ReleaseLock(ctx, lock)
-		if nonFatalErr != nil {
+		if nonFatalErr == nil {
+			logger.Info("Released lock")
+		} else {
 			// Failure here is non-fatal but still log the error.
 			// The lock's TTL ensures it will be released eventually.
 			logger.Warn(fmt.Sprintf("Failed to release lock: %v", nonFatalErr))
