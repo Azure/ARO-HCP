@@ -180,7 +180,7 @@ var _ = Describe("Customer", func() {
 			}
 			fmt.Fprintf(GinkgoWriter, "Issuer OU: %v", actualCert.Issuer.OrganizationalUnit)
 			return actualCert, nil
-		}).WithTimeout(2*time.Minute).WithPolling(10*time.Second).To(SatisfyAll(
+		}).WithTimeout(4*time.Minute).WithPolling(10*time.Second).To(SatisfyAll(
 			HaveField("Issuer.CommonName", MatchRegexp(`Microsoft\sAzure\sRSA\sTLS\sIssuing\sCA\s[0-9]+`)),
 			HaveField("Issuer.Organization", ContainElement("Microsoft Corporation")),
 		), "expect certificate to be issued by Microsoft")

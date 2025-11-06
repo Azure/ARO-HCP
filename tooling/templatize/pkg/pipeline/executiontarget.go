@@ -18,13 +18,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
-func LookupSubscriptionID(subscriptions map[string]string) func(ctx context.Context, subscriptionName string) (string, error) {
+type SubscriptionLookup func(ctx context.Context, subscriptionName string) (string, error)
+
+func LookupSubscriptionID(subscriptions map[string]string) SubscriptionLookup {
 	return func(ctx context.Context, subscriptionName string) (string, error) {
 		// First, check in the explicit registry
 		if id, found := subscriptions[subscriptionName]; found {
@@ -33,7 +35,7 @@ func LookupSubscriptionID(subscriptions map[string]string) func(ctx context.Cont
 
 		// Otherwise, do a lookup against Azure using the display name
 		// Create a new Azure identity client
-		cred, err := azauth.GetAzureTokenCredentials()
+		cred, err := cmdutils.GetAzureTokenCredentials()
 		if err != nil {
 			return "", fmt.Errorf("failed to obtain a credential: %v", err)
 		}

@@ -25,6 +25,21 @@ spec:
         checksum/config: '{{ include (print $.Template.BasePath "/maestro.secret.yaml") . | sha256sum }}'
         checksum/db: '{{ include (print $.Template.BasePath "/pg.secret.yaml") . | sha256sum }}'
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: maestro
+              topologyKey: topology.kubernetes.io/zone
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: maestro
+              topologyKey: kubernetes.io/hostname
       serviceAccountName: '{{ .Values.maestro.serviceAccount }}'
       volumes:
       - name: db

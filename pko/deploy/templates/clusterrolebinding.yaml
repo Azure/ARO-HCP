@@ -10,5 +10,5 @@ roleRef:
   name: cluster-admin
 subjects:
 - kind: ServiceAccount
-  name: package-operator
-  namespace: package-operator-system
+  name: '{{ .Values.serviceAccount.name }}'
+  namespace: '{{ .Release.Namespace }}'

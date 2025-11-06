@@ -24,6 +24,10 @@ run-hcp:
 	go run ./...  --config-file ../../observability/observability-hcp.yaml $(EXTRA_FLAGS)
 .PHONY: run-hcp
 
+run-msft:
+	go run ./...  --config-file ../../observability/observability-msft.yaml $(EXTRA_FLAGS)
+.PHONY: run-msft
+
 run-recording-rules:
 	go run ./...  --config-file ../../observability/observability-recording-rules.yaml
 .PHONY: run-recording-rules

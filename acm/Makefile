@@ -1,4 +1,4 @@
--include ../setup-env.mk
+-include ../setup-templatize-env.mk
 
 ACM_OPERATOR_BUNDLE_IMAGE ?= ${ACM_BUNDLE_REGISTRY}/${ACM_BUNDLE_REPOSITORY}@${ACM_BUNDLE_DIGEST}
 MCE_OPERATOR_BUNDLE_IMAGE ?= ${MCE_BUNDLE_REGISTRY}/${MCE_BUNDLE_REPOSITORY}@${MCE_BUNDLE_DIGEST}
@@ -23,25 +23,6 @@ export DRY_RUN
 export ACM_VERSION
 export ACM_OPERATOR_BUNDLE_IMAGE
 
-deploy:
-	./deploy.sh
-
-scale:
-ifneq ($(DRY_RUN),true)
-	@if [  "${MCE_PAUSE_RECONCILIATION}" != "true" ]; then \
-		echo "MCE_PAUSE_RECONCILIATION is not set, skipping scale down"; \
-		exit 0; \
-	fi; \
-	echo "Waiting for MCE multiclusterengine to reach Paused status..."; \
-	kubectl wait --for=jsonpath='{.status.phase}'=Paused mce multiclusterengine -n ${MCE_NS} --timeout=600s; \
-	echo "Phase is Paused, scaling down all deployments to 0..."; \
-	kubectl -n ${MCE_NS} scale deployment/multicluster-engine-operator --replicas=0; \
-	echo "All deployments scaled down to 0 replicas"
-endif
-
-deploy-policies:
-	../hack/helm.sh policy deploy/helm/policies ${POLICY_NS}
-
 policy-helm-chart:
 	./update-policy-chart.sh "${MCE_CONFIG_DIR}/charts/policy"
 
@@ -60,4 +41,4 @@ mce-helm-chart:
 helm-charts: mce-helm-chart policy-helm-chart
 	make -C ../ yamlfmt
 
-.PHONY: deploy deploy-policies scale helm-charts mce-helm-chart policy-helm-chart
+.PHONY: helm-charts mce-helm-chart policy-helm-chart

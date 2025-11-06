@@ -210,6 +210,86 @@ spec:
 			expectError: true,
 			errorMsg:    "error unmarshaling configFile",
 		},
+		{
+			name: "config with includedAlertsByGroup",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  includedAlertsByGroup:
+  - groupName: test.rules
+    alerts:
+    - IncludedAlert
+    - AnotherIncludedAlert
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: test.rules
+    rules:
+    - alert: IncludedAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.includedAlerts, 1)
+				assert.Contains(t, opts.includedAlerts, "test.rules")
+				assert.Len(t, opts.includedAlerts["test.rules"], 2)
+				assert.Contains(t, opts.includedAlerts["test.rules"], "IncludedAlert")
+				assert.Contains(t, opts.includedAlerts["test.rules"], "AnotherIncludedAlert")
+			},
+		},
+		{
+			name: "config with includedAlertsByGroup (multiple groups)",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  includedAlertsByGroup:
+  - groupName: test.rules
+    alerts:
+    - IncludedAlert
+    - AnotherIncludedAlert
+  - groupName: other.rules
+    alerts:
+    - OtherAlert
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: test.rules
+    rules:
+    - alert: IncludedAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.includedAlerts, 2)
+				assert.Contains(t, opts.includedAlerts, "test.rules")
+				assert.Len(t, opts.includedAlerts["test.rules"], 2)
+				assert.Contains(t, opts.includedAlerts["test.rules"], "IncludedAlert")
+				assert.Contains(t, opts.includedAlerts["test.rules"], "AnotherIncludedAlert")
+				assert.Contains(t, opts.includedAlerts, "other.rules")
+				assert.Len(t, opts.includedAlerts["other.rules"], 1)
+				assert.Contains(t, opts.includedAlerts["other.rules"], "OtherAlert")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -289,29 +369,31 @@ func TestOptionsRunTests(t *testing.T) {
 }
 
 func TestOptionsGenerate(t *testing.T) {
-	tmpDir := t.TempDir()
-	outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
+	t.Run("basic generation", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
 
-	opts := &Options{
-		outputBicep: outputFile,
-		ruleFiles: []alertingRuleFile{
-			{
-				Rules: monitoringv1.PrometheusRule{
-					Spec: monitoringv1.PrometheusRuleSpec{
-						Groups: []monitoringv1.RuleGroup{
-							{
-								Name:     "test.rules",
-								Interval: (*monitoringv1.Duration)(ptr.To("30s")),
-								Rules: []monitoringv1.Rule{
-									{
-										Alert: "TestAlert",
-										Expr:  intstr.FromString("up == 0"),
-										For:   (*monitoringv1.Duration)(ptr.To("5m")),
-										Labels: map[string]string{
-											"severity": "critical",
-										},
-										Annotations: map[string]string{
-											"summary": "Test alert",
+		opts := &Options{
+			outputBicep: outputFile,
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name:     "test.rules",
+									Interval: (*monitoringv1.Duration)(ptr.To("30s")),
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "TestAlert",
+											Expr:  intstr.FromString("up == 0"),
+											For:   (*monitoringv1.Duration)(ptr.To("5m")),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+											Annotations: map[string]string{
+												"summary": "Test alert",
+											},
 										},
 									},
 								},
@@ -320,22 +402,73 @@ func TestOptionsGenerate(t *testing.T) {
 					},
 				},
 			},
-		},
-	}
+		}
 
-	err := opts.Generate()
-	assert.NoError(t, err)
+		err := opts.Generate()
+		assert.NoError(t, err)
 
-	content, err := os.ReadFile(outputFile)
-	assert.NoError(t, err)
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
 
-	generated := string(content)
-	assert.Contains(t, generated, "#disable-next-line no-unused-params")
-	assert.Contains(t, generated, "param azureMonitoring string")
-	assert.Contains(t, generated, "param actionGroups array")
-	assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
-	assert.Contains(t, generated, "alert: 'TestAlert'")
-	assert.Contains(t, generated, "severity: 2")
+		generated := string(content)
+		assert.Contains(t, generated, "#disable-next-line no-unused-params")
+		assert.Contains(t, generated, "param azureMonitoring string")
+		assert.Contains(t, generated, "param actionGroups array")
+		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
+		assert.Contains(t, generated, "alert: 'TestAlert'")
+		assert.Contains(t, generated, "severity: 2")
+	})
+
+	t.Run("with included alerts", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"AllowedAlert"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "AllowedAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+										{
+											Alert: "BlockedAlert",
+											Expr:  intstr.FromString("down == 1"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+
+		generated := string(content)
+		assert.Contains(t, generated, "alert: 'AllowedAlert'")
+		assert.NotContains(t, generated, "alert: 'BlockedAlert'")
+	})
 }
 
 func TestWriteGroups(t *testing.T) {

@@ -28,6 +28,15 @@ environments:
     ev2Cloud: public
     cxStamp: 1
     regionShortSuffix: "${USER:0:4}"
+- name: prow
+  description: |
+    Used for PR end-to-end tests in Prow.
+  defaults:
+    region: westus3
+    cloud: dev
+    ev2Cloud: public
+    cxStamp: 1
+    regionShortSuffix: "pj${BUILD_ID: -3}"
 - name: perf
   description: |
     Used for performance testing.

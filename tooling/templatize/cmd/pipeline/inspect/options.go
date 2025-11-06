@@ -104,8 +104,8 @@ func (o *RawInspectOptions) Validate(ctx context.Context) (*ValidatedInspectOpti
 	}, nil
 }
 
-func (o *ValidatedInspectOptions) Complete() (*InspectOptions, error) {
-	completed, err := o.ValidatedPipelineOptions.Complete()
+func (o *ValidatedInspectOptions) Complete(ctx context.Context) (*InspectOptions, error) {
+	completed, err := o.ValidatedPipelineOptions.Complete(ctx)
 	if err != nil {
 		return nil, err
 	}

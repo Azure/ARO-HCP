@@ -6,8 +6,8 @@ param azureMonitoringWorkspaceId string
 
 param actionGroups array
 
-module prometheus 'rules/msftPrometheusAlertingRules.bicep' = {
-  name: 'msftPrometheusAlertingRules'
+module prometheus 'rules/generatedMsftPrometheusAlertingRules.bicep' = {
+  name: 'generatedMsftPrometheusAlertingRules'
   params: {
     azureMonitoring: azureMonitoringWorkspaceId
     actionGroups: actionGroups

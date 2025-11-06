@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 )
 
 func TestMockedPipelineRun(t *testing.T) {
@@ -113,10 +115,10 @@ func TestMockedPipelineRun(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		logger.Info("running step", "resourceGroup", executionTarget.GetResourceGroup(), "step", s.StepName())
 
@@ -124,12 +126,25 @@ func TestMockedPipelineRun(t *testing.T) {
 		defer lock.Unlock()
 		order = append(order, types.StepDependency{ResourceGroup: executionTarget.GetResourceGroup(), Step: s.StepName()})
 
-		return nil, nil
+		return nil, nil, nil
+	}
+
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
 	}
 
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -249,10 +264,10 @@ func TestMockedPipelineRunError(t *testing.T) {
 	lock := sync.Mutex{}
 	var order []types.StepDependency
 
-	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, error) {
+	var executor Executor = func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
 		logger, err := logr.FromContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		logger.Info("running step", "resourceGroup", executionTarget.GetResourceGroup(), "step", s.StepName())
 
@@ -261,15 +276,28 @@ func TestMockedPipelineRunError(t *testing.T) {
 		order = append(order, types.StepDependency{ResourceGroup: executionTarget.GetResourceGroup(), Step: s.StepName()})
 
 		if s.StepName() == "second" {
-			return nil, fmt.Errorf("oops")
+			return nil, nil, fmt.Errorf("oops")
 		}
 
-		return nil, nil
+		return nil, nil, nil
+	}
+
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
 	}
 
 	if _, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},
@@ -314,9 +342,22 @@ func TestPipelineRun(t *testing.T) {
 		},
 	}
 
+	t.Helper()
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+
+	logger.Info("starting bicep language server...")
+	lspClient, err := bicep.StartJSONRPCServer(ctx, logger, false)
+	if err != nil {
+		t.Fatalf("failed to start bicep language server: %v", err)
+	}
+
 	output, err := RunPipeline(&topology.Service{
 		ServiceGroup: "Microsoft.Azure.ARO.HCP.Test",
 	}, pipeline, logr.NewContext(t.Context(), testr.New(t)), &PipelineRunOptions{
+		BaseRunOptions: BaseRunOptions{
+			BicepClient: lspClient,
+		},
 		SubsciptionLookupFunc: func(_ context.Context, _ string) (string, error) {
 			return "test", nil
 		},

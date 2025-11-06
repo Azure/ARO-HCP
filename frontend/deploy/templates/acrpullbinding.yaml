@@ -1,8 +1,8 @@
 apiVersion: acrpull.microsoft.com/v1beta2
 kind: AcrPullBinding
 metadata:
-  name: pull-binding
-  namespace: '{{ .Release.namespace }}'
+  name: frontend-pull-binding
+  namespace: '{{ .Release.Namespace }}'
 spec:
   acr:
     environment: PublicCloud

@@ -402,7 +402,6 @@ func (tc *perItOrDescribeTestContext) getARMResourcesClientFactoryUnlocked(ctx c
 	if tc.armResourcesClientFactory != nil {
 		return tc.armResourcesClientFactory, nil
 	}
-
 	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
 	if err != nil {
 		return nil, err
@@ -447,7 +446,7 @@ func (tc *perItOrDescribeTestContext) get20240610ClientFactoryUnlocked(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	clientFactory, err := hcpsdk20240610preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
 	if err != nil {
 		return nil, err
 	}

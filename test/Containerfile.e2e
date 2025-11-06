@@ -1,11 +1,11 @@
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-cbl-mariner2.0 as builder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.24-fips-azurelinux3.0 as builder
 
 WORKDIR /app
 COPY test /app/test
 COPY internal /app/internal
 RUN cd test/e2e && make e2etest
 
-FROM --platform=linux/amd64 mcr.microsoft.com/cbl-mariner/distroless/base:2.0-nonroot
+FROM --platform=linux/amd64 mcr.microsoft.com/azurelinux/distroless/base:3.0
 
 WORKDIR /
 ENV SETUP_FILEPATH=/test-artifacts/e2e-setup.json

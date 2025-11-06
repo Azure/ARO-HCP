@@ -20,9 +20,8 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 func GetKubeConfig(ctx context.Context, subscriptionID, resourceGroupName, aksClusterName string) (string, error) {
@@ -31,7 +30,7 @@ func GetKubeConfig(ctx context.Context, subscriptionID, resourceGroupName, aksCl
 	}
 
 	// Create a new Azure identity client
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	if err != nil {
 		return "", fmt.Errorf("failed to obtain a credential: %v", err)
 	}

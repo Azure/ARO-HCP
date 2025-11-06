@@ -4,6 +4,7 @@ metadata:
   labels:
     app: aro-hcp-backend
   name: aro-hcp-backend
+  namespace: '{{ .Release.Namespace }}'
 spec:
   progressDeadlineSeconds: 600
   replicas: {{ .Values.deployment.replicas }}
@@ -22,6 +23,21 @@ spec:
         app: aro-hcp-backend
         azure.workload.identity/use: "true"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: aro-hcp-backend
+              topologyKey: topology.kubernetes.io/zone
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: aro-hcp-backend
+              topologyKey: kubernetes.io/hostname
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
       containers:
       - name: aro-hcp-backend

@@ -12,12 +12,6 @@ runtimeMode: "aro-hcp"
 defaultExpiration: "0"
 # Maximum expiration duration possible for any newly created cluster (e.g. 72h means the expiration date cannot be greater than 72h). 0 means no maximum expiration value possible.
 maximumExpiration: "0"
-# Duration since cluster creation after which the first notification for stale cluster should be sent.
-firstStaleClusterNotification: "24h" # 1 day
-# Duration since cluster creation after which the second notification for stale cluster should be sent.
-secondStaleClusterNotification: "600h" # 25 days
-# Duration after which a stale cluster can be cleaned up.
-staleClusterAutocleanupWindow: "720h" # 30 days
 # Image Registry
 imageRegistry: ""
 # Image Repository

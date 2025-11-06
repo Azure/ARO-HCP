@@ -29,6 +29,28 @@
          }
        ]
     },
+    "entraApplication": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the application. Needs to be unique within the tenant. https://eng.ms/docs/microsoft-security/identity/auth/auth-sts-protocols/ests/ests-troubleshooting-guides/tsgs/3p-apps-build-out-automation/gotchas-and-known-issues"
+        },
+        "useSNI": {
+          "type": "boolean"
+        },
+        "ownerIds": {
+          "$ref": "#/definitions/csv"
+        },
+        "manage": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "ownerIds"
+      ]
+    },
     "semVer": {
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
@@ -526,6 +548,26 @@
         "digest"
       ]
     },
+    "containerImageSha": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string",
+          "pattern": "^$|^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "repository",
+        "sha"
+      ]
+    },
     "keyColonValueCSV": {
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
@@ -585,7 +627,7 @@
         "namespace": {
           "type": "string"
         },
-        "namespaceLabel": {
+        "namespaceNetworkPolicyGroup": {
           "type": "string"
         },
         "prometheusOperator": {
@@ -593,7 +635,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             },
             "version": {
               "type": "string"
@@ -605,7 +647,7 @@
           "additionalProperties": false,
           "properties": {
             "image": {
-              "$ref": "#/definitions/containerImage"
+              "$ref": "#/definitions/containerImageSha"
             },
             "version": {
               "type": "string"
@@ -619,6 +661,15 @@
           }
         },
         "prometheusConfigReloader": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImageSha"
+            }
+          }
+        },
+        "kubeStateMetrics": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -743,6 +794,9 @@
     "cloud": {
       "type": "string"
     },
+    "azureRegionAvailabilityZoneCount": {
+      "type": "integer"
+    },
     "kvCertOfficerPrincipalId": {
       "type": "string",
       "description": "The principal ID of the cert officer that will be used to manage KV certificate issuers"
@@ -825,18 +879,13 @@
             },
             "bundle": {
               "$ref": "#/definitions/containerImage"
-            },
-            "pauseReconciliation": {
-              "type": "boolean",
-              "description": "Pause reconciliation of ACM MCE resources like CRDs and deployments."
             }
           },
           "additionalProperties": false,
           "required": [
             "version",
             "mirrorAdditionalVersions",
-            "bundle",
-            "pauseReconciliation"
+            "bundle"
           ]
         }
       },
@@ -857,10 +906,18 @@
         },
         "remotePhaseManager": {
           "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
         }
       },
       "additionalProperties": false,
       "required": [
+        "managedIdentityName",
+        "k8s",
         "imagePackage",
         "imageManager",
         "remotePhaseManager"
@@ -1067,6 +1124,46 @@
         "tracing",
         "k8s",
         "managedIdentityName"
+      ]
+    },
+    "adminApi": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the frontend to interact with Azure"
+        },
+        "cert": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 127,
+              "pattern": "^[a-zA-Z0-9-]+$"
+            },
+            "issuer": {
+              "$ref": "#/definitions/certificateIssuer"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "issuer"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "k8s",
+        "managedIdentityName",
+        "cert"
       ]
     },
     "frontend": {
@@ -1386,7 +1483,8 @@
             "keyVault",
             "certificate",
             "allowedAcisExtensions",
-            "genevaActionsPrincipalId"
+            "genevaActionsPrincipalId",
+            "application"
           ],
           "properties": {
             "serviceTag": {
@@ -1423,6 +1521,9 @@
             },
             "enabled": {
               "type": "boolean"
+            },
+            "application": {
+              "$ref": "#/definitions/entraApplication"
             }
           }
         }
@@ -2044,16 +2145,12 @@
         },
         "blackboxExporterImage": {
           "$ref": "#/definitions/containerImage"
-        },
-        "bundleVersion": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
         "operatorImage",
-        "blackboxExporterImage",
-        "bundleVersion"
+        "blackboxExporterImage"
       ]
     },
     "logs": {
@@ -2184,6 +2281,9 @@
             },
             "msiName": {
               "type": "string"
+            },
+            "manage": {
+              "type": "boolean"
             }
           },
           "additionalProperties": false,
@@ -2193,7 +2293,8 @@
             "sku",
             "keyVault",
             "useManagedCertificates",
-            "msiName"
+            "msiName",
+            "manage"
           ]
         }
       },
@@ -2208,6 +2309,10 @@
     },
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
+    },
+    "regionBuildout": {
+      "type": "boolean",
+      "description": "Indicates if the region is still in the process of being deployed. When true, various operational features are disabled to prevent issues during deployment, including: ICM alerting. This should be set to false once the region is fully operational"
     },
     "serviceKeyVault": {
       "type": "object",
@@ -2363,6 +2468,10 @@
     "keyVaultDNSSuffix": {
       "type": "string"
     },
+    "acrDNSSuffix": {
+      "type": "string",
+      "description": "The DNS suffix for Azure Container Registry (e.g., azurecr.io, azurecr.us, azurecr.cn)"
+    },
     "e2e": {
       "type": "object",
       "properties": {
@@ -2425,11 +2534,13 @@
     "oidc",
     "region",
     "regionRG",
+    "regionBuildout",
     "serviceKeyVault",
     "svc",
     "msiRp",
     "msiCredentialsRefresher",
     "keyVaultDNSSuffix",
+    "acrDNSSuffix",
     "e2e"
   ]
 }

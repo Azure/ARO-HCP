@@ -273,6 +273,9 @@ param azureFrontDoorKeyTagValue string
 @description('Whether to use managed certificates for the Azure Front Door')
 param azureFrontDoorUseManagedCertificates bool
 
+@description('Whether to manage the Azure Front Door integration with the OIDC storage account')
+param azureFrontDoorManage bool
+
 @description('MSI that will be used to run the deploymentScript')
 param globalMSIId string
 
@@ -373,6 +376,21 @@ param genevaRpLogsName string
 @description('Should geneva certificates be managed')
 param genevaManageCertificates bool
 
+@description('The name of the Admin API managed identity')
+param adminApiMIName string
+
+@description('The namespace of the Admin API managed identity')
+param adminApiNamespace string
+
+@description('The service account name of the Admin API managed identity')
+param adminApiServiceAccountName string
+
+@description('The name of the Admin API certificate')
+param adminApiIngressCertName string
+
+@description('The issuer of the Admin API certificate')
+param adminApiIngressCertIssuer string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -430,6 +448,11 @@ var workloadIdentities = items({
     uamiName: msiRefresherMIName
     namespace: msiRefresherNamespace
     serviceAccountName: msiRefresherServiceAccountName
+  }
+  admin_api_wi: {
+    uamiName: adminApiMIName
+    namespace: adminApiNamespace
+    serviceAccountName: adminApiServiceAccountName
   }
 })
 
@@ -758,6 +781,7 @@ module oidc '../modules/oidc/region/main.bicep' = {
     globalMSIId: globalMSIId
     deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
+    frontDoorManage: azureFrontDoorManage
   }
 }
 
@@ -822,6 +846,50 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   params: {
     zoneName: regionalSvcDNSZoneName
     recordName: frontendDnsName
+    ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
+    ttl: 300
+  }
+}
+
+//
+//   A D M I N   A P I
+//
+
+var adminApiDnsName = 'admin'
+var adminApiDnsFQDN = '${adminApiDnsName}.${regionalSvcDNSZoneName}'
+
+module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'admin-api-cert-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    subjectName: 'CN=${adminApiDnsFQDN}'
+    certName: adminApiIngressCertName
+    keyVaultManagedIdentityId: globalMSIId
+    dnsNames: [
+      adminApiDnsFQDN
+    ]
+    issuerName: adminApiIngressCertIssuer
+  }
+}
+
+module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'aksClusterKeyVaultSecretsProviderMI-${adminApiIngressCertName}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: adminApiIngressCertName
+  }
+}
+
+module adminApiDNS '../modules/dns/a-record.bicep' = {
+  name: 'admin-api-dns'
+  scope: resourceGroup(regionalResourceGroup)
+  params: {
+    zoneName: regionalSvcDNSZoneName
+    recordName: adminApiDnsName
     ipAddress: svcCluster.outputs.istioIngressGatewayIPAddress
     ttl: 300
   }

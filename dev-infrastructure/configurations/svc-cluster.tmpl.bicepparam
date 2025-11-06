@@ -90,6 +90,12 @@ param msiRefresherServiceAccountName = '{{ .msiCredentialsRefresher.k8s.serviceA
 param serviceKeyVaultName = '{{ .serviceKeyVault.name }}'
 param serviceKeyVaultResourceGroup = '{{ .serviceKeyVault.rg }}'
 
+param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
+param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
+param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
+param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
+param adminApiIngressCertIssuer = '{{ .adminApi.cert.issuer }}'
+
 // ACR Resource IDs
 param ocpAcrResourceId = '__ocpAcrResourceId__'
 param svcAcrResourceId = '__svcAcrResourceId__'
@@ -106,6 +112,7 @@ param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorKeyTagKey = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorKeyTagValue = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
+param azureFrontDoorManage = {{ .oidc.frontdoor.manage }}
 
 param globalMSIId = '__globalMSIId__'
 

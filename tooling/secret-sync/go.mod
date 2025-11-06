@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/secret-sync
 go 1.24.3
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251022201739-a960998d3ef2
+	github.com/Azure/ARO-Tools v0.0.0-20251106113945-b350ba3386bc
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.1
@@ -24,10 +24,10 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.42.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/net v0.45.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	k8s.io/apimachinery v0.34.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )

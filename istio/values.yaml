@@ -1,2 +1,17 @@
 istioVersions:
 - "{{ .svc.istio.versions }}"
+mise:
+  deploy: {{ .mise.deploy }}
+  namespace: "mise"
+  image:
+    registry: "{{ .acr.svc.name }}.azurecr.io"
+    repository: "{{ .mise.image.repository }}"
+    digest: "{{ .mise.image.digest }}"
+  tenantId: "{{ .mise.tenantId }}"
+  azureAdInstance: "{{ .mise.azureAdInstance }}"
+  firstPartyAppId: "{{ .mise.firstPartyAppId }}"
+  armInstance: "{{ .mise.armInstance }}"
+  armAppId: "{{ .mise.armAppId }}"
+  tracing:
+    address: "{{ .mise.tracing.address }}"
+    exporter: "{{ .mise.tracing.exporter }}"

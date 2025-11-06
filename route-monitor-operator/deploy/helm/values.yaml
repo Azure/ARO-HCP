@@ -1,0 +1,13 @@
+# Templated values file for pipeline deployment
+# This file is used by the Helm pipeline step and contains templated values
+# The values-generated.yaml file contains the actual values from the OLM bundle
+# Image configuration with pipeline templating
+imageRegistryOperator: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+imageRepositoryOperator: '{{ .routeMonitorOperator.operatorImage.repository }}'
+imageDigestOperator: '{{ .routeMonitorOperator.operatorImage.digest }}'
+imageRegistryManager: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+imageRepositoryManager: '{{ .routeMonitorOperator.operatorImage.repository }}'
+imageDigestManager: '{{ .routeMonitorOperator.operatorImage.digest }}'
+imageRegistryBlackbox: '{{ .acr.svc.name }}.{{ .acrDNSSuffix }}'
+imageRepositoryBlackbox: '{{ .routeMonitorOperator.blackboxExporterImage.repository }}'
+imageDigestBlackbox: '{{ .routeMonitorOperator.blackboxExporterImage.digest }}'

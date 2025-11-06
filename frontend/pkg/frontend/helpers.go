@@ -32,7 +32,7 @@ import (
 
 // CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
-// within the same provider namespace are in a "Deleting" state.
+// within the same provider namespace are in a "Provisioning" or "Deleting" state.
 func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) *arm.CloudError {
 	logger := LoggerFromContext(ctx)
 
@@ -82,6 +82,21 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 		if err != nil {
 			logger.Error(err.Error())
 			return arm.NewInternalServerError()
+		}
+
+		// XXX There is still a small opportunity for nested resource requests to get
+		//     through while the parent resource is in provisioning state "Accepted",
+		//     which precedes "Provisioning". The problem is "Accepted" also precedes
+		//     "Updating", which should NOT be blocked.
+		//
+		//     Cluster Service will catch and correctly reject such requests, so I'm
+		//     leaving this gap open until Cluster Service is out of the picture and
+		//     the RP has more direct control over resource provisioning.
+		if parentDoc.ProvisioningState == arm.ProvisioningStateProvisioning {
+			return arm.NewConflictError(
+				doc.ResourceID,
+				"Cannot %s resource while parent resource is provisioning",
+				strings.ToLower(string(operationRequest)))
 		}
 
 		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {

@@ -1,10 +1,13 @@
 from resources_cleanup import (
     resource_group_has_persist_tag_as_true,
     resource_group_is_managed,
-    time_delta_greater_than_two_days,
+    older_than,
     get_date_time_from_str,
     get_dry_run,
-
+    get_boolean_from_string,
+    get_creation_time_of_resource_group,
+    get_subscription_id,
+    get_client_id,
 )
 import datetime
 from collections import namedtuple
@@ -41,15 +44,16 @@ def test_resource_group_is_managed(input_resource_group, expected):
 
 
 @pytest.mark.parametrize(
-    "time1,time2,expected",
+    "now_time,creation_time,expected",
     [
-        (datetime.datetime(year=2024, month=1, day=22), datetime.datetime(year=2024, month=1, day=25), True),
-        (datetime.datetime(year=2024, month=1, day=23), datetime.datetime(year=2024, month=1, day=25), False),
-        (datetime.datetime(year=2024, month=1, day=25), datetime.datetime(year=2024, month=1, day=25), False),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=22, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=23, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc), False),
     ]
 )
-def test_time_delta_greater_than_two_days(time1, time2, expected):
-    assert time_delta_greater_than_two_days(time1,time2) == expected
+def test_older_than_two_days(monkeypatch, now_time, creation_time, expected):
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) == expected
 
 
 Expected_date = namedtuple("Expected_date", ["year", "month", "day", "hour", "minute", "second"])
@@ -92,10 +96,10 @@ def test_get_dry_run_from_automation_variable(monkeypatch):
     monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "false")
     assert get_dry_run() is False
 
-    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "1")
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "TRUE")
     assert get_dry_run() is True
 
-    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "0")
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "FALSE")
     assert get_dry_run() is False
 
 def test_get_dry_run_from_env(monkeypatch):
@@ -107,10 +111,10 @@ def test_get_dry_run_from_env(monkeypatch):
     monkeypatch.setenv("DRY_RUN", "false")
     assert get_dry_run() is False
 
-    monkeypatch.setenv("DRY_RUN", "1")
+    monkeypatch.setenv("DRY_RUN", "TRUE")
     assert get_dry_run() is True
 
-    monkeypatch.setenv("DRY_RUN", "0")
+    monkeypatch.setenv("DRY_RUN", "FALSE")
     assert get_dry_run() is False
 
 def test_get_dry_run_env_invalid(monkeypatch, capsys):
@@ -126,3 +130,163 @@ def test_get_dry_run_default(monkeypatch, capsys):
     assert get_dry_run() is False
     captured = capsys.readouterr()
     assert "Info: DRY_RUN not set in automation variables or environment" in captured.out
+
+
+# Tests for get_boolean_from_string function
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("true", True),
+        ("True", True),
+        ("TRUE", True),
+        ("TrUe", True),
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        ("FaLsE", False),
+        ("  true  ", True),  # with whitespace
+        ("  false  ", False),  # with whitespace
+        ("  TRUE  ", True),
+        ("  FALSE  ", False),
+    ]
+)
+def test_get_boolean_from_string(input_str, expected):
+    assert get_boolean_from_string(input_str) == expected
+
+
+def test_get_boolean_from_string_invalid_value():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string("maybe")
+    assert "Invalid truth value" in str(exc_info.value)
+
+
+def test_get_boolean_from_string_non_string_input():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string(123)
+    assert "Expected a string" in str(exc_info.value)
+
+
+def test_get_boolean_from_string_none_input():
+    with pytest.raises(ValueError) as exc_info:
+        get_boolean_from_string(None)
+    assert "Expected a string" in str(exc_info.value)
+
+
+# Tests for older_than with 15 days
+@pytest.mark.parametrize(
+    "now_time,creation_time,expected",
+    [
+        (datetime.datetime(year=2024, month=1, day=17, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=1, day=20, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
+        (datetime.datetime(year=2024, month=1, day=16, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=15, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
+        (datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), False),
+        # Test reverse order (creation time before now)
+        (datetime.datetime(year=2024, month=1, day=20, tzinfo=datetime.timezone.utc), datetime.datetime(year=2024, month=1, day=1, tzinfo=datetime.timezone.utc), True),
+    ]
+)
+def test_older_than_15_days(monkeypatch, now_time, creation_time, expected):
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=15) == expected
+
+
+# Tests for get_creation_time_of_resource_group function
+def test_get_creation_time_of_resource_group_with_created_at_tag():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags={"createdAt": "2023-12-07T18:03:19Z"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is not None
+    assert creation_time.year == 2023
+    assert creation_time.month == 12
+    assert creation_time.day == 7
+
+
+def test_get_creation_time_of_resource_group_without_created_at_tag():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags={"someOtherTag": "value"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+
+
+def test_get_creation_time_of_resource_group_no_tags():
+    rg = ResourceGroup(
+        location="test_location",
+        name="test_rg",
+        tags=None
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+
+
+def test_get_creation_time_of_resource_group_invalid_date_format(capsys):
+    rg = ResourceGroup(
+        location="test_location",
+        tags={"createdAt": "invalid-date-format"}
+    )
+    creation_time = get_creation_time_of_resource_group(rg)
+    assert creation_time is None
+    captured = capsys.readouterr()
+    assert "Warning: Failed to parse createdAt tag" in captured.out
+    assert "invalid-date-format" in captured.out
+
+
+# Tests for get_subscription_id function
+def test_get_subscription_id_from_automation_variable(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "test-subscription-id")
+    assert get_subscription_id() == "test-subscription-id"
+
+
+def test_get_subscription_id_from_env(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.setenv("SUBSCRIPTION_ID", "env-subscription-id")
+    assert get_subscription_id() == "env-subscription-id"
+
+
+def test_get_subscription_id_missing(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.delenv("SUBSCRIPTION_ID", raising=False)
+    with pytest.raises(ValueError) as exc_info:
+        get_subscription_id()
+    assert "Subscription ID missing" in str(exc_info.value)
+
+
+# Tests for get_client_id function
+def test_get_client_id_from_automation_variable(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: "test-client-id")
+    assert get_client_id() == "test-client-id"
+
+
+def test_get_client_id_from_env(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.setenv("CLIENT_ID", "env-client-id")
+    assert get_client_id() == "env-client-id"
+
+
+def test_get_client_id_missing(monkeypatch):
+    monkeypatch.setattr("resources_cleanup.get_automation_variable", lambda name: (_ for _ in ()).throw(Exception("not found")))
+    monkeypatch.delenv("CLIENT_ID", raising=False)
+    with pytest.raises(ValueError) as exc_info:
+        get_client_id()
+    assert "Client ID missing" in str(exc_info.value)
+
+
+# Edge case tests for older_than
+def test_older_than_exactly_two_days(monkeypatch):
+    now_time = datetime.datetime(year=2024, month=1, day=3, hour=12, minute=0, tzinfo=datetime.timezone.utc)
+    creation_time = datetime.datetime(year=2024, month=1, day=1, hour=12, minute=0, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) is False
+
+
+def test_older_than_reverse_order(monkeypatch):
+    # Test that absolute value is used (creation time in the future)
+    now_time = datetime.datetime(year=2024, month=1, day=22, tzinfo=datetime.timezone.utc)
+    creation_time = datetime.datetime(year=2024, month=1, day=25, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr("resources_cleanup.datetime.datetime", type("datetime", (), {"now": lambda tz: now_time}))
+    assert older_than(creation_time, days=2) is True

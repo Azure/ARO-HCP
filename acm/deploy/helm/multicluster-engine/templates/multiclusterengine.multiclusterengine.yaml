@@ -33,6 +33,16 @@ spec:
       name: cluster-proxy-addon
     - enabled: false
       name: managedserviceaccount
+    - enabled: false
+      name: cluster-api
+    - enabled: false
+      name: cluster-api-provider-aws
+    - enabled: false
+      name: cluster-api-provider-metal3-preview
+    - enabled: false
+      name: cluster-api-provider-openshift-assisted-preview
+    - enabled: false
+      name: image-based-install-operator
   targetNamespace: '{{ .Release.Namespace }}'
   tolerations:
   - effect: NoSchedule

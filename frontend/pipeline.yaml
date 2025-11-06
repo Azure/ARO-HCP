@@ -35,80 +35,54 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ./../dev-infrastructure/templates/frontend-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/frontend-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: make deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
+    action: Helm
+    releaseName: 'aro-hcp-frontend-dev'
+    releaseNamespace: '{{ .frontend.k8s.namespace }}'
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiTenantId
+      frontendMsiClientId:
+        resourceGroup: service
+        step: output
+        name: frontendMsiClientId
+      frontendMsiTenantId:
+        resourceGroup: service
+        step: output
+        name: frontendMsiTenantId
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+      csiSecretStoreClientId:
+        resourceGroup: service
+        step: output
+        name: csiSecretStoreClientId
+      cosmosDBDocumentEndpoint:
+        resourceGroup: service
+        step: output
+        name: cosmosDBDocumentEndpoint
     dependsOn:
     - resourceGroup: global
       step: mirror-image
-    variables:
-    - name: REPLICAS
-      configRef: frontend.k8s.replicas
-    - name: SERVICE_ACCOUNT_NAME
-      configRef: frontend.k8s.serviceAccountName
-    - name: NAMESPACE
-      configRef: frontend.k8s.namespace
-    - name: MANAGED_IDENTITY_NAME
-      configRef: frontend.managedIdentityName
-    - name: ARO_HCP_IMAGE_ACR
-      configRef: acr.svc.name
-    - name: LOCATION
-      configRef: region
-    - name: REGION_RG
-      configRef: regionRG
-    - name: RESOURCEGROUP
-      configRef: svc.rg
-    - name: AKS_NAME
-      configRef: svc.aks.name
-    - name: DB_NAME
-      configRef: frontend.cosmosDB.name
-    - name: IMAGE_DIGEST
-      configRef: frontend.image.digest
-    - name: ARO_HCP_IMAGE_REPOSITORY
-      configRef: frontend.image.repository
-    - name: SERVICE_KEY_VAULT
-      configRef: serviceKeyVault.name
-    - name: CERTIFICATE_NAME
-      configRef: frontend.cert.name
-    - name: ISTO_TAG
-      configRef: svc.istio.tag
-    - name: CS_NAMESPACE
-      configRef: clustersService.k8s.namespace
-    - name: CS_SERVICE_ACCOUNT_NAME
-      configRef: clustersService.k8s.serviceAccountName
-    - name: DEPLOY_MISE
-      configRef: mise.deploy
-    - name: MISE_TENANT_ID
-      configRef: mise.tenantId
-    - name: MISE_ARM_APP_ID
-      configRef: mise.armAppId
-    - name: MISE_IMAGE_REPOSITORY
-      configRef: mise.image.repository
-    - name: MISE_IMAGE_DIGEST
-      configRef: mise.image.digest
-    - name: MISE_AZURE_AD_INSTANCE
-      configRef: mise.azureAdInstance
-    - name: MISE_FIRST_PARTY_APP_ID
-      configRef: mise.firstPartyAppId
-    - name: MISE_ARM_INSTANCE
-      configRef: mise.armInstance
-    - name: MISE_TRACING_ADDRESS
-      configRef: mise.tracing.address
-    - name: MISE_TRACING_EXPORTER
-      configRef: mise.tracing.exporter
-    - name: TRACING_ADDRESS
-      configRef: frontend.tracing.address
-    - name: TRACING_EXPORTER
-      configRef: frontend.tracing.exporter
-    - name: AUDIT_CONNECT_SOCKET
-      configRef: frontend.audit.connectSocket
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

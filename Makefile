@@ -10,6 +10,7 @@ GOTAGS?='containers_image_openpgp'
 LINT_GOTAGS?='${GOTAGS},E2Etests'
 TOOLS_BIN_DIR := tooling/bin
 DEPLOY_ENV ?= pers
+CONFIG_FILE ?= config/config.yaml
 
 .DEFAULT_GOAL := all
 
@@ -212,7 +213,7 @@ rebase:
 
 validate-config-pipelines: $(YQ)
 	$(MAKE) -C tooling/templatize templatize
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file config/config.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
+	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
@@ -254,17 +255,18 @@ pipeline/%:
 LOG_LEVEL ?= 3
 DRY_RUN ?= "false"
 PERSIST ?= "false"
+TIMING_OUTPUT ?= timing/steps.yaml
 
 local-run: $(TEMPLATIZE)
-	$(TEMPLATIZE) entrypoint run --config-file config/config.yaml \
-	                             --topology-config topology.yaml \
-	                             --dev-settings-file tooling/templatize/settings.yaml \
-	                             --dev-environment $(DEPLOY_ENV) \
-	                             $(WHAT) \
-	                             --persist-tag=$(PERSIST) \
-	                             --dry-run=$(DRY_RUN) \
-	                             --verbosity=$(LOG_LEVEL) \
-	                             --timing-output=timing.yaml
+	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
+								     --config-file-override "${OVERRIDE_CONFIG_FILE}" \
+	                                 --topology-config topology.yaml \
+	                                 --dev-settings-file tooling/templatize/settings.yaml \
+	                                 --dev-environment $(DEPLOY_ENV) \
+	                                 $(WHAT) \
+	                                 --dry-run=$(DRY_RUN) \
+	                                 --verbosity=$(LOG_LEVEL) \
+	                                 --timing-output=$(TIMING_OUTPUT)
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/entrypoint/,$(entrypoints)):
@@ -279,8 +281,39 @@ graph/pipeline/%:
 	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 graph: $(TEMPLATIZE)
-	$(TEMPLATIZE) entrypoint graph --config-file config/config.yaml \
+	$(TEMPLATIZE) entrypoint graph --config-file "${CONFIG_FILE}" \
 	                               --topology-config topology.yaml \
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
 	                               $(WHAT) > .graph.dot
+
+VISUALIZATION_OUTPUT ?= timing/
+
+visualize: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint visualize --timing-input $(TIMING_OUTPUT) --output $(VISUALIZATION_OUTPUT)
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix cleanup-entrypoint/,$(entrypoints)):
+endif
+cleanup-entrypoint/%:
+	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+ifeq ($(wildcard $(YQ)),$(YQ))
+$(addprefix cleanup-pipeline/,$(pipelines)):
+endif
+cleanup-pipeline/%:
+	$(MAKE) cleanup WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+
+CLEANUP_DRY_RUN ?= true
+CLEANUP_WAIT ?= true
+
+cleanup: $(TEMPLATIZE)
+	$(TEMPLATIZE) entrypoint cleanup --config-file "${CONFIG_FILE}" \
+								     --config-file-override "${OVERRIDE_CONFIG_FILE}" \
+								     --topology-config topology.yaml \
+								     --dev-settings-file tooling/templatize/settings.yaml \
+								     --dev-environment $(DEPLOY_ENV) \
+								     $(WHAT) \
+								     --dry-run=$(CLEANUP_DRY_RUN) \
+								     --wait=$(CLEANUP_WAIT) \
+								     --verbosity=$(LOG_LEVEL)

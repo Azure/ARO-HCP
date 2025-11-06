@@ -47,6 +47,10 @@ param maestroCertDomain = '{{ .maestro.certDomain }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
 
+// PKO
+param pkoMIName = '{{ .pko.managedIdentityName }}'
+param pkoNamespace = '{{ .pko.k8s.namespace }}'
+param pkoServiceAccountName = '{{ .pko.k8s.serviceAccountName }}'
 
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'

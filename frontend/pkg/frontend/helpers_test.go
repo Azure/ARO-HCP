@@ -32,6 +32,11 @@ import (
 )
 
 func TestCheckForProvisioningStateConflict(t *testing.T) {
+
+	parentConflictFunc := func(s arm.ProvisioningState) bool {
+		return s == arm.ProvisioningStateProvisioning || s == arm.ProvisioningStateDeleting
+	}
+
 	tests := []struct {
 		name             string
 		resourceID       string
@@ -74,21 +79,21 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestCreate,
 			directConflict:   func(s arm.ProvisioningState) bool { return false },
-			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Delete node pool",
 			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestDelete,
 			directConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
-			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			parentConflict:   parentConflictFunc,
 		},
 		{
 			name:             "Update node pool",
 			resourceID:       api.TestNodePoolResourceID,
 			operationRequest: database.OperationRequestUpdate,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
-			parentConflict:   func(s arm.ProvisioningState) bool { return s == arm.ProvisioningStateDeleting },
+			parentConflict:   parentConflictFunc,
 		},
 	}
 

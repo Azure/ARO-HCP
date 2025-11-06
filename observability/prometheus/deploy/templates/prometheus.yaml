@@ -5,7 +5,7 @@ metadata:
   namespace: '{{ .Release.Namespace }}'
 spec:
   image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
-  version: '{{ .Values.prometheusSpec.version}}'
+  version: '{{ .Values.prometheusSpec.version}}' # todo: can this be removed? we control the version via image
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -15,6 +15,20 @@ spec:
             operator: In
             values:
             - infra
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+          topologyKey: topology.kubernetes.io/zone
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+          topologyKey: kubernetes.io/hostname
   automountServiceAccountToken: true
   enableAdminAPI: false
   evaluationInterval: 30s
@@ -74,7 +88,7 @@ spec:
       matchLabels:
         app: prometheus
     maxSkew: 1
-    topologyKey: '{{ .Values.prometheusSpec.topologyKey }}'
+    topologyKey: '{{ if eq (int .Values.prometheusSpec.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}failure-domain.beta.kubernetes.io/zone{{ end }}'
     whenUnsatisfiable: ScheduleAnyway
   tsdb:
     outOfOrderTimeWindow: 0s
@@ -102,7 +116,7 @@ spec:
         regex: '^ocm-{{ .Values.environment }}.*'
         action: drop 
     {{- end -}}
-  {{- if .Values.prometheusSpec.hcpRemoteWriteUrl }}
+  {{- if ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE" }}
   - url: '{{ .Values.prometheusSpec.hcpRemoteWriteUrl }}'
     azureAd:
       cloud: AzurePublic

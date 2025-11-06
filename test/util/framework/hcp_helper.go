@@ -34,6 +34,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -82,6 +83,13 @@ func readStaticRESTConfig(kubeconfigContent *string) (*rest.Config, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Skip TLS verification for development environments with self-signed certificates
+	if IsDevelopmentEnvironment() {
+		ret.Insecure = true
+		ret.CAData = nil
+		ret.CAFile = ""
 	}
 
 	return ret, nil
@@ -406,4 +414,143 @@ func CreateTestDockerConfigSecret(host, username, password, email, secretName, n
 			corev1.DockerConfigJsonKey: dockerConfigJSON,
 		},
 	}, nil
+}
+
+func CreateHCPClusterAndWait(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+	}
+
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+		return &m.HcpOpenShiftCluster, nil
+	default:
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func BuildHCPClusterFromParams(
+	parameters ClusterParams,
+	location string,
+) hcpsdk20240610preview.HcpOpenShiftCluster {
+
+	return hcpsdk20240610preview.HcpOpenShiftCluster{
+		Location: to.Ptr(location),
+		Identity: parameters.Identity,
+		Properties: &hcpsdk20240610preview.HcpOpenShiftClusterProperties{
+			Version: &hcpsdk20240610preview.VersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			Platform: &hcpsdk20240610preview.PlatformProfile{
+				ManagedResourceGroup:   to.Ptr(parameters.ManagedResourceGroupName),
+				NetworkSecurityGroupID: to.Ptr(parameters.NsgResourceID),
+				SubnetID:               to.Ptr(parameters.SubnetResourceID),
+				OperatorsAuthentication: &hcpsdk20240610preview.OperatorsAuthenticationProfile{
+					UserAssignedIdentities: parameters.UserAssignedIdentitiesProfile,
+				}},
+			Network: &hcpsdk20240610preview.NetworkProfile{
+				NetworkType: to.Ptr(hcpsdk20240610preview.NetworkType(parameters.Network.NetworkType)),
+				PodCIDR:     to.Ptr(parameters.Network.PodCIDR),
+				ServiceCIDR: to.Ptr(parameters.Network.ServiceCIDR),
+				MachineCIDR: to.Ptr(parameters.Network.MachineCIDR),
+				HostPrefix:  to.Ptr(parameters.Network.HostPrefix),
+			},
+			API: &hcpsdk20240610preview.APIProfile{
+				Visibility: to.Ptr(hcpsdk20240610preview.Visibility(parameters.APIVisibility)),
+			},
+			ClusterImageRegistry: &hcpsdk20240610preview.ClusterImageRegistryProfile{
+				State: to.Ptr(hcpsdk20240610preview.ClusterImageRegistryProfileState(parameters.ImageRegistryState)),
+			},
+			Etcd: &hcpsdk20240610preview.EtcdProfile{
+				DataEncryption: &hcpsdk20240610preview.EtcdDataEncryptionProfile{
+					KeyManagementMode: to.Ptr(hcpsdk20240610preview.EtcdDataEncryptionKeyManagementModeType(parameters.EncryptionKeyManagementMode)),
+					CustomerManaged: &hcpsdk20240610preview.CustomerManagedEncryptionProfile{
+						EncryptionType: to.Ptr(hcpsdk20240610preview.CustomerManagedEncryptionType(parameters.EncryptionType)),
+						Kms: &hcpsdk20240610preview.KmsEncryptionProfile{
+							ActiveKey: &hcpsdk20240610preview.KmsKey{
+								VaultName: to.Ptr(parameters.KeyVaultName),
+								Name:      to.Ptr(parameters.EtcdEncryptionKeyName),
+								Version:   to.Ptr(parameters.EtcdEncryptionKeyVersion),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func CreateNodePoolAndWait(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+	nodePool hcpsdk20240610preview.NodePool,
+	timeout time.Duration,
+) (*hcpsdk20240610preview.NodePool, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting nodepool creation %q for cluster %q in resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+
+	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: StandardPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed waiting for nodepool=%q for cluster %q in resourcegroup=%q to finish creating: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+	}
+	switch m := any(operationResult).(type) {
+	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
+		return &m.NodePool, nil
+	default:
+		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+		return nil, fmt.Errorf("unknown type %T", m)
+	}
+}
+
+func BuildNodePoolFromParams(
+	parameters NodePoolParams,
+	location string,
+) hcpsdk20240610preview.NodePool {
+
+	return hcpsdk20240610preview.NodePool{
+		Location: to.Ptr(location),
+		Properties: &hcpsdk20240610preview.NodePoolProperties{
+			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+				ID:           to.Ptr(parameters.OpenshiftVersionId),
+				ChannelGroup: to.Ptr(parameters.ChannelGroup),
+			},
+			Replicas: to.Ptr(parameters.Replicas),
+			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
+				VMSize: to.Ptr(parameters.VMSize),
+				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
+					SizeGiB:                to.Ptr(parameters.OSDiskSizeGiB),
+					DiskStorageAccountType: to.Ptr(hcpsdk20240610preview.DiskStorageAccountType(parameters.DiskStorageAccountType)),
+				},
+			},
+		},
+	}
 }

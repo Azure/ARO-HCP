@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-admin-api-to-frontend
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/{{ .Values.adminApi.namespace }}/sa/{{ .Values.adminApi.serviceAccount }}"
+    to:
+    - operation:
+        ports:
+        - "{{ .Values.apiBindPort }}"
+  selector:
+    matchLabels:
+      app: "aro-hcp-frontend"

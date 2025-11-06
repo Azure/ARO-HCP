@@ -229,68 +229,33 @@ resourceGroups:
       step: cluster
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make -C ../observability/prometheus deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: PROMETHEUS_OPERATOR_REGISTRY
-      configRef: mgmt.prometheus.prometheusOperator.image.registry
-    - name: PROMETHEUS_OPERATOR_REPOSITORY
-      configRef: mgmt.prometheus.prometheusOperator.image.repository
-    - name: PROMETHEUS_OPERATOR_DIGEST
-      configRef: mgmt.prometheus.prometheusOperator.image.digest
-    - name: PROMETHEUS_CONFIG_RELOADER_REGISTRY
-      configRef: mgmt.prometheus.prometheusConfigReloader.image.registry
-    - name: PROMETHEUS_CONFIG_RELOADER_REPOSITORY
-      configRef: mgmt.prometheus.prometheusConfigReloader.image.repository
-    - name: PROMETHEUS_CONFIG_RELOADER_DIGEST
-      configRef: mgmt.prometheus.prometheusConfigReloader.image.digest
-    - name: PROMETHEUS_SPEC_REGISTRY
-      configRef: mgmt.prometheus.prometheusSpec.image.registry
-    - name: PROMETHEUS_SPEC_REPOSITORY
-      configRef: mgmt.prometheus.prometheusSpec.image.repository
-    - name: PROMETHEUS_SPEC_DIGEST
-      configRef: mgmt.prometheus.prometheusSpec.image.digest
-    - name: PROMETHEUS_SPEC_REPLICAS
-      configRef: mgmt.prometheus.prometheusSpec.replicas
-    - name: PROMETHEUS_SPEC_SHARDS
-      configRef: mgmt.prometheus.prometheusSpec.shards
-    - name: PROMETHEUS_SPEC_VERSION
-      configRef: mgmt.prometheus.prometheusSpec.version
-    - name: PROMETHEUS_NAMESPACE_LABEL
-      configRef: mgmt.prometheus.namespaceLabel
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: CS_ENVIRONMENT
-      configRef: clustersService.environment
-    - name: DCR_REMOTE_WRITE_URL
-      input:
+    action: Helm
+    releaseName: 'arohcp-monitor'
+    releaseNamespace: 'prometheus'
+    namespaceFiles:
+    - ../observability/prometheus/namespace.mgmt.yaml
+    chartDir: ../observability/prometheus/deploy
+    valuesFile: ../observability/prometheus/values-mgmt.yaml
+    inputVariables:
+      dcrRemoteWriteUrl:
         resourceGroup: management
         step: cluster-output
         name: dcrRemoteWriteUrl
-    - name: HCP_DCR_REMOTE_WRITE_URL
-      input:
+      hcpDcrRemoteWriteUrl:
         resourceGroup: management
         step: cluster-output
         name: hcpDcrRemoteWriteUrl
-    - name: PROMETHEUS_UAMI_CLIENT_ID
-      input:
+      prometheusUAMIClientId:
         resourceGroup: management
         step: cluster-output
         name: prometheusUAMIClientId
     dependsOn:
     - resourceGroup: management
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: acrpull
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -305,26 +270,50 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
-  - name: fixes
-    # Install cluster patches
+  - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make -C ../mgmt-fixes deploy
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
-    variables:
-    - name: APPLY_KUBELET_FIXES
-      configRef: mgmt.applyKubeletFixes
+    action: Helm
+    releaseName: 'default-sc'
+    releaseNamespace: 'default-sc'
+    chartDir: ../mgmt-fixes/deploy/default-sc
+    valuesFile: ../mgmt-fixes/default-sc.values.yaml
     dependsOn:
     - resourceGroup: management
       step: cluster
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: mitigations
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'mitigations'
+    releaseNamespace: 'aro-hcp-mitigations'
+    chartDir: ../mgmt-fixes/deploy/mitigations
+    valuesFile: ../mgmt-fixes/mitigations.values.yaml
+    # Bump timeout to help with scaling event related issues
+    timeout: 15m
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+  - name: kubelet-ds
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: 'mgmt-fixes'
+    releaseNamespace: 'kubelet-ds'
+    chartDir: ../mgmt-fixes/deploy/kubelet-ds
+    valuesFile: ../mgmt-fixes/kubelet-ds.values.yaml
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep

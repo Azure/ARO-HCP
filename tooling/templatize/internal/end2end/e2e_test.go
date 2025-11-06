@@ -25,11 +25,11 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline/run"
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
@@ -133,7 +133,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	require.NoError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)
@@ -333,7 +333,7 @@ resource newRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	require.NoError(t, err)
 
 	rgClient, err := armresources.NewResourceGroupsClient(subsriptionID, cred, nil)
@@ -373,7 +373,7 @@ param zoneName = 'e2etestarmdeploy.foo.bar.example.com'
 	subsriptionID, err := pipeline.LookupSubscriptionID(map[string]string{})(context.Background(), "ARO Hosted Control Planes (EA Subscription 1)")
 	require.NoError(t, err)
 
-	cred, err := azauth.GetAzureTokenCredentials()
+	cred, err := cmdutils.GetAzureTokenCredentials()
 	require.NoError(t, err)
 
 	zonesClient, err := armdns.NewZonesClient(subsriptionID, cred, nil)

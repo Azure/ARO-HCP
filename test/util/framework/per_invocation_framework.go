@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -30,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
@@ -75,7 +77,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
-			isDevelopmentEnvironment: isDevelopmentEnvironment(),
+			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 		}
 	})
@@ -119,7 +121,23 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	return tc.azureCredentials, nil
 }
 
+// armSystemDataPolicy adds ARM system data headers for localhost requests
+type armSystemDataPolicy struct{}
+
+func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
+	if req.Raw().URL.Host == "localhost:8443" {
+		systemData := fmt.Sprintf(`{"createdBy": "e2e-test", "createdByType": "Application", "createdAt": "%s"}`, time.Now().UTC().Format(time.RFC3339))
+		req.Raw().Header.Set("X-Ms-Arm-Resource-System-Data", systemData)
+		req.Raw().Header.Set("X-Ms-Identity-Url", "https://dummyhost.identity.azure.net")
+	}
+	return req.Next()
+}
+
 func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.ClientOptions {
+	return nil
+}
+
+func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorearm.ClientOptions {
 	if tc.isDevelopmentEnvironment {
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
@@ -133,10 +151,12 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 					},
 				},
 				InsecureAllowCredentialWithHTTP: true,
+				PerCallPolicies: []policy.Policy{
+					&armSystemDataPolicy{},
+				},
 			},
 		}
 	}
-
 	return nil
 }
 
@@ -158,8 +178,8 @@ func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context,
 	if err != nil {
 		return "", fmt.Errorf("failed to get subscription ID: %w", err)
 	}
-	tc.subscriptionID = subscriptionID
 
+	tc.subscriptionID = subscriptionID
 	return tc.subscriptionID, nil
 }
 
@@ -210,9 +230,9 @@ func tenantID() string {
 	return os.Getenv("AZURE_TENANT_ID")
 }
 
-// isDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
+// IsDevelopmentEnvironment indicates when this environment is development.  This controls client endpoints and disables security
 // when set to development.
-func isDevelopmentEnvironment() bool {
+func IsDevelopmentEnvironment() bool {
 	return strings.ToLower(os.Getenv("AROHCP_ENV")) == "development"
 }
 

@@ -19,6 +19,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
@@ -111,7 +113,7 @@ func TestInspectVars(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			tc.options.OutputFile = buf
-			err := inspectVars(map[string]string{})(context.Background(), &types.Pipeline{}, "", tc.caseStep, tc.options)
+			err := inspectVars(map[string]string{})(logr.NewContext(t.Context(), testr.New(t)), &types.Pipeline{}, "", tc.caseStep, tc.options)
 			if tc.err == "" {
 				assert.NoError(t, err)
 				assert.Equal(t, buf.String(), tc.expected)
@@ -138,7 +140,7 @@ func TestInspect(t *testing.T) {
 		},
 	}
 
-	err := Inspect(&p, context.Background(), &InspectOptions{
+	err := Inspect(&p, logr.NewContext(t.Context(), testr.New(t)), &InspectOptions{
 		Scope:         "scope",
 		Format:        "format",
 		Step:          "step1",
@@ -170,7 +172,7 @@ func TestInspectWrongScope(t *testing.T) {
 		},
 	}
 
-	err := Inspect(&p, context.Background(), &InspectOptions{
+	err := Inspect(&p, logr.NewContext(t.Context(), testr.New(t)), &InspectOptions{
 		Scope:         "foo",
 		Format:        "format",
 		Step:          "step1",
