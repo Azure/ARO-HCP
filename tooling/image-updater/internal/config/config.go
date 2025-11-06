@@ -35,9 +35,10 @@ type ImageConfig struct {
 
 // Source defines where to fetch the latest image digest from
 type Source struct {
-	Image        string `yaml:"image"`
-	TagPattern   string `yaml:"tagPattern,omitempty"`
-	Architecture string `yaml:"architecture,omitempty"`
+	Image                  string `yaml:"image"`
+	TagPattern             string `yaml:"tagPattern,omitempty"`
+	Architecture           string `yaml:"architecture,omitempty"`
+	RequiresAuthentication *bool  `yaml:"requiresAuthentication,omitempty"` // nil/true = use auth (default), false = anonymous only
 }
 
 // Target defines where to update the image digest
