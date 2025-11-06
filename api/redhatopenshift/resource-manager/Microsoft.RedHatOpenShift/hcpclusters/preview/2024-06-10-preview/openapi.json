@@ -2661,13 +2661,15 @@
           "type": "integer",
           "format": "int32",
           "description": "The minimum number of nodes in the node pool",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 200
         },
         "max": {
           "type": "integer",
           "format": "int32",
           "description": "The maximum number of nodes in the node pool",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 200
         }
       }
     },
@@ -2772,6 +2774,8 @@
           "type": "integer",
           "format": "int32",
           "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "minimum": 0,
+          "maximum": 200,
           "x-ms-mutability": [
             "read",
             "update",
@@ -2861,6 +2865,8 @@
           "type": "integer",
           "format": "int32",
           "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "minimum": 0,
+          "maximum": 200,
           "x-ms-mutability": [
             "read",
             "update",

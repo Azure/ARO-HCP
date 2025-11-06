@@ -523,6 +523,8 @@ model NodePoolProperties {
 
   /** The number of worker nodes, it cannot be used together with autoscaling */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @minValue(0)
+  @maxValue(200)
   replicas?: int32;
 
   /** Auto-repair */
@@ -702,10 +704,12 @@ union DiskStorageAccountType {
 model NodePoolAutoScaling {
   /** The minimum number of nodes in the node pool */
   @minValue(0)
+  @maxValue(200)
   min?: int32;
 
   /** The maximum number of nodes in the node pool */
   @minValue(0)
+  @maxValue(200)
   max?: int32;
 }
 
