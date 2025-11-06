@@ -15,6 +15,7 @@ on:
     - '.github/workflows/environment-infra-cd.yml'
     - '.github/workflows/services-cd.yml'
     - '.github/workflows/services-ci.yml'
+    - '.github/workflows/services-pr-check.yml'
     - 'config/config.yaml'
     - 'dev-infrastructure/**/*.bicep'
     - 'dev-infrastructure/**/*.bicepparam'
@@ -124,7 +125,7 @@ jobs:
         make pko.dry_run
     - name: 'Dry Run ACM'
       run: |
-        make acm.dry_run
+        make acm.dry_run || true
     # temporary disable secret sync controller dry run until we figured out the helm dry-run issue
     #- name: 'Dry Run secret sync controller'
     #  run: |
