@@ -669,6 +669,7 @@ model NodePoolPlatformProfile {
 model OsDiskProfile {
   /** The OS disk size in GiB */
   @visibility(Lifecycle.Read, Lifecycle.Create)
+  @minValue(1)
   sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account
