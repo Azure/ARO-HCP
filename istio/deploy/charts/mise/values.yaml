@@ -13,7 +13,6 @@ tracing:
 deployment:
   zoneCount: ""
 genevaActionsPolicy:
-  enabled: true
   authority: ""
   audience: ""
   applicationId: ""
