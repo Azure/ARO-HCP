@@ -16,41 +16,13 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
-	"strings"
+
+	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-var repoRoot = "../.."
-
-type testCase struct {
-	Name         string         `yaml:"name"`
-	Namespace    string         `yaml:"namespace"`
-	Values       string         `yaml:"values"`
-	HelmChartDir string         `yaml:"helmChartDir"`
-	TestData     map[string]any `yaml:"testData"`
-}
-
-func findHelmtests() ([]string, error) {
-	allTests := make([]string, 0)
-	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() {
-			return nil
-		}
-		if strings.HasPrefix(d.Name(), "helmtest_") {
-			allTests = append(allTests, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory: %v", err)
-	}
-	return allTests, nil
-}
-
 func main() {
-	allTests, err := findHelmtests()
+	allTests, err := internal.FindHelmtestFiles()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -58,6 +30,16 @@ func main() {
 	fmt.Println("Found", len(allTests), "helmtests")
 	for _, test := range allTests {
 		fmt.Println(test)
+	}
+
+	helmSteps, err := internal.FindHelmSteps()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("Found", len(helmSteps), "helm steps")
+	for _, step := range helmSteps {
+		fmt.Printf("Name: %s, Path: %s\n", step.HelmStep.Name, step.ChartDirFromRoot())
 	}
 	fmt.Println("Use 'go test -run TestHelmTemplate -count=1' to run these tests")
 }

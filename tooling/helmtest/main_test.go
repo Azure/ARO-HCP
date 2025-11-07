@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"helm.sh/helm/v4/pkg/action"
+	"helm.sh/helm/v4/pkg/chart/common"
 	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
@@ -30,40 +31,11 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
-	"github.com/Azure/ARO-Tools/pkg/config/types"
+
+	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-func replaceImageDigest(yamlCfg map[string]any) map[string]any {
-	for key, value := range yamlCfg {
-		if _, ok := value.(map[string]any); ok {
-			yamlCfg[key] = replaceImageDigest(value.(map[string]any))
-		}
-		if key == "digest" {
-			yamlCfg[key] = "sha256:1234567890"
-		}
-	}
-	return yamlCfg
-}
-
-func loadConfigAndMerge(configPath string, configOverride map[string]any) (map[string]any, error) {
-	rawCfg, err := os.ReadFile(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("error reading config, %v", err)
-	}
-
-	var cfgYaml config.Configuration
-	err = yaml.Unmarshal(rawCfg, &cfgYaml)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling config, %v", err)
-	}
-
-	cfgYaml = types.MergeConfiguration(cfgYaml, configOverride)
-	cfgYaml = replaceImageDigest(cfgYaml)
-
-	return cfgYaml, nil
-}
-
-func runTest(ctx context.Context, testPath string, testCase testCase) (string, error) {
+func runTest(ctx context.Context, testCase internal.TestCase) (string, error) {
 	settings := cli.New()
 	cfg := action.Configuration{}
 	err := cfg.Init(settings.RESTClientGetter(), testCase.Namespace, "memory")
@@ -77,13 +49,18 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	in.Namespace = testCase.Namespace
 	in.DisableHooks = false
 	in.IncludeCRDs = true
+	in.KubeVersion = &common.KubeVersion{
+		Version: "v1.30.0",
+		Major:   "1",
+		Minor:   "30",
+	}
 
-	cfgYaml, err := loadConfigAndMerge(filepath.Join(repoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
+	cfgYaml, err := internal.LoadConfigAndMerge(filepath.Join(internal.RepoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
 	if err != nil {
 		return "", fmt.Errorf("error loading config, %v", err)
 	}
 
-	values, err := config.PreprocessFile(filepath.Join(testPath, testCase.Values), cfgYaml)
+	values, err := config.PreprocessFile(testCase.Values, cfgYaml)
 	if err != nil {
 		return "", fmt.Errorf("error preprocessing values file, %v", err)
 
@@ -94,7 +71,7 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 		return "", fmt.Errorf("error unmarshalling config, %v", err)
 
 	}
-	chart, err := loader.Load(filepath.Join(testPath, testCase.HelmChartDir))
+	chart, err := loader.Load(testCase.HelmChartDir)
 	if err != nil {
 		return "", fmt.Errorf("error loading chart, %v", err)
 	}
@@ -119,8 +96,8 @@ func runTest(ctx context.Context, testPath string, testCase testCase) (string, e
 	return fmt.Sprintf("%s\n%s", accessor.Manifest(), allHooks), nil
 }
 
-func TestHelmTemplate(t *testing.T) {
-	testCases, err := findHelmtests()
+func TestHelmTemplateFromTestFiles(t *testing.T) {
+	testCases, err := internal.FindHelmtestFiles()
 	assert.NoError(t, err)
 	assert.NotNil(t, testCases)
 
@@ -128,16 +105,42 @@ func TestHelmTemplate(t *testing.T) {
 		testCaseRaw, err := os.ReadFile(testCasePath)
 		assert.NoError(t, err)
 
-		var testCase testCase
+		var testCase internal.TestCase
 		err = yaml.Unmarshal(testCaseRaw, &testCase)
 		assert.NoError(t, err)
 
+		// Override paths from config, need to prefix with file-containing directory
+		testCase.Values = filepath.Join(filepath.Dir(testCasePath), testCase.Values)
+		testCase.HelmChartDir = filepath.Join(filepath.Dir(testCasePath), testCase.HelmChartDir)
+
 		t.Run(testCase.Name, func(t *testing.T) {
-			manifest, err := runTest(t.Context(), filepath.Dir(testCasePath), testCase)
+			manifest, err := runTest(t.Context(), testCase)
 			assert.NoError(t, err)
 			CompareWithFixture(t, manifest, WithGoldenDir(filepath.Dir(testCasePath)))
 		})
-
 	}
 
+}
+
+func TestHelmTemplateFromHelmSteps(t *testing.T) {
+	helmSteps, err := internal.FindHelmSteps()
+	assert.NoError(t, err)
+	assert.NotNil(t, helmSteps)
+
+	for _, helmStep := range helmSteps {
+		fmt.Println(filepath.Join(internal.RepoRoot, helmStep.ChartDirFromRoot()))
+
+		testCase := internal.TestCase{
+			Name:         helmStep.HelmStep.ReleaseName,
+			Namespace:    helmStep.HelmStep.ReleaseNamespace,
+			Values:       helmStep.ValuesFileFromRoot(),
+			HelmChartDir: helmStep.ChartDirFromRoot(),
+			TestData:     map[string]any{},
+		}
+		t.Run(helmStep.HelmStep.Name, func(t *testing.T) {
+			manifest, err := runTest(t.Context(), testCase)
+			assert.NoError(t, err)
+			CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), "testdata")))
+		})
+	}
 }
