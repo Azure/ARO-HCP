@@ -33,7 +33,6 @@ type Client struct {
 func NewClient(bearerToken string, hostHeader string, insecureSkipVerify bool) *Client {
 	httpClient := &http.Client{}
 
-	// Configure TLS if InsecureSkipVerify is enabled
 	if insecureSkipVerify {
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -51,7 +50,6 @@ func NewClient(bearerToken string, hostHeader string, insecureSkipVerify bool) *
 
 // SendRequest sends an HTTP request with custom headers and bearer token authentication
 func (c *Client) SendRequest(ctx context.Context, url string, method string, body interface{}) ([]byte, error) {
-	// Prepare request body if applicable
 	var bodyReader io.Reader
 	if method != http.MethodGet && body != nil {
 		bodyBytes, err := json.Marshal(body)
@@ -61,37 +59,30 @@ func (c *Client) SendRequest(ctx context.Context, url string, method string, bod
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	// Set Host header if provided (for port-forward scenarios with VirtualServices)
 	if c.hostHeader != "" {
 		req.Host = c.hostHeader
 	}
-
-	// Set authorization header
 
 	if c.bearerToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	}
 
-	// Send the HTTP request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	responseBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check if request was successful
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errorContent := string(responseBytes)
 		if errorContent == "" {

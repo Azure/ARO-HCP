@@ -18,7 +18,6 @@ mise:
   deployment:
     zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   genevaActionsPolicy:
-    enabled: true
     authority: "https://{{ .mise.bearerTokenAuthorityFQDN }}/__tenantId__/" # iss
     audience: "{{ .mise.armInstance }}" # aud
     applicationId: "__genevaActionsAppId__"

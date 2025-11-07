@@ -149,10 +149,7 @@ func (o *AuthOptions) Execute(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Executing auth test", "endpoint", o.Endpoint)
 
-	// Create request client
 	client := request.NewClient(o.Token, o.Host, o.Insecure)
-
-	// Send request to the admin API endpoint
 	responseBytes, err := client.SendRequest(ctx, o.Endpoint, "GET", nil)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
