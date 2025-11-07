@@ -194,6 +194,12 @@ func (iter *nodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1a
 				//     NodePoolList.Slice() may be less efficient but
 				//     is easier to work with.
 				for _, item := range items.Slice() {
+					item, err = resolveNodePoolLinks(ctx, iter.conn, item)
+					if err != nil {
+						iter.err = err
+						return
+					}
+
 					if !yield(item) {
 						return
 					}

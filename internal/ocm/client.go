@@ -177,6 +177,30 @@ func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *aro
 	return builder.Build()
 }
 
+// resolveNodePoolLinks replaces link objects with full objects that are
+// necessary to fully construct an HCPOpenShiftClusterNodePool model.
+func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+	builder := arohcpv1alpha1.NewNodePool().Copy(nodePool)
+
+	version, ok := nodePool.GetVersion()
+	if ok && version.Link() {
+		versionClient := arohcpv1alpha1.NewVersionClient(conn, version.HREF())
+
+		versionGetResponse, err := versionClient.Get().SendContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		version, ok = versionGetResponse.GetBody()
+		if !ok {
+			return nil, fmt.Errorf("empty version response body")
+		}
+
+		builder.Version(arohcpv1alpha1.NewVersion().Copy(version))
+	}
+
+	return builder.Build()
+}
+
 func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
 	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
 	if !ok {
@@ -292,30 +316,7 @@ func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 		return nil, fmt.Errorf("empty response body")
 	}
 
-	// NodePoolGetResponse returns a NodePool with a VersionLink instead
-	// of a Version. Clients are responsible for dereferencing links, so
-	// we will do that now and rebuild the NodePool with a full Version.
-	if nodePool.Version().Link() {
-		versionClient := arohcpv1alpha1.NewVersionClient(csc.conn, nodePool.Version().HREF())
-
-		versionGetResponse, err := versionClient.Get().SendContext(ctx)
-		if err != nil {
-			return nil, err
-		}
-		version, ok := versionGetResponse.GetBody()
-		if !ok {
-			return nil, fmt.Errorf("empty version response body")
-		}
-
-		versionBuilder := arohcpv1alpha1.NewVersion().Copy(version)
-
-		nodePool, err = arohcpv1alpha1.NewNodePool().Copy(nodePool).Version(versionBuilder).Build()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) GetNodePoolStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePoolStatus, error) {
@@ -351,7 +352,7 @@ func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
@@ -371,7 +372,7 @@ func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
