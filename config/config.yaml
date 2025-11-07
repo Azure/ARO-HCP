@@ -1311,3 +1311,115 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+      prow:
+        # Regional overrides
+        regions:
+          switzerlandnorth:
+            oidc:
+              storageAccount:
+                privateLinkLocation: germanywestcentral
+          westus:
+            oidc:
+              storageAccount:
+                privateLinkLocation: westus3
+          westeurope:
+            svc:
+              aks:
+                userAgentPool:
+                  zones: '1'
+                infraAgentPool:
+                  zones: '1'
+                systemAgentPool:
+                  zones: '1'
+            mgmt:
+              aks:
+                userAgentPool:
+                  zones: '1'
+                infraAgentPool:
+                  zones: '1'
+                systemAgentPool:
+                  zones: '1'
+        # this is the personal DEV environment
+        defaults:
+          # Service Key Vault
+          serviceKeyVault:
+            assignNSP: false
+          # Logs
+          logs:
+            loganalytics:
+              enable: true
+          # Cluster Service
+          clustersService:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Geneva
+          geneva:
+            logs:
+              manageCertificates: false
+          # DNS
+          dns:
+            regionalSubdomain: '{{ .ctx.regionShort }}'
+          # Maestro
+          maestro:
+            postgres:
+              deploy: false
+              password: 'TheBlurstOfTimes'
+              containerizedDb:
+                image: "docker.io/library/postgres:14.2"
+                pvcCapacity: 512Mi
+            server:
+              mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              tracing:
+                address: "http://ingest.observability:4318"
+                exporter: "otlp"
+          # Backend
+          backend:
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          # Frontend
+          frontend:
+            audit:
+              connectSocket: false
+            cosmosDB:
+              private: false
+              zoneRedundantMode: 'Disabled'
+            tracing:
+              address: "http://ingest.observability:4318"
+              exporter: "otlp"
+          hypershift:
+            additionalInstallArg: '--enable-cpo-overrides=true'
+            image:
+              registry: quay.io
+              repository: acm-d/rhtap-hypershift-operator
+              digest: sha256:390cf0591acfd15d8a318fa355fe40ed528cbec4dede40784934ce03938f1ee8
+          # MC
+          mgmt:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
+              systemAgentPool:
+                maxCount: 4
+                osDiskSizeGB: 32
+                vmSize: Standard_D2s_v3
+              userAgentPool:
+                maxCount: 6
+                osDiskSizeGB: 100
+                vmSize: Standard_D4s_v3
+            jaeger:
+              deploy: false
+            applyKubeletFixes: false
+          # SVC
+          svc:
+            rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            aks:
+              name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            jaeger:
+              deploy: true              
