@@ -1394,4 +1394,4 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             jaeger:
-              deploy: true              
+              deploy: true
