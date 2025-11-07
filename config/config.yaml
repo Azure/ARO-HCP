@@ -1312,34 +1312,6 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
       prow:
-        # Regional overrides
-        regions:
-          switzerlandnorth:
-            oidc:
-              storageAccount:
-                privateLinkLocation: germanywestcentral
-          westus:
-            oidc:
-              storageAccount:
-                privateLinkLocation: westus3
-          westeurope:
-            svc:
-              aks:
-                userAgentPool:
-                  zones: '1'
-                infraAgentPool:
-                  zones: '1'
-                systemAgentPool:
-                  zones: '1'
-            mgmt:
-              aks:
-                userAgentPool:
-                  zones: '1'
-                infraAgentPool:
-                  zones: '1'
-                systemAgentPool:
-                  zones: '1'
-        # this is the personal DEV environment
         defaults:
           # Service Key Vault
           serviceKeyVault:
