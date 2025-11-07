@@ -10,3 +10,5 @@ armAppId: ""
 tracing:
   address: ""
   exporter: ""
+deployment:
+  zoneCount: ""

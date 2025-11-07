@@ -177,6 +177,8 @@ resourceGroups:
       configRef: clustersService.tracing.address
     - name: TLS_CERTIFICATES_ISSUER
       configRef: clustersService.azureRuntimeConfig.tlsCertificatesIssuer
+    - name: AVAILABILITY_ZONE_COUNT
+      configRef: azureRegionAvailabilityZoneCount
     shellIdentity:
       input:
         resourceGroup: global

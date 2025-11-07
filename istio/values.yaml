@@ -15,3 +15,5 @@ mise:
   tracing:
     address: "{{ .mise.tracing.address }}"
     exporter: "{{ .mise.tracing.exporter }}"
+  deployment:
+    zoneCount: {{ .azureRegionAvailabilityZoneCount }}
