@@ -24,6 +24,10 @@ run-hcp:
 	go run ./...  --config-file ../../observability/observability-hcp.yaml $(EXTRA_FLAGS)
 .PHONY: run-hcp
 
+run-hcp-sl:
+	go run ./...  --config-file ../../observability/observability-hcp-sl.yaml $(EXTRA_FLAGS)
+.PHONY: run-hcp-sl
+
 run-msft:
 	go run ./...  --config-file ../../observability/observability-msft.yaml $(EXTRA_FLAGS)
 .PHONY: run-msft

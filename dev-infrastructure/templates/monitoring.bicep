@@ -93,7 +93,8 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
-    actionGroups: sreActionGroups
+    sreActionGroups: sreActionGroups
+    slActionGroups: slActionGroups
   }
 }
 
