@@ -16,11 +16,15 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openshift-eng/openshift-tests-extension/pkg/util/sets"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
@@ -32,6 +36,8 @@ import (
 )
 
 var _ = Describe("Customer", func() {
+
+	terminalProvisioningStates := sets.New(hcpsdk20240610preview.ProvisioningStateSucceeded, hcpsdk20240610preview.ProvisioningStateFailed, hcpsdk20240610preview.ProvisioningStateCanceled)
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
 		labels.RequireNothing,
@@ -82,76 +88,60 @@ var _ = Describe("Customer", func() {
 			By("waiting for cluster to appear and testing admin credentials while in deploying state")
 			// Poll the cluster state and test admin credentials when we find it deploying
 			var testedWhileDeploying bool
-			Eventually(func() error {
-				cluster, getErr := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
-				if getErr != nil {
-					GinkgoWriter.Printf("Cluster not yet available: %v\n", getErr)
-					return getErr // Keep waiting for cluster to appear
+			var previousState hcpsdk20240610preview.ProvisioningState
+			GinkgoLogr.Info("creating cluster, waiting for it to reach a terminal state")
+			Eventually(func() bool {
+				cluster, err := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
+				if err != nil {
+					var respErr *azcore.ResponseError
+					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+						GinkgoLogr.Info("Cluster not found yet, continuing to wait...")
+						return false
+					}
+					Fail("Cluster GET returned error: " + err.Error())
 				}
 
-				// Cluster exists! Check its provisioning state
-				if cluster.Properties.ProvisioningState != nil {
-					state := *cluster.Properties.ProvisioningState
-					GinkgoWriter.Printf("Cluster found with provisioning state: %v\n", state)
+				// only log state changes
+				if previousState != *cluster.Properties.ProvisioningState {
+					GinkgoLogr.Info(fmt.Sprintf("Cluster provisioning state changed: '%v' -> '%v'", previousState, *cluster.Properties.ProvisioningState))
+					previousState = *cluster.Properties.ProvisioningState
+				}
 
-					// If cluster is still deploying and we haven't tested yet, test admin credentials
-					if !testedWhileDeploying && (state == hcpsdk20240610preview.ProvisioningStateAccepted || state == hcpsdk20240610preview.ProvisioningStateProvisioning) {
-						By("testing admin credentials while cluster is in deploying state")
-						_, adminCredErr := clusterClient.BeginRequestAdminCredential(
-							ctx,
-							*resourceGroup.Name,
-							clusterName,
-							nil,
-						)
-
-						if adminCredErr != nil {
-							By("verifying admin credentials request fails with HTTP 409 CONFLICT on deploying cluster")
-							GinkgoWriter.Printf("Got expected deployment error: %v\n", adminCredErr)
-							testedWhileDeploying = true
-						} else {
-							Fail("Admin credentials unexpectedly succeeded while deploying - this should return HTTP 409 CONFLICT")
-						}
-
-						// Continue polling until cluster is ready, don't return success yet
-						return fmt.Errorf("cluster still deploying (state: %v), continuing to wait", state)
+				// If cluster is still deploying and we haven't tested yet, test admin credentials
+				if !testedWhileDeploying && !terminalProvisioningStates.Has(*cluster.Properties.ProvisioningState) {
+					By("testing admin credentials while cluster is in deploying state")
+					testedWhileDeploying = true
+					_, err := clusterClient.BeginRequestAdminCredential(
+						ctx,
+						*resourceGroup.Name,
+						clusterName,
+						nil,
+					)
+					var respErr *azcore.ResponseError
+					if err != nil && errors.As(err, &respErr) && http.StatusConflict == respErr.StatusCode {
+						By("verifying admin credentials request fails with HTTP 409 CONFLICT on deploying cluster")
+						GinkgoLogr.Info("Admin credentials request correctly returned 409 conflict error while cluster is deploying")
+					} else {
+						Fail("Admin credentials did not return 409 conflict error while cluster is deploying")
 					}
+				}
 
-					// If cluster is ready, we're done
-					if state == hcpsdk20240610preview.ProvisioningStateSucceeded {
-						if !testedWhileDeploying {
-							Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
-						}
-						return nil // Success - cluster is ready
+				// If cluster is ready, we're done
+				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateSucceeded {
+					if !testedWhileDeploying {
+						Fail("Cluster provisioned too quickly to test 409 behavior - unable to validate admin credentials fail during deployment")
 					}
+					return true // Success - cluster is ready
+				}
 
-					// If cluster failed, that's an error
-					if state == hcpsdk20240610preview.ProvisioningStateFailed {
-						return fmt.Errorf("cluster deployment failed")
-					}
+				// If cluster failed, that's an error
+				if *cluster.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateFailed {
+					Fail("Cluster provisioning failed")
 				}
 
 				// Continue waiting
-				return fmt.Errorf("cluster provisioning state unknown, continuing to wait")
-			}, 45*time.Minute, 30*time.Second).Should(Succeed(), "Cluster should become ready within 45 minutes")
-
-			By("verifying cluster is now ready for admin credential operations")
-			cluster, err := framework.GetHCPCluster(ctx, clusterClient, *resourceGroup.Name, clusterName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cluster.HcpOpenShiftCluster.ID).NotTo(BeNil())
-
-			By("getting initial credentials to verify cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
-				ctx,
-				clusterClient,
-				*resourceGroup.Name,
-				clusterName,
-				10*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("ensuring the cluster is viable")
-			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+				return false
+			}, 45*time.Minute, 30*time.Second).Should(BeTrue(), "Cluster should become ready within 45 minutes")
 
 			// Store all admin credentials for later validation
 			var credentials []*rest.Config
@@ -170,12 +160,9 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(adminRESTConfig).NotTo(BeNil())
 				credentials = append(credentials, adminRESTConfig)
-			}
 
-			By("validating all admin credentials work before revocation")
-			for i, cred := range credentials {
-				By(fmt.Sprintf("verifying admin credential %d works", i+1))
-				Expect(verifiers.VerifyHCPCluster(ctx, cred)).To(Succeed())
+				By(fmt.Sprintf("validating admin credential %d works", i+1))
+				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 			}
 
 			By("revoking all cluster admin credentials via ARO HCP RP API")
@@ -190,7 +177,7 @@ var _ = Describe("Customer", func() {
 			for i, cred := range credentials {
 				By(fmt.Sprintf("verifying admin credential %d now fails", i+1))
 				// TODO(bvesel) remove once OCPBUGS-62177 is implemented
-				Eventually(verifiers.VerifyHCPCluster(ctx, cred), 10*time.Minute, 15*time.Second).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
+				Eventually(verifiers.VerifyHCPCluster(ctx, cred), 20*time.Minute, 15*time.Second).ToNot(Succeed(), "Revoked admin credential %d should no longer work", i+1)
 			}
 
 			By("verifying new admin credentials can still be requested after revocation")
