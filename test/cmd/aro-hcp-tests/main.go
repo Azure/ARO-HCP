@@ -70,10 +70,23 @@ func main() {
 	})
 
 	ext.AddSuite(e.Suite{
-		Name: "local/parallel",
+		Name: "dev-cd-check/parallel",
 		Qualifiers: []string{
-			// tests to run against personal environment .
-			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.Local[0]),
+			// Subset of E2E tests to be executed as a final step during ARO
+			// HCP Continous Deployment GitHub Action Workflow.
+			// TODO: revisit labels to tweak which tests to select here
+			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
+		},
+		Parallelism: 15,
+	})
+
+	ext.AddSuite(e.Suite{
+		Name: "rp-api-compat-all/parallel",
+		Qualifiers: []string{
+			// This suite contains all E2E tests which don't use ARM APIs to
+			// communicate with ARO HCP RP (so that it's possible to run
+			// them against ARO HCP dev instance via RP API endpoint).
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0]),
 		},
 		Parallelism: 15,
 	})
