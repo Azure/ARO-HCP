@@ -1,0 +1,5 @@
+values: ../../values.yaml
+name: istio
+namespace: aks-istio-system
+helmChartDir: ..
+testData: {}

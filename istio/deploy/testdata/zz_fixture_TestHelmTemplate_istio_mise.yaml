@@ -1,0 +1,198 @@
+---
+# Source: istio/templates/istio-shared-configmap.yml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    istio.io/rev: 'asm-1-25'
+  name: istio-shared-configmap-asm-1-25
+  namespace: aks-istio-system
+data:
+  mesh: |-
+    extensionProviders:
+    - name: "ext-authz"
+      envoyExtAuthzHttp:
+        service: "mise/mise.mise.svc.cluster.local"
+        port: "8080"
+        includeRequestHeadersInCheck: ["x-ext-authz"]
+        pathPrefix: "/v1/EnvoyValidateRequest"
+---
+# Source: istio/charts/mise/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mise
+  namespace: 'mise'
+spec:
+  selector:
+    app: mise
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+---
+# Source: istio/charts/mise/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mise
+  namespace: 'mise'
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mise
+  template:
+    metadata:
+      labels:
+        app: mise
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: 'topology.kubernetes.io/zone'
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mise
+      containers:
+      - name: mise
+        image: "arohcpsvcdev.azurecr.io/@sha256:1234567890"
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+        env:
+        - name: AzureAd__Instance
+          value: ''
+        - name: AzureAd__ClientId
+          value: ''
+        - name: AzureAd__TenantId
+          value: ''
+        - name: AzureAd__Audience
+          value: "api://"
+        - name: AzureAd__InboundPolicies__0__Label
+          value: "ARM Policy"
+        - name: AzureAd__InboundPolicies__0__Authority
+          value: ""
+        - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
+          value: "PoP"
+        - name: AzureAd__InboundPolicies__0__ValidAudiences__0
+          value: ''
+        - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
+          value: ''
+        - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
+          value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
+        - name: AllowedHosts
+          value: "*"
+        - name: Kestrel__Endpoints__Http__Url
+          value: "http://0.0.0.0:8080"
+        - name: Logging__LogLevel__Default
+          value: "Information"
+        - name: Logging__LogLevel__Microsoft
+          value: "Information"
+        - name: AzureAd__Logging__LogLevel
+          value: "Information"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: ""
+        - name: OTEL_TRACES_EXPORTER
+          value: ""
+---
+# Source: istio/templates/strict_mtls.yml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: 'aks-istio-system'
+spec:
+  mtls:
+    mode: STRICT
+---
+# Source: istio/templates/envoy-stats.podmonitor.yml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-stats
+  namespace: 'aks-istio-system'
+spec:
+  jobLabel: app
+  # The following limits - labelLimit, labelNameLengthLimit and labelValueLengthLimit should exist in the pod monitor CR
+  # These ensure that the metrics don't get dropped because labels/labelnames/labelvalues exceed the limits supported by the processing pipeline
+  labelLimit: 63
+  labelNameLengthLimit: 511
+  labelValueLengthLimit: 1023
+  selector:
+    matchLabels:
+      security.istio.io/tlsMode: istio
+  namespaceSelector:
+    any: true
+  podMetricsEndpoints:
+  - interval: 15s
+    path: /stats/prometheus
+    port: http-envoy-prom
+---
+# Source: istio/templates/mise.serviceentry.yml
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: external-authz-http
+  namespace: 'aks-istio-system'
+spec:
+  hosts:
+  - "mise.mise.svc.cluster.local"
+  endpoints:
+  - address: "127.0.0.1"
+  ports:
+  - name: http
+    number: 8080
+    protocol: http
+  resolution: STATIC
+---
+# Source: istio/templates/istiod.servicemonitor.yml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: 'aks-istio-system'
+spec:
+  jobLabel: app
+  # The following limits - labelLimit, labelNameLengthLimit and labelValueLengthLimit should exist in the pod monitor CR
+  # These ensure that the metrics don't get dropped because labels/labelnames/labelvalues exceed the limits supported by the processing pipeline
+  labelLimit: 63
+  labelNameLengthLimit: 511
+  labelValueLengthLimit: 1023
+  selector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - istiod
+  namespaceSelector:
+    matchNames:
+    - aks-istio-system
+  endpoints:
+  - interval: 15s
+    port: http-monitoring
+---
+# Source: istio/templates/mesh-logging.telemetry.yml
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: mesh-logging
+  namespace: 'aks-istio-system'
+spec:
+  accessLogging:
+  - providers:
+    - name: envoy
+

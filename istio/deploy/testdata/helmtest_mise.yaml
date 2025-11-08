@@ -1,0 +1,7 @@
+values: ../../values.yaml
+name: istio-mise
+namespace: aks-istio-system
+helmChartDir: ..
+testData:
+  mise:
+    deploy: true
