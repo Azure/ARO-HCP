@@ -1695,8 +1695,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	}
 
 	var responseBody []byte
+	var cloudError *arm.CloudError
 
-	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
+	switch doc.InternalID.Kind() {
+	case cmv1.BreakGlassCredentialKind:
 		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
@@ -1710,9 +1712,15 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 			return
 		}
-	} else {
-		var cloudError *arm.CloudError
 
+	case arohcpv1alpha1.ClusterKind:
+		responseBody, cloudError = f.MarshalCluster(ctx, doc.ExternalID, versionedInterface)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
+
+	default:
 		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
