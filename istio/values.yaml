@@ -7,17 +7,23 @@ mise:
     registry: "{{ .acr.svc.name }}.azurecr.io"
     repository: "{{ .mise.image.repository }}"
     digest: "{{ .mise.image.digest }}"
-  tenantId: "{{ .mise.tenantId }}"
-  azureAdInstance: "{{ .mise.azureAdInstance }}"
-  firstPartyAppId: "{{ .mise.firstPartyAppId }}"
-  armInstance: "{{ .mise.armInstance }}"
-  armAppId: "{{ .mise.armAppId }}"
+  audit:
+    adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
+    clientId: "{{ .mise.audit.applicationId }}"
+    tenantId: "{{ .mise.arm.tenantId }}"
+    audience: "api://{{ .mise.audit.applicationId }}"
   tracing:
     address: "{{ .mise.tracing.address }}"
     exporter: "{{ .mise.tracing.exporter }}"
   deployment:
     zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  armPolicy:
+    label: "ARM Policy"
+    authority: "https://{{ .mise.arm.authorityFQDN }}/{{ .mise.arm.tenantId }}" # iss
+    audience: "https://{{ .mise.arm.audienceFQDN }}" # aud
+    applicationId: "{{ .mise.arm.applicationId }}"
   genevaActionsPolicy:
-    authority: "https://{{ .mise.bearerTokenAuthorityFQDN }}/__tenantId__/" # iss
-    audience: "{{ .mise.armInstance }}" # aud
+    label: "Geneva Actions"
+    authority: "https://{{ .mise.genevaActions.authorityFQDN }}/__tenantId__/" # iss
+    audience: "https://{{ .mise.genevaActions.audienceFQDN }}" # aud
     applicationId: "__genevaActionsAppId__"

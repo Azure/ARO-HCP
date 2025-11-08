@@ -1568,45 +1568,83 @@
       ]
     },
     "mise": {
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "deploy": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Whether to deploy MISE. Be careful where to enable MISE as it can't be deployed in non-MSFT tenants."
         },
-        "azureAdInstance": {
-          "type": "string",
-          "description": "The Azue Ad Instance that holds the ARM Application (see armAppId property)"
+        "audit": {
+          "type": "object",
+          "properties": {
+            "applicationId": {
+              "type": "string",
+              "description": "This is usually the first party app ID, as it should be the one being named for MISE usage in a service."
+            }
+          },
+          "required": [
+            "applicationId"
+          ]
         },
-        "firstPartyAppId": {
-          "type": "string",
-          "description": "This is the app ID that is used in MISE audit logs. Not used for verification of any kind."
+        "arm": {
+          "type": "object",
+          "properties": {
+            "tenantId": {
+              "type": "string",
+              "description": "The tenant ID where the ARM application lives."
+            },
+            "applicationId": {
+              "type": "string",
+              "description": "The application ID of the ARM application."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the ARM applications auth tokens."
+            },
+            "audienceFQDN": {
+              "type": "string",
+              "description": "The audience FQDN of the ARM applications auth tokens."
+            }
+          },
+          "required": [
+            "tenantId",
+            "applicationId",
+            "authorityFQDN",
+            "audienceFQDN"
+          ]
         },
-        "armAppId": {
-          "type": "string",
-          "description": "The valid app ID for mise, which is the ARM Application Id, this is common across all clouds (MSIT/AME/FF)"
-        },
-        "tenantId": {
-          "type": "string",
-          "description": "The tenant ID where the ARM Application (see armAppId property) lives. Usually AME"
-        },
-        "bearerTokenAuthorityFQDN": {
-          "type": "string",
-          "description": "The FQDN of the bearer token authority"
+        "genevaActions": {
+          "type": "object",
+          "properties": {
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Geneva Actions applications auth tokens."
+            },
+            "audienceFQDN": {
+              "type": "string",
+              "description": "The audience FQDN of the Geneva Actions applications auth tokens."
+            }
+          },
+          "required": [
+            "authorityFQDN",
+            "audienceFQDN"
+          ]
         },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
         "tracing": {
-          "$ref": "#/definitions/tracing"
+          "$ref": "#/definitions/tracing",
+          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
         "deploy",
         "image",
-        "azureAdInstance",
-        "firstPartyAppId",
-        "armAppId",
-        "tenantId",
-        "bearerTokenAuthorityFQDN",
+        "audit",
+        "arm",
+        "genevaActions",
         "tracing"
       ]
     },

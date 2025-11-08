@@ -517,10 +517,13 @@ defaults:
   # Mise
   mise:
     deploy: true
-    azureAdInstance: "https://{{ .ev2.entra.fqdn.login }}/"
-    armInstance: "https://{{ .ev2.arm.endpoint }}"
-    tenantId: "{{ .ev2.entra.tenants.azure.tenantid }}"
-    bearerTokenAuthorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
+    arm:
+      tenantId: "{{ .ev2.entra.tenants.azure.tenantid }}"
+      authorityFQDN: "{{ .ev2.entra.fqdn.login }}"
+      audienceFQDN: "{{ .ev2.arm.endpoint }}"
+    genevaActions:
+      authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
+      audienceFQDN: "{{ .ev2.arm.endpoint }}"
     image:
       repository: "mise-1p-container-image"
       digest: ""
@@ -795,8 +798,10 @@ clouds:
       # Mise
       mise:
         deploy: false
-        firstPartyAppId: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
-        armAppId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
+        audit:
+          applicationId: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1" # FPA
+        arm:
+          applicationId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
         image:
           digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd"
       # 1P app
