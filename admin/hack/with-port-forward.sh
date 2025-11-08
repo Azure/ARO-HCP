@@ -12,8 +12,11 @@ PORT_FORWARD_PID=$!
 
 # Ensure port-forward is killed on exit
 cleanup() {
-  echo "Stopping port-forward (PID $PORT_FORWARD_PID)..."
-  kill "$PORT_FORWARD_PID"
+	rm "${KUBECONFIG}"
+	echo "Stopping port-forward (PID $PORT_FORWARD_PID)..."
+	if kill "$PORT_FORWARD_PID" 2>/dev/null; then
+		wait "$PORT_FORWARD_PID" 2>/dev/null || true
+	fi
 }
 trap cleanup EXIT
 
