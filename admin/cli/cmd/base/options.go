@@ -146,7 +146,10 @@ func (o *validatedAuthOptions) Complete(ctx context.Context) (*AuthOptions, erro
 }
 
 func (o *AuthOptions) Execute(ctx context.Context) error {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get logger from context: %w", err)
+	}
 	logger.Info("Executing auth test", "endpoint", o.Endpoint)
 
 	client := request.NewClient(o.Token, o.Host, o.Insecure)
