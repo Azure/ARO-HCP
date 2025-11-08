@@ -18,11 +18,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/admin/cli/pkg/cli/auth"
-	"github.com/Azure/ARO-HCP/admin/cli/pkg/cli/request"
+	"github.com/Azure/ARO-HCP/admin/client/pkg/auth"
 )
 
 func DefaultAuthOptions() *RawAuthOptions {
@@ -143,22 +141,4 @@ func (o *validatedAuthOptions) Complete(ctx context.Context) (*AuthOptions, erro
 			Insecure: o.Insecure,
 		},
 	}, nil
-}
-
-func (o *AuthOptions) Execute(ctx context.Context) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get logger from context: %w", err)
-	}
-	logger.Info("Executing auth test", "endpoint", o.Endpoint)
-
-	client := request.NewClient(o.Token, o.Host, o.Insecure)
-	responseBytes, err := client.SendRequest(ctx, o.Endpoint, "GET", nil)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-
-	logger.Info("Request successful", "response", string(responseBytes))
-
-	return nil
 }

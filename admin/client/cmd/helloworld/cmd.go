@@ -12,23 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package base
+package helloworld
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/ARO-HCP/admin/client/cmd/base"
+	adminClient "github.com/Azure/ARO-HCP/admin/client/pkg/client"
 )
 
-func NewAuthTestCommand() (*cobra.Command, error) {
-	opts := DefaultAuthOptions()
+func NewHelloWorldCommand() (*cobra.Command, error) {
+	opts := base.DefaultAuthOptions()
 	cmd := &cobra.Command{
-		Use:           "auth-test",
-		Short:         "Test Admin API MISE authentication",
+		Use:           "hello-world",
+		Short:         "Execute Hello World Admin API endpoint",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAuthTest(cmd.Context(), opts)
+			return execute(cmd.Context(), opts)
 		},
 	}
 
@@ -39,7 +44,7 @@ func NewAuthTestCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func runAuthTest(ctx context.Context, opts *RawAuthOptions) error {
+func execute(ctx context.Context, opts *base.RawAuthOptions) error {
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
@@ -50,5 +55,19 @@ func runAuthTest(ctx context.Context, opts *RawAuthOptions) error {
 		return err
 	}
 
-	return completed.Execute(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get logger from context: %w", err)
+	}
+	logger.Info("Executing hellow world")
+
+	client := adminClient.NewClient(completed.Endpoint, completed.Host, completed.Token, completed.Insecure, false)
+	err = client.HelloWorld(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	logger.Info("Request successful")
+
+	return nil
 }

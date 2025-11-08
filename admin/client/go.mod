@@ -1,4 +1,4 @@
-module github.com/Azure/ARO-HCP/admin/cli
+module github.com/Azure/ARO-HCP/admin/client
 
 go 1.24.3
 

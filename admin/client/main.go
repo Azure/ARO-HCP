@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/admin/cli/cmd/base"
+	"github.com/Azure/ARO-HCP/admin/client/cmd/helloworld"
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 
 	// Add subcommands
 	subcommands := []func() (*cobra.Command, error){
-		base.NewAuthTestCommand,
+		helloworld.NewHelloWorldCommand,
 	}
 
 	for _, newCmd := range subcommands {

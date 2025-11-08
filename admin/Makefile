@@ -77,17 +77,17 @@ build-cli: $(CLI_BINARY)
 .PHONY: build-cli
 
 $(CLI_BINARY): $(CLI_SOURCES)
-	cd cli && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
+	cd client && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
 
 run-hello-world-test: $(CLI_BINARY)
-	@./${CLI_BINARY} auth-test \
+	@./${CLI_BINARY} hello-world \
 		--ga-auth-cert-kv ${GA_AUTH_CERT_KV} \
 		--ga-auth-cert-secret ${GA_AUTH_CERT_SECRET} \
 		--ga-auth-tenant-id ${GA_AUTH_TENANT_ID} \
 		--ga-auth-client-id ${GA_AUTH_CLIENT_ID} \
 		--ga-auth-scopes ${GA_AUTH_SCOPES} \
 		--host ${ADMIN_API_HOST} \
-		--admin-api-endpoint ${ADMIN_API_ENDPOINT_BASE}/admin/helloworld \
+		--admin-api-endpoint ${ADMIN_API_ENDPOINT_BASE} \
 		--insecure-skip-verify
 .PHONY: run-hello-world-test
 
@@ -99,7 +99,7 @@ run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
 	GA_AUTH_CLIENT_ID=$(GA_AUTH_CLIENT_ID) \
 	GA_AUTH_SCOPES=$(GA_AUTH_SCOPES) \
 	ADMIN_API_HOST=$(ADMIN_API_HOST) \
-	ADMIN_API_ENDPOINT=https://localhost:$(PORT_FORWARD_LOCAL_PORT)/admin/helloworld \
+	ADMIN_API_ENDPOINT=https://localhost:$(PORT_FORWARD_LOCAL_PORT) \
 	NAMESPACE=aks-istio-ingress \
 	SERVICE_NAME=aks-istio-ingressgateway-external \
 	LOCAL_PORT=$(PORT_FORWARD_LOCAL_PORT) \
