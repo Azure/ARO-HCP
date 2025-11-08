@@ -69,6 +69,9 @@ func GetCertificateCredential(ctx context.Context, config CertificateAuthConfig)
 		return nil, fmt.Errorf("failed to get certificate secret from Key Vault: %w", err)
 	}
 
+	if secretResponse.Value == nil {
+		return nil, fmt.Errorf("%s certificate secret value from Key Vault %s is nil", config.CertificateSecretName, config.KeyVaultURL)
+	}
 	pfxData, err := base64.StdEncoding.DecodeString(*secretResponse.Value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode certificate data: %w", err)
