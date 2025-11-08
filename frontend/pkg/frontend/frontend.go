@@ -451,39 +451,9 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-
-	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-	}
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
-		return
-	}
-
-	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+	responseBody, cloudError := f.MarshalCluster(ctx, resourceID, versionedInterface)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 

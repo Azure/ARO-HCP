@@ -250,6 +250,40 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
+func (f *Frontend) MarshalCluster(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
+	logger := LoggerFromContext(ctx)
+
+	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		return nil, arm.NewResourceNotFoundError(resourceID)
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, arm.NewInternalServerError()
+	}
+
+	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, arm.NewInternalServerError()
+	}
+
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
+	}
+
+	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, arm.NewInternalServerError()
+	}
+
+	return responseBody, nil
+}
+
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
 	var responseBody []byte
 
