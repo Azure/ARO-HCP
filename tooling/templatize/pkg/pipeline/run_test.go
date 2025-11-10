@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
@@ -386,7 +386,7 @@ func TestArmGetValue(t *testing.T) {
 func TestAddInputVars(t *testing.T) {
 	testCases := []struct {
 		name          string
-		cfg           config.Configuration
+		cfg           configtypes.Configuration
 		input         Outputs
 		stepVariables []types.Variable
 		expected      map[string]any
@@ -496,7 +496,7 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "configref",
-			cfg: config.Configuration{
+			cfg: configtypes.Configuration{
 				"some": map[string]any{
 					"config": "bar",
 				},
@@ -513,7 +513,7 @@ func TestAddInputVars(t *testing.T) {
 		},
 		{
 			name: "configref missing",
-			cfg: config.Configuration{
+			cfg: configtypes.Configuration{
 				"some": map[string]any{
 					"config": "bar",
 				},

@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/pkg/config/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
@@ -36,7 +37,7 @@ func DefaultRolloutOptions() *RawRolloutOptions {
 	}
 }
 
-func NewRolloutOptions(config config.Configuration) *RolloutOptions {
+func NewRolloutOptions(config types.Configuration) *RolloutOptions {
 	return &RolloutOptions{
 		completedRolloutOptions: &completedRolloutOptions{
 			Config: config,
@@ -100,7 +101,7 @@ type ValidatedRolloutOptions struct {
 type completedRolloutOptions struct {
 	*ValidatedRolloutOptions
 	Options       *Options
-	Config        config.Configuration
+	Config        types.Configuration
 	Subscriptions map[string]string
 	StepCacheDir  string
 

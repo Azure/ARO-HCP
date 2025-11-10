@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
@@ -64,7 +64,7 @@ func FindHelmSteps(configPath string) ([]HelmStepWithPath, error) {
 	return allSteps, nil
 }
 
-func recursiveLoadPipelineReturnHelmSteps(service topology.Service, cfg config.Configuration) ([]HelmStepWithPath, error) {
+func recursiveLoadPipelineReturnHelmSteps(service topology.Service, cfg configtypes.Configuration) ([]HelmStepWithPath, error) {
 	pipeline, err := types.NewPipelineFromFile(filepath.Join(RepoRoot, service.PipelinePath), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error loading pipeline: %v", err)
