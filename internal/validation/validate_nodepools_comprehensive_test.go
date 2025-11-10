@@ -823,6 +823,22 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable OS disk size - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "properties.platform"},
+			},
+		},
+		{
 			name: "immutable auto repair - update",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
