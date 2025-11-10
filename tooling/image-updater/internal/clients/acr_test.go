@@ -164,4 +164,3 @@ func TestACRClient_RegistryURLVariants(t *testing.T) {
 		})
 	}
 }
-
