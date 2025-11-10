@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
@@ -313,7 +315,15 @@ func ocmClusterDefaults() *arohcpv1alpha1.ClusterBuilder {
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Platform: api.NodePoolPlatformProfile{
+				OSDisk: api.OSDiskProfile{
+					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
+					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
+					SizeGiB: ptr.To(int32(64)),
+				},
+			},
+		},
 	}
 
 	for _, opt := range opts {
@@ -322,8 +332,7 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 	return nodePool
 }
 
-// Because we don't distinguish between unset and empty values in our JSON parsing
-// we will get the resulting CS object from an empty HCPOpenShiftClusterNodePool object.
+// Base CS nodepool builder that reflects the defaults set in getHCPNodePoolResource.
 func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 	return arohcpv1alpha1.NewNodePool().
 		ID("").
@@ -336,7 +345,7 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 					State(csEncryptionAtHostStateDisabled),
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
-				SizeGibibytes(0).
+				SizeGibibytes(64).
 				StorageAccountType(""),
 			),
 		).
