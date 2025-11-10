@@ -19,7 +19,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
 	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -36,7 +39,7 @@ func TestSizeGiBRoundTrip(t *testing.T) {
 			original: &api.HCPOpenShiftClusterNodePool{
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
-						ID:   "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool",
+						ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster/nodePools/myNodePool")),
 						Name: "myNodePool",
 						Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools",
 					},
