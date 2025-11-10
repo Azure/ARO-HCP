@@ -1,5 +1,0 @@
-values: ../helm/backplane-api/values.yaml
-name: backplane-api-dev
-namespace: aro-hcp
-helmChartDir: ../helm/backplane-api
-testData: {}

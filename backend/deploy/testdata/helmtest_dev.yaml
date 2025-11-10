@@ -1,5 +1,0 @@
-values: ../../values.yaml
-name: backend-dev
-namespace: aro-hcp
-helmChartDir: ..
-testData: {}
