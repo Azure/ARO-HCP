@@ -42,8 +42,8 @@ func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 	return allTests, nil
 }
 
-func FindHelmSteps() ([]HelmStepWithPath, error) {
-	cfg, err := loadConfig()
+func FindHelmSteps(configPath string) ([]HelmStepWithPath, error) {
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}

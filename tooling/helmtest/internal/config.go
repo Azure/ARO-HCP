@@ -17,7 +17,6 @@ package internal
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"sigs.k8s.io/yaml"
 
@@ -25,8 +24,8 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/config/types"
 )
 
-func loadConfig() (config.Configuration, error) {
-	rawCfg, err := os.ReadFile(filepath.Join(RepoRoot, "config/rendered/dev/dev/westus3.yaml"))
+func loadConfig(configPath string) (config.Configuration, error) {
+	rawCfg, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config, %v", err)
 	}
@@ -41,7 +40,7 @@ func loadConfig() (config.Configuration, error) {
 }
 
 func LoadConfigAndMerge(configPath string, configOverride map[string]any) (map[string]any, error) {
-	cfg, err := loadConfig()
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}

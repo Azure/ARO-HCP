@@ -15,12 +15,18 @@
 package internal
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 var RepoRoot = "../.."
+
+var SettingsPath = "settings.yaml"
 
 type TestCase struct {
 	Name         string         `yaml:"name"`
@@ -42,4 +48,22 @@ func (h *HelmStepWithPath) ValuesFileFromRoot() string {
 
 func (h *HelmStepWithPath) ChartDirFromRoot() string {
 	return filepath.Join(RepoRoot, filepath.Dir(h.PipelinePath), h.HelmStep.ChartDir)
+}
+
+type Settings struct {
+	ConfigPath string
+}
+
+func LoadSettings() (*Settings, error) {
+	rawCfg, err := os.ReadFile(SettingsPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading settings, %v", err)
+	}
+
+	var settings Settings
+	err = yaml.Unmarshal(rawCfg, &settings)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling settings, %v", err)
+	}
+	return &settings, nil
 }

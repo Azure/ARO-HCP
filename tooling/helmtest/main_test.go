@@ -35,10 +35,10 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-func runTest(ctx context.Context, testCase internal.TestCase) (string, error) {
-	settings := cli.New()
+func runTest(ctx context.Context, settings *internal.Settings, testCase internal.TestCase) (string, error) {
+	helmSettings := cli.New()
 	cfg := action.Configuration{}
-	err := cfg.Init(settings.RESTClientGetter(), testCase.Namespace, "memory")
+	err := cfg.Init(helmSettings.RESTClientGetter(), testCase.Namespace, "memory")
 	if err != nil {
 		return "", fmt.Errorf("error initializing config, %v", err)
 	}
@@ -55,7 +55,7 @@ func runTest(ctx context.Context, testCase internal.TestCase) (string, error) {
 		Minor:   "30",
 	}
 
-	cfgYaml, err := internal.LoadConfigAndMerge(filepath.Join(internal.RepoRoot, "config/rendered/dev/dev/westus3.yaml"), testCase.TestData)
+	cfgYaml, err := internal.LoadConfigAndMerge(settings.ConfigPath, testCase.TestData)
 	if err != nil {
 		return "", fmt.Errorf("error loading config, %v", err)
 	}
@@ -126,7 +126,11 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 }
 
 func TestHelmTemplate(t *testing.T) {
-	helmSteps, err := internal.FindHelmSteps()
+	settings, err := internal.LoadSettings()
+	assert.NoError(t, err)
+	assert.NotNil(t, settings)
+
+	helmSteps, err := internal.FindHelmSteps(settings.ConfigPath)
 	assert.NoError(t, err)
 	assert.NotNil(t, helmSteps)
 
@@ -152,7 +156,7 @@ func TestHelmTemplate(t *testing.T) {
 		})
 		for _, testCase := range allCases {
 			t.Run(testCase.Name, func(t *testing.T) {
-				manifest, err := runTest(t.Context(), testCase)
+				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
 				CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), "testdata")))
 			})
