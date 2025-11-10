@@ -17,29 +17,9 @@ package main
 import (
 	"fmt"
 	"os"
-
-	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
 func main() {
-	allTests, err := internal.FindHelmTestFiles(internal.RepoRoot)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	fmt.Println("Found", len(allTests), "helmtests")
-	for _, test := range allTests {
-		fmt.Println(test)
-	}
-
-	helmSteps, err := internal.FindHelmSteps()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	fmt.Println("Found", len(helmSteps), "helm steps")
-	for _, step := range helmSteps {
-		fmt.Printf("Name: %s, Path: %s\n", step.HelmStep.Name, step.ChartDirFromRoot())
-	}
-	fmt.Println("Use 'go test -run TestHelmTemplate -count=1' to run these tests")
+	fmt.Println("This it not a CLI, use 'go test -run TestHelmTemplate -count=1' to run these tests")
+	os.Exit(1)
 }
