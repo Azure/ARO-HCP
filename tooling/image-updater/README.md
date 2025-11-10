@@ -2,10 +2,14 @@
 
 Automatically fetches the latest image digests from container registries and updates ARO-HCP configuration files.
 
-Supports multiple registry types:
-- **Quay.io**: Uses proprietary Quay API for enhanced tag discovery
-- **Azure Container Registry (ACR)**: Uses Azure SDK with optional authentication
-- **Generic Docker Registry v2**: Any compatible registry (MCR, Docker Hub, GCR, etc.)
+## Supported Registries
+
+The image-updater supports multiple container registry types with optimized clients:
+
+- **Quay.io** - Uses Quay's proprietary API for enhanced tag discovery
+- **Azure Container Registry (ACR)** - Uses Azure SDK with optional authentication
+- **Microsoft Container Registry (MCR)** - Uses Docker Registry HTTP API v2
+- **Generic Registries** - Any Docker Registry HTTP API v2 compatible registry (Docker Hub, Harbor, etc.)
 
 ## Key Features
 
@@ -24,9 +28,11 @@ Supports multiple registry types:
 | pko-package | quay.io/package-operator/package-operator-package | Quay.io |
 | pko-manager | quay.io/package-operator/package-operator-manager | Quay.io |
 | pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager | Quay.io |
-| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (auth) |
-| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (auth) |
-| acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR (public) |
+| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (Private) |
+| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (Private) |
+| kubeEvents | kubernetesshared.azurecr.io/shared/kube-events | ACR (Public) |
+| acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR |
+| secretSyncController | registry.k8s.io/secrets-store-sync/controller | Generic |
 
 ## Usage
 
@@ -39,6 +45,12 @@ make update
 
 # Update with custom config
 ./image-updater update --config config.yaml
+
+# Update specific components only
+./image-updater update --config config.yaml --components maestro,hypershift
+
+# Update all components except specific ones
+./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
 ```
 
 ## Configuration
@@ -47,6 +59,7 @@ Define images to monitor and target files to update:
 
 ```yaml
 images:
+  # Quay.io image with commit hash tag pattern
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -55,6 +68,7 @@ images:
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
 
+  # Single-arch image (explicitly targets amd64 only)
   hypershift:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
@@ -64,6 +78,7 @@ images:
     - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
 
+  # Quay.io image with semantic version tags
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
@@ -72,62 +87,89 @@ images:
     - jsonPath: defaults.pko.imagePackage.digest
       filePath: ../../config/config.yaml
 
-  acr-private-image:
+  # Private ACR image requiring authentication
+  arohcpfrontend:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpfrontend
-      useAuth: true  # Enable Azure authentication for private ACR
+      useAuth: true  # Explicitly require authentication
     targets:
-    - jsonPath: defaults.frontend.image.digest
+    - jsonPath: clouds.dev.defaults.frontend.image.digest
       filePath: ../../config/config.yaml
 
-  mcr-public-image:
+  # Public ACR image (anonymous access)
+  kubeEvents:
+    source:
+      image: kubernetesshared.azurecr.io/shared/kube-events
+      tagPattern: "^\\d+\\.\\d+$"
+      # useAuth defaults to false
+    targets:
+    - jsonPath: defaults.kubeEvents.image.digest
+      filePath: ../../config/config.yaml
+
+  # MCR (Microsoft Container Registry) image
+  acrPull:
     source:
       image: mcr.microsoft.com/aks/msi-acrpull
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
-      # useAuth defaults to false - works with public MCR images
+      # useAuth defaults to false for MCR
     targets:
     - jsonPath: defaults.acrPull.image.digest
+      filePath: ../../config/config.yaml
+
+  # Multi-arch manifest list (returns digest of manifest list, not single-arch image)
+  secretSyncController:
+    source:
+      image: registry.k8s.io/secrets-store-sync/controller
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      multiArch: true  # Fetch multi-arch manifest list digest
+    targets:
+    - jsonPath: defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
 ```
 
 ## Authentication
 
-By default, the image-updater uses **anonymous access** for all registries. For private registries requiring authentication, you must explicitly enable it.
+Authentication behavior varies by registry type.
+
+### Default Behavior (useAuth defaults to `false`)
+
+- **Quay.io**: Always uses anonymous access
+- **MCR (mcr.microsoft.com)**: Always uses anonymous access
+- **Generic registries**: Uses anonymous access by default
+- **Azure Container Registry**: Uses anonymous access by default, set `useAuth: true` for private registries
 
 ### Registry-Specific Authentication
 
-#### Azure Container Registry (ACR)
-
-For private ACR images, enable Azure credential authentication:
+**Private ACR (requires authentication)**:
 
 ```yaml
 source:
   image: arohcpsvcdev.azurecr.io/arohcpfrontend
-  useAuth: true  # Use Azure credentials for authentication
+  useAuth: true  # Required for private ACR
 ```
 
-#### Generic Registries (MCR, Docker Hub, etc.)
+**Public ACR (anonymous access)**:
 
-Most public registries work without authentication:
+```yaml
+source:
+  image: kubernetesshared.azurecr.io/shared/kube-events
+  # useAuth defaults to false
+```
+
+**MCR images**:
 
 ```yaml
 source:
   image: mcr.microsoft.com/aks/msi-acrpull
-  # useAuth defaults to false - no authentication needed
+  # useAuth defaults to false, MCR is always public
 ```
 
-**Authentication Behavior**:
+**Note**: For Azure Container Registry, authentication uses `DefaultAzureCredential` which supports:
 
-- **Default**: `useAuth: false` (anonymous access)
-- **ACR with `useAuth: true`**: Uses Azure SDK with Azure credentials
-- **All other registries**: Uses Docker Registry HTTP API v2 (anonymous)
-
-**Benefits**:
-
-- Works out-of-the-box with public registries (MCR, Quay.io, Docker Hub)
-- No credentials needed for public images
-- Explicit opt-in for private registry authentication
-- Useful in CI/CD environments without registry credentials
+- Managed Identity
+- Azure CLI credentials (`az login`)
+- Environment variables
+- And other Azure authentication methods
 
 ## Tag Patterns
 
@@ -143,7 +185,9 @@ If no pattern is specified, uses the most recently pushed tag.
 
 ## Architecture Filtering
 
-The tool **always** filters images by architecture. Specify the target architecture (defaults to `amd64` if not specified):
+### Single-Architecture Images (Default)
+
+By default, the tool filters for single-architecture images matching the specified architecture (defaults to `amd64`):
 
 ```yaml
 source:
@@ -153,22 +197,103 @@ source:
 ```
 
 **How it works:**
+
 1. Fetches all tags matching the pattern
 2. Iterates through tags (newest first)
-3. Skips multi-arch manifest lists
+3. **Skips multi-arch manifest lists**
 4. Verifies architecture matches and OS = linux
 5. Returns the first matching single-arch image digest
 
-**Registry-Specific Implementation:**
+**Supported architectures**: `amd64`, `arm64`, `ppc64le`, etc.
 
-- **Quay.io**: Uses proprietary Quay API for tag listing and `go-containerregistry` to inspect image config blobs
-- **Azure Container Registry**: Uses Azure SDK's `GetManifestProperties` API to read architecture metadata directly from manifest attributes
-- **Generic (MCR, Docker Hub, etc.)**: Uses Docker Registry HTTP API v2 for tag listing and `go-containerregistry` for manifest/config inspection
+### Multi-Architecture Manifests
+
+To fetch multi-arch manifest list digests instead of single-arch images, set `multiArch: true`:
+
+```yaml
+source:
+  image: registry.k8s.io/secrets-store-sync/controller
+  tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+  multiArch: true  # Returns the manifest list digest
+```
+
+**How it works:**
+
+1. Fetches all tags matching the pattern
+2. Iterates through tags (newest first)
+3. **Finds multi-arch manifest lists** (skips single-arch images)
+4. Returns the first multi-arch manifest list digest
+
+**Use cases**:
+
+- Images that only publish multi-arch manifests
+- When you need the manifest list digest for platform-agnostic deployments
+- Container runtimes that resolve architecture-specific images from manifest lists
+
+**Note**: `multiArch` and `architecture` are mutually exclusive. If `multiArch: true`, the `architecture` field is ignored.
+
+### Registry-Specific Implementation
+
+- **Quay.io**: Uses `go-containerregistry` to inspect image manifests and detect multi-arch via `MediaType.IsIndex()`
+- **Azure Container Registry**: Uses Azure SDK's `GetManifestProperties` API and detects multi-arch via `RelatedArtifacts` field
+- **Generic/MCR**: Uses `go-containerregistry` to inspect Docker Registry HTTP API v2 manifests
 
 ## Command Options
 
 ```text
 Flags:
-      --config string   Path to configuration file (required)
-      --dry-run         Preview changes without modifying files
+      --config string       Path to configuration file (required)
+      --dry-run             Preview changes without modifying files
+      --components string   Comma-separated list of components to update (optional)
+      --exclude string      Comma-separated list of components to exclude (optional)
 ```
+
+**Component Filtering**:
+
+- Use `--components` to update only specific images: `--components maestro,hypershift`
+- Use `--exclude` to update all images except specific ones: `--exclude arohcpfrontend,arohcpbackend`
+- If `--components` is specified, `--exclude` is ignored
+- If neither is specified, all images are updated
+
+## Configuration Reference
+
+### Source Configuration Options
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `image` | string | Yes | - | Full image reference (registry/repository) |
+| `tagPattern` | string | No | - | Regex pattern to filter tags (uses most recent if omitted) |
+| `architecture` | string | No | `amd64` | Target architecture for single-arch images (`amd64`, `arm64`, etc.) |
+| `multiArch` | bool | No | `false` | If `true`, fetches multi-arch manifest list digest |
+| `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private ACR) |
+
+**Notes**:
+
+- `multiArch` and `architecture` are mutually exclusive
+- `useAuth` defaults to `false` for all registries
+- For private Azure Container Registries, explicitly set `useAuth: true`
+
+### Target Configuration Options
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filePath` | string | Yes | Path to YAML file to update |
+| `jsonPath` | string | Yes | Dot-notation path to digest field (e.g., `defaults.image.digest`) |
+
+## How It Works
+
+1. **Registry Client Selection**: Automatically selects the appropriate client based on registry URL:
+   - `quay.io` → QuayClient (uses Quay API)
+   - `*.azurecr.io` → ACRClient (uses Azure SDK)
+   - `mcr.microsoft.com` → GenericRegistryClient (uses Docker Registry HTTP API v2)
+   - Others → GenericRegistryClient (uses Docker Registry HTTP API v2)
+
+2. **Tag Discovery**: Fetches all tags from the registry and filters by `tagPattern` (if specified)
+
+3. **Architecture Validation**:
+   - For single-arch mode: Inspects each tag to find matching architecture and OS
+   - For multi-arch mode: Finds multi-arch manifest lists
+
+4. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
+
+5. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
