@@ -119,6 +119,10 @@ resourceGroups:
       configRef: dns.parentZoneName
     childZone:
       configRef: dns.svcParentZoneName
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
     dependsOn:
     - resourceGroup: global
       step: infra
@@ -129,6 +133,10 @@ resourceGroups:
       configRef: dns.parentZoneName
     childZone:
       configRef: dns.cxParentZoneName
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
     dependsOn:
     - resourceGroup: global
       step: infra

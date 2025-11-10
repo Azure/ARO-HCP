@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/helmtest
 go 1.24.4
 
 require (
-	github.com/Azure/ARO-Tools v0.0.0-20251110183707-559fa2771026
+	github.com/Azure/ARO-Tools v0.0.0-20251110224802-e038b0341cfc
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	helm.sh/helm/v4 v4.0.0-beta.2
