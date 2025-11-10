@@ -628,14 +628,14 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:c3bcfb11de58edf1d932fd7293b1ba56bec533a0e5cec31b7103f6f27cc3574a # v2.14.1-258
+        digest: sha256:0b7f1ad95fc08442200794a6d2c51cf088e8d05cda113955d8fea308e1ba9640 # v2.14.1-258
     mce:
       version: "2.9.2"
       mirrorAdditionalVersions: "2.8.1,2.8.2,2.9.0,2.9.1"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:2947e3a14ab9b8e40b982116ee0e6006397bd335fc4cc2cc96e26bc7c5494075 # v2.9.1-96
+        digest: sha256:46072332a71aab372cbdfd30003d92522e069a1bcef29ac127544f0c56f45da0 # v2.9.1-96
   # Cluster Service
   clustersService:
     image:
@@ -857,11 +857,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:85b9ebd6526776ac8a61018fb502436cfc551e59a5f6ac70ee4605abcd0caf1e
+          digest: sha256:67d8fc02694e3880a5eeefaa35be397d6edc2d609d4202bb27f061116844ad81
       # Backend
       backend:
         image:
-          digest: sha256:3672a0b4e29922d44925cc8837dbfe51751b8d220972dcf44680f91837822bdf
+          digest: sha256:975df7cca2eb1bc3effeaee6e4edac9526bdaac57219012f69f001a64b34ff07
       # Image Sync
       imageSync:
         ocMirror:
@@ -1206,7 +1206,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:fe377fce9f7915688d879879dc73fe3ddf37ab5a70b8e305ae1abafff650a337
+              digest: sha256:1214d5ed00fe743e5eaf7a215af5f734a0cb599c823d8c9d1ca8a96d4a0ac081
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
