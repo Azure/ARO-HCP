@@ -69,3 +69,17 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+  acm-operator:
+    source:
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
+    targets:
+    - jsonPath: defaults.acm.operator.bundle.digest
+      filePath: ../../config/config.yaml
+  acm-mce:
+    source:
+      image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-\\d+$"
+    targets:
+    - jsonPath: defaults.acm.mce.bundle.digest
+      filePath: ../../config/config.yaml
