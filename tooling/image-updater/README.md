@@ -81,12 +81,12 @@ source:
   useAuth: false  # Use anonymous access
 ```
 
-**Automatic Fallback**: If authentication is enabled (default) but fails with an auth error, the tool automatically falls back to anonymous access for that registry.
+**Note**: The tool does not automatically fall back to anonymous access if authentication fails. You must explicitly set `useAuth: false` for registries that support anonymous access.
 
 **Benefits**:
 - Access public ACR images without Azure credentials
 - Useful in CI/CD environments without ACR authentication
-- Automatic retry on auth failures
+- Explicit control over authentication mode
 
 ## Tag Patterns
 

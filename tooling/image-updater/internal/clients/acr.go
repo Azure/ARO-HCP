@@ -17,7 +17,6 @@ package clients
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -28,75 +27,45 @@ import (
 
 // ACRClient provides methods to interact with Azure Container Registry
 type ACRClient struct {
-	client          *azcontainerregistry.Client
-	anonymousClient *azcontainerregistry.Client
-	registryURL     string
-	useAnonymous    bool // Track if we've fallen back to anonymous
+	client      *azcontainerregistry.Client
+	registryURL string
 }
 
 // NewACRClient creates a new Azure Container Registry client
-// If useAuth is false, only anonymous client is created
-// If useAuth is true, both authenticated and anonymous clients are created for fallback
+// If useAuth is true, creates an authenticated client
+// If useAuth is false, creates an anonymous client
 func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
 	acr := &ACRClient{
 		registryURL: registryURL,
 	}
 
-	// Only try to create authenticated client if useAuth is true
+	var client *azcontainerregistry.Client
+	var err error
+
 	if useAuth {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err == nil {
-			client, err := azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
-			if err == nil {
-				acr.client = client
-			}
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+		}
+
+		client, err = azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create authenticated ACR client: %w", err)
 		}
 	} else {
-		// If authentication is disabled, use anonymous from the start
-		acr.useAnonymous = true
-	}
-
-	// Always create an anonymous client as fallback (or primary if useAuth=false)
-	anonymousClient, err := azcontainerregistry.NewClient("https://"+registryURL, nil, nil)
-	if err != nil {
-		if acr.client == nil {
-			return nil, fmt.Errorf("failed to create ACR client (neither authenticated nor anonymous worked): %w", err)
+		// Create anonymous client (no credentials)
+		client, err = azcontainerregistry.NewClient("https://"+registryURL, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create anonymous ACR client: %w", err)
 		}
-		// If we have an authenticated client, we can continue without anonymous fallback
-	} else {
-		acr.anonymousClient = anonymousClient
 	}
 
-	// If neither client was created, fail
-	if acr.client == nil && acr.anonymousClient == nil {
-		return nil, fmt.Errorf("failed to create any ACR client for %s", registryURL)
-	}
-
+	acr.client = client
 	return acr, nil
 }
 
 func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
-	// Try authenticated client first if available and not already failed
-	if c.client != nil && !c.useAnonymous {
-		tags, err := c.getAllTagsWithClient(ctx, repository, c.client)
-		if err == nil {
-			return tags, nil
-		}
-		// Check if error is auth-related
-		if isAuthError(err) && c.anonymousClient != nil {
-			fmt.Printf("  Authentication failed for %s, retrying with anonymous access...\n", c.registryURL)
-			c.useAnonymous = true // Switch to anonymous for all future calls
-			return c.getAllTagsWithClient(ctx, repository, c.anonymousClient)
-		}
-		return nil, err
-	}
-
-	// Fall back to anonymous client
-	if c.anonymousClient != nil {
-		return c.getAllTagsWithClient(ctx, repository, c.anonymousClient)
-	}
-
-	return nil, fmt.Errorf("no ACR client available")
+	return c.getAllTagsWithClient(ctx, repository, c.client)
 }
 
 func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string, client *azcontainerregistry.Client) ([]Tag, error) {
@@ -146,25 +115,8 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 	return allTags, nil
 }
 
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "UNAUTHORIZED") ||
-		strings.Contains(errStr, "401") ||
-		strings.Contains(errStr, "token validation failed") ||
-		strings.Contains(errStr, "unknown tenantId")
-}
-
 func (c *ACRClient) getClient() *azcontainerregistry.Client {
-	if c.useAnonymous && c.anonymousClient != nil {
-		return c.anonymousClient
-	}
-	if c.client != nil {
-		return c.client
-	}
-	return c.anonymousClient
+	return c.client
 }
 
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
