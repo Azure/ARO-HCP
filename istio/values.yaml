@@ -9,9 +9,9 @@ mise:
     digest: "{{ .mise.image.digest }}"
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
-    clientId: "{{ .mise.audit.applicationId }}"
+    clientId: "{{ .firstPartyAppClientId }}"
     tenantId: "{{ .mise.arm.tenantId }}"
-    audience: "api://{{ .mise.audit.applicationId }}"
+    audience: "api://{{ .firstPartyAppClientId }}"
   tracing:
     address: "{{ .mise.tracing.address }}"
     exporter: "{{ .mise.tracing.exporter }}"
