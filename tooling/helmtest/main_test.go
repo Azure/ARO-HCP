@@ -96,51 +96,65 @@ func runTest(ctx context.Context, testCase internal.TestCase) (string, error) {
 	return fmt.Sprintf("%s\n%s", accessor.Manifest(), allHooks), nil
 }
 
-func TestHelmTemplateFromTestFiles(t *testing.T) {
-	testCases, err := internal.FindHelmtestFiles()
-	assert.NoError(t, err)
-	assert.NotNil(t, testCases)
+func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
+	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, "testdata"))
+	if err != nil {
+		return nil, fmt.Errorf("error finding helmtest files, %v", err)
+	}
 
-	for _, testCasePath := range testCases {
+	allCases := []internal.TestCase{}
+
+	for _, testCasePath := range testCaseFiles {
 		testCaseRaw, err := os.ReadFile(testCasePath)
-		assert.NoError(t, err)
+		if err != nil {
+			return nil, fmt.Errorf("error reading test case file, %v", err)
+		}
 
 		var testCase internal.TestCase
 		err = yaml.Unmarshal(testCaseRaw, &testCase)
-		assert.NoError(t, err)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling test case file, %v", err)
+		}
 
-		// Override paths from config, need to prefix with file-containing directory
-		testCase.Values = filepath.Join(filepath.Dir(testCasePath), testCase.Values)
-		testCase.HelmChartDir = filepath.Join(filepath.Dir(testCasePath), testCase.HelmChartDir)
-
-		t.Run(testCase.Name, func(t *testing.T) {
-			manifest, err := runTest(t.Context(), testCase)
-			assert.NoError(t, err)
-			CompareWithFixture(t, manifest, WithGoldenDir(filepath.Dir(testCasePath)))
-		})
+		testCase.Values = filepath.Join(chartDir, "testdata", testCase.Values)
+		testCase.HelmChartDir = filepath.Join(chartDir, "testdata", testCase.HelmChartDir)
+		allCases = append(allCases, testCase)
 	}
-
+	return allCases, nil
 }
 
-func TestHelmTemplateFromHelmSteps(t *testing.T) {
+func TestHelmTemplate(t *testing.T) {
 	helmSteps, err := internal.FindHelmSteps()
 	assert.NoError(t, err)
 	assert.NotNil(t, helmSteps)
 
-	for _, helmStep := range helmSteps {
-		fmt.Println(filepath.Join(internal.RepoRoot, helmStep.ChartDirFromRoot()))
+	chartDirsVisited := make(map[string]bool)
 
-		testCase := internal.TestCase{
-			Name:         helmStep.HelmStep.ReleaseName,
+	for _, helmStep := range helmSteps {
+		allCases := []internal.TestCase{}
+
+		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot()]; !ok {
+			// visit the chart directory only once. Some helm step definitions reference the directory, would cause duplicates.
+			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot())
+			assert.NoError(t, err)
+			allCases = append(allCases, customTestCases...)
+			chartDirsVisited[helmStep.ChartDirFromRoot()] = true
+		}
+
+		allCases = append(allCases, internal.TestCase{
+			Name:         fmt.Sprintf("%s-%s", helmStep.AKSCluster, helmStep.HelmStep.ReleaseName),
 			Namespace:    helmStep.HelmStep.ReleaseNamespace,
 			Values:       helmStep.ValuesFileFromRoot(),
 			HelmChartDir: helmStep.ChartDirFromRoot(),
 			TestData:     map[string]any{},
-		}
-		t.Run(helmStep.HelmStep.Name, func(t *testing.T) {
-			manifest, err := runTest(t.Context(), testCase)
-			assert.NoError(t, err)
-			CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), "testdata")))
 		})
+		for _, testCase := range allCases {
+			t.Run(testCase.Name, func(t *testing.T) {
+				manifest, err := runTest(t.Context(), testCase)
+				assert.NoError(t, err)
+				CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), "testdata")))
+			})
+		}
 	}
+
 }

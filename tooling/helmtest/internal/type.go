@@ -33,6 +33,7 @@ type TestCase struct {
 type HelmStepWithPath struct {
 	HelmStep     *types.HelmStep
 	PipelinePath string
+	AKSCluster   string
 }
 
 func (h *HelmStepWithPath) ValuesFileFromRoot() string {

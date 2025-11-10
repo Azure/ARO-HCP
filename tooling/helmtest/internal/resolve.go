@@ -25,9 +25,9 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
-func FindHelmtestFiles() ([]string, error) {
+func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 	allTests := make([]string, 0)
-	err := filepath.WalkDir(RepoRoot, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(pathToSearch, func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
 		}
@@ -76,6 +76,7 @@ func recursiveLoadPipelineReturnHelmSteps(service topology.Service, cfg config.C
 				allSteps = append(allSteps, HelmStepWithPath{
 					HelmStep:     helmStep,
 					PipelinePath: service.PipelinePath,
+					AKSCluster:   helmStep.AKSCluster,
 				})
 			}
 		}

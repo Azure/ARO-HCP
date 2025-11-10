@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	allTests, err := internal.FindHelmtestFiles()
+	allTests, err := internal.FindHelmTestFiles(internal.RepoRoot)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
