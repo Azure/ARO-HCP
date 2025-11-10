@@ -119,7 +119,7 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 	return c.client
 }
 
-func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
+func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	allTags, err := c.getAllTags(ctx, repository)
@@ -150,6 +150,12 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 
 		manifest := manifestProps.Manifest
 
+		// If multiArch is requested and this is a multi-arch manifest, return it
+		if multiArch && len(manifest.RelatedArtifacts) > 0 {
+			logger.Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
+			return tag.Digest, nil
+		}
+
 		if len(manifest.RelatedArtifacts) > 0 {
 			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
 			continue
@@ -169,5 +175,8 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
 	}
 
+	if multiArch {
+		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
+	}
 	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }

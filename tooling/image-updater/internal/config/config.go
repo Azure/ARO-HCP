@@ -37,8 +37,9 @@ type ImageConfig struct {
 type Source struct {
 	Image        string `yaml:"image"`
 	TagPattern   string `yaml:"tagPattern,omitempty"`
-	Architecture string `yaml:"architecture,omitempty"`
-	UseAuth      *bool  `yaml:"useAuth,omitempty"` // nil/true = use auth (default), false = anonymous only
+	Architecture string `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
+	MultiArch    bool   `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
+	UseAuth      *bool  `yaml:"useAuth,omitempty"`      // nil/true = use auth (default), false = anonymous only
 }
 
 // Target defines where to update the image digest

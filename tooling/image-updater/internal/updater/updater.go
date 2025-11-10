@@ -103,7 +103,7 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 		arch = DefaultArchitecture
 	}
 
-	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch)
+	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch, source.MultiArch)
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
