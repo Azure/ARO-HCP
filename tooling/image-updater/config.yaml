@@ -83,3 +83,11 @@ images:
     targets:
     - jsonPath: defaults.acm.mce.bundle.digest
       filePath: ../../config/config.yaml
+  acrPull:
+    source:
+      image: mcr.microsoft.com/aks/msi-acrpull
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      useAuth: false
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.acrPull.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml

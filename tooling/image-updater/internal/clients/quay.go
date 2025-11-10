@@ -26,11 +26,13 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
+// QuayClient provides methods to interact with Quay.io using its proprietary API
 type QuayClient struct {
 	httpClient *http.Client
 	baseURL    string
 }
 
+// NewQuayClient creates a new Quay.io client
 func NewQuayClient() *QuayClient {
 	return &QuayClient{
 		httpClient: &http.Client{
