@@ -326,3 +326,67 @@ func TestNewRegistryClient(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestamp(t *testing.T) {
+	tests := []struct {
+		name          string
+		timestampStr  string
+		wantErr       bool
+		checkYear     int
+		checkMonth    time.Month
+		checkDay      int
+	}{
+		{
+			name:         "valid RFC1123Z timestamp",
+			timestampStr: "Mon, 02 Jan 2006 15:04:05 -0700",
+			wantErr:      false,
+			checkYear:    2006,
+			checkMonth:   time.January,
+			checkDay:     2,
+		},
+		{
+			name:         "another valid RFC1123Z timestamp",
+			timestampStr: "Wed, 15 Nov 2023 10:30:00 +0000",
+			wantErr:      false,
+			checkYear:    2023,
+			checkMonth:   time.November,
+			checkDay:     15,
+		},
+		{
+			name:         "invalid timestamp format",
+			timestampStr: "2023-11-15T10:30:00Z",
+			wantErr:      true,
+		},
+		{
+			name:         "empty timestamp string",
+			timestampStr: "",
+			wantErr:      true,
+		},
+		{
+			name:         "random string",
+			timestampStr: "not a timestamp",
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTimestamp(tt.timestampStr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseTimestamp() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if got.Year() != tt.checkYear {
+					t.Errorf("ParseTimestamp() year = %v, want %v", got.Year(), tt.checkYear)
+				}
+				if got.Month() != tt.checkMonth {
+					t.Errorf("ParseTimestamp() month = %v, want %v", got.Month(), tt.checkMonth)
+				}
+				if got.Day() != tt.checkDay {
+					t.Errorf("ParseTimestamp() day = %v, want %v", got.Day(), tt.checkDay)
+				}
+			}
+		})
+	}
+}
