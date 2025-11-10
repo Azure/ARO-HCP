@@ -402,21 +402,21 @@ func TestRawUpdateOptions_Validate_InvalidConfig(t *testing.T) {
 
 func TestComplete_AuthenticationRequirements(t *testing.T) {
 	tests := []struct {
-		name                        string
-		configContentFunc           func(tmpDir string) string
-		targetFiles                 []string
-		wantRegistryAuthRequired    map[string]bool
-		wantRegistryClientCount     int
+		name                     string
+		configContentFunc        func(tmpDir string) string
+		targetFiles              []string
+		wantRegistryAuthRequired map[string]bool
+		wantRegistryClientCount  int
 	}{
 		{
-			name: "single registry with requiresAuthentication false",
+			name: "single registry with useAuth false",
 			configContentFunc: func(tmpDir string) string {
 				return `
 images:
   test:
     source:
       image: registry.azurecr.io/test/app
-      requiresAuthentication: false
+      useAuth: false
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test.yaml") + `
         jsonPath: image.digest
@@ -429,14 +429,14 @@ images:
 			wantRegistryClientCount: 1,
 		},
 		{
-			name: "single registry with requiresAuthentication true",
+			name: "single registry with useAuth true",
 			configContentFunc: func(tmpDir string) string {
 				return `
 images:
   test:
     source:
       image: registry.azurecr.io/test/app
-      requiresAuthentication: true
+      useAuth: true
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test.yaml") + `
         jsonPath: image.digest
@@ -449,7 +449,7 @@ images:
 			wantRegistryClientCount: 1,
 		},
 		{
-			name: "single registry with requiresAuthentication not set (defaults to true)",
+			name: "single registry with useAuth not set (defaults to true)",
 			configContentFunc: func(tmpDir string) string {
 				return `
 images:
@@ -475,14 +475,14 @@ images:
   test1:
     source:
       image: registry.azurecr.io/test/app1
-      requiresAuthentication: false
+      useAuth: false
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test1.yaml") + `
         jsonPath: image.digest
   test2:
     source:
       image: registry.azurecr.io/test/app2
-      requiresAuthentication: true
+      useAuth: true
     targets:
       - filePath: ` + filepath.Join(tmpDir, "test2.yaml") + `
         jsonPath: image.digest

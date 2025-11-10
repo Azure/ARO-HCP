@@ -61,7 +61,7 @@ images:
   public-acr-image:
     source:
       image: publicacr.azurecr.io/myimage
-      requiresAuthentication: false  # Use anonymous access for public ACRs
+      useAuth: false  # Use anonymous access for public ACRs
     targets:
     - jsonPath: defaults.myimage.digest
       filePath: ../../config/config.yaml
@@ -78,7 +78,7 @@ For Azure Container Registries that allow anonymous/public access, you can disab
 ```yaml
 source:
   image: publicacr.azurecr.io/myimage
-  requiresAuthentication: false  # Use anonymous access
+  useAuth: false  # Use anonymous access
 ```
 
 **Automatic Fallback**: If authentication is enabled (default) but fails with an auth error, the tool automatically falls back to anonymous access for that registry.

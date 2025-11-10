@@ -114,8 +114,8 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 			return nil, fmt.Errorf("failed to parse image reference: %w", err)
 		}
 
-		// If any image from a registry sets requiresAuthentication: false, use anonymous for that registry
-		if imageConfig.Source.RequiresAuthentication != nil && !*imageConfig.Source.RequiresAuthentication {
+		// If any image from a registry sets useAuth: false, use anonymous for that registry
+		if imageConfig.Source.UseAuth != nil && !*imageConfig.Source.UseAuth {
 			registryAuthRequired[registry] = false
 		} else if _, exists := registryAuthRequired[registry]; !exists {
 			// Default to requiring auth if not explicitly set to false

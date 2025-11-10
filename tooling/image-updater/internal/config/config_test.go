@@ -474,45 +474,45 @@ images:
 	}
 }
 
-func TestConfigLoad_WithRequiresAuthentication(t *testing.T) {
+func TestConfigLoad_WithUseAuth(t *testing.T) {
 	tests := []struct {
-		name                       string
-		configContent              string
-		wantImageName              string
-		wantRequiresAuthentication *bool
+		name          string
+		configContent string
+		wantImageName string
+		wantUseAuth   *bool
 	}{
 		{
-			name: "requiresAuthentication set to false",
+			name: "useAuth set to false",
 			configContent: `
 images:
   test:
     source:
       image: registry.azurecr.io/test/app
-      requiresAuthentication: false
+      useAuth: false
     targets:
       - filePath: test.yaml
         jsonPath: image.digest
 `,
-			wantImageName:              "test",
-			wantRequiresAuthentication: boolPtr(false),
+			wantImageName: "test",
+			wantUseAuth:   boolPtr(false),
 		},
 		{
-			name: "requiresAuthentication set to true",
+			name: "useAuth set to true",
 			configContent: `
 images:
   test:
     source:
       image: registry.azurecr.io/test/app
-      requiresAuthentication: true
+      useAuth: true
     targets:
       - filePath: test.yaml
         jsonPath: image.digest
 `,
-			wantImageName:              "test",
-			wantRequiresAuthentication: boolPtr(true),
+			wantImageName: "test",
+			wantUseAuth:   boolPtr(true),
 		},
 		{
-			name: "requiresAuthentication not set (defaults to nil)",
+			name: "useAuth not set (defaults to nil)",
 			configContent: `
 images:
   test:
@@ -522,8 +522,8 @@ images:
       - filePath: test.yaml
         jsonPath: image.digest
 `,
-			wantImageName:              "test",
-			wantRequiresAuthentication: nil,
+			wantImageName: "test",
+			wantUseAuth:   nil,
 		},
 	}
 
@@ -546,15 +546,15 @@ images:
 				t.Fatalf("Load() missing expected image %s", tt.wantImageName)
 			}
 
-			if tt.wantRequiresAuthentication == nil {
-				if img.Source.RequiresAuthentication != nil {
-					t.Errorf("Load() RequiresAuthentication = %v, want nil", img.Source.RequiresAuthentication)
+			if tt.wantUseAuth == nil {
+				if img.Source.UseAuth != nil {
+					t.Errorf("Load() UseAuth = %v, want nil", img.Source.UseAuth)
 				}
 			} else {
-				if img.Source.RequiresAuthentication == nil {
-					t.Errorf("Load() RequiresAuthentication = nil, want %v", *tt.wantRequiresAuthentication)
-				} else if *img.Source.RequiresAuthentication != *tt.wantRequiresAuthentication {
-					t.Errorf("Load() RequiresAuthentication = %v, want %v", *img.Source.RequiresAuthentication, *tt.wantRequiresAuthentication)
+				if img.Source.UseAuth == nil {
+					t.Errorf("Load() UseAuth = nil, want %v", *tt.wantUseAuth)
+				} else if *img.Source.UseAuth != *tt.wantUseAuth {
+					t.Errorf("Load() UseAuth = %v, want %v", *img.Source.UseAuth, *tt.wantUseAuth)
 				}
 			}
 		})
