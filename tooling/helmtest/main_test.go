@@ -117,7 +117,9 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 		}
 
 		testCase.Values = filepath.Join(chartDir, "testdata", testCase.Values)
-		testCase.HelmChartDir = filepath.Join(chartDir, "testdata", testCase.HelmChartDir)
+		if testCase.HelmChartDir == "" {
+			testCase.HelmChartDir = chartDir
+		}
 		allCases = append(allCases, testCase)
 	}
 	return allCases, nil

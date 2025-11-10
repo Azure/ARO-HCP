@@ -26,7 +26,7 @@ type TestCase struct {
 	Name         string         `yaml:"name"`
 	Namespace    string         `yaml:"namespace"`
 	Values       string         `yaml:"values"`
-	HelmChartDir string         `yaml:"helmChartDir"`
+	HelmChartDir string         `yaml:"helmChartDir,omitempty"`
 	TestData     map[string]any `yaml:"testData"`
 }
 

@@ -1,7 +1,6 @@
 values: ../../values-mgmt.yaml
 name: helmtest-mdsd-enabled-mgmt
 namespace: arobit
-helmChartDir: ..
 testData:
   arobit:
     mdsd:
