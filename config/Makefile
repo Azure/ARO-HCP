@@ -2,6 +2,7 @@ SHELL = /bin/bash
 STAMP=999
 
 materialize: render
+	$(MAKE) -C .. update-helm-fixtures
 .PHONY: materialize
 
 detect-change: materialize

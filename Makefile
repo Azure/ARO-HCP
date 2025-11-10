@@ -225,6 +225,10 @@ ARO-Tools:
 	pushd tooling/templatize/; GOPROXY=direct go get github.com/Azure/ARO-Tools@main; popd; go work sync && make all-tidy
 .PHONY: ARO-Tools
 
+update-helm-fixtures:
+	$(MAKE) -C tooling/helmtest update
+.PHONY: update-helm-fixtures
+
 #
 # Generated SDKs
 #
