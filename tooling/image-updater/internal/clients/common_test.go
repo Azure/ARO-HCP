@@ -275,32 +275,39 @@ func TestNewRegistryClient(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name:        "quay.io registry with auth",
+			name:        "quay.io registry uses Quay client",
 			registryURL: "quay.io",
 			useAuth:     true,
 			wantType:    "*clients.QuayClient",
 			wantErr:     false,
 		},
 		{
-			name:        "quay.io with subdomain without auth",
-			registryURL: "registry.quay.io",
+			name:        "mcr.microsoft.com uses generic client",
+			registryURL: "mcr.microsoft.com",
 			useAuth:     false,
-			wantType:    "*clients.QuayClient",
+			wantType:    "*clients.GenericRegistryClient",
 			wantErr:     false,
 		},
 		{
-			name:        "unsupported registry",
+			name:        "docker.io uses generic client",
 			registryURL: "docker.io",
-			useAuth:     true,
-			wantType:    "",
-			wantErr:     true,
+			useAuth:     false,
+			wantType:    "*clients.GenericRegistryClient",
+			wantErr:     false,
 		},
 		{
-			name:        "empty registry URL",
-			registryURL: "",
+			name:        "azurecr.io uses ACR client",
+			registryURL: "arohcpsvcdev.azurecr.io",
 			useAuth:     true,
-			wantType:    "",
-			wantErr:     true,
+			wantType:    "*clients.ACRClient",
+			wantErr:     false,
+		},
+		{
+			name:        "empty registry URL uses generic client",
+			registryURL: "",
+			useAuth:     false,
+			wantType:    "*clients.GenericRegistryClient",
+			wantErr:     false,
 		},
 	}
 
