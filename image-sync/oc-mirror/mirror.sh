@@ -23,6 +23,8 @@ fi
 # * https://issues.redhat.com/browse/OCPBUGS-52471 - memory bug
 if [ "$OC_MIRROR_COMPATIBILITY" = "NOCATALOG" ]; then
     export OC_MIRROR_VERSION="4.16"
+elif [ "$OC_MIRROR_COMPATIBILITY" = "4.20" ]; then
+    export OC_MIRROR_VERSION="4.20"
 else
     export OC_MIRROR_VERSION="4.18"
 fi
