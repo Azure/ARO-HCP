@@ -91,3 +91,29 @@ images:
     targets:
     - jsonPath: clouds.public.environments.int.defaults.acrPull.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+  arobit-forwarder:
+    source:
+      image: mcr.microsoft.com/oss/v2/fluent/fluent-bit
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: defaults.arobit.forwarder.image.digest
+      filePath: ../../config/config.yaml
+  arobit-mdsd:
+    source:
+      image: mcr.microsoft.com/geneva/distroless/mdsd
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-\\d+$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: defaults.arobit.mdsd.image.digest
+      filePath: ../../config/config.yaml
+  secretSyncController:
+    source:
+      image: registry.k8s.io/secrets-store-sync/controller
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.yaml

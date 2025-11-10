@@ -79,7 +79,7 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 	return allTags, nil
 }
 
-func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
+func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	allTags, err := c.getAllTags(repository)
@@ -131,6 +131,12 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			continue
 		}
 
+		// If multiArch is requested, return the multi-arch manifest list digest
+		if multiArch && desc.MediaType.IsIndex() {
+			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+			return desc.Digest.String(), nil
+		}
+
 		if desc.MediaType.IsIndex() {
 			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
 			continue
@@ -162,5 +168,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
 	}
 
+	if multiArch {
+		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
+	}
 	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }

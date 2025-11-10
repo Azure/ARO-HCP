@@ -71,13 +71,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:67d8fc02694e3880a5eeefaa35be397d6edc2d609d4202bb27f061116844ad81"
+              digest: "sha256:0a883f24733d461fdf88cf307d9bf435c6344ebd86ae395e6231f0998fd69b80"
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:975df7cca2eb1bc3effeaee6e4edac9526bdaac57219012f69f001a64b34ff07"
+              digest: "sha256:06ec7df1603ece5381dba17dc4151987051310789b55727dcaec6defad0be18f"
           # Admin API
           adminApi:
             image:
