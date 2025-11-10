@@ -1878,77 +1878,77 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: OPERAND_IMAGE_ADDON_MANAGER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/addon-manager-rhel9@sha256:b7dbcba6108ccd5de9482ca28027fff0b43730154de093b2d49a5bccf7db9830'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/addon-manager-rhel9@sha256:f3ec94cfba2f44eb3997844cb3957a4cce40ec0d4b7151d2e19ede6b016d847a'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:e64008588ca273eb2c7e1ae9dd97bcc8c471049c6f2a481ef1079ec162613de2'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:ad071ee5ca1557f8c787837d13ebf3b5c7aa4fb4ebff8026529f962a061b6dfc'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:ef9d311b1f5b5b386a6fc224c0fbdd8794c0ccb4e6bff11939c8332f48da8fe9'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:6ed312873ebcdc4739070b4af802c34742543d199393d9df6e13372632305533'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:f3e25f411c1c21f088b91de50b729fc49ab0221e427ba878467e70b26c7cfbdf'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:6ff5355be24a24b2cfaf3ccd819c2843964bbf2c020ec5dd0faac413bfddef51'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-kubevirt-rhel9@sha256:20c26b068b3146342455b9fcff612b4afdc27b4ab201ce6008b39aebc5085bf2'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-kubevirt-rhel9@sha256:275e9e89948c88a504c8142ea205737b3014f4d73b8303413effb69111a1a10f'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/capoa-bootstrap-rhel9@sha256:951773131a05b2eb4a39ccf568b23cb633c926546e43227d5f715e73441b0b89'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/capoa-bootstrap-rhel9@sha256:0a5cda6ce251b3d6a31808aedb2301e38691ff19dd728a9078e2d63dcd84e446'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_CONTROL_PLANE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/capoa-control-plane-rhel9@sha256:7c9fc8014eacde9e9e598823815acd4ea61d5128a84c79bce914fe77ae276aef'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/capoa-control-plane-rhel9@sha256:897d92848405851d3026c04e151ff74b37a1202c7febabea49dcdb7b1c938df0'
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/mce-capi-webhook-config-rhel9@sha256:0748a43e12dffe289b213ab4e2b743c66bba7f2eb8c527646daf56d2a56f538a'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/mce-capi-webhook-config-rhel9@sha256:dfa6be6c1c7aaaeb501ad45fff1849a534d453eef1aecb23a4bb963eb8bb4746'
         - name: OPERAND_IMAGE_CLUSTERCLAIMS_CONTROLLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterclaims-controller-rhel9@sha256:f010248cc6ec6729f4f9e035998500f293f159fd192b64050727a383a9efdccf'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterclaims-controller-rhel9@sha256:cf565e38e2721be39f09ee65b65d3a638932f40c02c214873562587eccaebb05'
         - name: OPERAND_IMAGE_CLUSTER_CURATOR_CONTROLLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-curator-controller-rhel9@sha256:f1ac23f8cadb79fd5ca266c970207d764c3a0a1d9ed94dca74cba07cbd695fe1'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-curator-controller-rhel9@sha256:f0d0397bdd1a04a39e96b2e8dfc78c952c9c967aee798cec57000224ee42bf78'
         - name: OPERAND_IMAGE_CLUSTER_IMAGE_SET_CONTROLLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:afa702fc8098b71bebc832e5d0d8b80bb0d3d1efd9e446ce9489a72a054783aa'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:32e3b2efde70bd38fc59d18855c999da945c94f56960e47e54cbd5b391d318e8'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:21e90065958984c7d2cdf0957c17526e04e1782068fa4721beff3d28d1a4d0a4'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:1cb1ddf2bac0053d04fd580ae22555ef812782f50a5564e4bec7386ddbb1ec1f'
         - name: OPERAND_IMAGE_CLUSTER_PROXY_ADDON
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-addon-rhel9@sha256:39d055c4464bca42115458d921fd92f80e745b7f47ff31b0a9f7016454f6f9bf'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-addon-rhel9@sha256:cd6dac2fd5240b7a9d042f76887611076802a40c99f1532cf8be36ac6e7d237a'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:92bb8f1e74ca9d0938d92f84f85ca047e8abc6be6df54eb6d8cd506f9393f6ba'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:98fe1e9e4167c8cf3054fc77ef2be22d4e5064c547066b5915fa3d6f70532bb9'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/console-mce-rhel9@sha256:99576d542b7a93e0e320f5db5fc61cf1ae5c484dca04a19da27a56c0ad3a7ddd'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/console-mce-rhel9@sha256:5500fd9aed2b05db6a014f4722164d478677c5492fda56b004977b7c93f0a178'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/discovery-rhel9@sha256:03466cbe5b770e1e7b124109dac09840cdc6ed1bec56de9b42dc7cb8278d7f0d'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/discovery-rhel9@sha256:d4ff0432f318a1dc4a1d9a5386da151d7b427c88b149c8faee29c360c67ceba5'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hive-rhel9@sha256:0bbbe339bfd207c0ea117d100886aa3c737fb5ec685ea7dd4a06d1ae7810e6f3'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hive-rhel9@sha256:91ac7be7f0559fc2f7e3fb82f318082876e04fe764a38c0c6e2c839639c6c037'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-addon-rhel9-operator@sha256:ca2178056cfc338e309462fdd7aa811a653a9513d24959fe0842f56e83c371b0'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-addon-rhel9-operator@sha256:8dd115d283b75bb92e93212f347fe9a4c54ca6db465dde5256147c6f41f21b41'
         - name: OPERAND_IMAGE_HYPERSHIFT_CLI
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-cli-rhel9@sha256:784df0936de8cb5aad0dec7c3b2948b3c785da1162ed640358da7781e99f4567'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-cli-rhel9@sha256:ce0e6ffb5244175118c5b344250a3e4bb70b97968a1f95fcf34e7501c5249f01'
         - name: OPERAND_IMAGE_HYPERSHIFT_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-rhel9-operator@sha256:71714b7572bf855ea767da208b77cca1d556d8fb1f262d55c1c28660334bf350'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/hypershift-rhel9-operator@sha256:a1c75eb52b60e0bf68acaa1202cb51e34c7ad633c463bf9d53ff82d9532bf298'
         - name: OPERAND_IMAGE_IMAGE_BASED_INSTALL_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/image-based-install-rhel9@sha256:6c07664542e644d026144ecff5bec27aff6cdd23949b1d79bcc356737d83496c'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/image-based-install-rhel9@sha256:1475eeda9ae6ba7d1404567a2fd527d6736a8ef8c0832cc83b0f68768093dd31'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/kube-rbac-proxy-mce-rhel9@sha256:dc37d9ae213e9cf1c84527cf90cdefb53edbcb56b184eddd2ea86671f083617c'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/kube-rbac-proxy-mce-rhel9@sha256:f245b7f00fb7f5ebb4ee3171a93752039dc20cdf187b07e4555446c54adcfc95'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/managedcluster-import-controller-rhel9@sha256:017152eb0d925805bf2e1ff4e7964935aeb5d25b31db47b26ea1062d7ccc73ca'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/managedcluster-import-controller-rhel9@sha256:eadacab6d81924c85c4da2d1d76973146eab1f6f61d2b3556aabf887a006a8e4'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/managed-serviceaccount-rhel9@sha256:11803b453f6b19a8949d215714599523bbb9bb75519b8a6c4b441f49b9d1485a'
         - name: OPERAND_IMAGE_MULTICLOUD_MANAGER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/multicloud-manager-rhel9@sha256:b4bce54e1b90060fd989765fee57e3a7fac191a98f914bf881d27d367a7bc314'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/multicloud-manager-rhel9@sha256:e55746b98118872ddfd12c567062dbc2e2e5cee40595edeef78688314f73e4ec'
         - name: OPERAND_IMAGE_PROVIDER_CREDENTIAL_CONTROLLER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/provider-credential-controller-rhel9@sha256:bcf57620be0e3342b4b598173fdef535326bc76a83f95c1baa04f430d374a178'
         - name: OPERAND_IMAGE_PLACEMENT
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/placement-rhel9@sha256:95e6260fae0fc49f6529d2cbebe9bed4271d7f48f7479c8bfb58af7bbde387b0'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/placement-rhel9@sha256:7f228a734afc5017770a98a4a162fb245ac75b5d0aa772dbc47731f60500abe0'
         - name: OPERAND_IMAGE_REGISTRATION
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/registration-rhel9@sha256:e4cc5cd9f809ecce2ccdf963eb7fcad29e13fcdf9256958de46de4977a08aaba'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/registration-rhel9@sha256:90204c2b71dca0e9d1b311662faa0d305000bdeabc85a78bfcb502efb3374255'
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/registration-operator-rhel9@sha256:12255610b7cffdd2f0dc06c873aca7bbd65b7d47a2da62447215462d57a49b9f'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/registration-operator-rhel9@sha256:20ab6c921066f1590adeaa0e37ebe0d0d2cbfb9acbb5cf4209ef03419dded3de'
         - name: OPERAND_IMAGE_WORK
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/work-rhel9@sha256:ee1d82192de1368acb4c855b54085da664eedf6a1303db7936341c71877b54bb'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/work-rhel9@sha256:1119e85a3f7c77c356279f2142d3fadc0ddd4a8f6c57d1510ed755eca123563e'
         - name: OPERAND_IMAGE_ASSISTED_IMAGE_SERVICE
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-image-service-rhel9@sha256:86859614fae3d7f6dccc051ce90b055d1b4b6f313d9b85187bb6dc06e9d59ae2'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-image-service-rhel9@sha256:d89e5a3fb07459bfc731a5becb4d2b46cf901bd9da1af040f7774d06ae6e5ed2'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-rhel9@sha256:9520707d782b393e2e34061c18b269a1b610143d8b06739984776101b08db322'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-rhel9@sha256:34f6c11223ec48094d25dc9c65c141123b9647f75d9a539bc249c5c16241a83d'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER_AGENT
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-agent-rhel9@sha256:f626f057664e3408ea5fd778e3d2a4e80735ba858d76749a1a2056c65face4ec'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-agent-rhel9@sha256:1b96f43ca490fcb1baccd9203a9014cf3c0160599ce48c1b87838a8f3552ce6b'
         - name: OPERAND_IMAGE_ASSISTED_INSTALLER_CONTROLLER
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-controller-rhel9@sha256:9734a109c7be60f5871132379e8c88c0f92a9a991943de317040ad8550637477'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-installer-controller-rhel9@sha256:fd3fc9d17ea0be2f7d2edce4a44b854f5bde339f09d3c434da3dce4623a6a708'
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_8
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-8-rhel8@sha256:03446585c076f6f9983dd336e1ee47c3955830b94a5e81c5c256d627ba675030'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-8-rhel8@sha256:a9dedcef238974f80945f3a4ac9b18dc88dd7526d75b13e3f4f95e9ed6fa72c8'
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-9-rhel9@sha256:5b4a878a07934ed035dae0ab1b86eff1166124565226af5739dd8aa16ba90d50'
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/assisted-service-9-rhel9@sha256:aff311be59bada12ea6b9b2ee9e872c7be3bbdd12bfc24d0da97b45fc3bf6e00'
         - name: OPERAND_IMAGE_OSE_CLUSTER_API_RHEL9
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-cluster-api-rhel9@sha256:0f813721abc29eb84b94b9ec6abbffa64d984bd7b5b76a810ef454a70da8ec93'
         - name: OPERAND_IMAGE_OSE_AWS_CLUSTER_API_CONTROLLERS_RHEL9
@@ -1958,10 +1958,10 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_12
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-12@sha256:af1ab437b165fa4ee9dfd6ade637d7de5fa556d0b3851fb8edc78afe0e6fa95e'
         - name: OPERATOR_VERSION
-          value: 2.9.1
+          value: 2.9.2
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:ef9d311b1f5b5b386a6fc224c0fbdd8794c0ccb4e6bff11939c8332f48da8fe9'
+        image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:6ed312873ebcdc4739070b4af802c34742543d199393d9df6e13372632305533'
         livenessProbe:
           httpGet:
             path: /healthz
