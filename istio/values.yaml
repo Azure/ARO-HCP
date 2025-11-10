@@ -18,12 +18,12 @@ mise:
   deployment:
     zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   armPolicy:
-    label: "ARM Policy"
+    label: "{{ .mise.arm.policyLabel }}"
     authority: "https://{{ .mise.arm.authorityFQDN }}/{{ .mise.arm.tenantId }}" # iss
     audience: "https://{{ .mise.arm.audienceFQDN }}" # aud
     applicationId: "{{ .mise.arm.applicationId }}"
   genevaActionsPolicy:
-    label: "Geneva Actions"
+    label: "{{ .mise.genevaActions.policyLabel }}"
     authority: "https://{{ .mise.genevaActions.authorityFQDN }}/__tenantId__/" # iss
     audience: "https://{{ .mise.genevaActions.audienceFQDN }}" # aud
     applicationId: "__genevaActionsAppId__"

@@ -1,4 +1,4 @@
-{{- if eq .Values.deployMise true }}
+{{- if eq .Values.mise.deploy true }}
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:

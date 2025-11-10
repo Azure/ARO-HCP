@@ -40,6 +40,8 @@ spec:
             path: /readyz
             port: 8080
         env:
+        - name: EnableInboundPolicyFilter
+          value: "true"
         - name: AzureAd__Instance
           value: '{{ .Values.audit.adInstance }}'
         - name: AzureAd__ClientId

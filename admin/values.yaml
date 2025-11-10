@@ -33,4 +33,6 @@ credsKeyVault:
 azure:
   clientId: "__csiSecretStoreClientId__"
   tenantId: "__tenantId__"
-deployMise: {{ .mise.deploy }}
+mise:
+  policyLabel: "{{ .mise.genevaActions.policyLabel }}"
+  deploy: {{ .mise.deploy }}

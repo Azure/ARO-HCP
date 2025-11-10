@@ -12,6 +12,10 @@ spec:
   - match:
     - uri:
         regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "{{ .Values.mise.policyLabel }}"
     route:
     - destination:
         host: aro-hcp-frontend

@@ -518,10 +518,12 @@ defaults:
   mise:
     deploy: true
     arm:
+      policyLabel: "ARM Policy"
       tenantId: "{{ .ev2.entra.tenants.azure.tenantid }}"
       authorityFQDN: "{{ .ev2.entra.fqdn.login }}"
       audienceFQDN: "{{ .ev2.arm.endpoint }}"
     genevaActions:
+      policyLabel: "Geneva Actions"
       authorityFQDN: "{{ .ev2.entra.fqdn.sts }}"
       audienceFQDN: "{{ .ev2.arm.endpoint }}"
     image:

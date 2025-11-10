@@ -1590,6 +1590,10 @@
         "arm": {
           "type": "object",
           "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the ARM policy."
+            },
             "tenantId": {
               "type": "string",
               "description": "The tenant ID where the ARM application lives."
@@ -1608,6 +1612,7 @@
             }
           },
           "required": [
+            "policyLabel",
             "tenantId",
             "applicationId",
             "authorityFQDN",
@@ -1617,6 +1622,10 @@
         "genevaActions": {
           "type": "object",
           "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Geneva Actions policy."
+            },
             "authorityFQDN": {
               "type": "string",
               "description": "The authority/issuer FQDN of the Geneva Actions applications auth tokens."
@@ -1627,6 +1636,7 @@
             }
           },
           "required": [
+            "policyLabel",
             "authorityFQDN",
             "audienceFQDN"
           ]
