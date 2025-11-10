@@ -52,6 +52,12 @@ func (h *HelmStepWithPath) ChartDirFromRoot() string {
 
 type Settings struct {
 	ConfigPath string
+	Replace    []Replace
+}
+
+type Replace struct {
+	Regex       string
+	Replacement string
 }
 
 func LoadSettings() (*Settings, error) {

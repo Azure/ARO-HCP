@@ -27,3 +27,15 @@ testData:
 ```
 
 This file is located in the arobit chart directory, in the subfolder `testdata`. It overrides the kusto setting and enables it. This would usually make sense only for MSFT specific environments and enables reviewing template output for all possible scenarios. 
+
+## Regex
+
+You can configure static replacements in the `settings.yaml`, as such:
+
+```yaml
+Replace:
+  - Regex: 'sha256.[a-fA-F0-9]{64}'
+    Replacement: 'sha256:1234567890'
+```
+
+these Replacements will be applied on the generated manifest before writing them to disk/verifying them.

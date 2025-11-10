@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,8 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		return "", fmt.Errorf("error loading config, %v", err)
 	}
 
+	cfgYaml = internal.ReplaceImageDigest(cfgYaml)
+
 	values, err := config.PreprocessFile(testCase.Values, cfgYaml)
 	if err != nil {
 		return "", fmt.Errorf("error preprocessing values file, %v", err)
@@ -93,7 +96,18 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		}
 		allHooks = fmt.Sprintf("%s---\n# Source: %s\n%s\n", allHooks, ha.Path(), ha.Manifest())
 	}
-	return fmt.Sprintf("%s\n%s", accessor.Manifest(), allHooks), nil
+
+	manifest := accessor.Manifest()
+
+	for _, replace := range settings.Replace {
+		re, err := regexp.Compile(replace.Regex)
+		if err != nil {
+			return "", fmt.Errorf("error compiling regex, %v", err)
+		}
+		manifest = re.ReplaceAllString(manifest, replace.Replacement)
+	}
+
+	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
 }
 
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
