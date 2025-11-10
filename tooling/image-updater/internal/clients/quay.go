@@ -20,10 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/go-logr/logr"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // QuayClient provides methods to interact with Quay.io using its proprietary API
@@ -103,70 +99,10 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 }
 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	allTags, err := c.getAllTags(repository)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
-	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
-	if err != nil {
-		return "", err
-	}
-
-	for _, tag := range tags {
-		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
-		if err != nil {
-			logger.Error(err, "failed to parse reference", "tag", tag.Name)
-			continue
-		}
-
-		desc, err := remote.Get(ref)
-		if err != nil {
-			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
-			continue
-		}
-
-		// If multiArch is requested, return the multi-arch manifest list digest
-		if multiArch && desc.MediaType.IsIndex() {
-			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
-			return desc.Digest.String(), nil
-		}
-
-		if desc.MediaType.IsIndex() {
-			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
-			continue
-		}
-
-		img, err := desc.Image()
-		if err != nil {
-			logger.Error(err, "failed to get image", "tag", tag.Name)
-			continue
-		}
-
-		configFile, err := img.ConfigFile()
-		if err != nil {
-			logger.Error(err, "failed to get config", "tag", tag.Name)
-			continue
-		}
-
-		normalizedArch := NormalizeArchitecture(configFile.Architecture)
-
-		if normalizedArch == arch && configFile.OS == "linux" {
-			digest, err := img.Digest()
-			if err != nil {
-				logger.Error(err, "failed to get image digest", "tag", tag.Name)
-				continue
-			}
-			return digest.String(), nil
-		}
-
-		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
-	}
-
-	if multiArch {
-		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
-	}
-	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+	return validateArchSpecificDigestWithGoContainerRegistry(ctx, "quay.io", repository, tagPattern, arch, multiArch, allTags)
 }

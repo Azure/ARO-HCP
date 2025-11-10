@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
 )
@@ -120,63 +118,10 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 }
 
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
-	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
-	if err != nil {
-		return "", err
-	}
-
-	client := c.getClient()
-
-	for _, tag := range tags {
-		logger.Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
-
-		manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
-		if err != nil {
-			logger.Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
-			continue
-		}
-
-		if manifestProps.Manifest == nil {
-			logger.Info("manifest properties has no manifest info, skipping", "tag", tag.Name)
-			continue
-		}
-
-		manifest := manifestProps.Manifest
-
-		// If multiArch is requested and this is a multi-arch manifest, return it
-		if multiArch && len(manifest.RelatedArtifacts) > 0 {
-			logger.Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
-			return tag.Digest, nil
-		}
-
-		if len(manifest.RelatedArtifacts) > 0 {
-			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts))
-			continue
-		}
-
-		if manifest.Architecture == nil || manifest.OperatingSystem == nil {
-			logger.Info("manifest missing architecture or OS info, skipping", "tag", tag.Name)
-			continue
-		}
-
-		normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))
-
-		if normalizedArch == arch && string(*manifest.OperatingSystem) == "linux" {
-			return tag.Digest, nil
-		}
-
-		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
-	}
-
-	if multiArch {
-		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
-	}
-	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+	return validateArchSpecificDigestWithGoContainerRegistry(ctx, c.registryURL, repository, tagPattern, arch, multiArch, allTags)
 }
