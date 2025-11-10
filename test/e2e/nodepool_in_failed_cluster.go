@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,15 +36,15 @@ var _ = Describe("Customer", func() {
 	It("should not be able to deploy nodepool into a hosted cluster with failed provisioning state",
 		labels.RequireNothing,
 		labels.Negative,
-		labels.Critical,
+		labels.Medium,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
 			By("creating resource group ")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-nodepool-in-failed-cluster", tc.Location())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-nodepool-into-failed-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			clusterName := "nodepool-in-failed-cluster" + rand.String(6)
+			clusterName := "failed-cluster" + rand.String(6)
 
 			By("creating cluster using bicep template with invalid network configuration to force failure")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
@@ -51,7 +52,7 @@ var _ = Describe("Customer", func() {
 				*resourceGroup.Name,
 				"invalid-network-config-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/invalid-network-config-cluster.json")),
-				map[string]interface{}{
+				map[string]any{
 					"clusterName": clusterName,
 				},
 				45*time.Minute,
@@ -83,7 +84,7 @@ var _ = Describe("Customer", func() {
 
 			By("attempting to deploy nodepool via direct API call into cluster with failed provisioning state")
 			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			nodePoolName := "invalid-cluster-nodepool"
+			nodePoolName := "nodepool1"
 			nodePool := hcpsdk20240610preview.NodePool{
 				Location: to.Ptr(tc.Location()),
 				Properties: &hcpsdk20240610preview.NodePoolProperties{
@@ -93,10 +94,17 @@ var _ = Describe("Customer", func() {
 					Replicas: to.Ptr(int32(1)),
 				},
 			}
-			_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterName, nodePoolName, nodePool, nil)
+			nodePoolCtx, nodePoolCancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer nodePoolCancel()
+
+			_, err = nodePoolClient.BeginCreateOrUpdate(nodePoolCtx, *resourceGroup.Name, clusterName, nodePoolName, nodePool, nil)
 
 			By("verifying nodepool failed to deploy")
 			Expect(err).To(HaveOccurred())
+
+			By("verifying the error message matches the expected")
+			By(fmt.Sprintf("nodepool deployment error: %q", err.Error()))
+			Expect(err.Error()).To(ContainSubstring("Node pools can only be created on clusters in 'ready' state, cluster requested is in 'error' state."))
 
 		})
 
