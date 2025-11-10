@@ -7,7 +7,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: 'arobit-forwarder'
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
   annotations:
     azure.workload.identity/client-id: '__msiClientId__'
 ---
@@ -19,7 +19,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
@@ -270,7 +270,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
 rules:
 - apiGroups:
   - ""
@@ -290,7 +290,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
@@ -308,7 +308,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
     app: arobit-forwarder
 spec:
   type: ClusterIP
@@ -327,7 +327,7 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
 ---
 # Source: arobit/templates/forwarder-daemonset.yaml
 apiVersion: apps/v1
@@ -337,14 +337,14 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+    app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: arobit-forwarder
-      app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+      app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -353,7 +353,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: arobit-forwarder
-        app.kubernetes.io/instance: 'helmtest-mgmt-dev'
+        app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
     spec:

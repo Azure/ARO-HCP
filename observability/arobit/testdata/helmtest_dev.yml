@@ -1,5 +1,0 @@
-values: ../values-mgmt.yaml
-name: helmtest-mgmt-dev
-namespace: arobit
-helmChartDir: ../deploy
-testData: {}
