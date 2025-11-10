@@ -474,6 +474,97 @@ images:
 	}
 }
 
+func TestConfigLoad_WithUseAuth(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		wantImageName string
+		wantUseAuth   *bool
+	}{
+		{
+			name: "useAuth set to false",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+      useAuth: false
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName: "test",
+			wantUseAuth:   boolPtr(false),
+		},
+		{
+			name: "useAuth set to true",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+      useAuth: true
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName: "test",
+			wantUseAuth:   boolPtr(true),
+		},
+		{
+			name: "useAuth not set (defaults to nil)",
+			configContent: `
+images:
+  test:
+    source:
+      image: registry.azurecr.io/test/app
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantImageName: "test",
+			wantUseAuth:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.yaml")
+
+			if err := os.WriteFile(configPath, []byte(tt.configContent), 0644); err != nil {
+				t.Fatalf("failed to create config file: %v", err)
+			}
+
+			cfg, err := Load(configPath)
+			if err != nil {
+				t.Fatalf("Load() unexpected error = %v", err)
+			}
+
+			img, exists := cfg.Images[tt.wantImageName]
+			if !exists {
+				t.Fatalf("Load() missing expected image %s", tt.wantImageName)
+			}
+
+			if tt.wantUseAuth == nil {
+				if img.Source.UseAuth != nil {
+					t.Errorf("Load() UseAuth = %v, want nil", img.Source.UseAuth)
+				}
+			} else {
+				if img.Source.UseAuth == nil {
+					t.Errorf("Load() UseAuth = nil, want %v", *tt.wantUseAuth)
+				} else if *img.Source.UseAuth != *tt.wantUseAuth {
+					t.Errorf("Load() UseAuth = %v, want %v", *img.Source.UseAuth, *tt.wantUseAuth)
+				}
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 func TestSource_ParseImageReference(t *testing.T) {
 	tests := []struct {
 		name           string

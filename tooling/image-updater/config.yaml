@@ -61,3 +61,11 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.backend.image.digest
       filePath: ../../config/config.yaml
+  kubeEvents:
+    source:
+      image: kubernetesshared.azurecr.io/shared/kube-events
+      tagPattern: "^\\d+\\.\\d+$"
+      useAuth: false
+    targets:
+    - jsonPath: defaults.kubeEvents.image.digest
+      filePath: ../../config/config.yaml

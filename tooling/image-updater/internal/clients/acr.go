@@ -27,30 +27,51 @@ import (
 
 // ACRClient provides methods to interact with Azure Container Registry
 type ACRClient struct {
-	client *azcontainerregistry.Client
+	client      *azcontainerregistry.Client
+	registryURL string
 }
 
 // NewACRClient creates a new Azure Container Registry client
-func NewACRClient(registryURL string) (*ACRClient, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+// If useAuth is true, creates an authenticated client
+// If useAuth is false, creates an anonymous client
+func NewACRClient(registryURL string, useAuth bool) (*ACRClient, error) {
+	acr := &ACRClient{
+		registryURL: registryURL,
 	}
 
-	client, err := azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ACR client: %w", err)
+	var client *azcontainerregistry.Client
+	var err error
+
+	if useAuth {
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+		}
+
+		client, err = azcontainerregistry.NewClient("https://"+registryURL, cred, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create authenticated ACR client: %w", err)
+		}
+	} else {
+		// Create anonymous client (no credentials)
+		client, err = azcontainerregistry.NewClient("https://"+registryURL, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create anonymous ACR client: %w", err)
+		}
 	}
 
-	return &ACRClient{
-		client: client,
-	}, nil
+	acr.client = client
+	return acr, nil
 }
 
 func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
+	return c.getAllTagsWithClient(ctx, repository, c.client)
+}
+
+func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string, client *azcontainerregistry.Client) ([]Tag, error) {
 	var allTags []Tag
 
-	pager := c.client.NewListTagsPager(repository, nil)
+	pager := client.NewListTagsPager(repository, nil)
 
 	pageCount := 0
 
@@ -74,7 +95,7 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 				tag.Digest = *tagAttributes.Digest
 			}
 
-			tagProps, err := c.client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
+			tagProps, err := client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
 			if err != nil {
 				fmt.Printf("  Warning: Could not get tag properties for %s: %v\n", *tagAttributes.Name, err)
 				tag.LastModified = time.Time{}
@@ -94,6 +115,10 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 	return allTags, nil
 }
 
+func (c *ACRClient) getClient() *azcontainerregistry.Client {
+	return c.client
+}
+
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -107,10 +132,12 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		return "", err
 	}
 
+	client := c.getClient()
+
 	for _, tag := range tags {
 		logger.Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
 
-		manifestProps, err := c.client.GetManifestProperties(ctx, repository, tag.Digest, nil)
+		manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
 		if err != nil {
 			logger.Error(err, "failed to fetch manifest properties", "tag", tag.Name, "digest", tag.Digest)
 			continue

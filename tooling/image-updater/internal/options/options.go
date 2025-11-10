@@ -106,6 +106,23 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 
 // Complete creates all necessary clients and resources for execution and returns a ready-to-execute Updater
 func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater, error) {
+	// Determine authentication requirements per registry
+	registryAuthRequired := make(map[string]bool)
+	for _, imageConfig := range v.Config.Images {
+		registry, _, err := imageConfig.Source.ParseImageReference()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse image reference: %w", err)
+		}
+
+		// If any image from a registry sets useAuth: false, use anonymous for that registry
+		if imageConfig.Source.UseAuth != nil && !*imageConfig.Source.UseAuth {
+			registryAuthRequired[registry] = false
+		} else if _, exists := registryAuthRequired[registry]; !exists {
+			// Default to requiring auth if not explicitly set to false
+			registryAuthRequired[registry] = true
+		}
+	}
+
 	registryClients := make(map[string]clients.RegistryClient)
 	for _, imageConfig := range v.Config.Images {
 		registry, _, err := imageConfig.Source.ParseImageReference()
@@ -114,7 +131,8 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 
 		if _, exists := registryClients[registry]; !exists {
-			client, err := clients.NewRegistryClient(registry)
+			useAuth := registryAuthRequired[registry]
+			client, err := clients.NewRegistryClient(registry, useAuth)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create registry client for %s: %w", registry, err)
 			}
