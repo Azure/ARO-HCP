@@ -23,7 +23,7 @@ import (
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
@@ -51,7 +51,7 @@ func TestInspectVars(t *testing.T) {
 				}},
 			},
 			options: &InspectOptions{
-				Configuration: config.Configuration{
+				Configuration: configtypes.Configuration{
 					"foo": "bar",
 				},
 				Format: "shell",
@@ -74,7 +74,7 @@ func TestInspectVars(t *testing.T) {
 				}},
 			},
 			options: &InspectOptions{
-				Configuration: config.Configuration{
+				Configuration: configtypes.Configuration{
 					"foo": "bar",
 				},
 				Format: "makefile",
@@ -145,7 +145,7 @@ func TestInspect(t *testing.T) {
 		Format:        "format",
 		Step:          "step1",
 		Region:        "",
-		Configuration: config.Configuration{},
+		Configuration: configtypes.Configuration{},
 		ScopeFunctions: map[string]StepInspectScope{
 			"scope": func(ctx context.Context, p *types.Pipeline, serviceGroup string, s types.Step, o *InspectOptions) error {
 				assert.Equal(t, s.StepName(), "step1")
@@ -177,7 +177,7 @@ func TestInspectWrongScope(t *testing.T) {
 		Format:        "format",
 		Step:          "step1",
 		Region:        "",
-		Configuration: config.Configuration{},
+		Configuration: configtypes.Configuration{},
 		OutputFile:    new(bytes.Buffer),
 	})
 	assert.Error(t, err, "unknown inspect scope \"foo\"")

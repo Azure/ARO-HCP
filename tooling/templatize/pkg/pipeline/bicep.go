@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -37,7 +38,7 @@ func modeFromString(mode string) armresources.DeploymentMode {
 	}
 }
 
-func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
+func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any) (*armresources.DeploymentWhatIfProperties, error) {
 	template, params, err := transformParameters(ctx, bicepClient, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir)
 	if err != nil {
 		return nil, err
@@ -49,7 +50,7 @@ func transformBicepToARMWhatIfDeployment(ctx context.Context, bicepClient *bicep
 	}, nil
 }
 
-func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg config.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
+func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPClient, bicepParameterTemplateFile, deploymentMode, pipelineWorkingDir string, cfg types.Configuration, inputs map[string]any) (*armresources.DeploymentProperties, error) {
 	template, params, err := transformParameters(ctx, bicepClient, cfg, inputs, bicepParameterTemplateFile, pipelineWorkingDir)
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func transformBicepToARMDeployment(ctx context.Context, bicepClient *bicep.LSPCl
 	}, nil
 }
 
-func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg config.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string) (map[string]interface{}, map[string]interface{}, error) {
+func transformParameters(ctx context.Context, bicepClient *bicep.LSPClient, cfg types.Configuration, inputs map[string]any, bicepParameterTemplateFile, pipelineWorkingDir string) (map[string]interface{}, map[string]interface{}, error) {
 	bicepParameterFile := filepath.Join(pipelineWorkingDir, bicepParameterTemplateFile)
 	bicepParamContent, err := config.PreprocessFile(bicepParameterFile, cfg)
 	if err != nil {

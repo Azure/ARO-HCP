@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools v0.0.0-20251106113945-b350ba3386bc h1:0qxzaJ+RNhOYACyBqScZ9E9653acCwVqwOJmdyh5nMU=
-github.com/Azure/ARO-Tools v0.0.0-20251106113945-b350ba3386bc/go.mod h1:PKvPoRmRO8x67r9Y05a4VqiMVBaIps4wnFoAgKU/ZsY=
+github.com/Azure/ARO-Tools v0.0.0-20251110183707-559fa2771026 h1:HDEpX7a0BRu5XkD8KfVLOQgpsPkHvqGRqtxqKn0erpg=
+github.com/Azure/ARO-Tools v0.0.0-20251110183707-559fa2771026/go.mod h1:PKvPoRmRO8x67r9Y05a4VqiMVBaIps4wnFoAgKU/ZsY=
 github.com/Azure/azure-kusto-go v0.16.1 h1:vCBWcQghmC1qIErUUgVNWHxGhZVStu1U/hki6iBA14k=
 github.com/Azure/azure-kusto-go v0.16.1/go.mod h1:9F2zvXH8B6eWzgI1S4k1ZXAIufnBZ1bv1cW1kB1n3D0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 h1:5YTBM8QDVIBN3sxBil89WfdAAqDZbyJTgh688DSxX5w=

@@ -29,6 +29,7 @@ import (
 
 	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
@@ -240,7 +241,7 @@ func (opts *ValidationOptions) ValidatePipelineConfigReferences(ctx context.Cont
 	return group.Wait()
 }
 
-func handleService(logger logr.Logger, context string, group *errgroup.Group, baseDir string, service topology.Service, cfg config.Configuration, shouldHandleService func(string) bool) error {
+func handleService(logger logr.Logger, context string, group *errgroup.Group, baseDir string, service topology.Service, cfg configtypes.Configuration, shouldHandleService func(string) bool) error {
 	group.Go(func() error {
 		if !shouldHandleService(service.ServiceGroup) {
 			return nil

@@ -23,7 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	"github.com/Azure/ARO-Tools/pkg/config/types"
 
 	options "github.com/Azure/ARO-HCP/tooling/templatize/cmd"
 )
@@ -31,7 +31,7 @@ import (
 func TestExecuteTemplate(t *testing.T) {
 	for _, testCase := range []struct {
 		name  string
-		vars  config.Configuration
+		vars  types.Configuration
 		input string
 
 		expected      string
@@ -39,7 +39,7 @@ func TestExecuteTemplate(t *testing.T) {
 	}{
 		{
 			name: "happy case generates a file",
-			vars: config.Configuration{
+			vars: types.Configuration{
 				"region_maestro_keyvault":    "kv",
 				"region_eventgrid_namespace": "ns",
 			},
@@ -52,7 +52,7 @@ param maestroEventGridMaxClientSessionsPerAuthName = 4`,
 		},
 		{
 			name: "referencing unset variable errors",
-			vars: config.Configuration{
+			vars: types.Configuration{
 				"region_maestro_keyvault": "kv",
 			},
 			input: `param maestroKeyVaultName = '{{ .region_maestro_keyvault }}'

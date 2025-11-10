@@ -19,8 +19,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/ev2config"
+	"github.com/Azure/ARO-Tools/pkg/config/types"
 )
 
 func DefaultLookupOptions() *RawLookupOptions {
@@ -56,7 +56,7 @@ type ValidatedLookupOptions struct {
 
 // completedLookupOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedLookupOptions struct {
-	Ev2Config config.Configuration
+	Ev2Config types.Configuration
 	Path      string
 }
 

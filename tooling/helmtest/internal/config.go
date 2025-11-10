@@ -20,17 +20,16 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
 	"github.com/Azure/ARO-Tools/pkg/config/types"
 )
 
-func loadConfig(configPath string) (config.Configuration, error) {
+func loadConfig(configPath string) (types.Configuration, error) {
 	rawCfg, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config, %v", err)
 	}
 
-	var cfgYaml config.Configuration
+	var cfgYaml types.Configuration
 	err = yaml.Unmarshal(rawCfg, &cfgYaml)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling config, %v", err)
