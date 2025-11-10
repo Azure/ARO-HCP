@@ -54,7 +54,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:a4345e2041f03ef869dafdf7e21f985a35bdb084363d1b6330c7e37361f8d0ef
+      digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   mdsd:
@@ -67,7 +67,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:975df7cca2eb1bc3effeaee6e4edac9526bdaac57219012f69f001a64b34ff07
+    digest: sha256:06ec7df1603ece5381dba17dc4151987051310789b55727dcaec6defad0be18f
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -203,7 +203,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:67d8fc02694e3880a5eeefaa35be397d6edc2d609d4202bb27f061116844ad81
+    digest: sha256:0a883f24733d461fdf88cf307d9bf435c6344ebd86ae395e6231f0998fd69b80
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:

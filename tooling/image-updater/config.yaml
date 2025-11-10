@@ -93,7 +93,7 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
   arobit-forwarder:
     source:
-      image:  mcr.microsoft.com/oss/v2/fluent/fluent-bit
+      image: mcr.microsoft.com/oss/v2/fluent/fluent-bit
       tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
@@ -101,7 +101,7 @@ images:
       filePath: ../../config/config.yaml
   arobit-mdsd:
     source:
-      image:  mcr.microsoft.com/geneva/distroless/mdsd
+      image: mcr.microsoft.com/geneva/distroless/mdsd
       tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-\\d+$"
       multiArch: true # This image only publishes multi-arch manifests
     targets:
