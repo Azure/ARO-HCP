@@ -163,6 +163,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		}
 	}
 
+	if o.Entrypoint != "" && e == nil {
+		return nil, fmt.Errorf("entrypoint %s not found in topology", o.Entrypoint)
+	}
+
 	pipelines := map[string]*types.Pipeline{}
 	if err := LoadPipelines(service, filepath.Dir(o.TopologyFile), pipelines, completed.Config); err != nil {
 		return nil, fmt.Errorf("failed to load pipelines from %s: %w", o.TopologyFile, err)
