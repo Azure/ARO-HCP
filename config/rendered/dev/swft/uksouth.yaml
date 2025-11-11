@@ -185,6 +185,7 @@ ev2:
     certificate:
       keyVault: empty-sentinel
       name: ""
+    dstsHost: '{ .ev2.geneva.actions.homeDsts.primary }'
 firstPartyAppCertificate:
   issuer: Self
   manage: false
