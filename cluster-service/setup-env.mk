@@ -3,7 +3,8 @@ SHELLFLAGS = -eu -o pipefail
 
 ifndef zz_injected_EV2
 ifndef RUNS_IN_TEMPLATIZE
-PROJECT_ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+SCRIPT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+PROJECT_ROOT_DIR := $(realpath $(SCRIPT_DIR)/..)
 
 DEPLOY_ENV ?= pers
 PIPELINE ?= pipeline.yaml
