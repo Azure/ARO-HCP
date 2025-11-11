@@ -31,6 +31,8 @@ az network vnet create \
   --address-prefix 10.0.0.0/16 \
   --subnet-name ${CUSTOMER_VNET_SUBNET1} \
   --subnet-prefixes 10.0.0.0/24 \
+  --subnet-name ${CUSTOMER_PODNETWORK1} \
+  --subnet-prefixes 10.1.0.0/24 \
   --nsg "${NSG_ID}"  --location ${LOCATION}
 
 # If we're installing a hosted cluster with swift
