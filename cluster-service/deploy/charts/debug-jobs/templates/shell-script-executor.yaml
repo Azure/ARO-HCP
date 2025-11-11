@@ -21,7 +21,7 @@ spec:
           defaultMode: 0755
       containers:
       - name: cs-shell-script-executor
-        image: 'mcr.microsoft.com/aks/command/runtime:master.240118.1'
+        image: 'mcr.microsoft.com/azurelinux/base/core:3.0'
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -67,6 +67,15 @@ spec:
             echo "All image tag checks passed successfully for tag: $EXPECTED_TAG"
           }
 
+          # TODO create a custom image with the needed
+          # commands instead of installing them at runtime
+          echo "Setting up tools..."
+          tdnf update
+          echo "Installing kubectl..."
+          tdnf install -y kubectl
+          echo "Installing jq..."
+          tdnf install -y jq
+
           echo "Starting execution..."
 
           echo "Waiting for clusters-service deployment rollout to complete"
@@ -82,7 +91,7 @@ spec:
           echo "Running arbitrary commands..."
           /bin/bash /scripts/arbitrary-commands.sh
 
-          echo "\n\nExecution completed successfully"
+          echo "Execution completed successfully"
         volumeMounts:
         - name: scripts
           mountPath: /scripts
