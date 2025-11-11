@@ -565,6 +565,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
@@ -578,6 +579,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		if err != nil {
 			return nil, err
 		}
+		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
+		if err != nil {
+			return nil, err
+		}
+		clusterAPIBuilder.Listening(apiListening)
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
@@ -591,14 +597,13 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 
 	clusterBuilder.Autoscaler(clusterAutoscalerBuilder)
 
+	clusterBuilder.API(clusterAPIBuilder.
+		CIDRBlockAccess(convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)))
+
 	return clusterBuilder, nil
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
-	apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
-	if err != nil {
-		return nil, err
-	}
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -630,9 +635,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ServiceCIDR(hcpCluster.CustomerProperties.Network.ServiceCIDR).
 			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
-		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(apiListening).
-			CIDRBlockAccess(convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
