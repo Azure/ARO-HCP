@@ -72,11 +72,12 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 }
 
 type ListReleaseDeploymentsOptions struct {
-	Limit        int
-	Cloud        string
-	Environment  string
-	ServiceGroup string
-	ReleaseId    ReleaseId
+	Limit             int
+	Cloud             string
+	Environment       string
+	ServiceGroup      string
+	ReleaseId         ReleaseId
+	IncludeComponents bool
 }
 
 func DefaultListReleaseDeploymentsOptions() *ListReleaseDeploymentsOptions {
@@ -114,6 +115,12 @@ func WithServiceGroup(sg string) ListReleaseDeploymentsOption {
 func WithRevisionId(releaseId ReleaseId) ListReleaseDeploymentsOption {
 	return func(o *ListReleaseDeploymentsOptions) {
 		o.ReleaseId = releaseId
+	}
+}
+
+func WithIncludeComponents(include bool) ListReleaseDeploymentsOption {
+	return func(o *ListReleaseDeploymentsOptions) {
+		o.IncludeComponents = include
 	}
 }
 
@@ -172,7 +179,7 @@ func (c *Client) ListReleaseDeployments(ctx context.Context, opts ...ListRelease
 
 	results := make([]*ReleaseDeployment, 0, limit)
 	for _, candidate := range candidates[:limit] {
-		deployment, err := c.downloadAndParseRelease(ctx, candidate.name)
+		deployment, err := c.downloadAndParseRelease(ctx, candidate.name, options.IncludeComponents)
 		if err != nil {
 			// TODO: use a proper logger
 			fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", candidate.name, err)
@@ -185,7 +192,7 @@ func (c *Client) ListReleaseDeployments(ctx context.Context, opts ...ListRelease
 }
 
 // downloadAndParseRelease downloads and parses a single release.yaml file
-func (c *Client) downloadAndParseRelease(ctx context.Context, blobName string) (*ReleaseDeployment, error) {
+func (c *Client) downloadAndParseRelease(ctx context.Context, blobName string, includeComponents bool) (*ReleaseDeployment, error) {
 	// Download the blob content
 	downloadResponse, err := c.blobClient.DownloadStream(ctx, c.container, blobName, nil)
 	if err != nil {
@@ -203,13 +210,15 @@ func (c *Client) downloadAndParseRelease(ctx context.Context, blobName string) (
 		return nil, fmt.Errorf("failed to unmarshal YAML: %w", err)
 	}
 
-	// we naively assume that there's only one region per target
-	// TODO: clarify this assumption
-	components, err := c.downloadAndParseConfig(ctx, blobName, deployment.Target.RegionConfigs[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to download and parse config: %w", err)
+	if includeComponents {
+		// we naively assume that there's only one region per target
+		// TODO: clarify this assumption
+		components, err := c.downloadAndParseConfig(ctx, blobName, deployment.Target.RegionConfigs[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to download and parse config: %w", err)
+		}
+		deployment.Components = components
 	}
-	deployment.Components = components
 	return deployment, nil
 }
 

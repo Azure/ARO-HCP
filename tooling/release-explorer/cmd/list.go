@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	serviceGroup string
-	cloud        string
-	environment  string
-	limit        int
+	serviceGroup      string
+	cloud             string
+	environment       string
+	limit             int
+	includeComponents bool
 )
 
 var listCmd = &cobra.Command{
@@ -45,6 +46,9 @@ var listCmd = &cobra.Command{
 		if limit > 0 {
 			opts = append(opts, client.WithLimit(limit))
 		}
+		if includeComponents {
+			opts = append(opts, client.WithIncludeComponents(true))
+		}
 
 		// List releases
 		deployments, err := c.ListReleaseDeployments(ctx, opts...)
@@ -65,15 +69,6 @@ var listCmd = &cobra.Command{
 				return fmt.Errorf("failed to marshal deployments: %w", err)
 			}
 			fmt.Println(string(data))
-			// fmt.Printf("%d. Release: %s\n", i+1, d.Metadata.ReleaseId.String())
-			// fmt.Printf("   Timestamp: %s\n", d.Metadata.Timestamp)
-			// fmt.Printf("   Branch: %s\n", d.Metadata.Branch)
-			// fmt.Printf("   Target: %s/%s\n", d.Target.Cloud, d.Target.Environment)
-			// fmt.Printf("   RegionConfigs: %v\n", d.Target.RegionConfigs)
-			// fmt.Printf("   Service Group: %s\n", d.Metadata.ServiceGroup)
-			// if d.Metadata.PullRequestID > 0 {
-			// 	fmt.Printf("   PR: #%d\n", d.Metadata.PullRequestID)
-			// }
 			fmt.Println()
 		}
 
@@ -86,6 +81,7 @@ func init() {
 	listCmd.Flags().StringVarP(&cloud, "cloud", "c", "", "Cloud environment (e.g., 'public', 'fairfax')")
 	listCmd.Flags().StringVarP(&environment, "environment", "e", "", "Environment (e.g., 'int', 'stg', 'prod')")
 	listCmd.Flags().IntVarP(&limit, "limit", "l", 10, "Maximum number of results")
+	listCmd.Flags().BoolVarP(&includeComponents, "include-components", "i", false, "Include components")
 
 	listCmd.MarkFlagRequired("service-group")
 
