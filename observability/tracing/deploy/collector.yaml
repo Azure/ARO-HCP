@@ -65,6 +65,20 @@ spec:
         volumeMounts:
         - name: otel-config
           mountPath: /etc/otel/config
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
       - name: otel-config
         configMap:

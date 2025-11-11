@@ -45,3 +45,17 @@ spec:
             path: /
             port: 14269
           initialDelaySeconds: 1
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
