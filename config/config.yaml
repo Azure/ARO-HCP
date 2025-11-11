@@ -895,6 +895,7 @@ clouds:
             softDelete: false
           infraAgentPool:
             poolCount: 1
+            vmSize: 'Standard_D2ds_v5'
           systemAgentPool:
             poolCount: 1
         prometheus:
@@ -928,8 +929,8 @@ clouds:
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
           infraAgentPool:
-            vmSize: 'Standard_D2s_v3'
             poolCount: 2
+            vmSize: 'Standard_D2ds_v5'
           etcd:
             softDelete: false
           enableSwiftV2Vnet: false
