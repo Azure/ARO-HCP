@@ -1940,7 +1940,7 @@ spec:
                   - klusterletaddon
       containers:
       - name: klusterlet-addon-controller
-        image: "arohcpsvcdev.azurecr.io/acm-d-cache/klusterlet-addon-controller-rhel9@sha256:cc546b0f2206ffe7bc591c5280e73b4b7d1a0391dedb46eeca2e91d38f969e0e"
+        image: "arohcpsvcdev.azurecr.io/acm-d-cache/klusterlet-addon-controller-rhel9@sha256:1234567890"
         imagePullPolicy: 
         securityContext:
           allowPrivilegeEscalation: false
@@ -2048,10 +2048,10 @@ spec:
               apiVersion: v1
               fieldPath: metadata.name
         - name: CONFIG_POLICY_CONTROLLER_IMAGE
-          value: "arohcpsvcdev.azurecr.io/acm-d-cache/config-policy-controller-rhel9@sha256:78daf464ff7512492c50aef9859479fd5fc1ff286fd9e18059effab482133032"
+          value: "arohcpsvcdev.azurecr.io/acm-d-cache/config-policy-controller-rhel9@sha256:1234567890"
         - name: GOVERNANCE_POLICY_FRAMEWORK_ADDON_IMAGE
-          value: "arohcpsvcdev.azurecr.io/acm-d-cache/acm-governance-policy-framework-addon-rhel9@sha256:78c431847c26e6baac7582e6ef62e4238a4110e627dfe2081c9f74299993cb19"
-        image: "arohcpsvcdev.azurecr.io/acm-d-cache/acm-governance-policy-addon-controller-rhel9@sha256:f1497a6e2da56673d2624948897989a0a1b65b86c21d5d68e0cf25c7441e0095"
+          value: "arohcpsvcdev.azurecr.io/acm-d-cache/acm-governance-policy-framework-addon-rhel9@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/acm-d-cache/acm-governance-policy-addon-controller-rhel9@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         name: manager
         resources:
@@ -2173,7 +2173,7 @@ spec:
               fieldPath: metadata.name
         - name: OPERATOR_NAME
           value: governance-policy-propagator
-        image: "arohcpsvcdev.azurecr.io/acm-d-cache/governance-policy-propagator-rhel9@sha256:d226ff2ff14182ae6c7784f30f3125778f2c80cb3429d20e593461e03de50f4b"
+        image: "arohcpsvcdev.azurecr.io/acm-d-cache/governance-policy-propagator-rhel9@sha256:1234567890"
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:

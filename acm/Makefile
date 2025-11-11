@@ -39,7 +39,6 @@ mce-helm-chart:
 	@rm ${MCE_OPERATOR_BUNDLE_FILE}
 
 helm-charts: mce-helm-chart policy-helm-chart
-	make -C ../ update-helm-fixtures
 	make -C ../ yamlfmt
 
 .PHONY: helm-charts mce-helm-chart policy-helm-chart

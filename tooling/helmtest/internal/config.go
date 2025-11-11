@@ -43,14 +43,13 @@ func LoadConfigAndMerge(configPath string, configOverride map[string]any) (map[s
 	if err != nil {
 		return nil, fmt.Errorf("error loading config: %v", err)
 	}
-	cfgYaml := types.MergeConfiguration(cfg, configOverride)
-	return replaceImageDigest(cfgYaml), nil
+	return types.MergeConfiguration(cfg, configOverride), nil
 }
 
-func replaceImageDigest(yamlCfg map[string]any) map[string]any {
+func ReplaceImageDigest(yamlCfg map[string]any) map[string]any {
 	for key, value := range yamlCfg {
 		if _, ok := value.(map[string]any); ok {
-			yamlCfg[key] = replaceImageDigest(value.(map[string]any))
+			yamlCfg[key] = ReplaceImageDigest(value.(map[string]any))
 		}
 		if key == "digest" {
 			yamlCfg[key] = "sha256:1234567890"

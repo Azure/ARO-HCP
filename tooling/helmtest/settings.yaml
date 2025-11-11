@@ -1,1 +1,4 @@
 ConfigPath: ../../config/rendered/dev/dev/westus3.yaml
+Replace:
+- Regex: 'sha256.[a-fA-F0-9]{64}'
+  Replacement: 'sha256:1234567890'
