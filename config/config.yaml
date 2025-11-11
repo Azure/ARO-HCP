@@ -127,7 +127,7 @@ defaults:
         keyVault: "empty-sentinel" # we don't need one in public cloud, but we need a value to validate the field
         name: ""
       applicationId: ""
-      dstsHost: "{ .ev2.geneva.actions.homeDsts.primary }"
+      dstsHost: "{{ .ev2.geneva.actions.homeDsts.primary }}"
   geneva:
     principalId: ""
     resourceContributor: ""

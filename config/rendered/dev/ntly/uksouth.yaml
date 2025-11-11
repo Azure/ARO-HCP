@@ -185,7 +185,7 @@ ev2:
     certificate:
       keyVault: empty-sentinel
       name: ""
-    dstsHost: '{ .ev2.geneva.actions.homeDsts.primary }'
+    dstsHost: usnorth-dsts.dsts.core.windows.net
 firstPartyAppCertificate:
   issuer: Self
   manage: false
