@@ -660,7 +660,7 @@ svc:
       minCount: 1
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_D4ds_v5
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
