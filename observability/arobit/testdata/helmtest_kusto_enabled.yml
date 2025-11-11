@@ -1,4 +1,4 @@
-values: ../../values-mgmt.yaml
+values: ../values-mgmt.yaml
 name: helmtest-kusto-enabled
 namespace: arobit
 testData:

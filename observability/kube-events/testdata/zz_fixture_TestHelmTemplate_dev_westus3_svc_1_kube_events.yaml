@@ -1,0 +1,32 @@
+---
+# Source: kube-events/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ke-serviceaccount
+  namespace: 'monitoring'
+---
+# Source: kube-events/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ke-clusterrole
+rules:
+- apiGroups: ['']
+  resources: [events]
+  verbs: [get, watch, list]
+---
+# Source: kube-events/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ke-binding
+subjects:
+- kind: ServiceAccount
+  name: ke-serviceaccount
+  namespace: 'monitoring'
+roleRef:
+  kind: ClusterRole
+  name: ke-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+
