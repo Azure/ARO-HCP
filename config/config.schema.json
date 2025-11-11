@@ -855,16 +855,12 @@
             "version": {
               "type": "string"
             },
-            "mirrorAdditionalVersions": {
-              "$ref": "#/definitions/csv"
-            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             }
           },
           "required": [
             "version",
-            "mirrorAdditionalVersions",
             "bundle"
           ]
         },
@@ -874,9 +870,6 @@
             "version": {
               "type": "string"
             },
-            "mirrorAdditionalVersions": {
-              "$ref": "#/definitions/csv"
-            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             }
@@ -884,7 +877,6 @@
           "additionalProperties": false,
           "required": [
             "version",
-            "mirrorAdditionalVersions",
             "bundle"
           ]
         }
@@ -1800,13 +1792,17 @@
             },
             "pullSecretName": {
               "type": "string"
+            },
+            "operatorVersionsToMirror": {
+              "$ref": "#/definitions/csv"
             }
           },
           "additionalProperties": false,
           "required": [
             "enabled",
             "image",
-            "pullSecretName"
+            "pullSecretName",
+            "operatorVersionsToMirror"
           ]
         }
       },

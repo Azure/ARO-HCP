@@ -46,17 +46,8 @@ param ocMirrorEnabled bool
 @description('The name of the pull secret for the oc-mirror job')
 param ocpPullSecretName string
 
-@description('The current version of the ACM operator')
-param acmVersion string
-
-@description('The versions of the ACM operator to mirror')
-param acmAdditionalVersionsToMirror string
-
-@description('The current version of the MCE operator')
-param mceVersion string
-
-@description('The ersions of the MCE operator to mirror')
-param mceAdditionalVersionsToMirror string
+@description('The versions of the operator to mirror')
+param operatorVersionsToMirror string
 
 resource kv 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: keyVaultName
@@ -236,56 +227,40 @@ module pullSecretPermission '../modules/keyvault/keyvault-secret-access.bicep' =
 ]
 
 //
-//  O P E R A T O R   M I R R O R   J O B
+//  O C P   M I R R O R   J O B
 //
 
-// this is v2alpha1 syntax for oc-mirror 4.16, which we use until 4.18+ offers
-// a way to not rebuild the catalogs, which fails in Azure Container App
-
-var acmBundlesToMirror = [
-  for version in concat([acmVersion], csvToArray(acmAdditionalVersionsToMirror)): {
-    name: 'advanced-cluster-management.v${version}'
+var operatorVersionsToMirrorArray = csvToArray(operatorVersionsToMirror)
+var operatorVersionsToMirrorDefinitions = [
+  for version in operatorVersionsToMirrorArray: {
+    name: 'oc-mirror-${replace(version, '.', '-')}'
+    major: version
   }
 ]
-var mceBundlesToMirror = [
-  for version in concat([mceVersion], csvToArray(mceAdditionalVersionsToMirror)): {
-    name: 'multicluster-engine.v${version}'
-  }
-]
-
-var operatorMirrorJobConfiguration = [
-  {
-    name: 'acm-mirror'
-    cron: '0 10 * * *'
+var ocpMirrorJobConfiguration = [
+  for job in operatorVersionsToMirrorDefinitions: {
+    name: job.name
+    cron: '0 * * * *'
     timeout: 4 * 60 * 60
     retryLimit: 3
-    targetRegistry: svcAcrName
+    targetRegistry: ocpAcrName
     imageSetConfig: {
       kind: 'ImageSetConfiguration'
       apiVersion: 'mirror.openshift.io/v2alpha1'
       mirror: {
-        operators: [
-          {
-            catalog: 'registry.redhat.io/redhat/redhat-operator-index:v4.16'
-            packages: [
-              {
-                name: 'multicluster-engine'
-                bundles: mceBundlesToMirror
-              }
-              {
-                name: 'advanced-cluster-management'
-                bundles: acmBundlesToMirror
-              }
-            ]
-          }
+        additionalImages: [
+          { name: 'registry.redhat.io/redhat/redhat-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/certified-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/community-operator-index:v${job.major}' }
+          { name: 'registry.redhat.io/redhat/redhat-marketplace-index:v${job.major}' }
         ]
       }
     }
-    compatibility: 'NOCATALOG'
+    compatibility: 'LATEST'
   }
 ]
 
-var ocMirrorJobConfiguration = ocMirrorEnabled ? operatorMirrorJobConfiguration : []
+var ocMirrorJobConfiguration = ocMirrorEnabled ? ocpMirrorJobConfiguration : []
 
 resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
   for i in range(0, length(ocMirrorJobConfiguration)): {

@@ -14,9 +14,4 @@ param ocpAcrName = '{{ .acr.ocp.name }}'
 param ocpPullSecretName = '{{ .imageSync.ocMirror.pullSecretName }}'
 param ocMirrorImage = '{{ .acr.svc.name }}.azurecr.io/{{ .imageSync.ocMirror.image.repository }}@{{ .imageSync.ocMirror.image.digest }}'
 param ocMirrorEnabled = {{ .imageSync.ocMirror.enabled }}
-
-param acmVersion = '{{ .acm.operator.version }}'
-param acmAdditionalVersionsToMirror = '{{ .acm.operator.mirrorAdditionalVersions }}'
-
-param mceVersion = '{{ .acm.mce.version }}'
-param mceAdditionalVersionsToMirror = '{{ .acm.mce.mirrorAdditionalVersions }}'
+param operatorVersionsToMirror = '{{ .imageSync.ocMirror.operatorVersionsToMirror }}'
