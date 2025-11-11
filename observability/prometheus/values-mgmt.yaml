@@ -1,7 +1,7 @@
+crds:
+  enabled: true
 kube-prometheus-stack:
   fullnameOverride: "prometheus"
-  crds:
-    enabled: true
   global:
     rbac:
       create: true
