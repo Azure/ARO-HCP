@@ -1,0 +1,91 @@
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+  labels:
+    app: cluster-image-registry-operator-recycle
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-image-registry-operator-recycle
+  labels:
+    app: cluster-image-registry-operator-recycle
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "get", "delete"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["list"]
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-image-registry-operator-recycle
+  labels:
+    app: cluster-image-registry-operator-recycle
+subjects:
+- kind: ServiceAccount
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+roleRef:
+  kind: ClusterRole
+  name: cluster-image-registry-operator-recycle
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: ARO HCP MC Mitigations/templates/cluster-image-registry-operator-recycle.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-image-registry-operator-recycle
+  namespace: 'aro-hcp-mitigations'
+  labels:
+    app: cluster-image-registry-operator-recycle
+spec:
+  suspend: true
+  schedule: "*/10 * * * *" # Every 10 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: cluster-image-registry-operator-recycle
+        spec:
+          serviceAccountName: cluster-image-registry-operator-recycle
+          restartPolicy: OnFailure
+          containers:
+          - name: recycle-operator
+            image: mcr.microsoft.com/aks/command/runtime:master.240118.1
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "Searching for pods with label name=cluster-image-registry-operator..."
+
+              kubectl get pods --all-namespaces -l name=cluster-image-registry-operator \
+                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' |
+              while read -r namespace pod; do
+                echo "Deleting pod: $pod in namespace: $namespace"
+                kubectl delete pod -n "$namespace" "$pod"
+              done
+
+              echo "Done."
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+

@@ -26,6 +26,8 @@ import (
 
 var RepoRoot = "../.."
 
+var TestDataFromChartDir = "../testdata"
+
 var SettingsPath = "settings.yaml"
 
 type TestCase struct {

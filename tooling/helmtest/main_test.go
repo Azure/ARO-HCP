@@ -111,7 +111,7 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 }
 
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
-	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, "testdata"))
+	testCaseFiles, err := internal.FindHelmTestFiles(filepath.Join(chartDir, internal.TestDataFromChartDir))
 	if err != nil {
 		return nil, fmt.Errorf("error finding helmtest files, %v", err)
 	}
@@ -130,7 +130,7 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 			return nil, fmt.Errorf("error unmarshalling test case file, %v", err)
 		}
 
-		testCase.Values = filepath.Join(chartDir, "testdata", testCase.Values)
+		testCase.Values = filepath.Join(chartDir, internal.TestDataFromChartDir, testCase.Values)
 		if testCase.HelmChartDir == "" {
 			testCase.HelmChartDir = chartDir
 		}
@@ -152,7 +152,6 @@ func TestHelmTemplate(t *testing.T) {
 
 	for _, helmStep := range helmSteps {
 		allCases := []internal.TestCase{}
-
 		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot()]; !ok {
 			// visit the chart directory only once. Some helm step definitions reference the directory, would cause duplicates.
 			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot())
@@ -172,7 +171,7 @@ func TestHelmTemplate(t *testing.T) {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				assert.NoError(t, err)
-				CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), "testdata")))
+				CompareWithFixture(t, manifest, WithGoldenDir(filepath.Join(helmStep.ChartDirFromRoot(), internal.TestDataFromChartDir)))
 			})
 		}
 	}

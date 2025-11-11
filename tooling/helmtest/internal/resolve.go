@@ -28,7 +28,7 @@ import (
 func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 	allTests := make([]string, 0)
 	err := filepath.WalkDir(pathToSearch, func(path string, d fs.DirEntry, err error) error {
-		if d.IsDir() {
+		if d == nil || d.IsDir() {
 			return nil
 		}
 		if strings.HasPrefix(d.Name(), "helmtest_") {

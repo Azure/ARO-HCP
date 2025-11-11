@@ -1,5 +1,5 @@
-values: ../../values-mgmt.yaml
-name: helmtest-mdsd-enabled-mgmt
+values: ../values-svc.yaml
+name: helmtest-mdsd-enabled-svc
 namespace: arobit
 testData:
   arobit:
