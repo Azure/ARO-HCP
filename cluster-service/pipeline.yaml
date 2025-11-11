@@ -56,6 +56,7 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
     command: make deploy
+    workingDir: ./
     dryRun:
       variables:
       - name: DRY_RUN
