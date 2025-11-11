@@ -19,6 +19,7 @@ import (
 	"iter"
 	"math"
 
+	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
@@ -88,6 +89,7 @@ func (iter *simpleListIterator[T]) GetError() error {
 }
 
 type clusterListIterator struct {
+	conn    *sdk.Connection
 	request *arohcpv1alpha1.ClustersListRequest
 	err     error
 }
@@ -147,6 +149,7 @@ func (iter clusterListIterator) GetError() error {
 }
 
 type nodePoolListIterator struct {
+	conn    *sdk.Connection
 	request *arohcpv1alpha1.NodePoolsListRequest
 	err     error
 }

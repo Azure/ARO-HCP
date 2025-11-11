@@ -251,7 +251,7 @@ func (csc *clusterServiceClient) ListClusters(searchExpression string) ClusterLi
 	if searchExpression != "" {
 		clustersListRequest.Search(searchExpression)
 	}
-	return &clusterListIterator{request: clustersListRequest}
+	return &clusterListIterator{conn: csc.conn, request: clustersListRequest}
 }
 
 func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error) {
@@ -368,7 +368,7 @@ func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, sea
 	if searchExpression != "" {
 		nodePoolsListRequest.Search(searchExpression)
 	}
-	return &nodePoolListIterator{request: nodePoolsListRequest}
+	return &nodePoolListIterator{conn: csc.conn, request: nodePoolsListRequest}
 }
 
 func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
