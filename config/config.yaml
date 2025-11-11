@@ -843,7 +843,7 @@ clouds:
         image:
           registry: quay.io
           repository: acm-d/rhtap-hypershift-operator
-          digest: sha256:1db2303872ded0f2d7e3be0d18bc8b03b69c5718d26be6a7b74e27d0e1b32bf0
+          digest: sha256:75ba18994921469d9a64638a19213a6c4fd3764c97a9638314be5c3c119f11d7
       # Backplane API
       backplaneAPI:
         image:
