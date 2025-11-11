@@ -41,8 +41,8 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  retention: 1d
-  retentionSize: 45GiB
+  retention: '{{ .Values.prometheusSpec.retention }}'
+  retentionSize: '{{ .Values.prometheusSpec.retentionSize }}'
   routePrefix: /
   ruleNamespaceSelector: {}
   ruleSelector: {}
