@@ -172,7 +172,7 @@ defaults:
         name: genevaAction
         issuer: OneCertV2-PrivateCA
         manage: true
-      allowedAcisExtensions: "AzureRedHatHypershiftExtension,AzureRedHatHypershift"
+      allowedAcisExtensions: "AzureRedHatHypershiftExtension,Azure Red Hat Hypershift"
       genevaActionsPrincipalId: ""
       application:
         name: "arohcp-ga-{{ .ctx.environment }}" # [tenant unique]

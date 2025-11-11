@@ -216,7 +216,7 @@ frontend:
     exporter: ""
 geneva:
   actions:
-    allowedAcisExtensions: AzureRedHatHypershiftExtension,AzureRedHatHypershift
+    allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
     application:
       manage: true
       name: arohcp-ga-dev
