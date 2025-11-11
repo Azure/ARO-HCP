@@ -304,7 +304,7 @@ global:
           poll: true
         poll: true
 hypershift:
-  additionalInstallArg: --enable-cpo-overrides=true
+  additionalInstallArg: --enable-cpo-overrides
   image:
     digest: sha256:dc4560440d9e21a8461173fc8e9773f0ac1aa5f4f58226f1a0005ff8b6e41597
     registry: quay.io
