@@ -407,7 +407,7 @@ defaults:
       infraAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2ds_v6'
+        vmSize: 'Standard_D4ds_v5'
         osDiskSizeGB: 32
         poolCount: 2
         zones: ""
