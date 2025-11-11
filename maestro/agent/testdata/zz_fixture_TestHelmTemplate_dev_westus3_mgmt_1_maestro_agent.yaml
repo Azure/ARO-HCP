@@ -360,6 +360,20 @@ spec:
           name: mqtt-creds
           readOnly: true
       serviceAccountName: 'maestro'
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: aro-hcp.azure.com/role
+                operator: In
+                values:
+                - infra
+      tolerations:
+      - effect: NoSchedule
+        key: infra
+        operator: "Equal"
+        value: "true"
       volumes:
       - name: nginx-config-tmp
         configMap:
