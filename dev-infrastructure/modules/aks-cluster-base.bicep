@@ -479,6 +479,98 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' = {
   ]
 }
 
+resource maintenanceWindow 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-08-02-preview' = {
+  parent: aksCluster
+  name: guid(aksClusterName, 'maintenance-window')
+  properties: {
+    maintenanceWindow: {
+      durationHours: 10
+      startTime: '15:00'
+      notAllowedDates: [
+        {
+          start: '2025-11-16'
+          end: '2025-11-22'
+        }
+        {
+          start: '2025-11-24'
+          end: '2025-12-03'
+        }
+        {
+          start: '2025-12-22'
+          end: '2026-01-13'
+        }
+        {
+          start: '2026-02-16'
+          end: '2026-02-20'
+        }
+      ]
+      schedule: {
+        daily: {
+          intervalDays: 1
+        }
+      }
+    }
+    timeInWeek: [
+      {
+        day: 'Monday'
+        hourSlots: [
+          15
+          16
+          17
+          18
+          19
+          20
+          21
+          22
+          23
+        ]
+      }
+      {
+        day: 'Tuesday'
+        hourSlots: [
+          15
+          16
+          17
+          18
+          19
+          20
+          21
+          22
+          23
+        ]
+      }
+      {
+        day: 'Wednesday'
+        hourSlots: [
+          15
+          16
+          17
+          18
+          19
+          20
+          21
+          22
+          23
+        ]
+      }
+      {
+        day: 'Thursday'
+        hourSlots: [
+          15
+          16
+          17
+          18
+          19
+          20
+          21
+          22
+          23
+        ]
+      }
+    ]
+  }
+}
+
 module userAgentPools '../modules/aks/pool.bicep' = {
   name: 'user-agent-pools'
   params: {
