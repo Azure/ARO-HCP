@@ -918,6 +918,10 @@
     "clustersService": {
       "type": "object",
       "properties": {
+        "deployDebugJob": {
+          "type": "boolean",
+          "description": "If true, a debug job will be deployed to the cluster. This job will be used to debug the CS service."
+        },
         "environment": {
           "type": "string",
           "minLength": 1,

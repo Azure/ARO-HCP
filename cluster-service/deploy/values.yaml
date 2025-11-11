@@ -1,3 +1,6 @@
+# Global values that are shared with subcharts
+global:
+  imageDigest: ""
 # service account name
 serviceAccountName: clusters-service
 # TODO: This parameter isn't currently used, but kept to avoid failures in the
@@ -308,3 +311,5 @@ ocpVersions:
       maxVersion: ""
 deployment:
   zoneCount: ""
+# controls if a debug job is deployed to the cluster.
+deployDebugJob: false
