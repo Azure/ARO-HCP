@@ -113,37 +113,37 @@ resourceGroups:
         step: output
         name: globalMSIId
   # creates DNS delegation for the ARO HCP global SVC zone
-  - name: svcChildZone
-    action: DelegateChildZone
-    parentZone:
-      configRef: dns.parentZoneName
-    childZone:
-      configRef: dns.svcParentZoneName
-    secretKeyVault:
-      configRef: ev2.assistedId.certificate.keyVault
-    secretName:
-      configRef: ev2.assistedId.certificate.name
-    dstsHost:
-      configRef: ev2.assistedId.dstsHost
-    dependsOn:
-    - resourceGroup: global
-      step: infra
+  # - name: svcChildZone
+  #   action: DelegateChildZone
+  #   parentZone:
+  #     configRef: dns.parentZoneName
+  #   childZone:
+  #     configRef: dns.svcParentZoneName
+  #   secretKeyVault:
+  #     configRef: ev2.assistedId.certificate.keyVault
+  #   secretName:
+  #     configRef: ev2.assistedId.certificate.name
+  #   dstsHost:
+  #     configRef: ev2.assistedId.dstsHost
+  #   dependsOn:
+  #   - resourceGroup: global
+  #     step: infra
   # creates DNS delegation for the ARO HCP global CX zone
-  - name: cxChildZone
-    action: DelegateChildZone
-    parentZone:
-      configRef: dns.parentZoneName
-    childZone:
-      configRef: dns.cxParentZoneName
-    secretKeyVault:
-      configRef: ev2.assistedId.certificate.keyVault
-    secretName:
-      configRef: ev2.assistedId.certificate.name
-    dstsHost:
-      configRef: ev2.assistedId.dstsHost
-    dependsOn:
-    - resourceGroup: global
-      step: infra
+  # - name: cxChildZone
+  #   action: DelegateChildZone
+  #   parentZone:
+  #     configRef: dns.parentZoneName
+  #   childZone:
+  #     configRef: dns.cxParentZoneName
+  #   secretKeyVault:
+  #     configRef: ev2.assistedId.certificate.keyVault
+  #   secretName:
+  #     configRef: ev2.assistedId.certificate.name
+  #   dstsHost:
+  #     configRef: ev2.assistedId.dstsHost
+  #   dependsOn:
+  #   - resourceGroup: global
+  #     step: infra
   # create global ARO HCP ACRs for OCP and SVC images
   - name: acrs
     action: ARM
