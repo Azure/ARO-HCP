@@ -407,7 +407,7 @@ defaults:
       infraAgentPool:
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2ds_v6'
+        vmSize: 'Standard_D4ds_v5'
         osDiskSizeGB: 32
         poolCount: 2
         zones: ""
@@ -895,6 +895,7 @@ clouds:
             softDelete: false
           infraAgentPool:
             poolCount: 1
+            vmSize: 'Standard_D2s_v3'
           systemAgentPool:
             poolCount: 1
         prometheus:
@@ -928,8 +929,8 @@ clouds:
             vmSize: 'Standard_D4s_v3'
             osDiskSizeGB: 100
           infraAgentPool:
-            vmSize: 'Standard_D2s_v3'
             poolCount: 2
+            vmSize: 'Standard_D2s_v3'
           etcd:
             softDelete: false
           enableSwiftV2Vnet: false
@@ -1139,6 +1140,7 @@ clouds:
                   zones: '1'
                 infraAgentPool:
                   zones: '1'
+                  vmSize: 'Standard_D2s_v3'
                 systemAgentPool:
                   zones: '1'
             mgmt:
@@ -1147,6 +1149,7 @@ clouds:
                   zones: '1'
                 infraAgentPool:
                   zones: '1'
+                  vmSize: 'Standard_D2s_v3'
                 systemAgentPool:
                   zones: '1'
         # this is the personal DEV environment
