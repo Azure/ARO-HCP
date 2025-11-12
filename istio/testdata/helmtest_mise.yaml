@@ -1,0 +1,6 @@
+values: ../values.yaml
+name: istio-mise-enabled
+namespace: aks-istio-system
+testData:
+  mise:
+    deploy: true
