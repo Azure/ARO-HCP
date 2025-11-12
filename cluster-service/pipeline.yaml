@@ -52,6 +52,45 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: register-shard
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make register-shard
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    variables:
+    - name: NAMESPACE
+      configRef: clustersService.k8s.namespace
+    - name: SERVICE_ACCOUNT_NAME
+      configRef: clustersService.k8s.serviceAccountName
+    - name: REGIONAL_DNS_SUBDOMAIN
+      configRef: dns.regionalSubdomain
+    - name: CX_PARENT_DNS_ZONE_NAME
+      configRef: dns.cxParentZoneName
+    - name: REGIONAL_RESOURCEGROUP
+      configRef: regionRG
+    - name: CX_SECRETS_KV_NAME
+      configRef: cxKeyVault.name
+    - name: CX_MI_KV_NAME
+      configRef: msiKeyVault.name
+    - name: CX_SECRETS_KV_MI_CLIENT_ID
+      input:
+        resourceGroup: management
+        step: output
+        name: azureKeyvaultSecretsProviderIdentityClientId
+    - name: CONSUMER_NAME
+      configRef: maestro.agent.consumerName
+    - name: MGMT_AKS_NAME
+      configRef: mgmt.aks.name
+    - name: REGION
+      configRef: region
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
@@ -64,6 +103,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: global
       step: mirror-image
+    - resourceGroup: service
+      step: register-shard
     variables:
     - name: CX_SECRETS_KV_MI_CLIENT_ID
       input:
@@ -112,12 +153,8 @@ resourceGroups:
       configRef: miMockCertName
     - name: ARM_HELPER_CERT_NAME
       configRef: armHelperCertName
-    - name: CX_PARENT_DNS_ZONE_NAME
-      configRef: dns.cxParentZoneName
     - name: SVC_PARENT_DNS_ZONE_NAME
       configRef: dns.svcParentZoneName
-    - name: REGIONAL_DNS_SUBDOMAIN
-      configRef: dns.regionalSubdomain
     - name: USE_AZURE_DB
       configRef: clustersService.postgres.deploy
     - name: DATABASE_SERVER_NAME
@@ -160,16 +197,8 @@ resourceGroups:
       configRef: clustersService.ocpVersions.channelGroups.stable.minVersion
     - name: OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION
       configRef: clustersService.ocpVersions.channelGroups.stable.maxVersion
-    # this is maestro consumer registration stuff
-    # this goes away when we have a real registration process
-    - name: CONSUMER_NAME
-      configRef: maestro.agent.consumerName
     - name: REGIONAL_RESOURCEGROUP
       configRef: regionRG
-    - name: MGMT_RESOURCEGROUP
-      configRef: mgmt.rg
-    - name: MGMT_AKS_NAME
-      configRef: mgmt.aks.name
     - name: CX_SECRETS_KV_NAME
       configRef: cxKeyVault.name
     - name: CX_MI_KV_NAME
