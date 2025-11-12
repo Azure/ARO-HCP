@@ -6,13 +6,15 @@ metadata:
 spec:
   image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
   version: '{{ .Values.prometheusSpec.version}}' # todo: can this be removed? we control the version via image
+  {{- if .Values.prometheusSpec.resources }}
   resources:
     requests:
-      cpu: '{{ .Values.prometheusSpec.resources.requests.cpu | default "250m" }}'
-      memory: '{{ .Values.prometheusSpec.resources.requests.memory | default "512Mi" }}'
+      cpu: '{{ .Values.prometheusSpec.resources.requests.cpu  }}'
+      memory: '{{ .Values.prometheusSpec.resources.requests.memory }}'
     limits:
       cpu: '{{ .Values.prometheusSpec.resources.limits.cpu | default "500m" }}'
-      memory: '{{ .Values.prometheusSpec.resources.limits.memory | default "1Gi" }}'
+      memory: '{{ .Values.prometheusSpec.resources.limits.memory }}'
+  {{- end }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
