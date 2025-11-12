@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:46072332a71aab372cbdfd30003d92522e069a1bcef29ac127544f0c56f45da0
+      digest: sha256:91917c6a0983595ea4a2a68e9e3bb79a275fe35b34643885bd9f1506644340af
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:0b7f1ad95fc08442200794a6d2c51cf088e8d05cda113955d8fea308e1ba9640
+      digest: sha256:e59d3827a2b2895dd2aad000f8b1f7d47f3697d7f3c14b7ce66f9fc1a8d2a497
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -65,7 +65,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:06ec7df1603ece5381dba17dc4151987051310789b55727dcaec6defad0be18f
+    digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -203,7 +203,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:0a883f24733d461fdf88cf307d9bf435c6344ebd86ae395e6231f0998fd69b80
+    digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -306,7 +306,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:1214d5ed00fe743e5eaf7a215af5f734a0cb599c823d8c9d1ca8a96d4a0ac081
+    digest: sha256:dc4560440d9e21a8461173fc8e9773f0ac1aa5f4f58226f1a0005ff8b6e41597
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -454,7 +454,7 @@ mgmt:
   prometheus:
     kubeStateMetrics:
       image:
-        digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191
+        digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -474,7 +474,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
+        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
       replicas: 2
       shards: 1
   rg: hcp-underlay-pers-usw3test-mgmt-1
@@ -706,7 +706,7 @@ svc:
   prometheus:
     kubeStateMetrics:
       image:
-        digest: sha256:b01705031eea7bb281c6a8a27bb6dd491fca5e225c5ea1a60711d7c087a02191
+        digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -726,7 +726,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
+        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
       replicas: 2
       shards: 1
       version: ""
