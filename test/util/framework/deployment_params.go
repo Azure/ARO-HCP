@@ -46,6 +46,7 @@ type ClusterParams struct {
 	APIVisibility                 string
 	ImageRegistryState            string
 	ChannelGroup                  string
+	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
 }
 
 type NetworkConfig struct {
