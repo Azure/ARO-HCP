@@ -11,13 +11,14 @@ tests:
   - eval_time: 65m
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts: [] # Should not fire with perfect success
-# Test 2: Complete failure should trigger fast burn alert (5m/1h windows, for: 2m)
+
+# Test 2: Complete failure should trigger fast burn alert (30m/1h windows, for: 2m)
 - interval: 30s # Generate data every 30 seconds to meet sample count requirements
   input_series:
   - series: 'probe_success{probe_url="https://api.example.com/health", namespace="test-hcp-namespace", _id="test-hcp-id", cluster="test-cluster"}'
     # Complete failure: 0% success (100% failure) for sufficient duration
-    # With 30s interval: 5m window has 10 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
-    # Alert condition: 1 - (0/10) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
+    # With 30s interval: 30m window has 60 samples (>5 ✓), 1h window has 120 samples (>60 ✓)
+    # Alert condition: 1 - (0/60) > 0.0072 AND 1 - (0/120) > 0.0072 = TRUE
     # With 'for: 2m', alert should fire at 63m (condition true at 61m + 2m)
     values: "0+0x130" # Complete failure for 65+ minutes (130 * 30s = 65m)
   alert_rule_test:
@@ -27,13 +28,14 @@ tests:
     - exp_labels:
         severity: warning
         long_window: 1h
-        short_window: 5m
+        short_window: 30m
         probe_url: https://api.example.com/health
         namespace: test-hcp-namespace
         _id: test-hcp-id
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
+
 # Test 3: Medium burn rate - Alert 2 (30m/6h windows, for: 15m)
 - interval: 30s # Generate data every 30 seconds
   input_series:
@@ -48,7 +50,7 @@ tests:
     - exp_labels:
         severity: warning
         long_window: 1h
-        short_window: 5m
+        short_window: 30m
         probe_url: https://api.example.com/health
         namespace: test-hcp-namespace
         _id: test-hcp-id
@@ -65,6 +67,7 @@ tests:
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
+
 # Test 4: All four alerts should fire simultaneously after prolonged failure
 - interval: 30s
   input_series:
@@ -78,7 +81,7 @@ tests:
     - exp_labels:
         severity: warning
         long_window: 1h
-        short_window: 5m
+        short_window: 30m
         probe_url: https://api.example.com/health
         namespace: test-hcp-namespace
         _id: test-hcp-id
