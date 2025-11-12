@@ -32,6 +32,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "no-cni-cl"
@@ -43,15 +44,35 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-no-cni", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("deploying no-cni bicep file to create no-cni cluster without a node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			By("setting no cni network configuration")
+			clusterParams.Network.NetworkType = "Other"
+			clusterParams.Network.PodCIDR = "10.128.0.0/14"
+			clusterParams.Network.ServiceCIDR = "172.30.0.0/16"
+			clusterParams.Network.MachineCIDR = "10.0.0.0/16"
+			clusterParams.Network.HostPrefix = 23
+
+			By("creating customer resources")
+			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"aro-hcp-no-cni",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/no-cni.json")),
+				resourceGroup,
+				clusterParams,
 				map[string]interface{}{
-					"clusterName": customerClusterName,
+					"persistTagValue": false,
 				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating no-cni HCP cluster")
+			err = framework.CreateHCPClusterFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				clusterParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
@@ -67,17 +88,16 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
 
-			By("deploying bicep file to create a node pool")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			By("creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.NodePoolName = customerNodePoolName
+
+			err = framework.CreateNodePoolFromParam(ctx,
+				tc,
 				*resourceGroup.Name,
-				"aro-hcp-no-cni-np",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-				map[string]interface{}{
-					"clusterName":  customerClusterName,
-					"nodePoolName": customerNodePoolName,
-				},
-				15*time.Minute,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
 			)
 			// ARO-20829 workaround: instead of a finished and succesfull
 			// deployment, we expect that the provisioning is still going on
