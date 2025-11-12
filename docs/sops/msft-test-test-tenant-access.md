@@ -35,7 +35,7 @@ Access to the MSFT Test Test tenant is granted through **email invitation**.
 **To request access:**
 
 1. **Contact the ARO HCP Service Lifecycle Team Lead:**
-   - **Slack**: Mariusz Mazur (mmazur@redhat.com)
+   - **Slack**: @aro-hcp-service-lifecycle-ic
    - **Channel**: `#hcm-aro-team-service-lifecycle`
 
 2. **Wait for email invitation:**
@@ -117,17 +117,29 @@ The ARO HCP project uses service principals to authenticate OpenShift CI (Prow) 
    - Used to rotate credentials when needed
 
 4. **Prow Step Configuration**: 
-   - File: [`release/ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml`](../../release/ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml)
+   - Repository: [openshift/release](https://github.com/openshift/release)
+   - File: [`ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml)
    - Defines which tenant credentials to use based on the `TENANT_ID` environment variable
 
 5. **Prow Job Definitions**:
-   - File: [`release/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](../../release/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
+   - Repository: [openshift/release](https://github.com/openshift/release)
+   - File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
    - Sets `TENANT_ID: 93b21e64-4824-439a-b893-46c9b2a51082` for Stage and Prod jobs
 
 6. **Credential Storage**:
    - Location: OpenShift CI Vault at `selfservice/hcm-aro/hcp-msft-test-credentials`
    - Secret name: `hcp-msft-test-test-credentials`
    - Access: Requires OpenShift CI admin permissions
+
+### Credential Expiration
+
+> **⚠️ IMPORTANT: Service Principal Credential Expires on September 30, 2026**
+> 
+> The OpenShift CI service principal credential must be rotated before this date to prevent CI/CD pipeline failures.
+> 
+> **To rotate credentials:**
+> - See instructions: [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md)
+> - Run script: [`dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh`](../../dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh)
 
 
 ## Common Tasks
@@ -160,11 +172,11 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 | eastus2 | 300 |
 
 *vCPU Quotas (Active E2E Test Regions):*
-| Region | Total vCPUs | DSv3 vCPUs |
-|--------|-------------|------------|
-| uksouth | 300 | 300 |
-| brazilsouth | 300 | 300 |
-| centralindia | 300 | 300 |
+| Region | DSv3 vCPUs |
+|--------|------------|
+| uksouth | 300 |
+| brazilsouth | 300(pending) |
+| centralindia | 300 |
 
 **Note**: Other 5 production regions (switzerlandnorth, canadacentral, australiaeast, westeurope, eastus2) do not have E2E tests configured yet, so vCPU quotas were not requested.
 
@@ -215,13 +227,6 @@ Both STAGE and PROD subscriptions have automated cleanup enabled to prevent reso
 - **Purpose**: Removes orphaned role assignments (where the principal/identity has been deleted)
 - **Runbook**: `hcp-{env}-automation_roleAssignmentsCleanup`
 
-**Resource Group Cleanup** (Python):
-- **Schedule**: Daily at 6 AM UTC
-- **Purpose**: Deletes old test resource groups
-- **Retention**: 2 days for test RGs, 15 days for dev environments (`hcp-underlay-pers-*`)
-- **Protection**: Skips RGs with `persist: true` tag or managed RGs
-- **Runbook**: `hcp-{env}-automation_resourceCleanup`
-
 ### Manual Testing
 
 To manually trigger cleanup (e.g., after large test runs):
@@ -254,7 +259,7 @@ To manually trigger cleanup (e.g., after large test runs):
 
 - [Environments Overview](../environments.md) - Understand the different ARO HCP environments
 - [MSIT INT Credential Setup](./msit-int-credential-setup.md) - Similar process for INT environment
-- [OpenShift CI Configuration](../../release/ci-operator/config/Azure/ARO-HCP/README.md) - How CI jobs use these credentials
+- [OpenShift CI Configuration](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP) - How CI jobs use these credentials (openshift/release repo)
 
 ## Support Contacts
 
