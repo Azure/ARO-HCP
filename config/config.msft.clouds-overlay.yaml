@@ -124,7 +124,6 @@ clouds:
           clustersService:
             image:
               digest: sha256:ce22a392a836a3f415f11fe07e18d171ec5455608be905d2b460b67f6beedf1d
-            denyAssignments: enabled
           # ACR Pull
           acrPull:
             image:
