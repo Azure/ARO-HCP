@@ -31,15 +31,22 @@ az network vnet create \
   --address-prefix 10.0.0.0/16 \
   --subnet-name ${CUSTOMER_VNET_SUBNET1} \
   --subnet-prefixes 10.0.0.0/24 \
-  --subnet-name ${CUSTOMER_PODNETWORK1} \
-  --subnet-prefixes 10.1.0.0/24 \
   --nsg "${NSG_ID}"  --location ${LOCATION}
+
+if $SWIFT; then
+  az network vnet subnet create \
+    --name "${CUSTOMER_VNET_PODNETWORK1}" \
+    --vnet-name "${CUSTOMER_VNET_NAME}" \
+    --resource-group "${CUSTOMER_RG_NAME}" \
+    --address-prefixes 10.0.1.0/24 \
+    --nsg "${NSG_ID}"
+fi
 
 # If we're installing a hosted cluster with swift
 # create a subnet delegation
-if [ $SWIFT ]; then
-  echo "Delegate subnet to $linked_resource_type"
-  az network vnet subnet update -g "$CUSTOMER_RG_NAME" --vnet-name "$CUSTOMER_VNET_NAME" --name "$CUSTOMER_VNET_SUBNET1" --delegations "$linked_resource_type"
+if $SWIFT; then
+  echo "Delegate $CUSTOMER_VNET_PODNETWORK1 to $linked_resource_type"
+  az network vnet subnet update -g "$CUSTOMER_RG_NAME" --vnet-name "$CUSTOMER_VNET_NAME" --name "$CUSTOMER_VNET_PODNETWORK1" --delegations "$linked_resource_type"
 fi
 
 
