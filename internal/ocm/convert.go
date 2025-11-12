@@ -164,10 +164,12 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 }
 
 func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
-	if !clusterAPI.CIDRBlockAccess().Empty() {
-		if cidrs := clusterAPI.CIDRBlockAccess().Allow(); cidrs != nil {
-			return cidrs.Values()
-		}
+	cidrAccess := clusterAPI.CIDRBlockAccess()
+	if cidrAccess.Empty() {
+		return nil
+	}
+	if cidr := cidrAccess.Allow(); cidr != nil {
+		return cidr.Values()
 	}
 	return nil
 }
