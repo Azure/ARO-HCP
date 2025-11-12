@@ -11,7 +11,6 @@ tests:
   - eval_time: 65m
     alertname: kas-monitor-ErrorBudgetBurn
     exp_alerts: [] # Should not fire with perfect success
-
 # Test 2: Complete failure should trigger fast burn alert (30m/1h windows, for: 2m)
 - interval: 30s # Generate data every 30 seconds to meet sample count requirements
   input_series:
@@ -35,7 +34,6 @@ tests:
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
-
 # Test 3: Medium burn rate - Alert 2 (30m/6h windows, for: 15m)
 - interval: 30s # Generate data every 30 seconds
   input_series:
@@ -67,7 +65,6 @@ tests:
         cluster: test-cluster
       exp_annotations:
         description: "High error budget burn for https://api.example.com/health (current value: 1)"
-
 # Test 4: All four alerts should fire simultaneously after prolonged failure
 - interval: 30s
   input_series:
