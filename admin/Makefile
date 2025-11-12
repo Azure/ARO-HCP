@@ -22,7 +22,7 @@ LDFLAGS = -ldflags "\
 
 # Source files
 ADMIN_API_SOURCES = $(shell find api -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
-CLI_SOURCES = $(shell find cli -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+CLI_SOURCES = $(shell find client -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 
 # Default target
 .DEFAULT_GOAL := build
