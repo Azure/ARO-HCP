@@ -18,16 +18,16 @@
       "description": "A valid RFC1123 DNS subdomain. Multiple RFC1123 DNS label devided by a dot."
     },
     "intOrString": {
-       "description": "IntOrString is a type that can hold an int32 or a string.  When used in JSON or YAML marshalling and unmarshalling, it produces or consumes the inner type. This allows you to have, for example, a JSON field that can accept a name or number.",
-       "format": "int-or-string",
-       "oneOf": [
-         {
-           "type": "integer"
-         },
-         {
-           "type": "string"
-         }
-       ]
+      "description": "IntOrString is a type that can hold an int32 or a string.  When used in JSON or YAML marshalling and unmarshalling, it produces or consumes the inner type. This allows you to have, for example, a JSON field that can accept a name or number.",
+      "format": "int-or-string",
+      "oneOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "string"
+        }
+      ]
     },
     "entraApplication": {
       "type": "object",
@@ -129,7 +129,6 @@
           "type": "string",
           "description": "ICM routing ID"
         },
-
         "automitigationEnabled": {
           "type": "string",
           "description": "ICM automitigation enabled ID"
@@ -568,6 +567,32 @@
         "sha"
       ]
     },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"
+        },
+        "memory": {
+          "type": "string",
+          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"
+        }
+      }
+    },
+    "containerResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "$ref": "#/definitions/resources"
+        },
+        "limits": {
+          "$ref": "#/definitions/resources"
+        }
+      }
+    },
     "keyColonValueCSV": {
       "type": "string",
       "pattern": "^$|^[\\w-\\.]+:[\\w\\/-]+(,[\\w-\\.]+:[\\w\\/-]+)*$"
@@ -657,6 +682,17 @@
             },
             "shards": {
               "type": "number"
+            },
+            "resources": {
+              "$ref": "#/definitions/containerResources"
+            },
+            "retention": {
+              "type": "string",
+              "pattern": "^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$"
+            },
+            "retentionSize": {
+              "type": "string",
+              "pattern": "^$|^(0|([0-9]*[.])?[0-9]+((K|M|G|T|E|P)i?)?B)$"
             }
           }
         },
@@ -770,7 +806,7 @@
         "providers": {
           "$ref": "#/definitions/registrationConfig"
         },
-        "usePlannedQuota":{
+        "usePlannedQuota": {
           "type": "boolean"
         },
         "featureFlags": {
@@ -1023,7 +1059,7 @@
             "roleSetName"
           ]
         },
-        "azureRuntimeConfig" : {
+        "azureRuntimeConfig": {
           "type": "object",
           "properties": {
             "tlsCertificatesIssuer": {
@@ -1045,7 +1081,9 @@
                   "$ref": "#/definitions/semVer"
                 }
               },
-              "required": ["version"],
+              "required": [
+                "version"
+              ],
               "additionalProperties": false
             },
             "channelGroups": {
@@ -1059,20 +1097,33 @@
                     },
                     "maxVersion": {
                       "oneOf": [
-                        { "$ref": "#/definitions/semVer" },
-                        { "type": "string", "pattern": "^$" }
+                        {
+                          "$ref": "#/definitions/semVer"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^$"
+                        }
                       ]
                     }
                   },
-                  "required": ["minVersion", "maxVersion"],
+                  "required": [
+                    "minVersion",
+                    "maxVersion"
+                  ],
                   "additionalProperties": false
                 }
               },
-              "required": ["stable"],
+              "required": [
+                "stable"
+              ],
               "additionalProperties": false
             }
           },
-          "required": ["defaultVersion", "channelGroups"],
+          "required": [
+            "defaultVersion",
+            "channelGroups"
+          ],
           "additionalProperties": false
         }
       },
@@ -1454,7 +1505,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "adminCertName":{
+            "adminCertName": {
               "type": "string"
             },
             "adminCertificateDomain": {
@@ -1828,7 +1879,6 @@
             "digest": {
               "type": "string"
             }
-
           },
           "required": [
             "rg",

@@ -1,0 +1,6 @@
+values: ../values-svc.yaml
+name: helmtest-svc-resources-unset
+namespace: prometheus
+testData:
+  prometheusSpec:
+    resources: {}

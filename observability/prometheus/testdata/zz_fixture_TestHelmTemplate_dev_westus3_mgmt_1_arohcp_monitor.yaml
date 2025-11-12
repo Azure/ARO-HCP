@@ -68476,7 +68476,7 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  retention: '6h'
+  retention: '1d'
   retentionSize: '45GiB'
   routePrefix: /
   ruleNamespaceSelector: {}

@@ -351,6 +351,7 @@ defaults:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
         version: ""
+        resources: {}
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -448,6 +449,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
+        resources: {}
         replicas: 2
         shards: 2
       prometheusConfigReloader:

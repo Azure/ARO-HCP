@@ -79,19 +79,19 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
-  retention: 6h
+  retention: 1d
   retentionSize: 45GiB
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 2
-      memory: "6Gi"
 prometheus:
   prometheusSpec:
     shards: {{ .svc.prometheus.prometheusSpec.shards }}
     replicas: {{ .svc.prometheus.prometheusSpec.replicas }}
+    resources:
+      requests:
+        cpu: {{ .svc.prometheus.prometheusSpec.resources.requests.cpu }}
+        memory: {{ .svc.prometheus.prometheusSpec.resources.requests.memory }}
+      limits:
+        cpu: {{ .svc.prometheus.prometheusSpec.resources.limits.cpu }}
+        memory: {{ .svc.prometheus.prometheusSpec.resources.limits.memory }}
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "{{ .clustersService.environment }}"
