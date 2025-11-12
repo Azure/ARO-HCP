@@ -190,10 +190,10 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 
 	cfg, err := resolver.GetRegionConfiguration(opts.Region)
 	if err != nil {
-		cfg = nil
+		cfg = map[string]any{}
 	}
 
-	if cfg != nil {
+	if len(cfg) > 0 {
 		if err := resolver.ValidateSchema(cfg); err != nil {
 			return fmt.Errorf("resolved region config was invalid: %w", err)
 		}
