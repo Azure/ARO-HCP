@@ -930,6 +930,8 @@ clouds:
             image:
               sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
+            retention: 3h
+            retentionSize: 45GiB             
             resources:
               requests:
                 cpu: 1
@@ -976,6 +978,8 @@ clouds:
             image:
               sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
+            retention: 3h
+            retentionSize: 45GiB            
             resources:
               requests:
                 cpu: 1
