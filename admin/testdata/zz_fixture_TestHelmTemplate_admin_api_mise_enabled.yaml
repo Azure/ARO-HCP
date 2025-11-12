@@ -103,6 +103,48 @@ spec:
             #   initialDelaySeconds: 5
             #   periodSeconds: 10
 ---
+# Source: ARO HCP Admin API/templates/admin.secret-refresher.yaml
+################################
+#
+# This keeps the certificate secret fresh because the secret is mounted from the keyVault (via the SecretProviderClass) and
+# if the certificate changes in the keyvault this will trigger a refresh of the kubernetes secret.
+#
+# Note: the istio plugin doesn't support using the SecretProviderClass directly. When it does this can be removed.
+#
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-api-certificate-refresher
+  namespace: aks-istio-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-api-certificate-refresher
+  template:
+    metadata:
+      labels:
+        app: admin-api-certificate-refresher
+    spec:
+      containers:
+      - command:
+        - "/bin/sleep"
+        - "infinity"
+        image: mcr.microsoft.com/cbl-mariner/busybox:1.35
+        name: init-container-msg-container-init
+        volumeMounts:
+        - name: secrets-store01-inline
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store01-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "admin-api-scp"
+---
 # Source: ARO HCP Admin API/templates/acrpullbinding.yaml
 apiVersion: acrpull.microsoft.com/v1beta2
 kind: AcrPullBinding
@@ -120,4 +162,80 @@ spec:
       clientID: '__imagePullerMsiClientId__'
       tenantID: '__tenantId__'
   serviceAccountName: 'admin-api'
+---
+# Source: ARO HCP Admin API/templates/ext-authz.authorizationpolicy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: ext-authz
+  namespace: 'aro-hcp-admin-api'
+spec:
+  action: CUSTOM
+  provider:
+    name: ext-authz
+  rules:
+  - to:
+    - operation:
+        paths: ["/*"]
+        notPaths: ["/metrics"]
+---
+# Source: ARO HCP Admin API/templates/admin.secretproviderclass.yaml
+################################
+#
+# The addition of the secretObjects is to facilitate the istio plugin as it can't yet consume  the SecretProviderClass directly.
+# When it does this can be simplified and the secret.refresher removed.
+#
+################################
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: admin-api-scp
+  namespace: aks-istio-ingress
+spec:
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: '__csiSecretStoreClientId__'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'admin-api-cert-dev-usw3'
+          objectType: secret
+          objectAlias: admin-api-cert
+    tenantId: '__tenantId__'
+  provider: azure
+  secretObjects:
+  - secretName: admin-api-credential
+    type: kubernetes.io/tls
+    data:
+    - objectName: admin-api-cert
+      key: tls.crt
+    - objectName: admin-api-cert
+      key: tls.key
+---
+# Source: ARO HCP Admin API/templates/admin.virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: admin-api-vs
+  namespace: 'aro-hcp-admin-api'
+spec:
+  hosts:
+  - "admin.westus3.hcpsvc.osadev.cloud"
+  gateways:
+  - aks-istio-ingress/aro-hcp-gateway-external
+  http:
+  - match:
+    - uri:
+        regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "Geneva Actions"
+    route:
+    - destination:
+        host: admin-api
+        port:
+          number: 8443
 

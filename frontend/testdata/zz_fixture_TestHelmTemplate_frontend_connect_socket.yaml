@@ -389,6 +389,10 @@ spec:
   - match:
     - uri:
         regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "ARM Policy"
     route:
     - destination:
         host: aro-hcp-frontend

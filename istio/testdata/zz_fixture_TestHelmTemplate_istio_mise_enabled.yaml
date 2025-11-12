@@ -14,7 +14,7 @@ data:
       envoyExtAuthzHttp:
         service: "mise/mise.mise.svc.cluster.local"
         port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz"]
+        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
 ---
 # Source: istio/charts/mise/templates/service.yaml
@@ -62,7 +62,7 @@ spec:
             app: mise
       containers:
       - name: mise
-        image: "arohcpsvcdev.azurecr.io/@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/mise-1p-container-image@sha256:1234567890"
         ports:
         - containerPort: 8080
         livenessProbe:
@@ -74,26 +74,38 @@ spec:
             path: /readyz
             port: 8080
         env:
+        - name: EnableInboundPolicyFilter
+          value: "true"
         - name: AzureAd__Instance
-          value: ''
+          value: 'https://login.microsoftonline.com/'
         - name: AzureAd__ClientId
-          value: ''
+          value: 'b3cb2fab-15cb-4583-ad06-f91da9bfe2d1'
         - name: AzureAd__TenantId
-          value: ''
+          value: '33e01921-4d64-4f8c-a055-5bdaffd5e33d'
         - name: AzureAd__Audience
-          value: "api://"
+          value: "api://b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
         - name: AzureAd__InboundPolicies__0__Label
           value: "ARM Policy"
         - name: AzureAd__InboundPolicies__0__Authority
-          value: ""
+          value: "https://login.microsoftonline.com/33e01921-4d64-4f8c-a055-5bdaffd5e33d"
         - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
           value: "PoP"
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
-          value: ''
+          value: 'https://management.azure.com'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: ''
+          value: 'e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7'
         - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
           value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
+        - name: AzureAd__InboundPolicies__1__Label
+          value: "Geneva Actions"
+        - name: AzureAd__InboundPolicies__1__Authority
+          value: "https://sts.windows.net/__tenantId__/"
+        - name: AzureAd__InboundPolicies__1__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__1__ValidAudiences__0
+          value: 'https://management.azure.com'
+        - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
+          value: "__genevaActionsAppId__"
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url
