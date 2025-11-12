@@ -312,4 +312,3 @@ ocpVersions:
 deployment:
   zoneCount: ""
 # controls if a debug job is deployed to the cluster.
-deployDebugJob: false

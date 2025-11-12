@@ -1,3 +1,4 @@
+{{- if .Values.deployDebugJobs }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -83,7 +84,7 @@ spec:
           echo "Clusters-service deployment rollout completed"
 
           # Set the expected image tag
-          EXPECTED_IMAGE_TAG={{ .Values.global.imageDigest | default .Values.imageDigest }}
+          EXPECTED_IMAGE_TAG={{ .Values.imageDigest }}
 
           checkImageTag "$EXPECTED_IMAGE_TAG"
 
@@ -95,3 +96,4 @@ spec:
         volumeMounts:
         - name: scripts
           mountPath: /scripts
+{{- end }}

@@ -1,3 +1,4 @@
+{{- if .Values.deployDebugJobs }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,3 +7,4 @@ metadata:
 data:
   arbitrary-commands.sh: |
     {{- (.Files.Get "scripts/arbitrary-commands.sh") | nindent 4 }}
+{{- end }}
