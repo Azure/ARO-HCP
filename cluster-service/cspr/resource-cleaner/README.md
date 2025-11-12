@@ -395,25 +395,24 @@ cd cluster-service/cspr
 The deployment script will:
 1. Verify all required scripts exist
 2. Create a ConfigMap from the actual `.sh` files in `resource-cleaner/`
-3. Deploy the CronJob using the OpenShift template
+3. Deploy the CronJob using the Kubernetes template (with envsubst for parameter substitution)
 
 #### Option 2: Manual deployment
 
 ```bash
 # Create namespace
-oc create namespace resource-cleaner
+kubectl create namespace resource-cleaner
 
 # Create ConfigMap from script files
-oc create configmap resource-cleaner-scripts \
+kubectl create configmap resource-cleaner-scripts \
   --from-file=resource-cleaner/ \
   --namespace=resource-cleaner
 
 # Deploy the template
-oc process -f resource-cleaner.yaml \
-  -p AZURE_CLIENT_ID="<your-managed-identity-client-id>" \
-  -p MAESTRO_URL="http://maestro.maestro.svc.cluster.local:8000" \
-  -p RETENTION_HOURS="3" \
-  | oc apply -f -
+./deploy-resource-cleaner.sh \
+  --azure-client-id "<your-managed-identity-client-id>" \
+  --maestro-url "http://maestro.maestro.svc.cluster.local:8000" \
+  --retention-hours "3"
 ```
 
 ### Updating Scripts or Configuration
@@ -429,8 +428,8 @@ vim resource-cleaner/cleanup-bundles.sh
 ./deploy-resource-cleaner.sh --azure-client-id "<your-client-id>"
 
 # Or manually recreate just the ConfigMap
-oc delete configmap resource-cleaner-scripts -n resource-cleaner
-oc create configmap resource-cleaner-scripts \
+kubectl delete configmap resource-cleaner-scripts -n resource-cleaner
+kubectl create configmap resource-cleaner-scripts \
   --from-file=resource-cleaner/ \
   --namespace=resource-cleaner
 ```
@@ -445,7 +444,7 @@ To change these values, edit `resource-cleaner/common.sh` and redeploy the Confi
 
 **How the job runs:**
 1. Uses Azure CLI base image (`mcr.microsoft.com/azure-cli:2.78.0`)
-2. Installs `jq` and `bash` via `apk add` (Alpine package manager)
+2. Downloads `jq` as a static binary if not already available (no package manager required)
 3. Copies scripts from ConfigMap to `/tmp` and makes them executable
 4. Authenticates to Azure using workload identity (`az login --identity`)
 5. Runs the resource cleaner script with configured parameters

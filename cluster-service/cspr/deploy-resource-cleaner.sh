@@ -100,13 +100,13 @@ echo ""
 echo "Step 1: Creating ConfigMap from script files..."
 
 # Create namespace if it doesn't exist
-oc create namespace "${NAMESPACE}" --dry-run=client -o yaml | oc apply -f -
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
 # Delete existing ConfigMap if it exists
-oc delete configmap resource-cleaner-scripts -n "${NAMESPACE}" --ignore-not-found=true
+kubectl delete configmap resource-cleaner-scripts -n "${NAMESPACE}" --ignore-not-found=true
 
 # Create new ConfigMap
-oc create configmap resource-cleaner-scripts \
+kubectl create configmap resource-cleaner-scripts \
     --from-file="${RESOURCE_CLEANER_DIR}" \
     --namespace="${NAMESPACE}"
 
@@ -114,14 +114,17 @@ echo "  ✓ ConfigMap created from scripts in ${RESOURCE_CLEANER_DIR}"
 
 echo ""
 
-# Step 2: Deploy the template
-echo "Step 2: Deploying CronJob template..."
+# Step 2: Deploy the CronJob
+echo "Step 2: Deploying CronJob..."
 
-oc process -f "${SCRIPT_DIR}/resource-cleaner.yaml" \
-    -p AZURE_CLIENT_ID="${AZURE_CLIENT_ID}" \
-    -p MAESTRO_URL="${MAESTRO_URL}" \
-    -p RETENTION_HOURS="${RETENTION_HOURS}" \
-    | oc apply -f -
+# Use sed to replace variables in the template
+sed -e "s/\${RESOURCE_CLEANER_NAMESPACE}/${NAMESPACE}/g" \
+    -e "s/\${RESOURCE_CLEANER_CLUSTERROLE_NAME}/resource-cleaner/g" \
+    -e "s|\${AZURE_CLI_IMAGE}|mcr.microsoft.com/azure-cli:2.78.0|g" \
+    -e "s/\${AZURE_CLIENT_ID}/${AZURE_CLIENT_ID}/g" \
+    -e "s|\${MAESTRO_URL}|${MAESTRO_URL}|g" \
+    -e "s/\${RETENTION_HOURS}/${RETENTION_HOURS}/g" \
+    "${SCRIPT_DIR}/resource-cleaner.yaml" | kubectl apply -f -
 
 echo "  ✓ CronJob deployed successfully"
 
@@ -130,19 +133,19 @@ echo "========================================"
 echo "✅ Deployment completed successfully!"
 echo ""
 echo "To verify the deployment:"
-echo "  oc get cronjob -n ${NAMESPACE}"
-echo "  oc get configmap resource-cleaner-scripts -n ${NAMESPACE}"
+echo "  kubectl get cronjob -n ${NAMESPACE}"
+echo "  kubectl get configmap resource-cleaner-scripts -n ${NAMESPACE}"
 echo ""
 echo "To manually trigger a job:"
-echo "  oc create job -n ${NAMESPACE} manual-cleanup-\$(date +%s) --from=cronjob/resource-cleaner"
+echo "  kubectl create job -n ${NAMESPACE} manual-cleanup-\$(date +%s) --from=cronjob/resource-cleaner"
 echo ""
 echo "To view logs from the latest job:"
-echo "  oc logs -n ${NAMESPACE} -l job-name=\$(oc get jobs -n ${NAMESPACE} --sort-by=.metadata.creationTimestamp -o name | tail -1 | cut -d/ -f2)"
+echo "  kubectl logs -n ${NAMESPACE} -l job-name=\$(kubectl get jobs -n ${NAMESPACE} --sort-by=.metadata.creationTimestamp -o name | tail -1 | cut -d/ -f2)"
 echo ""
 echo "To enable dry-run mode for the job (preview cleanup without deleting):"
-echo "  oc set env cronjob/resource-cleaner -n ${NAMESPACE} DRY_RUN=true"
+echo "  kubectl set env cronjob/resource-cleaner -n ${NAMESPACE} DRY_RUN=true"
 echo ""
 echo "To disable dry-run mode:"
-echo "  oc set env cronjob/resource-cleaner -n ${NAMESPACE} DRY_RUN=false"
+echo "  kubectl set env cronjob/resource-cleaner -n ${NAMESPACE} DRY_RUN=false"
 echo "========================================"
 
