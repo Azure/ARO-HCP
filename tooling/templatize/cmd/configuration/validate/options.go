@@ -391,7 +391,6 @@ func ValidateServiceConfig(
 				}
 
 				if currentDigest != digest {
-					fmt.Printf("digests.clouds[%s].environments[%s].regions[%s]: rendered configuration digest %s doesn't match previous digest %s\n", cloud, environment, region, currentDigest, digest)
 					if !update {
 						if err := renderDiff(
 							ctx,

@@ -33,7 +33,7 @@ acrPull:
 adminApi:
   cert:
     issuer: Self
-    name: admin-api-cert-prow-usw3j368
+    name: admin-api-cert-prow-usw3j
   image:
     digest: sha256:9b14303b5d975b23d734215e52676c30e198d781ac340c5048078513c36ec793
     registry: arohcpsvcdev.azurecr.io
@@ -149,7 +149,7 @@ clustersService:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbcs-usw3j368
+    name: arohcp-prow-dbcs-usw3j
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 128
@@ -160,7 +160,7 @@ clustersService:
     address: http://ingest.observability:4318
     exporter: otlp
 cxKeyVault:
-  name: ah-prow-cx-usw3j368-1
+  name: ah-prow-cx-usw3j-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -170,7 +170,7 @@ dns:
   cxParentZoneName: hcp.osadev.cloud
   globalCertificatesDomain: hcp-global.osadev.cloud
   parentZoneName: osadev.cloud
-  regionalSubdomain: usw3j368
+  regionalSubdomain: usw3j
   svcParentZoneName: hcpsvc.osadev.cloud
 e2e:
   prow:
@@ -195,11 +195,11 @@ frontend:
     connectSocket: false
   cert:
     issuer: Self
-    name: frontend-cert-prow-usw3j368
+    name: frontend-cert-prow-usw3j
   cosmosDB:
     deploy: true
     disableLocalAuth: true
-    name: arohcpprow-rp-usw3j368
+    name: arohcpprow-rp-usw3j
     private: false
     zoneRedundantMode: Disabled
   image:
@@ -354,7 +354,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
-    consumerName: hcp-underlay-usw3j368-mgmt-1
+    consumerName: hcp-underlay-usw3j-mgmt-1
     k8s:
       namespace: maestro
       replicas: 3
@@ -370,7 +370,7 @@ maestro:
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
-    name: arohcp-prow-maestro-usw3j368
+    name: arohcp-prow-maestro-usw3j
     private: false
   image:
     digest: sha256:959c5bb3128cb5a9521bc9547f577d2127359726543b2887c03edd4d3febd3c6
@@ -385,7 +385,7 @@ maestro:
     deploy: false
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
-    name: arohcp-prow-dbmaestro-usw3j368
+    name: arohcp-prow-dbmaestro-usw3j
     password: TheBlurstOfTimes
     private: false
     serverStorageSizeGB: 32
@@ -399,7 +399,7 @@ maestro:
       serviceAccountName: maestro
     loglevel: 2
     managedIdentityName: maestro-server
-    mqttClientName: maestro-server-usw3j368
+    mqttClientName: maestro-server-usw3j
     tracing:
       address: http://ingest.observability:4318
       exporter: otlp
@@ -409,7 +409,7 @@ mgmt:
     enableSwiftV2Nodepools: false
     enableSwiftV2Vnet: false
     etcd:
-      name: ah-prow-me-usw3j368-1
+      name: ah-prow-me-usw3j-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -423,7 +423,7 @@ mgmt:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: prow-usw3j368-mgmt-1
+    name: prow-usw3j-mgmt-1
     networkDataplane: azure
     networkPolicy: azure
     podSubnetPrefix: 10.128.64.0/18
@@ -450,7 +450,7 @@ mgmt:
     deploy: false
   nsp:
     accessMode: Learning
-    name: nsp-usw3j368-mgmt-1
+    name: nsp-usw3j-mgmt-1
   prometheus:
     kubeStateMetrics:
       image:
@@ -477,7 +477,7 @@ mgmt:
         sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d
       replicas: 2
       shards: 1
-  rg: hcp-underlay-prow-usw3j368-mgmt-1
+  rg: hcp-underlay-prow-usw3j-mgmt-1
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
@@ -506,7 +506,7 @@ mgmt:
         poll: true
     usePlannedQuota: true
 mgmtKeyVault:
-  name: ah-prow-mg-usw3j368-1
+  name: ah-prow-mg-usw3j-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -532,7 +532,7 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpWorkspaceName: hcps-usw3j368
+  hcpWorkspaceName: hcps-usw3j
   icm:
     connectionId: ""
     connectionName: ""
@@ -553,7 +553,7 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  svcWorkspaceName: services-usw3j368
+  svcWorkspaceName: services-usw3j
 msiCredentialsRefresher:
   certificate:
     commonName: ""
@@ -576,7 +576,7 @@ msiCredentialsRefresher:
     serviceAccountName: msi-credential-refresher
   managedIdentityName: msi-credential-refresher
 msiKeyVault:
-  name: ah-prow-mi-usw3j368-1
+  name: ah-prow-mi-usw3j-1
   private: false
   softDelete: false
   tagKey: aroHCPPurpose
@@ -598,7 +598,7 @@ oidc:
     subdomain: oic
     useManagedCertificates: true
   storageAccount:
-    name: arohcpprowoidcusw3j368
+    name: arohcpprowoidcusw3j
     privateLinkLocation: westus3
     public: true
     zoneRedundantMode: Auto
@@ -621,7 +621,7 @@ pko:
     repository: package-operator/remote-phase-manager
 region: westus3
 regionBuildout: false
-regionRG: hcp-underlay-prow-usw3j368
+regionRG: hcp-underlay-prow-usw3j
 routeMonitorOperator:
   blackboxExporterImage:
     digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
@@ -650,7 +650,7 @@ svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
     etcd:
-      name: ah-prow-se-usw3j368-1
+      name: ah-prow-se-usw3j-1
       private: true
       softDelete: false
       tagKey: aroHCPPurpose
@@ -664,7 +664,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: 1.32.5
-    name: prow-usw3j368-svc
+    name: prow-usw3j-svc
     networkDataplane: cilium
     networkPolicy: cilium
     podSubnetPrefix: 10.128.64.0/18
@@ -697,7 +697,7 @@ svc:
     deploy: true
   nsp:
     accessMode: Learning
-    name: nsp-usw3j368-svc
+    name: nsp-usw3j-svc
   prometheus:
     kubeStateMetrics:
       image:
@@ -725,7 +725,7 @@ svc:
       replicas: 2
       shards: 1
       version: ""
-  rg: hcp-underlay-prow-usw3j368-svc
+  rg: hcp-underlay-prow-usw3j-svc
   subscription:
     certificateDomains:
     - '*.hcpsvc.osadev.cloud'
