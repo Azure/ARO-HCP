@@ -83,11 +83,11 @@ prometheusSpec:
   retentionSize: 45GiB
   resources:
     requests:
-      cpu: 1
-      memory: 6Gi
+      cpu: {{ .mgmt.prometheus.prometheusSpec.resources.requests.cpu }}
+      memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
-      cpu: 2
-      memory: 10Gi
+      cpu: {{ .mgmt.prometheus.prometheusSpec.resources.limits.cpu }}
+      memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
 prometheus:
   prometheusSpec:
     shards: {{ .mgmt.prometheus.prometheusSpec.shards }}

@@ -338,6 +338,15 @@ defaults:
         version: ""
         replicas: 2
         shards: 2
+        retention: 6h
+        retentionSize: 45GiB
+        resources:
+          requests:
+            cpu: 1
+            memory: 6Gi
+          limits:
+            cpu: 2
+            memory: 10Gi       
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -429,6 +438,15 @@ defaults:
           repository: prometheus/prometheus
         replicas: 2
         shards: 2
+        retention: 6h
+        retentionSize: 45GiB
+        resources:
+          requests:
+            cpu: 1
+            memory: 6Gi
+          limits:
+            cpu: 2
+            memory: 10Gi        
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -912,6 +930,13 @@ clouds:
             image:
               sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
+            resources:
+              requests:
+                cpu: 1
+                memory: 1Gi
+              limits:
+                cpu: 2
+                memory: 3Gi                   
       mgmt:
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
@@ -951,6 +976,13 @@ clouds:
             image:
               sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
             shards: 1
+            resources:
+              requests:
+                cpu: 1
+                memory: 1Gi
+              limits:
+                cpu: 2
+                memory: 3Gi            
       # ACRs
       acr:
         svc:
