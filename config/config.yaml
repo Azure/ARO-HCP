@@ -336,7 +336,13 @@ defaults:
           repository: prometheus/prometheus
           sha: 706699f6b1e5469b4ff298baeb6ac39e430a47fbd23fce3a6138d15d16e72c0d # v3.7.1-1
         version: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -428,7 +434,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-        resources: {}
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:

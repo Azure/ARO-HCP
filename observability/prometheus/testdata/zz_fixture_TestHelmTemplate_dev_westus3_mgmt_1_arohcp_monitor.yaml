@@ -68441,13 +68441,6 @@ metadata:
 spec:
   image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:1234567890'
   version: '' # todo: can this be removed? we control the version via image
-  resources:
-    requests:
-      cpu: '1'
-      memory: '6Gi'
-    limits:
-      cpu: '2'
-      memory: '10Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
