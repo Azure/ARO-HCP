@@ -351,7 +351,13 @@ defaults:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
         version: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -449,7 +455,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-        resources: {}
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:

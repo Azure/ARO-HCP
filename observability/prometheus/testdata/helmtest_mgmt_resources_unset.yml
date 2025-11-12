@@ -1,6 +1,0 @@
-values: ../values-mgmt.yaml
-name: helmtest-mgmt-resources-unset
-namespace: prometheus
-testData:
-  prometheusSpec:
-    resources: {}

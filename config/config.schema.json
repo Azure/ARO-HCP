@@ -573,11 +573,11 @@
       "properties": {
         "cpu": {
           "type": "string",
-          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"
+          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)|(NONE)$"
         },
         "memory": {
           "type": "string",
-          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$"
+          "pattern": "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)|(NONE)$"
         }
       }
     },
