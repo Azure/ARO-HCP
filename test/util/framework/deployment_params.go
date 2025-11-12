@@ -47,6 +47,7 @@ type ClusterParams struct {
 	ImageRegistryState            string
 	ChannelGroup                  string
 	AuthorizedCIDRs               []*string
+	Autoscaling                   *hcpsdk20240610preview.ClusterAutoscalingProfile
 }
 
 type NetworkConfig struct {
