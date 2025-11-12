@@ -4,14 +4,12 @@ acm:
       digest: sha256:46072332a71aab372cbdfd30003d92522e069a1bcef29ac127544f0c56f45da0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-    mirrorAdditionalVersions: 2.8.1,2.8.2,2.9.0,2.9.1
     version: 2.9.2
   operator:
     bundle:
       digest: sha256:0b7f1ad95fc08442200794a6d2c51cf088e8d05cda113955d8fea308e1ba9640
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-    mirrorAdditionalVersions: 2.12.0,2.13.0,2.13.1,2.14.0,2.14.1
     version: 2.14.2
 acr:
   ocp:
@@ -120,6 +118,7 @@ clustersService:
   batchProcesses: ""
   batchProcessesDryRun: true
   denyAssignments: disabled
+  deployDebugJob: false
   environment: arohcpdev
   image:
     digest: sha256:2ee499bd05a30355150db156e8ee344638897b8a0be16b054a564585638ee141
@@ -217,7 +216,7 @@ frontend:
     exporter: otlp
 geneva:
   actions:
-    allowedAcisExtensions: AzureRedHatHypershiftExtension
+    allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
     application:
       manage: true
       name: arohcp-ga-dev
@@ -319,7 +318,8 @@ imageSync:
       digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
-    jobNamePrefix: prow-
+    jobNamePrefix: ""
+    operatorVersionsToMirror: 4.18,4.19,4.20
     pullSecretName: ocmirror-pull-secret
   ondemandSync:
     pullSecretName: component-sync-pull-secret
