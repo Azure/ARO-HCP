@@ -22,3 +22,17 @@ pullBinding:
   scope: "repository:{{ .adminApi.image.repository }}:pull"
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"
+# Istio Virtual Service
+virtualService:
+  host: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+# TLS Credentials
+credsKeyVault:
+  name: "{{ .serviceKeyVault.name }}"
+  secret: "{{ .adminApi.cert.name }}"
+# Azure
+azure:
+  clientId: "__csiSecretStoreClientId__"
+  tenantId: "__tenantId__"
+mise:
+  policyLabel: "{{ .mise.genevaActions.policyLabel }}"
+  deploy: {{ .mise.deploy }}

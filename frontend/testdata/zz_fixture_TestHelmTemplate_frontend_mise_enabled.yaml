@@ -408,13 +408,17 @@ metadata:
   namespace: 'aro-hcp'
 spec:
   hosts:
-  - "*"
+  - "rp.westus3.hcpsvc.osadev.cloud"
   gateways:
   - aks-istio-ingress/aro-hcp-gateway-external
   http:
   - match:
     - uri:
         regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "ARM Policy"
     route:
     - destination:
         host: aro-hcp-frontend

@@ -40,26 +40,38 @@ spec:
             path: /readyz
             port: 8080
         env:
+        - name: EnableInboundPolicyFilter
+          value: "true"
         - name: AzureAd__Instance
-          value: '{{ .Values.azureAdInstance }}'
+          value: '{{ .Values.audit.adInstance }}'
         - name: AzureAd__ClientId
-          value: '{{ .Values.firstPartyAppId }}'
+          value: '{{ .Values.audit.clientId }}'
         - name: AzureAd__TenantId
-          value: '{{ .Values.tenantId }}'
+          value: '{{ .Values.audit.tenantId }}'
         - name: AzureAd__Audience
-          value: "api://{{ .Values.firstPartyAppId }}"
+          value: "{{ .Values.audit.audience }}"
         - name: AzureAd__InboundPolicies__0__Label
-          value: "ARM Policy"
+          value: "{{ .Values.armPolicy.label }}"
         - name: AzureAd__InboundPolicies__0__Authority
-          value: "{{ .Values.azureAdInstance }}{{ .Values.tenantId }}"
+          value: "{{ .Values.armPolicy.authority }}"
         - name: AzureAd__InboundPolicies__0__AuthenticationSchemes__0
           value: "PoP"
         - name: AzureAd__InboundPolicies__0__ValidAudiences__0
-          value: '{{ .Values.armInstance }}'
+          value: '{{ .Values.armPolicy.audience }}'
         - name: AzureAd__InboundPolicies__0__ValidApplicationIds__0
-          value: '{{ .Values.armAppId }}'
+          value: '{{ .Values.armPolicy.applicationId }}'
         - name: AzureAd__InboundPolicies__0__SignedHttpRequestValidationPolicy
           value: '{"ValidateTs" : true, "ValidateM" : true, "ValidateU" : true, "ValidateP" : true }'
+        - name: AzureAd__InboundPolicies__1__Label
+          value: "{{ .Values.genevaActionsPolicy.label }}"
+        - name: AzureAd__InboundPolicies__1__Authority
+          value: "{{ .Values.genevaActionsPolicy.authority }}"
+        - name: AzureAd__InboundPolicies__1__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__1__ValidAudiences__0
+          value: '{{ .Values.genevaActionsPolicy.audience }}'
+        - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
+          value: "{{ .Values.genevaActionsPolicy.applicationId }}"
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url

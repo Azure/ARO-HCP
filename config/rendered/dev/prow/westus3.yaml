@@ -515,15 +515,20 @@ miMockCertName: msiMockCert2
 miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
 miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
 mise:
-  armAppId: ""
-  armInstance: ""
-  azureAdInstance: ""
+  arm:
+    applicationId: e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7
+    audienceFQDN: management.azure.com
+    authorityFQDN: login.microsoftonline.com
+    policyLabel: ARM Policy
+    tenantId: 33e01921-4d64-4f8c-a055-5bdaffd5e33d
   deploy: false
-  firstPartyAppId: ""
+  genevaActions:
+    audienceFQDN: management.azure.com
+    authorityFQDN: sts.windows.net
+    policyLabel: Geneva Actions
   image:
-    digest: ""
-    repository: ""
-  tenantId: ""
+    digest: sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd
+    repository: mise-1p-container-image
   tracing:
     address: ""
     exporter: ""

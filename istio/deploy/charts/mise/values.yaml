@@ -2,13 +2,23 @@ image:
   registry: ""
   repository: ""
   digest: ""
-tenantId: ""
-azureAdInstance: ""
-firstPartyAppId: ""
-armInstance: ""
-armAppId: ""
 tracing:
   address: ""
   exporter: ""
 deployment:
   zoneCount: ""
+audit:
+  adInstance: ""
+  clientId: ""
+  tenantId: ""
+  audience: ""
+armPolicy:
+  label: ""
+  authority: ""
+  audience: ""
+  applicationId: ""
+genevaActionsPolicy:
+  label: ""
+  authority: ""
+  audience: ""
+  applicationId: ""

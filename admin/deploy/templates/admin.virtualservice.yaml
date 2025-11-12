@@ -1,7 +1,7 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: aro-hcp-vs-frontend
+  name: admin-api-vs
   namespace: '{{ .Release.Namespace }}'
 spec:
   hosts:
@@ -18,6 +18,6 @@ spec:
           mise-inbound-policies-to-filter: "{{ .Values.mise.policyLabel }}"
     route:
     - destination:
-        host: aro-hcp-frontend
+        host: admin-api
         port:
           number: 8443
