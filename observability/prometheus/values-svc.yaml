@@ -84,10 +84,10 @@ prometheusSpec:
   resources:
     requests:
       cpu: 1
-      memory: 6Gi
+      memory: 2Gi
     limits:
       cpu: 2
-      memory: 10Gi
+      memory: "6Gi"
 prometheus:
   prometheusSpec:
     shards: {{ .svc.prometheus.prometheusSpec.shards }}

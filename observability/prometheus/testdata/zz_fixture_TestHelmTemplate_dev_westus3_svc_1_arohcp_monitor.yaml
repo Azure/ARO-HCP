@@ -68444,10 +68444,10 @@ spec:
   resources:
     requests:
       cpu: '1'
-      memory: '6Gi'
+      memory: '2Gi'
     limits:
       cpu: '2'
-      memory: '10Gi'
+      memory: '6Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
