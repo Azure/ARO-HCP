@@ -1,0 +1,6 @@
+values: ../values.yaml
+name: frontend-mise-enabled
+namespace: aro-hcp
+testData:
+  mise:
+    deploy: true

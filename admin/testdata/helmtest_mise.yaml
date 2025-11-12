@@ -1,0 +1,6 @@
+values: ../values.yaml
+name: admin-api-mise-enabled
+namespace: aro-hcp-admin-api
+testData:
+  mise:
+    deploy: true
