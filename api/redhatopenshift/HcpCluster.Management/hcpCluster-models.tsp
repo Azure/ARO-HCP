@@ -168,6 +168,17 @@ model VersionProfile {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   channelGroup?: string;
+
+  /** Status contains the current cluster's control plane version and status of any upgrades */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2025_12_23_preview)
+  status: VersionProfileStatus;
+}
+
+/** VersionStatus represents the status of the cluster's version and any upgrades */
+model VersionProfileStatus {
+  /** ID is the current version of the cluster's control plane */
+  id: string;
 }
 
 /** DNS contains the DNS settings of the cluster */
