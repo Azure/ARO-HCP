@@ -26,7 +26,7 @@ fi
 export CUSTOMER_VNET_NAME="customer-vnet"
 export CUSTOMER_VNET_SUBNET1="customer-subnet-1"
 export CUSTOMER_NSG="customer-nsg"
-export CUSTOMER_KV_NAME="$USER-customer-kv-${DEMO_ENV_NAME}"
+export CUSTOMER_KV_NAME="$USER-cust-kv-${DEMO_ENV_NAME}"
 export ETCD_ENCRYPTION_KEY_NAME="etcd-data-kms-encryption-key"
 if [ -z "${LOCATION:-}" ]; then
     case "${FRONTEND_HOST}" in
