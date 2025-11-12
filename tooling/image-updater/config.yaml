@@ -1,4 +1,5 @@
 images:
+  # Maestro image
   maestro:
     source:
       image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -8,6 +9,7 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+  # Hypershift image
   hypershift:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
@@ -18,6 +20,7 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.environments.pers.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
+  # PKO images
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
@@ -45,6 +48,7 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.yaml
+  # Frontend and Backend images
   arohcpfrontend:
     source:
       image: arohcpsvcdev.azurecr.io/arohcpfrontend
@@ -63,6 +67,7 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.backend.image.digest
       filePath: ../../config/config.yaml
+  # Kube Events image
   kubeEvents:
     source:
       image: kubernetesshared.azurecr.io/shared/kube-events
@@ -70,6 +75,7 @@ images:
     targets:
     - jsonPath: defaults.kubeEvents.image.digest
       filePath: ../../config/config.yaml
+  # ACM images
   acm-operator:
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
@@ -84,6 +90,7 @@ images:
     targets:
     - jsonPath: defaults.acm.mce.bundle.digest
       filePath: ../../config/config.yaml
+  # MSI-Acrpull image
   acrPull:
     source:
       image: mcr.microsoft.com/aks/msi-acrpull
@@ -91,6 +98,7 @@ images:
     targets:
     - jsonPath: clouds.public.environments.int.defaults.acrPull.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+  # Arobit images
   arobit-forwarder:
     source:
       image: mcr.microsoft.com/oss/v2/fluent/fluent-bit
@@ -107,6 +115,7 @@ images:
     targets:
     - jsonPath: defaults.arobit.mdsd.image.digest
       filePath: ../../config/config.yaml
+  # Secret Sync Controller image
   secretSyncController:
     source:
       image: registry.k8s.io/secrets-store-sync/controller
@@ -116,4 +125,59 @@ images:
     - jsonPath: clouds.public.environments.int.defaults.secretSyncController.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.yaml
+  # Prometheus images
+  prometheus-operator:
+    source:
+      image: mcr.microsoft.com/oss/v2/prometheus/prometheus-operator
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.yaml
+  prometheus:
+    source:
+      image: mcr.microsoft.com/oss/v2/prometheus/prometheus
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusSpec.image.sha
+      filePath: ../../config/config.yaml
+  prometheus-config-reloader:
+    source:
+      image: mcr.microsoft.com/oss/v2/prometheus/prometheus-config-reloader
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusConfigReloader.image.sha
+      filePath: ../../config/config.yaml
+  kube-state-metrics:
+    source:
+      image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      multiArch: true # This image only publishes multi-arch manifests
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.svc.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.svc.prometheus.kubeStateMetrics.image.digest
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.defaults.mgmt.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml

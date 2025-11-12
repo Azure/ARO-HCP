@@ -18,6 +18,7 @@ The image-updater supports multiple container registry types with optimized clie
 - **Opt-in Authentication**: Explicitly enable authentication only for private registries
 - **Architecture-Aware**: Automatically filters images by architecture (defaults to amd64)
 - **Multi-Registry Client**: Automatically selects the appropriate client based on registry URL
+- **Flexible Digest Format**: Supports both `.digest` fields (with `sha256:` prefix) and `.sha` fields (hash only)
 
 ## Managed Images
 
@@ -124,6 +125,16 @@ images:
       multiArch: true  # Fetch multi-arch manifest list digest
     targets:
     - jsonPath: defaults.secretSyncController.image.digest
+      filePath: ../../config/config.yaml
+
+  # Example using .sha field (stores hash without sha256: prefix)
+  prometheus-operator:
+    source:
+      image: mcr.microsoft.com/oss/v2/prometheus/prometheus-operator
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+-?\\d?$"
+      multiArch: true
+    targets:
+    - jsonPath: defaults.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.yaml
 ```
 
@@ -278,7 +289,12 @@ Flags:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `filePath` | string | Yes | Path to YAML file to update |
-| `jsonPath` | string | Yes | Dot-notation path to digest field (e.g., `defaults.image.digest`) |
+| `jsonPath` | string | Yes | Dot-notation path to digest field (e.g., `defaults.image.digest` or `defaults.image.sha`) |
+
+**Note on digest vs sha fields:**
+- Fields ending with `.digest` will store the full digest including the `sha256:` prefix
+- Fields ending with `.sha` will store only the hash value without the `sha256:` prefix
+- This allows the tool to work with different configuration formats that have different digest field conventions
 
 ## How It Works
 
