@@ -474,6 +474,13 @@ mgmt:
         repository: prometheus/prometheus
         sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
       replicas: 2
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       shards: 1
   rg: hcp-underlay-ntly-uksouth-mgmt-1
   subscription:
@@ -724,6 +731,13 @@ svc:
         repository: prometheus/prometheus
         sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
       replicas: 2
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       shards: 1
       version: ""
   rg: hcp-underlay-ntly-uksouth-svc

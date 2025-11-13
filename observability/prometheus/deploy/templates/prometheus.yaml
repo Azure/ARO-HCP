@@ -1,3 +1,6 @@
+{{- $none := "NONE" -}}
+{{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
+{{- $setLimits := or (ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
 apiVersion: monitoring.coreos.com/v1
 kind: Prometheus
 metadata:
@@ -6,13 +9,27 @@ metadata:
 spec:
   image: '{{ .Values.prometheusSpec.image.registry }}/{{ .Values.prometheusSpec.image.repository }}@sha256:{{ .Values.prometheusSpec.image.sha }}'
   version: '{{ .Values.prometheusSpec.version}}' # todo: can this be removed? we control the version via image
+  {{- if or $setRequests $setLimits }}
   resources:
+    {{- if $setRequests }}
     requests:
-      cpu: '{{ .Values.prometheusSpec.resources.requests.cpu | default "250m" }}'
-      memory: '{{ .Values.prometheusSpec.resources.requests.memory | default "512Mi" }}'
+      {{- if ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none }}
+      cpu: '{{ .Values.prometheusSpec.resources.requests.cpu  }}'
+      {{- end }}
+      {{- if ne (.Values.prometheusSpec.resources.requests.memory | toString) $none }}
+      memory: '{{ .Values.prometheusSpec.resources.requests.memory }}'
+      {{- end }}
+    {{- end }}
+    {{- if $setLimits }}
     limits:
-      cpu: '{{ .Values.prometheusSpec.resources.limits.cpu | default "500m" }}'
-      memory: '{{ .Values.prometheusSpec.resources.limits.memory | default "1Gi" }}'
+      {{- if ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none }}
+      cpu: '{{ .Values.prometheusSpec.resources.limits.cpu }}'
+      {{- end }}
+      {{- if ne (.Values.prometheusSpec.resources.limits.memory | toString) $none }}
+      memory: '{{ .Values.prometheusSpec.resources.limits.memory }}'
+      {{- end }}
+    {{- end }}
+  {{- end }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

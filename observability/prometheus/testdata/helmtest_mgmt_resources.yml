@@ -1,0 +1,14 @@
+values: ../values-mgmt.yaml
+name: helmtest-mgmt-resources
+namespace: prometheus
+testData:
+  mgmt:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "1"
+            memory: 6Gi
+          limits:
+            cpu: "2"
+            memory: 10Gi
