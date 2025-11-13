@@ -20,10 +20,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 )
 
 type verifyImagePulled struct {
@@ -37,8 +38,9 @@ func (v verifyImagePulled) Name() string {
 }
 
 func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	logger := ginkgo.GinkgoLogr
 	startTime := time.Now()
-	klog.InfoS("Starting image pull verification",
+	logger.Info("Starting image pull verification",
 		"namespace", v.namespace,
 		"imageRepository", v.imageRepository,
 		"imageName", v.imageName,
@@ -76,7 +78,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 				// If ImageID is set, the image was pulled successfully
 				if containerStatus.ImageID != "" {
 					imagePulledSuccessfully = true
-					klog.InfoS("Successfully pulled image",
+					logger.Info("Successfully pulled image",
 						"pod", pod.Name,
 						"container", containerStatus.Name,
 						"image", containerStatus.Image,
@@ -101,7 +103,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 				message := containerStatus.State.Waiting.Message
 
 				// Log all waiting states
-				klog.InfoS("Container waiting",
+				logger.Info("Container waiting",
 					"pod", pod.Name,
 					"container", containerStatus.Name,
 					"reason", reason,
@@ -121,7 +123,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 	duration := endTime.Sub(startTime)
 
 	if len(imagePullErrors) > 0 {
-		klog.ErrorS(fmt.Errorf("image pull errors detected"), "verification failed",
+		logger.Error(fmt.Errorf("image pull errors detected"), "verification failed",
 			"namespace", v.namespace,
 			"imageRepository", v.imageRepository,
 			"imageName", v.imageName,
@@ -131,7 +133,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 	}
 
 	if !imagePulledSuccessfully {
-		klog.ErrorS(fmt.Errorf("no matching images pulled"), "verification failed",
+		logger.Error(fmt.Errorf("no matching images pulled"), "verification failed",
 			"namespace", v.namespace,
 			"imageRepository", v.imageRepository,
 			"imageName", v.imageName,
@@ -140,7 +142,7 @@ func (v verifyImagePulled) Verify(ctx context.Context, adminRESTConfig *rest.Con
 		return fmt.Errorf("no pods found with successfully pulled images from %s", v.imageRepository)
 	}
 
-	klog.InfoS("Image pull verification completed successfully",
+	logger.Info("Image pull verification completed successfully",
 		"namespace", v.namespace,
 		"imageRepository", v.imageRepository,
 		"imageName", v.imageName,
