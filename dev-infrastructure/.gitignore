@@ -1,3 +1,6 @@
 .deploy-env-ctx
 
 istio-*
+
+# Azure CLI config directory for mock FPA
+mock-fpa-azure-config/
