@@ -79,12 +79,12 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 	return allTags, nil
 }
 
-func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
+func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*ImageInfo, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	allTags, err := c.getAllTags(repository)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch all tags: %w", err)
+		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
 	// Enrich tags with digest and timestamp information before filtering
@@ -115,7 +115,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	tags, err := PrepareTagsForArchValidation(enrichedTags, repository, tagPattern)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, tag := range tags {
@@ -134,7 +134,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		// If multiArch is requested, return the multi-arch manifest list digest
 		if multiArch && desc.MediaType.IsIndex() {
 			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
-			return desc.Digest.String(), nil
+			return &ImageInfo{Digest: desc.Digest.String(), Tag: tag.Name}, nil
 		}
 
 		if desc.MediaType.IsIndex() {
@@ -162,14 +162,14 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 				logger.Error(err, "failed to get image digest", "tag", tag.Name)
 				continue
 			}
-			return digest.String(), nil
+			return &ImageInfo{Digest: digest.String(), Tag: tag.Name}, nil
 		}
 
 		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
 	}
 
 	if multiArch {
-		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
+		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
-	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
