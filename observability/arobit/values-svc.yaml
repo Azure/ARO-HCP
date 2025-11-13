@@ -4,7 +4,7 @@
 #   - linuxgeneva-microsoft
 forwarder:
   clusterType: "svc"
-  environment: "{{ .kusto.environmentName }}"
+  environment: "{{ .arobit.kusto.environmentName }}"
   clusterName: "{{ .svc.aks.name }}"
   region: "{{ .region }}"
   ## Enable forwarder daemonset
@@ -53,10 +53,9 @@ forwarder:
       digest: "{{ .arobit.mdsd.image.digest }}"
       pullPolicy: IfNotPresent
   kusto:
-    ingestionUrl: "{{ .kusto.ingestionUrl }}"
-    rpDatabase: HCPServiceLogs
-    clusterLogsDatabase: HCPCustomerLogs
-    enabled: {{ .kusto.enabled }}
+    serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
+    customerLogsDatabase: {{ .kusto.customerLogsDatabase }}
+    enabled: {{ .arobit.kusto.enabled }}
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:

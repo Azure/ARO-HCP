@@ -55,6 +55,9 @@ arobit:
       digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
+  kusto:
+    enabled: true
+    environmentName: dev
   mdsd:
     enabled: false
     image:
@@ -332,11 +335,14 @@ kubeEvents:
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
-  cluster: ""
-  enabled: true
-  environmentName: dev
-  ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-  resourceGroup: ""
+  adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
+  customerLogsDatabase: CustomerLogs
+  manageInstance: true
+  rg: hcp-kusto-us
+  serviceLogsDatabase: ServiceLogs
+  sku: Dev(No SLA)_Standard_D11_v2
+  tier: Basic
+  viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb

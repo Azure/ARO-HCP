@@ -1,0 +1,59 @@
+.create-merge table kubernetesEvents (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace: string,
+  containerName: string,
+  containerImage: string,
+  host: string,
+  labels: string,
+  podName: string,
+  region: string,
+  count: int,
+  kubeEventType: string,
+  firstSeen: datetime,
+  lastSeen: datetime,
+  message: string,
+  eventNamespace: string,
+  objectKind: string,
+  objectName: string,
+  objectApiVersion: string,
+  objectUID: string,
+  reason: string,
+  sourceComponent: string,
+  tag: string,
+  unmatched: dynamic
+)
+
+
+.create-or-alter table kubernetesEvents ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"log","Properties":{"path":"$.log.log"}},
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"tag","Properties":{"path":"$.tag"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
+  {"column":"containerName", "Properties": {"path": "$log.kubernetes.container_name"}},
+  {"column":"containerImage","Properties":{"path":"$.log.kubernetes.container_image"}},
+  {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
+  {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
+  {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"count","Properties":{"path":"$.log.count"}},
+  {"column":"kubeEventType","Properties":{"path":"$.log.kubeEventType"}},
+  {"column":"firstSeen","Properties":{"path":"$.log.first_timestamp"}},
+  {"column":"lastSeen","Properties":{"path":"$.log.last_timestamp"}},
+  {"column":"message","Properties":{"path":"$.log.message"}},
+  {"column":"eventNamespace", "Properties":{"path":"$.log.involved_object.namespace"}},
+  {"column":"objectKind","Properties":{"path":"$.log.involved_object.kind"}},
+  {"column":"objectName","Properties":{"path":"$.log.involved_object.name"}},
+  {"column":"objectApiVersion","Properties":{"path":"$.log.involved_object.api_version"}},
+  {"column":"objectUID","Properties":{"path":"$.log.involved_object.uid"}},
+  {"column":"reason","Properties":{"path":"$.log.reason"}},
+  {"column":"sourceComponent","Properties":{"path":"$.log.source.component"}},
+  {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
+]
+```

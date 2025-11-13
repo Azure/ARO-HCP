@@ -2,6 +2,7 @@ import {
   csvToArray
   determineZoneRedundancy
   determineZoneRedundancyForRegion
+  getGeoShortForRegion
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
@@ -399,6 +400,14 @@ param adminApiIngressCertIssuer string
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
+
+@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
+param arobitKustoEnabled bool
+
+@description('Name of the database to write logs to')
+param serviceLogsDatabase string
+
+var kustoResourceGroup string = 'hcp-kusto-${getGeoShortForRegion(location)}'
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -1009,4 +1018,18 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
   dependsOn: [
     svcNSP
   ]
+}
+
+//
+//  K U S T O   I N G E S T    P E R M I S S I O N S
+//
+
+module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+  name: 'grantKustoIngest'
+  params: {
+    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLocation: location
+    databaseName: serviceLogsDatabase
+  }
+  scope: resourceGroup(kustoResourceGroup)
 }

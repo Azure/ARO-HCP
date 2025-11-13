@@ -199,8 +199,8 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint https://ingest-hcp-us.eastus2.kusto.windows.net
+        Database_Name ServiceLogs
         Table_Name frontendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -212,8 +212,8 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint https://ingest-hcp-us.eastus2.kusto.windows.net
+        Database_Name ServiceLogs
         Table_Name backendContainerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -224,8 +224,8 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint https://ingest-hcp-us.eastus2.kusto.windows.net
+        Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
@@ -237,8 +237,8 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-        Database_Name HCPServiceLogs
+        Ingestion_Endpoint https://ingest-hcp-us.eastus2.kusto.windows.net
+        Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto

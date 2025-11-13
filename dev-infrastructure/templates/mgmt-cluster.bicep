@@ -1,4 +1,9 @@
-import { getLocationAvailabilityZonesCSV, csvToArray } from '../modules/common.bicep'
+import {
+  csvToArray
+  getGeoShortForRegion
+  getLocationAvailabilityZonesCSV
+} from '../modules/common.bicep'
+
 import * as mi from '../modules/managed-identities.bicep'
 
 @description('Azure Region Location')
@@ -201,6 +206,13 @@ param pkoNamespace string
 
 @description('Service account name of the PKO')
 param pkoServiceAccountName string
+
+@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
+param arobitKustoEnabled bool
+@description('Names of the databases to write logs to')
+param serviceLogsDatabase string
+param customerLogsDatabase string
+var kustoResourceGroup string = 'hcp-kusto-${getGeoShortForRegion(location)}'
 
 //
 //   M A N A G E D   I D E N T I T I E S
@@ -512,4 +524,28 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     serviceType: 'eventgrid'
     groupId: 'topicspace'
   }
+}
+
+//
+//  K U S T O   I N G E S T    P E R M I S S I O N S
+//
+
+module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+  name: 'grantKustoSvcIngest'
+  params: {
+    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLocation: location
+    databaseName: serviceLogsDatabase
+  }
+  scope: resourceGroup(kustoResourceGroup)
+}
+
+module grantKustoCustomerIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+  name: 'grantKustoCustomerIngest'
+  params: {
+    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLocation: location
+    databaseName: customerLogsDatabase
+  }
+  scope: resourceGroup(kustoResourceGroup)
 }
