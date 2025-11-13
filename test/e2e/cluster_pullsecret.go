@@ -298,7 +298,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 
 			By("waiting for pods to be created and verify images from registry.redhat.io can be pulled")
 			Eventually(func() error {
-				return verifiers.VerifyNFDImagePulled(nfdNamespace).Verify(ctx, adminRESTConfig)
+				return verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "").Verify(ctx, adminRESTConfig)
 			}, 300*time.Second, 15*time.Second).Should(Succeed(), "Images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })
