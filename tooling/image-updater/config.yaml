@@ -18,7 +18,7 @@ images:
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
-    - jsonPath: clouds.dev.environments.pers.defaults.hypershift.image.digest
+    - jsonPath: clouds.dev.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
   # PKO images
   pko-package:
