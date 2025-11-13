@@ -199,7 +199,7 @@ fi
 ###############################################################################
 
 # Cleanup temporary files
-CLUSTER_IDS_FILE="${SCRIPT_DIR}/.cluster_ids.tmp"
+CLUSTER_IDS_FILE="/tmp/.cluster_ids.tmp"
 if [[ -f "${CLUSTER_IDS_FILE}" ]]; then
     rm -f "${CLUSTER_IDS_FILE}"
 fi

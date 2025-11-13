@@ -13,6 +13,7 @@ set -euo pipefail
 #
 # Options:
 #   --azure-client-id <id>     Azure Workload Identity Client ID (required)
+#   --azure-tenant-id <id>     Azure Tenant ID (required)
 #   --maestro-url <url>        Maestro API URL (default: http://maestro.maestro.svc.cluster.local:8000)
 #   --retention-hours <hours>  Retention period in hours (default: 3)
 #   --help                     Show this help message
@@ -22,7 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOURCE_CLEANER_DIR="${SCRIPT_DIR}/resource-cleaner"
 
 # Default values
-AZURE_CLIENT_ID="4579fe55-83eb-45a5-ba5e-ca90ffadd763"
+AZURE_CLIENT_ID=""
+AZURE_TENANT_ID=""
 MAESTRO_URL="http://maestro.maestro.svc.cluster.local:8000"
 RETENTION_HOURS="3"
 NAMESPACE="resource-cleaner"
@@ -32,6 +34,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --azure-client-id)
             AZURE_CLIENT_ID="$2"
+            shift 2
+            ;;
+        --azure-tenant-id)
+            AZURE_TENANT_ID="$2"
             shift 2
             ;;
         --maestro-url)
@@ -57,6 +63,12 @@ done
 # Validate required parameters
 if [[ -z "${AZURE_CLIENT_ID}" ]]; then
     echo "ERROR: --azure-client-id is required"
+    echo "Use --help for usage information"
+    exit 1
+fi
+
+if [[ -z "${AZURE_TENANT_ID}" ]]; then
+    echo "ERROR: --azure-tenant-id is required"
     echo "Use --help for usage information"
     exit 1
 fi
@@ -91,6 +103,7 @@ done
 echo ""
 echo "Deployment Configuration:"
 echo "  Azure Client ID: ${AZURE_CLIENT_ID}"
+echo "  Azure Tenant ID: ${AZURE_TENANT_ID}"
 echo "  Maestro URL: ${MAESTRO_URL}"
 echo "  Retention Hours: ${RETENTION_HOURS}"
 echo "  Namespace: ${NAMESPACE}"
@@ -101,6 +114,24 @@ echo "Step 1: Creating ConfigMap from script files..."
 
 # Create namespace if it doesn't exist
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+# Step 1.5: Label namespace for Istio injection
+echo "Step 1.5: Labeling namespace for Istio sidecar injection..."
+
+# Get Istio version from aks-istio-system
+ISTIO_VERSION=$(kubectl get deploy -n aks-istio-system -o name 2>/dev/null | \
+    grep -oE 'istiod-(asm-[0-9]+-[0-9]+)' | \
+    sed 's/istiod-//' | \
+    head -n1)
+
+if [[ -z "${ISTIO_VERSION}" ]]; then
+    echo "  ⚠️  WARNING: Could not find Istio version in aks-istio-system namespace"
+    echo "  Skipping Istio namespace labeling. Pods will not have Istio sidecars."
+else
+    echo "  Found Istio version: ${ISTIO_VERSION}"
+    kubectl label namespace "${NAMESPACE}" "istio.io/rev=${ISTIO_VERSION}" --overwrite
+    echo "  ✓ Namespace labeled with istio.io/rev=${ISTIO_VERSION}"
+fi
 
 # Delete existing ConfigMap if it exists
 kubectl delete configmap resource-cleaner-scripts -n "${NAMESPACE}" --ignore-not-found=true
@@ -122,6 +153,7 @@ sed -e "s/\${RESOURCE_CLEANER_NAMESPACE}/${NAMESPACE}/g" \
     -e "s/\${RESOURCE_CLEANER_CLUSTERROLE_NAME}/resource-cleaner/g" \
     -e "s|\${AZURE_CLI_IMAGE}|mcr.microsoft.com/azure-cli:2.78.0|g" \
     -e "s/\${AZURE_CLIENT_ID}/${AZURE_CLIENT_ID}/g" \
+    -e "s/\${AZURE_TENANT_ID}/${AZURE_TENANT_ID}/g" \
     -e "s|\${MAESTRO_URL}|${MAESTRO_URL}|g" \
     -e "s/\${RETENTION_HOURS}/${RETENTION_HOURS}/g" \
     "${SCRIPT_DIR}/resource-cleaner.yaml" | kubectl apply -f -

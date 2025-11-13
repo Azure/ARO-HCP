@@ -15,7 +15,7 @@ log_info "Deleting ACR tokens from container registry '${ACR_NAME}'..."
 ACR_TOKENS_DELETED=0
 
 # Read cluster IDs from file
-CLUSTER_IDS_FILE="${SCRIPT_DIR}/.cluster_ids.tmp"
+CLUSTER_IDS_FILE="/tmp/.cluster_ids.tmp"
 
 if [[ -f "${CLUSTER_IDS_FILE}" ]]; then
     while IFS= read -r cluster_id; do

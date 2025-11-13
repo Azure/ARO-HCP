@@ -12,7 +12,7 @@ CUTOFF_TIME=${1:-$(date +%s)}
 ###############################################################################
 log_info "Retrieving cluster IDs from MI keyvault (${MI_KEYVAULT})..."
 
-CLUSTER_IDS_FILE="${SCRIPT_DIR}/.cluster_ids.tmp"
+CLUSTER_IDS_FILE="/tmp/.cluster_ids.tmp"
 > "${CLUSTER_IDS_FILE}"  # Clear the file
 
 # Get secrets from MI keyvault that match the pattern uamsi-{cluster_id}-*

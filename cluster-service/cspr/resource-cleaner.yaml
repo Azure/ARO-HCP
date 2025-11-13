@@ -1,10 +1,11 @@
 # ARO-HCP Resource Cleaner Kubernetes Deployment
-# This file uses envsubst for variable substitution
+# This file uses sed for variable substitution
 # Required environment variables:
 #   - RESOURCE_CLEANER_NAMESPACE
 #   - RESOURCE_CLEANER_CLUSTERROLE_NAME
 #   - AZURE_CLI_IMAGE
 #   - AZURE_CLIENT_ID
+#   - AZURE_TENANT_ID
 #   - MAESTRO_URL
 #   - RETENTION_HOURS
 ---
@@ -35,7 +36,8 @@ metadata:
   name: resource-cleaner-cronjob
   namespace: ${RESOURCE_CLEANER_NAMESPACE}
   annotations:
-    azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
+     azure.workload.identity/tenant-id: "${AZURE_TENANT_ID}"
+     azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
   labels:
     azure.workload.identity/use: "true"
 ---
@@ -58,7 +60,7 @@ metadata:
   name: resource-cleaner
   namespace: ${RESOURCE_CLEANER_NAMESPACE}
 spec:
-  schedule: "* * * * *"  # Run every minute for debugging
+  schedule: "0 */3 * * *"  # Run every 3 hours
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent jobs
@@ -109,13 +111,12 @@ spec:
               done
               echo "✓ All required tools verified"
               
-              echo "Copying scripts to /tmp and making executable..."
-              cp -r /scripts/* /tmp/
-              cd /tmp
-              chmod +x *.sh
               
               echo "Logging into Azure using workload identity..."
-              az login --identity || {
+              az login --service-principal \
+                --username "${AZURE_CLIENT_ID}" \
+                --tenant "${AZURE_TENANT_ID}" \
+                --federated-token "$(cat ${AZURE_FEDERATED_TOKEN_FILE})" || {
                 echo "ERROR: Failed to authenticate with Azure"
                 echo "Ensure workload identity is properly configured"
                 exit 1
@@ -127,7 +128,7 @@ spec:
               echo "Starting resource cleanup..."
               
               # Run the resource cleaner
-              ./resource-cleaner.sh ${RETENTION_HOURS} --maestro-url "${MAESTRO_URL}"
+              ./scripts/resource-cleaner.sh ${RETENTION_HOURS} --maestro-url "${MAESTRO_URL}"
               
               EXIT_CODE=$?
               

@@ -377,7 +377,7 @@ The deployment consists of:
 
 **Configuration:**
 - **Hardcoded values** (in `common.sh`): Key vault names, ACR name, subscription ID, resource group prefixes
-- **Deployment-time parameters**: Azure Client ID, Maestro URL, Retention Hours
+- **Deployment-time parameters**: Azure Client ID, Azure Tenant ID, Maestro URL, Retention Hours
 - **Runtime control**: Dry-run mode (via environment variable)
 
 #### Option 1: Using the deployment script (recommended)
@@ -388,6 +388,7 @@ cd cluster-service/cspr
 # Deploy with required parameters
 ./deploy-resource-cleaner.sh \
   --azure-client-id "<your-managed-identity-client-id>" \
+  --azure-tenant-id "<your-azure-tenant-id>" \
   --maestro-url "http://maestro.maestro.svc.cluster.local:8000" \
   --retention-hours 3
 ```
@@ -395,7 +396,7 @@ cd cluster-service/cspr
 The deployment script will:
 1. Verify all required scripts exist
 2. Create a ConfigMap from the actual `.sh` files in `resource-cleaner/`
-3. Deploy the CronJob using the Kubernetes template (with envsubst for parameter substitution)
+3. Deploy the CronJob using the Kubernetes template (with sed for parameter substitution)
 
 #### Option 2: Manual deployment
 
@@ -411,6 +412,7 @@ kubectl create configmap resource-cleaner-scripts \
 # Deploy the template
 ./deploy-resource-cleaner.sh \
   --azure-client-id "<your-managed-identity-client-id>" \
+  --azure-tenant-id "<your-azure-tenant-id>" \
   --maestro-url "http://maestro.maestro.svc.cluster.local:8000" \
   --retention-hours "3"
 ```
