@@ -52,6 +52,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 		registryDigest  string
 		registryError   error
 		dryRun          bool
+		forceUpdate     bool
 		wantErr         bool
 		wantErrMsg      string
 		wantUpdateNames []string
@@ -141,8 +142,32 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			},
 			registryDigest:  "sha256:olddigest",
 			dryRun:          false,
+			forceUpdate:     false,
 			wantErr:         false,
 			wantUpdateNames: []string{},
+		},
+		{
+			name: "force update when digest is same",
+			config: &config.Config{
+				Images: map[string]config.ImageConfig{
+					"test-image": {
+						Source: config.Source{
+							Image: "quay.io/test/app",
+						},
+						Targets: []config.Target{
+							{
+								FilePath: "test.yaml",
+								JsonPath: "image.digest",
+							},
+						},
+					},
+				},
+			},
+			registryDigest:  "sha256:olddigest",
+			dryRun:          false,
+			forceUpdate:     true,
+			wantErr:         false,
+			wantUpdateNames: []string{"test-image"},
 		},
 	}
 
@@ -187,6 +212,7 @@ image:
 			u := &Updater{
 				Config:          tt.config,
 				DryRun:          tt.dryRun,
+				ForceUpdate:     tt.forceUpdate,
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
 				Updates:         make(map[string][]yaml.Update),

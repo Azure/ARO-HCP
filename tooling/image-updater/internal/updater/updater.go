@@ -34,16 +34,18 @@ const (
 type Updater struct {
 	Config          *config.Config
 	DryRun          bool
+	ForceUpdate     bool
 	RegistryClients map[string]clients.RegistryClient
 	YAMLEditors     map[string]*yaml.Editor
 	Updates         map[string][]yaml.Update
 }
 
 // New creates a new Updater with all necessary resources pre-initialized
-func New(cfg *config.Config, dryRun bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor) *Updater {
+func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[string]clients.RegistryClient, yamlEditors map[string]*yaml.Editor) *Updater {
 	return &Updater{
 		Config:          cfg,
 		DryRun:          dryRun,
+		ForceUpdate:     forceUpdate,
 		RegistryClients: registryClients,
 		YAMLEditors:     yamlEditors,
 		Updates:         make(map[string][]yaml.Update),
@@ -131,12 +133,16 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, imageInf
 		newDigest = strings.TrimPrefix(imageInfo.Digest, "sha256:")
 	}
 
-	if currentDigest == newDigest {
+	if currentDigest == newDigest && !u.ForceUpdate {
 		logger.Info("No update needed - digests match", "name", name)
 		return nil
 	}
 
-	logger.Info("Update needed", "name", name)
+	if currentDigest == newDigest && u.ForceUpdate {
+		logger.Info("Force update - regenerating version tag comment", "name", name)
+	} else {
+		logger.Info("Update needed", "name", name)
+	}
 
 	if u.DryRun {
 		logger.Info("DRY RUN: Would update image",
