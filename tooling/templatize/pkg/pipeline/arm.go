@@ -131,7 +131,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 	deploymentName := generateDeploymentName(step)
 
 	if err := a.waitForExistingDeployment(ctx, options.DeploymentTimeoutSeconds, rgName, deploymentName); err != nil {
-		return nil, nil, fmt.Errorf("error waiting for deploymenty %w", err)
+		return nil, nil, fmt.Errorf("error waiting for deployment: %w", err)
 	}
 
 	if !options.DryRun || (options.DryRun && step.OutputOnly) {
