@@ -582,10 +582,16 @@ type NodePool struct {
 
 // NodePoolAutoScaling - Node pool autoscaling
 type NodePoolAutoScaling struct {
-	// The maximum number of nodes in the node pool
+	// The maximum number of nodes in the node pool. Validation:
+	// * Minimum: 0 (must be >= min)
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Max *int32
 
-	// The minimum number of nodes in the node pool
+	// The minimum number of nodes in the node pool. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Min *int32
 }
 
@@ -643,7 +649,10 @@ type NodePoolProperties struct {
 	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
-	// The number of worker nodes, it cannot be used together with autoscaling
+	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
 	// Taints for the nodes
@@ -673,7 +682,10 @@ type NodePoolPropertiesUpdate struct {
 	// If unset the cluster nodeDrainTimeoutMinutes value is used as a default.
 	NodeDrainTimeoutMinutes *int32
 
-	// The number of worker nodes, it cannot be used together with autoscaling
+	// The number of worker nodes, it cannot be used together with autoscaling. Validation:
+	// * Minimum: 0
+	// * Maximum: 200 (only when availabilityZone is not specified)
+	// * No maximum when availabilityZone is specified
 	Replicas *int32
 
 	// Taints for the nodes
