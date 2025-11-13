@@ -1,8 +1,8 @@
 [
   "",
   "",
-  "Attempts to create a nodepool for a non-existant HCPOpenshiftCluster",
-  "Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil",
+  "Attempts to create a nodepool for a non-existent HCPOpenshiftCluster",
+  "Attempts to put HCPOpenshiftCluster with non-existent Resource Group and cluster resource as nil",
   "Confirms cluster has been created successfully",
   "Fails to get a nonexistent cluster with a Not Found error",
   "Get each nodepool from HCPOpenShiftCluster",

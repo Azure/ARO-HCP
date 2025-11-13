@@ -27,7 +27,7 @@ import (
 )
 
 var _ = Describe("Put HCPOpenShiftCluster", func() {
-	It("Attempts to put HCPOpenshiftCluster with non-existant Resource Group and cluster resource as nil", labels.CreateCluster, labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
+	It("Attempts to put HCPOpenshiftCluster with non-existent Resource Group and cluster resource as nil", labels.CreateCluster, labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
 		tc := framework.NewTestContext()
 
 		clusterName := "non-existing-cluster"

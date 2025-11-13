@@ -37,7 +37,7 @@ var _ = Describe("Put HCPOpenShiftCluster Nodepool", func() {
 		customerEnv = &e2eSetup.CustomerEnv
 	})
 
-	It("Attempts to create a nodepool for a non-existant HCPOpenshiftCluster", labels.RequireHappyPathInfra, labels.Medium, labels.Negative, func(ctx context.Context) {
+	It("Attempts to create a nodepool for a non-existent HCPOpenshiftCluster", labels.RequireHappyPathInfra, labels.Medium, labels.Negative, func(ctx context.Context) {
 		tc := framework.NewTestContext()
 
 		var (

@@ -99,7 +99,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				45*time.Minute,
 			)
-			// ARO-20829 workaround: instead of a finished and succesfull
+			// ARO-20829 workaround: instead of a finished and successful
 			// deployment, we expect that the provisioning is still going on
 			Expect(err).To(HaveOccurred())
 			By("expecting the node pool to be still deploying because of ARO-20829")

@@ -92,7 +92,7 @@
 
 ### EV2
 
-- **Definition**: Microsoft automated platform for deploying Azure resources accross clouds.
+- **Definition**: Microsoft automated platform for deploying Azure resources across clouds.
 - **References**:
   - [ARO HCP EV2](https://ev2docs.azure.net/getting-started/overview.html)
 

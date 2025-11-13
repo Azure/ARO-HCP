@@ -100,7 +100,7 @@ createApps() {
     --resource-group "$RESOURCE_GROUP" \
     --enable-rbac-authorization false
 
-    # Create a custom role defintion if it doesn't exist already
+    # Create a custom role definition if it doesn't exist already
     echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
     roleExists=$(az role definition list --name "$FP_ROLE_DEFINITION_NAME" --query "[0].name" -o tsv)
 
