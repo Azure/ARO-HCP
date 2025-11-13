@@ -599,6 +599,30 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				{message: "Required value", fieldPath: "trackedResource.location"},
 			},
 		},
+		{
+			name: "replicas exceeds 200 with availability zone set - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 250
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling both min and max exceed 200 with availability zone set - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 300,
+					Max: 1000,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1057,6 +1081,60 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 						Effect: api.EffectNoSchedule,
 					},
 				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "replicas exceeds 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 250
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 3
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling min exceeds 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "2"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 250,
+					Max: 300,
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "2"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling both min and max exceed 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 300,
+					Max: 1000,
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
 				return np
 			}(),
 			expectErrors: []expectedError{},
