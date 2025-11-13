@@ -6,6 +6,7 @@ deployment:
   limits:
     cpu: 1
     memory: 1Gi
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 tracing:
   address: "{{ .maestro.server.tracing.address }}"
   exporter: "{{ .maestro.server.tracing.exporter }}"

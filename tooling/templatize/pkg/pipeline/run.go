@@ -30,7 +30,6 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
 	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/topology"
@@ -527,7 +526,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 	}
 }
 
-func getInputValues(serviceGroup string, configuredVariables []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]any, error) {
+func getInputValues(serviceGroup string, configuredVariables []types.Variable, cfg configtypes.Configuration, inputs Outputs) (map[string]any, error) {
 	values := make(map[string]any)
 	for _, i := range configuredVariables {
 		if i.Input != nil {

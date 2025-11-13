@@ -71,6 +71,12 @@ tidy: $(MODULES:/...=.tidy)
 all-tidy: tidy fmt licenses
 	go work sync
 
+record-nonlocal-e2e:
+	go run github.com/onsi/ginkgo/v2/ginkgo run \
+		--no-color --tags E2Etests --label-filter='!ARO-HCP-RP-API-Compatible' --dry-run --output-dir=test/e2e --json-report=report.json test/e2e && \
+		jq '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
+.PHONY: record-nonlocal-e2e
+
 mega-lint:
 	docker run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
@@ -225,6 +231,10 @@ ARO-Tools:
 	pushd tooling/templatize/; GOPROXY=direct go get github.com/Azure/ARO-Tools@main; popd; go work sync && make all-tidy
 .PHONY: ARO-Tools
 
+update-helm-fixtures:
+	$(MAKE) -C tooling/helmtest update
+.PHONY: update-helm-fixtures
+
 #
 # Generated SDKs
 #
@@ -278,14 +288,16 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/pipeline/,$(pipelines)):
 endif
 graph/pipeline/%:
-	$(MAKE) local-run WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) graph WHAT="--service-group Microsoft.Azure.ARO.HCP.$(notdir $@)"
 
 graph: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint graph --config-file "${CONFIG_FILE}" \
 	                               --topology-config topology.yaml \
 	                               --dev-settings-file tooling/templatize/settings.yaml \
 	                               --dev-environment $(DEPLOY_ENV) \
-	                               $(WHAT) > .graph.dot
+	                               $(WHAT) \
+	                               --output-dot .graph.dot \
+	                               --output-html .graph.html
 
 VISUALIZATION_OUTPUT ?= timing/
 

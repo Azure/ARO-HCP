@@ -103,7 +103,7 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 		arch = DefaultArchitecture
 	}
 
-	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch)
+	return client.GetArchSpecificDigest(ctx, repository, source.TagPattern, arch, source.MultiArch)
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
@@ -124,7 +124,14 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, latestDi
 
 	logger.Info("Current digest", "name", name, "currentDigest", currentDigest)
 
-	if currentDigest == latestDigest {
+	// If the target path ends with .sha, we need to strip the sha256: prefix
+	// from the digest since sha fields only contain the hash value
+	newDigest := latestDigest
+	if strings.HasSuffix(target.JsonPath, ".sha") {
+		newDigest = strings.TrimPrefix(latestDigest, "sha256:")
+	}
+
+	if currentDigest == newDigest {
 		logger.Info("No update needed - digests match", "name", name)
 		return nil
 	}
@@ -138,13 +145,13 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, latestDi
 			"filePath", target.FilePath,
 			"line", line,
 			"from", currentDigest,
-			"to", latestDigest)
+			"to", newDigest)
 		return nil
 	}
 
 	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
 		Name:      name,
-		NewDigest: latestDigest,
+		NewDigest: newDigest,
 		OldDigest: currentDigest,
 		JsonPath:  target.JsonPath,
 		FilePath:  target.FilePath,

@@ -9,7 +9,7 @@ data:
   instance-type-constraints.yaml: |
     instance_types:
     # hand-crafted list to the ones mentioned in
-    # https://issues.redhat.com/browse/XCMSTRAT-1002
+    # https://issues.redhat.com/browse/ARO-21660
     # those are the instance types that are also enabled in ARO Classic.
     # We also include the ones mentioned in https://issues.redhat.com/browse/ARO-22443
     - id: Standard_D8s_v3

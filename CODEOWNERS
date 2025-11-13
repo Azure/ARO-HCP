@@ -33,4 +33,5 @@ go.work* @bennerv @geoberle @janboll @weinong @whober0521 @jonathan34c @tony-sch
 /*/alerts/ @geoberle @janboll @tony-schndr @mmazur @roivaz @raelga @weinong @whober0521 @jonathan34c @stevekuznetsov @trevorwilliams2025 @sclarkso @weherdh @avollmer-redhat @hbhushan3
 /*/grafana-dashboards/ @geoberle @janboll @tony-schndr @mmazur @roivaz @raelga @weinong @whober0521 @jonathan34c @stevekuznetsov @trevorwilliams2025 @sclarkso @weherdh @avollmer-redhat @hbhushan3
 /docs/ @geoberle @janboll @tony-schndr @mmazur @roivaz @raelga @weinong @whober0521 @jonathan34c @stevekuznetsov @trevorwilliams2025 @sclarkso @weherdh @avollmer-redhat @hbhushan3
-/test/ @patriksuba @mbukatov @mgahagan73 @jharrington22 @deads2k @bennerv
+/test/ @patriksuba @mbukatov @mgahagan73 @miquelsi @jharrington22 @deads2k @bennerv
+/nonlocal-e2e-specs.txt @stevekuznetsov @venkateshsredhat @deads2k @patriksuba @mbukatov

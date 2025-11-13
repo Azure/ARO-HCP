@@ -855,16 +855,12 @@
             "version": {
               "type": "string"
             },
-            "mirrorAdditionalVersions": {
-              "$ref": "#/definitions/csv"
-            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             }
           },
           "required": [
             "version",
-            "mirrorAdditionalVersions",
             "bundle"
           ]
         },
@@ -874,9 +870,6 @@
             "version": {
               "type": "string"
             },
-            "mirrorAdditionalVersions": {
-              "$ref": "#/definitions/csv"
-            },
             "bundle": {
               "$ref": "#/definitions/containerImage"
             }
@@ -884,7 +877,6 @@
           "additionalProperties": false,
           "required": [
             "version",
-            "mirrorAdditionalVersions",
             "bundle"
           ]
         }
@@ -926,6 +918,10 @@
     "clustersService": {
       "type": "object",
       "properties": {
+        "deployDebugJob": {
+          "type": "boolean",
+          "description": "If true, a debug job will be deployed to the cluster. This job will be used to debug the CS service."
+        },
         "environment": {
           "type": "string",
           "minLength": 1,
@@ -1352,6 +1348,9 @@
             },
             "applicationId": {
               "type": "string"
+            },
+            "dstsHost": {
+              "type": "string"
             }
           },
           "required": [
@@ -1477,6 +1476,7 @@
         },
         "actions": {
           "type": "object",
+          "description": "Geneva Actions related configuration",
           "additionalProperties": false,
           "required": [
             "serviceTag",
@@ -1488,13 +1488,16 @@
           ],
           "properties": {
             "serviceTag": {
-              "type": "string"
+              "type": "string",
+              "description": "The Service Tag used by Geneva Actions for their egress traffic."
             },
             "keyVault": {
-              "$ref": "#/definitions/keyVault"
+              "$ref": "#/definitions/keyVault",
+              "description": "Here we store the certificate for the app defined in .application"
             },
             "certificate": {
               "type": "object",
+              "description": "This is the certificate for the app defined in .application",
               "properties": {
                 "name": {
                   "type": "string"
@@ -1514,16 +1517,18 @@
               ]
             },
             "allowedAcisExtensions": {
-              "$ref": "#/definitions/csv"
+              "type": "string"
             },
             "genevaActionsPrincipalId": {
-              "type": "string"
+              "type": "string",
+              "description": "This is the principal ID of the MSFT owned Geneva Actions identity that will call into our Geneva Actions."
             },
             "enabled": {
               "type": "boolean"
             },
             "application": {
-              "$ref": "#/definitions/entraApplication"
+              "$ref": "#/definitions/entraApplication",
+              "description": "This is the app our Geneva Actions will use to talk to the Admin API"
             }
           }
         }
@@ -1563,37 +1568,81 @@
       ]
     },
     "mise": {
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "deploy": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Whether to deploy MISE. Be careful where to enable MISE as it can't be deployed in non-MSFT tenants."
         },
-        "azureAdInstance": {
-          "type": "string"
+        "arm": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the ARM policy."
+            },
+            "tenantId": {
+              "type": "string",
+              "description": "The tenant ID where the ARM application lives."
+            },
+            "applicationId": {
+              "type": "string",
+              "description": "The application ID of the ARM application."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the ARM applications auth tokens."
+            },
+            "audienceFQDN": {
+              "type": "string",
+              "description": "The audience FQDN of the ARM applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "tenantId",
+            "applicationId",
+            "authorityFQDN",
+            "audienceFQDN"
+          ]
         },
-        "firstPartyAppId": {
-          "type": "string"
-        },
-        "armAppId": {
-          "type": "string",
-          "description": "The valid app ID for mise, which is the ARM Application Id, this is common across all clouds (MSIT/AME/FF)"
+        "genevaActions": {
+          "type": "object",
+          "properties": {
+            "policyLabel": {
+              "type": "string",
+              "description": "The label of the Geneva Actions policy."
+            },
+            "authorityFQDN": {
+              "type": "string",
+              "description": "The authority/issuer FQDN of the Geneva Actions applications auth tokens."
+            },
+            "audienceFQDN": {
+              "type": "string",
+              "description": "The audience FQDN of the Geneva Actions applications auth tokens."
+            }
+          },
+          "required": [
+            "policyLabel",
+            "authorityFQDN",
+            "audienceFQDN"
+          ]
         },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
         "tracing": {
-          "$ref": "#/definitions/tracing"
-        },
-        "tenantId": {
-          "type": "string"
+          "$ref": "#/definitions/tracing",
+          "description": "Tracing configuration for OTLP traces."
         }
       },
       "required": [
         "deploy",
         "image",
-        "azureAdInstance",
-        "firstPartyAppId",
-        "armAppId",
-        "tenantId"
+        "arm",
+        "genevaActions",
+        "tracing"
       ]
     },
     "msiRp": {
@@ -1797,13 +1846,17 @@
             },
             "pullSecretName": {
               "type": "string"
+            },
+            "operatorVersionsToMirror": {
+              "$ref": "#/definitions/csv"
             }
           },
           "additionalProperties": false,
           "required": [
             "enabled",
             "image",
-            "pullSecretName"
+            "pullSecretName",
+            "operatorVersionsToMirror"
           ]
         }
       },

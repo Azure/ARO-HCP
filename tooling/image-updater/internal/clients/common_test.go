@@ -270,38 +270,50 @@ func TestNewRegistryClient(t *testing.T) {
 	tests := []struct {
 		name        string
 		registryURL string
+		useAuth     bool
 		wantType    string
 		wantErr     bool
 	}{
 		{
-			name:        "quay.io registry",
+			name:        "quay.io registry uses Quay client",
 			registryURL: "quay.io",
+			useAuth:     true,
 			wantType:    "*clients.QuayClient",
 			wantErr:     false,
 		},
 		{
-			name:        "quay.io with subdomain",
-			registryURL: "registry.quay.io",
-			wantType:    "*clients.QuayClient",
+			name:        "mcr.microsoft.com uses generic client",
+			registryURL: "mcr.microsoft.com",
+			useAuth:     false,
+			wantType:    "*clients.GenericRegistryClient",
 			wantErr:     false,
 		},
 		{
-			name:        "unsupported registry",
+			name:        "docker.io uses generic client",
 			registryURL: "docker.io",
-			wantType:    "",
-			wantErr:     true,
+			useAuth:     false,
+			wantType:    "*clients.GenericRegistryClient",
+			wantErr:     false,
 		},
 		{
-			name:        "empty registry URL",
+			name:        "azurecr.io uses ACR client",
+			registryURL: "arohcpsvcdev.azurecr.io",
+			useAuth:     true,
+			wantType:    "*clients.ACRClient",
+			wantErr:     false,
+		},
+		{
+			name:        "empty registry URL uses generic client",
 			registryURL: "",
-			wantType:    "",
-			wantErr:     true,
+			useAuth:     false,
+			wantType:    "*clients.GenericRegistryClient",
+			wantErr:     false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewRegistryClient(tt.registryURL)
+			got, err := NewRegistryClient(tt.registryURL, tt.useAuth)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRegistryClient() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -89,13 +89,15 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 }
 
 // NewRegistryClient creates a new registry client based on the registry URL
-func NewRegistryClient(registryURL string) (RegistryClient, error) {
+func NewRegistryClient(registryURL string, useAuth bool) (RegistryClient, error) {
 	switch {
 	case strings.Contains(registryURL, "quay.io"):
+		// Quay has a proprietary API with better tag discovery
 		return NewQuayClient(), nil
 	case strings.Contains(registryURL, "azurecr.io"):
-		return NewACRClient(registryURL)
+		return NewACRClient(registryURL, useAuth)
 	default:
-		return nil, fmt.Errorf("unsupported registry: %s", registryURL)
+		// Use generic client for other Docker Registry v2 compatible registries (mcr.microsoft.com, etc.)
+		return NewGenericRegistryClient(registryURL), nil
 	}
 }

@@ -1,3 +1,0 @@
-Microsoft.Azure.ARO.HCP.ClusterService:
-  service:
-    deploy: helm step needing migration

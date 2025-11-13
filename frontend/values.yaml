@@ -1,7 +1,9 @@
 azure:
   clientId: "__csiSecretStoreClientId__"
   tenantId: "__tenantId__"
-deployMise: true
+mise:
+  policyLabel: "{{ .mise.arm.policyLabel }}"
+  deploy: {{ .mise.deploy }}
 configMap:
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   frontendMiClientId: "__frontendMsiClientId__"
@@ -13,6 +15,7 @@ credsKeyVault:
 deployment:
   replicas: {{ .frontend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .frontend.image.repository }}@{{ .frontend.image.digest }}"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 serviceAccount:
   name: "{{ .frontend.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__frontendMsiClientId__"
@@ -34,3 +37,5 @@ adminApi:
   namespace: "{{ .adminApi.k8s.namespace }}"
   serviceAccount: "{{ .adminApi.k8s.serviceAccountName }}"
 apiBindPort: 8443
+virtualService:
+  host: "rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"

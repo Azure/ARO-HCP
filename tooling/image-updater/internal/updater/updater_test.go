@@ -33,7 +33,7 @@ type mockRegistryClient struct {
 	err    error
 }
 
-func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string) (string, error) {
+func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
@@ -459,6 +459,185 @@ func TestUpdater_GenerateCommitMessage(t *testing.T) {
 			} else {
 				if got != tt.want {
 					t.Errorf("GenerateCommitMessage() = %q, want %q", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdater_ProcessImageUpdates_SHAFieldHandling(t *testing.T) {
+	tests := []struct {
+		name              string
+		jsonPath          string
+		currentValue      string
+		latestDigest      string
+		wantDigestInFile  string
+		wantUpdateDigest  string
+		wantUpdateCreated bool
+	}{
+		{
+			name:              "sha field strips sha256 prefix",
+			jsonPath:          "image.sha",
+			currentValue:      "olddigest123",
+			latestDigest:      "sha256:newdigest456",
+			wantDigestInFile:  "newdigest456",
+			wantUpdateDigest:  "newdigest456",
+			wantUpdateCreated: true,
+		},
+		{
+			name:              "digest field keeps sha256 prefix",
+			jsonPath:          "image.digest",
+			currentValue:      "sha256:olddigest123",
+			latestDigest:      "sha256:newdigest456",
+			wantDigestInFile:  "sha256:newdigest456",
+			wantUpdateDigest:  "sha256:newdigest456",
+			wantUpdateCreated: true,
+		},
+		{
+			name:              "sha field no update when digests match",
+			jsonPath:          "image.sha",
+			currentValue:      "abc123",
+			latestDigest:      "sha256:abc123",
+			wantDigestInFile:  "abc123",
+			wantUpdateDigest:  "",
+			wantUpdateCreated: false,
+		},
+		{
+			name:              "digest field no update when digests match",
+			jsonPath:          "image.digest",
+			currentValue:      "sha256:abc123",
+			latestDigest:      "sha256:abc123",
+			wantDigestInFile:  "sha256:abc123",
+			wantUpdateDigest:  "",
+			wantUpdateCreated: false,
+		},
+		{
+			name:              "nested sha field path",
+			jsonPath:          "prometheus.prometheusOperator.image.sha",
+			currentValue:      "oldsha",
+			latestDigest:      "sha256:newsha",
+			wantDigestInFile:  "newsha",
+			wantUpdateDigest:  "newsha",
+			wantUpdateCreated: true,
+		},
+		{
+			name:              "sha field with already stripped digest",
+			jsonPath:          "image.sha",
+			currentValue:      "olddigest",
+			latestDigest:      "newdigest",
+			wantDigestInFile:  "newdigest",
+			wantUpdateDigest:  "newdigest",
+			wantUpdateCreated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Create temp YAML file with initial content
+			tmpDir := t.TempDir()
+			yamlPath := filepath.Join(tmpDir, "test.yaml")
+
+			// Build YAML content based on jsonPath
+			var yamlContent string
+			if strings.HasPrefix(tt.jsonPath, "prometheus.") {
+				yamlContent = fmt.Sprintf(`
+prometheus:
+  prometheusOperator:
+    image:
+      sha: %s
+`, tt.currentValue)
+			} else {
+				// Set the appropriate field
+				if strings.Contains(tt.jsonPath, ".sha") {
+					yamlContent = fmt.Sprintf(`
+image:
+  sha: %s
+`, tt.currentValue)
+				} else {
+					yamlContent = fmt.Sprintf(`
+image:
+  digest: %s
+`, tt.currentValue)
+				}
+			}
+
+			if err := os.WriteFile(yamlPath, []byte(yamlContent), 0644); err != nil {
+				t.Fatalf("failed to create temp yaml: %v", err)
+			}
+
+			// Create YAML editor
+			editor, err := yaml.NewEditor(yamlPath)
+			if err != nil {
+				t.Fatalf("failed to create yaml editor: %v", err)
+			}
+
+			yamlEditors := map[string]*yaml.Editor{
+				yamlPath: editor,
+			}
+
+			// Create target
+			target := config.Target{
+				FilePath: yamlPath,
+				JsonPath: tt.jsonPath,
+			}
+
+			// Create updater
+			u := &Updater{
+				Config:      &config.Config{},
+				DryRun:      false,
+				YAMLEditors: yamlEditors,
+				Updates:     make(map[string][]yaml.Update),
+			}
+
+			// Process update
+			err = u.ProcessImageUpdates(ctx, "test-image", tt.latestDigest, target)
+			if err != nil {
+				t.Fatalf("ProcessImageUpdates() failed: %v", err)
+			}
+
+			// Verify update was or wasn't created
+			totalUpdates := 0
+			var update *yaml.Update
+			for _, updates := range u.Updates {
+				totalUpdates += len(updates)
+				if len(updates) > 0 {
+					update = &updates[0]
+				}
+			}
+
+			if tt.wantUpdateCreated && totalUpdates == 0 {
+				t.Errorf("Expected update to be created, but none was created")
+			}
+			if !tt.wantUpdateCreated && totalUpdates > 0 {
+				t.Errorf("Expected no update, but %d update(s) created", totalUpdates)
+			}
+
+			// If update was created, verify the digest format
+			if tt.wantUpdateCreated && update != nil {
+				if update.NewDigest != tt.wantUpdateDigest {
+					t.Errorf("Update.NewDigest = %v, want %v", update.NewDigest, tt.wantUpdateDigest)
+				}
+
+				// Apply the update
+				if err := editor.ApplyUpdates(u.Updates[yamlPath]); err != nil {
+					t.Fatalf("ApplyUpdates() failed: %v", err)
+				}
+
+				// Verify file content
+				newEditor, err := yaml.NewEditor(yamlPath)
+				if err != nil {
+					t.Fatalf("failed to read updated file: %v", err)
+				}
+
+				_, fileDigest, err := newEditor.GetUpdate(tt.jsonPath)
+				if err != nil {
+					t.Fatalf("failed to get digest from file: %v", err)
+				}
+
+				if fileDigest != tt.wantDigestInFile {
+					t.Errorf("File digest = %v, want %v", fileDigest, tt.wantDigestInFile)
 				}
 			}
 		})

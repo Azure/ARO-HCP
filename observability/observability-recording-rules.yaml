@@ -1,5 +1,4 @@
 prometheusRules:
-  rulesFolders:
-  - ../observability/alerts/tested-rules
+  rulesFolders: []
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

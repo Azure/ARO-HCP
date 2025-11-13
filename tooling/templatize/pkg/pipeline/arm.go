@@ -26,7 +26,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -217,7 +217,7 @@ func pollAndPrint[T any](ctx context.Context, p *runtime.Poller[T]) error {
 	return nil
 }
 
-func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
+func doDryRun(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -313,7 +313,7 @@ func pollAndGetOutput[T any](ctx context.Context, p *runtime.Poller[T]) (ArmOutp
 	return nil, nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg config.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, deploymentName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()

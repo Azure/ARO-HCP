@@ -63,6 +63,10 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: imagePullerMsiClientId
+      csiSecretStoreClientId:
+        resourceGroup: service
+        step: output
+        name: csiSecretStoreClientId
     dependsOn:
     - resourceGroup: global
       step: mirror-image

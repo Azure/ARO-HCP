@@ -49,14 +49,7 @@ execute() {
 }
 
 #
-#   C O N T A I N E R   A P P   J O B S
+#   this is the place where you want to add housekeeping logic for global resources
+#   keep in mind that we don't need this housekeeping anymore once azuer deployment
+#   stacks become available in EV2
 #
-
-CONTAINER_APP_JOBS_TO_DELETE=("acm-mirror" "component-sync" "oc-mirror-4-18" "oc-mirror-4-19" "oc-mirror")
-for job in "${CONTAINER_APP_JOBS_TO_DELETE[@]}"; do
-    if az containerapp job show --name "$job" --resource-group "$GLOBAL_RESOURCE_GROUP" &>/dev/null; then
-        execute az containerapp job delete --name "$job" --resource-group "$GLOBAL_RESOURCE_GROUP" --yes
-    else
-        echo "Container app job '$job' does not exist in resource group '$GLOBAL_RESOURCE_GROUP', skipping."
-    fi
-done

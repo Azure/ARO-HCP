@@ -114,7 +114,7 @@ def create_dashboard(
         e
         for e in existing_dashboards
         if e["uid"] == dashboard["dashboard"]["uid"]
-        if e["folderUid"] == folder_uid
+        if e.get("folderUid", "") == folder_uid
     ]
     create_or_update = True
     if dashboard_found:

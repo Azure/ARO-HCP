@@ -15,8 +15,13 @@
 package framework
 
 import (
+	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
@@ -26,7 +31,9 @@ type ClusterParams struct {
 	ClusterName                   string
 	ManagedResourceGroupName      string
 	NsgResourceID                 string
+	NsgName                       string
 	SubnetResourceID              string
+	SubnetName                    string
 	VnetName                      string
 	UserAssignedIdentitiesProfile *hcpsdk20240610preview.UserAssignedIdentitiesProfile
 	Identity                      *hcpsdk20240610preview.ManagedServiceIdentity
@@ -117,4 +124,134 @@ func ConvertToManagedServiceIdentity(value interface{}) (*hcpsdk20240610preview.
 		return nil, fmt.Errorf("failed to unmarshal IdentityValue: %w", err)
 	}
 	return &msi, nil
+}
+
+func PopulateClusterParamsFromCustomerInfraDeployment(
+	params ClusterParams,
+	customerInfraDeploymentResult *armresources.DeploymentExtended,
+) (ClusterParams, error) {
+	if customerInfraDeploymentResult == nil {
+		return params, fmt.Errorf("customerInfraDeploymentResult cannot be nil")
+	}
+
+	keyVaultName, err := GetOutputValueString(customerInfraDeploymentResult, "keyVaultName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get keyVaultName from customer infra deployment: %w", err)
+	}
+	etcdEncryptionKeyVersion, err := GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
+	if err != nil {
+		return params, fmt.Errorf("failed to get etcdEncryptionKeyVersion from customer infra deployment: %w", err)
+	}
+	etcdEncryptionKeyName, err := GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get etcdEncryptionKeyName from customer infra deployment: %w", err)
+	}
+	nsgResourceID, err := GetOutputValueString(customerInfraDeploymentResult, "nsgID")
+	if err != nil {
+		return params, fmt.Errorf("failed to get nsgID from customer infra deployment: %w", err)
+	}
+	subnetResourceID, err := GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetSubnetID from customer infra deployment: %w", err)
+	}
+	vnetName, err := GetOutputValueString(customerInfraDeploymentResult, "vnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetName from customer infra deployment: %w", err)
+	}
+	nsgName, err := GetOutputValueString(customerInfraDeploymentResult, "nsgName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get nsgName from customer infra deployment: %w", err)
+	}
+	subnetName, err := GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetName")
+	if err != nil {
+		return params, fmt.Errorf("failed to get vnetSubnetName from customer infra deployment: %w", err)
+	}
+	params.KeyVaultName = keyVaultName
+	params.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
+	params.EtcdEncryptionKeyName = etcdEncryptionKeyName
+	params.NsgResourceID = nsgResourceID
+	params.SubnetResourceID = subnetResourceID
+	params.VnetName = vnetName
+	params.NsgName = nsgName
+	params.SubnetName = subnetName
+	return params, nil
+}
+
+func PopulateClusterParamsFromManagedIdentitiesDeployment(
+	params ClusterParams,
+	managedIdentitiesDeploymentResult *armresources.DeploymentExtended,
+) (ClusterParams, error) {
+	if managedIdentitiesDeploymentResult == nil {
+		return params, fmt.Errorf("managedIdentitiesDeploymentResult cannot be nil")
+	}
+
+	userAssignedIdentities, err := GetOutputValue(managedIdentitiesDeploymentResult, "userAssignedIdentitiesValue")
+	if err != nil {
+		return params, fmt.Errorf("failed to get userAssignedIdentitiesValue from managed identity deployment: %w", err)
+	}
+	userAssignedIdentitiesProfile, err := ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
+	if err != nil {
+		return params, fmt.Errorf("failed to convert userAssignedIdentitiesValue: %w", err)
+	}
+
+	identityValue, err := GetOutputValue(managedIdentitiesDeploymentResult, "identityValue")
+	if err != nil {
+		return params, fmt.Errorf("failed to get identityValue from managed identity deployment: %w", err)
+	}
+	identityProfile, err := ConvertToManagedServiceIdentity(identityValue)
+	if err != nil {
+		return params, fmt.Errorf("failed to convert identityValue: %w", err)
+	}
+
+	params.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
+	params.Identity = identityProfile
+
+	return params, nil
+}
+
+func CreateClusterCustomerResources(ctx context.Context,
+	deploymentsClient *armresources.DeploymentsClient,
+	resourceGroup *armresources.ResourceGroup,
+	clusterParams ClusterParams,
+	infraParameters map[string]interface{},
+	artifactsFS embed.FS,
+) (ClusterParams, error) {
+	customerInfraDeploymentResult, err := CreateBicepTemplateAndWait(ctx,
+		deploymentsClient,
+		*resourceGroup.Name,
+		"customer-infra",
+		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+		infraParameters,
+		45*time.Minute,
+	)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to create customer-infra: %w", err)
+	}
+	clusterParams, err = PopulateClusterParamsFromCustomerInfraDeployment(clusterParams, customerInfraDeploymentResult)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
+	}
+
+	managedIdentityDeploymentResult, err := CreateBicepTemplateAndWait(ctx,
+		deploymentsClient,
+		*resourceGroup.Name,
+		"managed-identities",
+		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+		map[string]interface{}{
+			"clusterName":  clusterParams.ClusterName,
+			"nsgName":      clusterParams.NsgName,
+			"vnetName":     clusterParams.VnetName,
+			"subnetName":   clusterParams.SubnetName,
+			"keyVaultName": clusterParams.KeyVaultName,
+		},
+		45*time.Minute,
+	)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
+	}
+	clusterParams, err = PopulateClusterParamsFromManagedIdentitiesDeployment(clusterParams, managedIdentityDeploymentResult)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to populate cluster params from managed identities: %w", err)
+	}
+	return clusterParams, nil
 }

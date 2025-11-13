@@ -39,7 +39,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
-		labels.Local,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
@@ -56,75 +56,29 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "basic-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a customer-infra")
-			customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+
+			By("creating customer resources")
+			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"customer-infra",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+				resourceGroup,
+				clusterParams,
 				map[string]interface{}{
 					"persistTagValue":        false,
 					"customerNsgName":        customerNetworkSecurityGroupName,
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
-				45*time.Minute,
+				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a managed identities")
-			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-			Expect(err).NotTo(HaveOccurred())
-			keyVaultNameStr, ok := keyVaultName.(string)
-			Expect(ok).To(BeTrue())
-			etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
-			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"managed-identities",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				map[string]interface{}{
-					"clusterName":  customerClusterName,
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
-					"keyVaultName": keyVaultName,
-				},
-				45*time.Minute,
-			)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating the cluster")
-			userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-			Expect(err).NotTo(HaveOccurred())
-			identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-			Expect(err).NotTo(HaveOccurred())
-			etcdEncryptionKeyName, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-			Expect(err).NotTo(HaveOccurred())
-			nsgResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "nsgID")
-			Expect(err).NotTo(HaveOccurred())
-			vnetSubnetResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
-			Expect(err).NotTo(HaveOccurred())
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-			userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
-			Expect(err).NotTo(HaveOccurred())
-			identityProfile, err := framework.ConvertToManagedServiceIdentity(identity)
-			Expect(err).NotTo(HaveOccurred())
-
-			clusterParams := framework.NewDefaultClusterParams()
-			clusterParams.ClusterName = customerClusterName
-			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-			clusterParams.NsgResourceID = nsgResourceID
-			clusterParams.SubnetResourceID = vnetSubnetResourceID
-			clusterParams.VnetName = customerVnetName
-			clusterParams.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
-			clusterParams.Identity = identityProfile
-			clusterParams.KeyVaultName = keyVaultNameStr
-			clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyName
-			clusterParams.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
-
+			By("creating the HCP cluster")
 			err = framework.CreateHCPClusterFromParam(ctx,
 				tc,
 				*resourceGroup.Name,

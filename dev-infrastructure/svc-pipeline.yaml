@@ -27,6 +27,12 @@ resourceGroups:
     parameters: configurations/output-global.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: geneva-output
+    action: ARM
+    template: templates/geneva-identities-lookup.bicep
+    parameters: configurations/geneva-identities-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 # Query parameters from regional deployment, e.g. Azure Monitor workspace ID
 - name: regional
   resourceGroup: '{{ .regionRG }}'
@@ -136,6 +142,16 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: azureFrontDoorResourceId
+    - name: grafanaResourceId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaResourceId
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer
@@ -198,6 +214,15 @@ resourceGroups:
       resourceGroup: global
       step: output
       name: globalMSIId
+    inputVariables:
+      genevaActionsAppId:
+        resourceGroup: global
+        step: geneva-output
+        name: genevaActionsAppId
+      tenantId:
+        resourceGroup: global
+        step: geneva-output
+        name: tenantId
   - name: istio-upgrade
     # - updates workload to use istio on version svc.istio.targetVersion
     # - configures istio IP tag usage

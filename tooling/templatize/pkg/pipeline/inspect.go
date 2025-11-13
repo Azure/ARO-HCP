@@ -21,7 +21,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 
@@ -42,7 +42,7 @@ type InspectOptions struct {
 	Format         string
 	Step           string
 	Region         string
-	Configuration  config.Configuration
+	Configuration  configtypes.Configuration
 	ScopeFunctions map[string]StepInspectScope
 	OutputFile     io.Writer
 	Concurrency    int

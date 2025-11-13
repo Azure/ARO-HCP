@@ -1,0 +1,97 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cs-shell-script-executor-{{ randAlphaNum 5 | lower }}
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  ttlSecondsAfterFinished: 300
+  # Limit the job's maximum execution time to 30 minutes.
+  activeDeadlineSeconds: 1800
+  # Retries use exponential backoff (starting at 10s, then 20s, 40s, etc.), with a maximum wait time of six minutes between each retry.
+  # The job will be retried up to 50 times if it fails.
+  backoffLimit: 50
+  template:
+    spec:
+      serviceAccountName: cs-shell-script-executor
+      restartPolicy: Never
+      volumes:
+      - name: scripts
+        configMap:
+          name: cs-shell-scripts
+          defaultMode: 0755
+      containers:
+      - name: cs-shell-script-executor
+        image: 'mcr.microsoft.com/azurelinux/base/core:3.0'
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          checkImageTag() {
+            local EXPECTED_TAG="$1"
+            local NAMESPACE="{{ .Release.Namespace }}"
+
+            echo "Verifying all running pods have the same image version"
+            IMAGES=$(kubectl get pods -l app=clusters-service --namespace="$NAMESPACE" -o jsonpath='{range .items[*]}{.spec.containers[?(@.name=="service")].image}{"\n"}{end}' | sort | uniq)
+            IMAGE_COUNT=$(echo "$IMAGES" | wc -l)
+            if [ "$IMAGE_COUNT" -ne 1 ]; then
+              echo "Error: Multiple image versions detected:"
+              echo "$IMAGES"
+              exit 1
+            fi
+
+            echo "Verifying image tag is the expected one"
+            DEPLOYMENT_IMAGE=$(kubectl get deployment clusters-service --namespace="$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[?(@.name=="service")].image}')
+            if [ "${DEPLOYMENT_IMAGE##*@}" != "$EXPECTED_TAG" ]; then
+              echo "Error: Deployment is using the wrong image tag"
+              echo "Current image: $DEPLOYMENT_IMAGE | Expected: $EXPECTED_TAG"
+              exit 1
+            fi
+
+            echo "Checking if all pods also have the correct tag"
+            POD_IMAGES=$(kubectl get pods -l app=clusters-service --namespace="$NAMESPACE" -o jsonpath='{range .items[*]}{.spec.containers[?(@.name=="service")].image}{"\n"}{end}' | sort | uniq)
+            # Verifying all pods use the expected tag
+            for image in $POD_IMAGES; do
+              if [ "${image##*@}" != "$EXPECTED_TAG" ]; then
+                echo "Error: Pod image incorrect: $image"
+                exit 1
+              fi
+            done
+
+            echo "Checking if all pods are ready and running"
+            if ! kubectl wait --for=condition=ready pod -l app=clusters-service --namespace="$NAMESPACE" --timeout=60s; then
+              echo "Error: Not all pods are ready"
+              echo "Current pod statuses:"
+              kubectl get pods -l app=clusters-service --namespace="$NAMESPACE" -o wide
+              exit 1
+            fi
+
+            echo "All image tag checks passed successfully for tag: $EXPECTED_TAG"
+          }
+
+          # TODO create a custom image with the needed
+          # commands instead of installing them at runtime
+          echo "Setting up tools..."
+          tdnf update
+          echo "Installing kubectl..."
+          tdnf install -y kubectl
+          echo "Installing jq..."
+          tdnf install -y jq
+
+          echo "Starting execution..."
+
+          echo "Waiting for clusters-service deployment rollout to complete"
+          kubectl rollout status deployment/clusters-service --namespace="{{ .Release.Namespace }}" --timeout=600s
+          echo "Clusters-service deployment rollout completed"
+
+          # Set the expected image tag
+          EXPECTED_IMAGE_TAG={{ .Values.global.imageDigest | default .Values.imageDigest }}
+
+          checkImageTag "$EXPECTED_IMAGE_TAG"
+
+          # Run your arbitrary commands below
+          echo "Running arbitrary commands..."
+          /bin/bash /scripts/arbitrary-commands.sh
+
+          echo "Execution completed successfully"
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts

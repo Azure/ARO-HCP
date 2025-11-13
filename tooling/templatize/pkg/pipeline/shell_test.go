@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
@@ -40,7 +40,7 @@ func TestCreateCommand(t *testing.T) {
 		envVars        map[string]string
 		expectedScript string
 		expectedEnv    string
-		configuration  config.Configuration
+		configuration  configtypes.Configuration
 		skipCommand    bool
 	}{
 		{
@@ -99,7 +99,7 @@ func TestCreateCommand(t *testing.T) {
 			dryRun:         true,
 			expectedScript: buildBashScript("/bin/echo"),
 			envVars:        map[string]string{},
-			configuration:  config.Configuration{"test": "foobar"},
+			configuration:  configtypes.Configuration{"test": "foobar"},
 			expectedEnv:    "DRY_RUN=foobar",
 		},
 		{
@@ -137,7 +137,7 @@ func TestCreateCommand(t *testing.T) {
 func TestMapStepVariables(t *testing.T) {
 	testCases := []struct {
 		name     string
-		cfg      config.Configuration
+		cfg      configtypes.Configuration
 		input    Outputs
 		step     *types.ShellStep
 		expected map[string]string
@@ -145,7 +145,7 @@ func TestMapStepVariables(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			cfg: config.Configuration{
+			cfg: configtypes.Configuration{
 				"FOO": "bar",
 			},
 			step: &types.ShellStep{
@@ -164,7 +164,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "missing",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
@@ -178,7 +178,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "type conversion",
-			cfg: config.Configuration{
+			cfg: configtypes.Configuration{
 				"FOO": 42,
 			},
 			step: &types.ShellStep{
@@ -197,7 +197,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "value",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
@@ -214,7 +214,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
@@ -249,7 +249,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining step missing",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
@@ -270,7 +270,7 @@ func TestMapStepVariables(t *testing.T) {
 		},
 		{
 			name: "output chaining output missing",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Variables: []types.Variable{
 					{
@@ -320,20 +320,20 @@ func TestRunShellStep(t *testing.T) {
 	var buf bytes.Buffer
 	testCases := []struct {
 		name string
-		cfg  config.Configuration
+		cfg  configtypes.Configuration
 		step *types.ShellStep
 		err  string
 	}{
 		{
 			name: "basic",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Command: "echo hello",
 			},
 		},
 		{
 			name: "test nounset",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Command: "echo $DOES_NOT_EXIST",
 			},
@@ -341,7 +341,7 @@ func TestRunShellStep(t *testing.T) {
 		},
 		{
 			name: "test errexit",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Command: "false ; echo hello",
 			},
@@ -349,7 +349,7 @@ func TestRunShellStep(t *testing.T) {
 		},
 		{
 			name: "test pipefail",
-			cfg:  config.Configuration{},
+			cfg:  configtypes.Configuration{},
 			step: &types.ShellStep{
 				Command: "false | echo",
 			},

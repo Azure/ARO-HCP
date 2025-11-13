@@ -13,8 +13,10 @@ All artifacts for a service deployment live in their own top-level directory in 
 
 ```plaintext
 my-service
+├── Env.mk
 ├── Makefile
 ├── pipeline.yaml
+├── values.yaml
 ├── some-script.sh
 └── deploy
     └── <chart goes here>
@@ -27,8 +29,10 @@ my-service
 ├── sub-service-1
 ...
 └── sub-service-2
+    ├── Env.mk
     ├── Makefile
     ├── pipeline.yaml
+    ├── values.yaml
     └── deploy
         └── <chart goes here>
 ```
@@ -41,7 +45,7 @@ See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/a
 
 #### Namespace management
 
-Helm is not supposed to manage the deployment namespace. This is the responsibility of the [Makefile](#makefile). Helm can rely on the namespace being present and the correct `KUBECONFIG`context being set for deployment.
+Upstream Helm is not supposed to manage the deployment namespace, but our Helm step handles this concern for us.
 
 Namespaced manifest should declare their namespace in the manifest itself.
 
@@ -61,54 +65,33 @@ Image references for deployments need to use `sha256` digests instead of tags to
 
 Service component image need to be provided via the SVC ACR instance (or MSFTs MCR). The respective ACR name can be found in the [config.yaml](../config/config.yaml) under `acr.svc.name`.
 
-It is the responsibility of the Makefile to provide configuration values via `--set key=value` for all required Helm chart configuration options.
+It is the responsibility of the values file template to link to configuration values via `{{ .template.fields }}` for all required Helm chart configuration options.
 
 #### Helm hooks
 
-The standard Helm chart installation command in Makefiles supports waiting for deployments to complete and for jobs to finish. This way all available [chart hooks](https://helm.sh/docs/topics/charts_hooks/) can be used during deployments.
+The standard Helm installation step in tooling supports waiting for deployments to complete and for jobs to finish. This way all available [chart hooks](https://helm.sh/docs/topics/charts_hooks/) can be used during deployments.
 
 ### Makefile
 
-The `Makefile` in the service directory is the entry point for its deployment operations. It needs to contain a `deploy` target that handles the deployment process. The `deploy` target should be able to take in all required configuration data as environment variables.
+Components can be built and tested locally and in personal DEV environments using a set of Makefile targets.
 
-```makefile
--include ../setup-env.mk                                                                (1)
+- **make run:** runs the component binary locally
+- **make deploy:** builds the component container image, uploads it to the DEV service ACR and deploys it to a personal DEV cluster
 
-deploy:                                                                                 (2)
-    kubectl create namespace <namespace> --dry-run=client -o json | kubectl apply -f -
-    ../hack/helm.sh <deployment-name> <charts-dir> <namespace> \                        (3)
-      --set some_key=${SOME_ENV_VAR}                                                    (4)
-```
+The `Makefile` has access to a set of environment variables representing configuration from the `config/config.yaml` file. The environment variables are made available via the `include ../setup-templatize-env.mk` directive in the `Makefile`, which processes and includes the Env.mk file. This is the file you need to modify to provide additional environment variables fueled by `config.yaml`.
 
-1. Include the setup-env.mk file to set up some basic environment variables that sets up hooks into [configuration management](configuration.md).
-2. Since Helm is not managing the namespace creation, the Makefile should create the namespace if it does not exist.
-3. Using the `helm.sh` script makes sure a consistent helm command is used across all services.
-4. Any other Helm arguments can be passed to the `helm.sh` script which will pass them along to the helm command as-is.
+### Local Run
 
-### Deployment via Pipelines
+Using the `make run` target, the Frontend binary can be run locally.
 
-The execution context for any service deployment is a pipeline file, that brings scripts, Makefiles, Helm charts, configuration together and deployment target together.
+### Personal DEV Environment deployment
 
-```yaml
-...
-resourceGroups:
-- name: {{ .svc.rg }}
-  subscription: {{ .svc.subscription.key }}
-  aksCluster: {{ .svc.aks.name }}                       (1)
-  steps:
-  - name: deploy
-    action: Shell
-    script: make deploy                                 (2)
-    variables:                                          (3)
-    - name: IMAGE_DIGEST
-      configRef: my-service.image.digest
-    dryRun:                                             (4)
-      variables:
-        - name: DRY_RUN
-          value: "true"
-```
+The local code can also be deployed directly into a personal DEV environment by running `make deploy`. Understand that this requires such an environment to be created first via `make entrypoint/Region` from the root of the repository.
 
-1. defines the AKS cluster that serves as a deployment target
-2. executes the `deploy` target in the Makefile of the service directory (paths in commands are relative to the pipeline.yaml location)
-3. provides [configuration data](configuration.md) to the Makefile
-4. enables dry-run support for the Helm chart
+`make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other developer images or CI built ones. The actual deployment is delegated to the pipeline/<service-group-suffix> target in the root of the repository, providing a configuration override for `<component>.image.repository` and `<component>.image.digest` respectively.
+
+## Deployment
+
+The pipeline.yaml file in the directory contains the pipeline definition for component. It is integrated into the [topology.yaml](../topology.yaml) file and runs as part of the service deployment.
+
+The `Makefile` in the service directory is the entry point for its local deployment operations. It needs to contain a `deploy` target that handles the deployment process. The `deploy` target should be able to take in all required configuration data as environment variables.

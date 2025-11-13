@@ -8,8 +8,8 @@ For more information about ARO HCP environments, see the [ARO HCP Environments d
 
 ### Resource Naming
 
-> **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed! 
-- The customer resource group name must be unique across the subscription. Using NewResourceGroup() from the framework will provide a unique resource group name as well as handle the cleanup.  
+> **Important:** These tests are running in parallel so it is **VITAL** that we avoid naming collisions with other tests that may be running in CI at the same time. This may break CI runs until the duplicate resources are removed!
+- The customer resource group name must be unique across the subscription. Using NewResourceGroup() from the framework will provide a unique resource group name as well as handle the cleanup.
 - The managed resource group name must be unique across the subscription. If you use the provided bicep templates they will handle this by appending `-managed` suffix to the customer resource group name to create a unique managed resource group name.
 - If the test creates more than one cluster at a time, the names of the clusters must be unique.
 - Bicep deployment names must be unique within the same resource group.
@@ -27,7 +27,7 @@ See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a re
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 
 **Minimal example:**
-TODO: Minimal version 
+TODO: Minimal version
 
 #### Running per-run test cases with per-test cluster in OpenShift CI
 
@@ -162,13 +162,21 @@ Set the **SHARED_DIR** environment variable to specify a directory for sharing f
 Set the **LOCATION** environment variable to the Azure region (e.g., "uksouth") where resources should be provisioned and tests should run. This allows you to control the geographic location of your test resources.
 
 ### *Optional:* Development Environment
-To run the E2E test suite against the development environment, set the environment variable **AROHCP_ENV** to `development`. This environment requires port-forwarding to be set up before running the tests.
-After building the test binary , one could execute it using :
+
+To run the E2E tests against the [development environment](https://github.com/Azure/ARO-HCP/blob/main/docs/personal-dev.md), set the environment variable `AROHCP_ENV` to `development`. This environment requires port-forwarding to be set up before running the tests.
+
+After building the test binary, one can run `rp-api-compat-all` test suite,
+which contains all E2E test cases compatible with dev environment.
+
 ```bash
-./test/aro-hcp-tests list tests --suite "local/parallel" | jq '.[].name'
-./test/aro-hcp-tests run-suite "local/parallel"
+./test/aro-hcp-tests list tests --suite "rp-api-compat-all/parallel" | jq '.[].name'
+./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"
 ```
-Currently these are filtered using a Label containing Local , future tests would need to have them as we enforce them using CI mechanism .
+
+Currently there are only few such E2E test cases, but in the future, most (but
+not all) of the E2E tests will use ARO-HCP RP API to communicate with ARO HCP
+so that it will be possible to run them in all environments, from development
+environment to produciton.
 
 ## Guidelines for Writing E2E Test Cases
 
@@ -207,25 +215,36 @@ Node *It* is the last node and contains the test itself. To describe useful test
 In higher level nodes, **BeforeEach** and **AfterEach** functions can be used to run the same code before and after every test.
 
 ### Labels
-Labels are located in file *test/util/labels/labels.go*. 
+
+Labels are located in file [`test/util/labels/labels.go`](https://github.com/Azure/ARO-HCP/blob/main/test/util/labels/labels.go).
 
 Test case environments labels:
-- RequireNothing: This test case creates its own cluster (per-test cluster)
-- RequireHappyPath: This test case expects populated e2esetup models (per-run cluster)
+
+- `RequireNothing`: This test case creates its own cluster (per-test cluster)
+- `RequireHappyPath`: This test case expects populated e2esetup models (per-run cluster)
 
 Importance labels include four levels:
-- Critical: blockers for rollout
-- High: significant problems affecting a feature
-- Medium: less frequent scenarios
-- Low: very specific scenarios or enhancements to user experience
+
+- `Critical`: blockers for rollout
+- `High`: significant problems affecting a feature
+- `Medium`: less frequent scenarios
+- `Low`: very specific scenarios or enhancements to user experience
 
 Labels based on use cases:
-- Core-Infra-Service: use for gating a rollout of ARO-HCP components
-- Create-Cluster: applied to test cases related to cluster creation
-- Setup-Validation/Teardown-validation: used for validation test cases run before and after tests
+
+- `Core-Infra-Service`: use for gating a rollout of ARO-HCP components
+- `Create-Cluster`: applied to test cases related to cluster creation
+- `Setup-Validation`/`Teardown-validation`: used for validation test cases run before and after tests
+
+API usage and compatibility:
+
+- `ARO-HCP-RP-API-Compatible`: test cases that don't use ARM API (eg. ARM
+  templates) to communicate with ARO HCP RP, so that it can run against either
+  ARO HCP RP or ARM endpoint (it can run in dev env. as well as in prod).
 
 Positivity labels:
-- Positive/Negative: indicates positive/negative test scenarios
+
+- `Positive`/`Negative`: indicates positive/negative test scenarios
 
 ### Files structure
 Test code is organized by grouping test cases into specs within files.

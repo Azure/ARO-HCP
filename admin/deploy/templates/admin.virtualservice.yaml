@@ -1,0 +1,23 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: admin-api-vs
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  hosts:
+  - "{{ .Values.virtualService.host }}"
+  gateways:
+  - aks-istio-ingress/aro-hcp-gateway-external
+  http:
+  - match:
+    - uri:
+        regex: '.+'
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "{{ .Values.mise.policyLabel }}"
+    route:
+    - destination:
+        host: admin-api
+        port:
+          number: 8443

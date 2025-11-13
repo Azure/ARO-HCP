@@ -1,0 +1,31 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Test.Infra
+rolloutName: Test  Rollout
+resourceGroups:
+- name: global
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: test
+  resourceGroup: rg
+  subscription: foo-bar
+  steps:
+  - name: test
+    aksCluster: foo-bar
+    action: Helm
+    releaseName: testing
+    releaseNamespace: namespace
+    namespaceFiles:
+    - foo-bar.yaml
+    chartDir: ./deploy
+    valuesFile: ./values-testing-foo.yaml
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId

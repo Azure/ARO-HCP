@@ -1,4 +1,4 @@
--include ../setup-env.mk
+-include setup-env.mk
 
 export OP_CLUSTER_API_AZURE_ROLE_NAME
 export OP_CONTROL_PLANE_ROLE_NAME
@@ -42,7 +42,7 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	../hack/helm.sh cluster-service deploy ${NAMESPACE} \
+	./hack/helm.sh cluster-service deploy ${NAMESPACE} \
 	  -f deploy/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
@@ -59,6 +59,7 @@ deploy:
 	  --set imageRegistry=${ACR_NAME}.azurecr.io \
 	  --set imageRepository=${IMAGE_REPO} \
 	  --set imageDigest=${IMAGE_DIGEST} \
+	  --set global.imageDigest=${IMAGE_DIGEST} \
 	  --set azureFirstPartyApplicationClientId=${AZURE_FIRST_PARTY_APPLICATION_CLIENT_ID} \
 	  --set batchProcessesDryRun=${CS_BATCH_PROCESSES_DRY_RUN} \
 	  --set batchProcesses="${CS_BATCH_PROCESSES}" \
@@ -92,7 +93,9 @@ deploy:
 	  --set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
-	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME}
+	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
+	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT} \
+	  --set deployDebugJob=${DEPLOY_DEBUG_JOB}
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -159,6 +162,7 @@ local-aro-hcp-ocp-versions-config:
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
+	--set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config
 

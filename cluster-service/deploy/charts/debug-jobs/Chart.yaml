@@ -1,0 +1,5 @@
+apiVersion: v2
+name: debug-jobs
+description: A Helm chart for debug jobs
+type: application
+version: 0.1.0

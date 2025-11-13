@@ -1,7 +1,0 @@
-values: ../values.yaml
-name: hypershiftoperator-dev
-namespace: hypershift
-helmChartDir: ../deploy
-testData:
-  hypershift:
-    additionalInstallArg: --foo=bar

@@ -21,3 +21,4 @@ param enableLogAnalytics = {{ .logs.loganalytics.enable }}
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
+param grafanaPrincipalId = '__grafanaPrincipalId__'

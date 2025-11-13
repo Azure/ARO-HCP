@@ -18,14 +18,14 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/topology"
 	"github.com/Azure/ARO-Tools/pkg/types"
 )
 
 func LoadPipelines(
 	root *topology.Service, topologyDir string, pipelines map[string]*types.Pipeline,
-	cfg config.Configuration,
+	cfg configtypes.Configuration,
 ) error {
 	pipelineConfigFilePath := filepath.Join(topologyDir, root.PipelinePath)
 	pipe, err := types.NewPipelineFromFile(pipelineConfigFilePath, cfg)

@@ -31,7 +31,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
-	"github.com/Azure/ARO-Tools/pkg/config"
+	configtypes "github.com/Azure/ARO-Tools/pkg/config/types"
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/ARO-Tools/pkg/registration"
 	"github.com/Azure/ARO-Tools/pkg/secret-sync/populate"
@@ -302,7 +302,7 @@ func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string)
 	}, nil
 }
 
-func mapStepVariables(serviceGroup string, vars []types.Variable, cfg config.Configuration, inputs Outputs) (map[string]string, error) {
+func mapStepVariables(serviceGroup string, vars []types.Variable, cfg configtypes.Configuration, inputs Outputs) (map[string]string, error) {
 	values, err := getInputValues(serviceGroup, vars, cfg, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input values: %w", err)

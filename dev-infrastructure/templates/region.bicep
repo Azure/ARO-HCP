@@ -36,6 +36,9 @@ param enableLogAnalytics bool
 @description('Grafana resource ID')
 param grafanaResourceId string
 
+@description('Grafana managed identity principal ID')
+param grafanaPrincipalId string
+
 @description('Name of the Azure Monitor Workspace for services')
 param svcMonitorName string
 
@@ -153,5 +156,17 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     grafanaResourceId: grafanaResourceId
     monitorName: hcpMonitorName
     purpose: 'hcps'
+  }
+}
+
+// Grant Grafana permissions to query Log Analytics workspace
+// This enables Grafana to visualize AFD logs and metrics from Log Analytics
+module grafanaObservabilityPermissions '../modules/grafana/observability-permissions.bicep' = if (enableLogAnalytics) {
+  name: 'grafana-observability-permissions'
+  params: {
+    grafanaPrincipalId: grafanaPrincipalId
+    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalyticsWorkspace.id : ''
+    // AFD permissions will be granted in svc-cluster.bicep where AFD resource ID is available
+    frontDoorProfileId: ''
   }
 }
