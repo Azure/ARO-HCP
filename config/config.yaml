@@ -1410,8 +1410,6 @@ clouds:
                 maxCount: 6
                 osDiskSizeGB: 100
                 vmSize: Standard_D4s_v3
-              infraAgentPool:
-                vmSize: Standard_D4ds_v5
             jaeger:
               deploy: false
             applyKubeletFixes: false
@@ -1420,7 +1418,5 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
-              infraAgentPool:
-                vmSize: Standard_D4ds_v5
             jaeger:
               deploy: true
