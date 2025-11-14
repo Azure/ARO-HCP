@@ -79,15 +79,6 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
-  retention: 6h
-  retentionSize: 45GiB
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 2
-      memory: "6Gi"
 prometheus:
   prometheusSpec:
     shards: {{ .svc.prometheus.prometheusSpec.shards }}
