@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -296,9 +297,27 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			_, err = dynamicClient.Resource(nfdGVR).Namespace(nfdNamespace).Create(ctx, nfdCR, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for pods to be created and verify images from registry.redhat.io can be pulled")
+			By("waiting for NFD worker DaemonSet to be created")
 			Eventually(func() error {
-				return verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "").Verify(ctx, adminRESTConfig)
-			}, 300*time.Second, 15*time.Second).Should(Succeed(), "Images from registry.redhat.io should be pulled successfully with the added pull secret")
+				daemonSets, err := kubeClient.AppsV1().DaemonSets(nfdNamespace).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					return err
+				}
+				for _, ds := range daemonSets.Items {
+					if ds.Name == "nfd-worker" {
+						if ds.Status.DesiredNumberScheduled > 0 && ds.Status.NumberReady > 0 {
+							return nil
+						}
+						return fmt.Errorf("nfd-worker DaemonSet found but not ready: desired=%d, ready=%d",
+							ds.Status.DesiredNumberScheduled, ds.Status.NumberReady)
+					}
+				}
+				return fmt.Errorf("nfd-worker DaemonSet not found")
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
+
+			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
+			Eventually(func() error {
+				return verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery").Verify(ctx, adminRESTConfig)
+			}, 300*time.Second, 15*time.Second).Should(Succeed(), "NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })
