@@ -50,6 +50,23 @@ Once invited, you will typically receive **Contributor** access to:
 - **ARO HCP E2E - Staging** (Subscription ID: `99399281-00a2-4b39-bb3d-b2645bbbdb93`)
 - **ARO HCP E2E** (Subscription ID: `403d9de9-132b-4974-94a5-5b78bdfa191e`)
 
+### 3. Accepting the Invitation
+
+**Important**: The initial invitation acceptance may require specific network access:
+
+- **Option 1: SAW (Secure Admin Workstation)** - Recommended for initial invitation acceptance
+  - Open the invitation link in your SAW device by logging in with your b-account
+  - Set up multi-factor authentication (MFA) for this tenant in the Microsoft Authenticator app on your phone
+  - This ensures proper authentication through Microsoft's secure channels
+
+- **Option 2: VPN Connection**
+  - You may also be able to accept this invitation by connecting to the MSFT VPN, but if this fails please use your SAW instead
+
+**Note**: After the initial invitation is accepted (typically via SAW), subsequent access from your local development machine may work without VPN. However, this varies by user configuration and network setup. If you encounter authentication issues, try:
+1. Connecting to VPN
+2. Using SAW for the operation
+3. Contacting the Service Lifecycle team for assistance
+
 ### 4. Verify Access
 
 Once approved, verify your access:
