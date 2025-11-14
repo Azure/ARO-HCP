@@ -77,6 +77,23 @@ record-nonlocal-e2e:
 		jq '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
+e2e/local: e2e-local/setup
+	$(MAKE) e2e-local/run
+.PHONY: e2e/local
+
+e2e-local/setup:
+	source test/e2e_local_env_vars && cd demo && ./01-register-sub.sh
+.PHONY: e2e-local/setup
+
+e2e-local/run:
+	source test/e2e_local_env_vars && $(MAKE) -C test
+	source test/e2e_local_env_vars && if [ "$(DEPLOY_ENV)" = "prow" ]; then \
+		./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel" --junit-path="$${ARTIFACT_DIR}/junit.xml"; \
+	else \
+		./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"; \
+	fi
+.PHONY: e2e-local/run
+
 mega-lint:
 	docker run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
