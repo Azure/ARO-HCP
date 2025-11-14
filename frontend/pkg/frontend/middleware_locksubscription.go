@@ -56,7 +56,8 @@ func (h *middlewareLockSubscription) handleRequest(w http.ResponseWriter, r *htt
 				message += "timed out"
 				lockClient.SetRetryAfterHeader(w.Header())
 				arm.WriteError(
-					w, http.StatusConflict, arm.CloudErrorCodeConflict,
+					w, http.StatusServiceUnavailable,
+					arm.CloudErrorCodeLockContention,
 					"/subscriptions/"+subscriptionID, "%s", message)
 			} else {
 				message += err.Error()
