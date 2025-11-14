@@ -918,9 +918,9 @@
     "clustersService": {
       "type": "object",
       "properties": {
-        "deployDebugJob": {
+        "deployDebugJobs": {
           "type": "boolean",
-          "description": "If true, a debug job will be deployed to the cluster. This job will be used to debug the CS service."
+          "description": "If true, debug jobs will be deployed to the cluster. The jobs will be used to debug the CS service."
         },
         "environment": {
           "type": "string",

@@ -649,8 +649,8 @@ defaults:
     # batch processes
     batchProcessesDryRun: true
     batchProcesses: ""
-    # controls if a debug job is deployed to the cluster.
-    deployDebugJob: false
+    # controls if debug jobs are deployed to the cluster.
+    deployDebugJobs: false
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""

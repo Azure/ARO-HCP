@@ -180,8 +180,50 @@ resourceGroups:
       configRef: clustersService.azureRuntimeConfig.tlsCertificatesIssuer
     - name: AVAILABILITY_ZONE_COUNT
       configRef: azureRegionAvailabilityZoneCount
-    - name: DEPLOY_DEBUG_JOB
-      configRef: clustersService.deployDebugJob
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: deploy-cs-debug-jobs
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Shell
+    command: make deploy-cs-debug-jobs
+    workingDir: ./
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
+    dependsOn:
+    - resourceGroup: service
+      step: deploy
+    variables:
+    - name: REGION
+      configRef: region
+    - name: RESOURCEGROUP
+      configRef: svc.rg
+    - name: AKS_NAME
+      configRef: svc.aks.name
+    - name: SERVICE_KV
+      configRef: serviceKeyVault.name
+    - name: IMAGE_REPO
+      configRef: clustersService.image.repository
+    - name: IMAGE_DIGEST
+      configRef: clustersService.image.digest
+    - name: REPLICAS
+      configRef: clustersService.k8s.replicas
+    - name: ENVIRONMENT
+      configRef: clustersService.environment
+    - name: REGIONAL_RESOURCEGROUP
+      configRef: regionRG
+    - name: MGMT_RESOURCEGROUP
+      configRef: mgmt.rg
+    - name: MGMT_AKS_NAME
+      configRef: mgmt.aks.name
+    - name: NAMESPACE
+      configRef: clustersService.k8s.namespace
+    - name: DEPLOY_DEBUG_JOBS
+      configRef: clustersService.deployDebugJobs
     shellIdentity:
       input:
         resourceGroup: global
