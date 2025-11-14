@@ -52,7 +52,7 @@ metadata:
   name: package-operator-bootstrap
   namespace: 'package-operator-system'
 spec:
-  # delete 90seconds after completion, so helm can finish succesfully
+  # delete 90seconds after completion, so helm can finish successfully
   ttlSecondsAfterFinished: 90
   # set deadline to 30min
   activeDeadlineSeconds: 1800

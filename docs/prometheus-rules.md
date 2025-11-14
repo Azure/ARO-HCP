@@ -96,7 +96,7 @@ az monitor action-group test-notifications create \
    --alert-type budget
 ```
 
-Reponse:
+Response:
 
 ```json
 {

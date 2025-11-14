@@ -211,7 +211,7 @@ func Convert(in RegistryV1, installNamespace string, targetNamespaces []string) 
 	}
 
 	if len(in.CSV.Spec.APIServiceDefinitions.Owned) > 0 {
-		return nil, fmt.Errorf("apiServiceDefintions are not supported")
+		return nil, fmt.Errorf("apiServiceDefinitions are not supported")
 	}
 
 	if len(in.CSV.Spec.WebhookDefinitions) > 0 {

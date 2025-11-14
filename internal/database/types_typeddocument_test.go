@@ -42,7 +42,7 @@ func TestTypedDocumentMarshal(t *testing.T) {
 		err      string
 	}{
 		{
-			name: "sucessful marshal",
+			name: "successful marshal",
 			typedDoc: &TypedDocument{
 				ResourceType: testResourceType,
 			},
