@@ -29,9 +29,17 @@ var grafanaRolesArray = [
   }
 ]
 
-resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' = {
+resource grafana 'Microsoft.Dashboard/grafana@2025-08-01' = {
   name: grafanaName
   location: location
+  tags: {
+    // To enable AMG cross-tenant login, you can add a tag to the AMG resource in the Secure tenant.
+    // Name: AMG.CrossTenant.SecurityGroup
+    // Value: GroupObjectId;TenantId (eg.31e30f0f-d56f-422b-816a-24fb8fb11fe8;72f988bf-86f1-41af-91ab-2d7cd011db47)
+    // The tag references a security group in CORP tenant which can access the AMG in the secure tenant. The GroupObjectId is the object id of a security group in the CORP tenant. The TenantId is CORP tenant id. For each AMG instance, only one security group is supported for cross-tenant access.
+    // The user which is member of the cross-tenant security group is able to access the AMG in the secure tenant, user is assigned with Grafana Viewer role when accessing AMG from a different tenant.
+    'AMG.CrossTenant.SecurityGroup': '2fdb57d4-3fd3-415d-b604-1d0e37a188fe;72f988bf-86f1-41af-91ab-2d7cd011db47'
+  }
   sku: {
     name: 'Standard'
   }
