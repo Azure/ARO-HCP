@@ -21,17 +21,11 @@ import (
 
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
-	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*ImageInfo, error)
+	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error)
 }
 
 type Tag struct {
 	Name         string
 	Digest       string
 	LastModified time.Time
-}
-
-// ImageInfo holds the digest and tag information for an image
-type ImageInfo struct {
-	Digest string
-	Tag    string
 }

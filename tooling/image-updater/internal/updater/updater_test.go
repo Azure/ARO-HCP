@@ -34,7 +34,7 @@ type mockRegistryClient struct {
 	err    error
 }
 
-func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*clients.ImageInfo, error) {
+func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*clients.Tag, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -42,7 +42,7 @@ func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, reposito
 	if arch != DefaultArchitecture && arch != "" {
 		return nil, fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
 	}
-	return &clients.ImageInfo{Digest: m.digest, Tag: m.tag}, nil
+	return &clients.Tag{Digest: m.digest, Name: m.tag}, nil
 }
 
 func TestUpdater_UpdateImages(t *testing.T) {
@@ -403,7 +403,7 @@ image:
 				Updates:         make(map[string][]yaml.Update),
 			}
 
-			err := u.ProcessImageUpdates(ctx, "test-image", &clients.ImageInfo{Digest: "sha256:newdigest", Tag: "v1.0.0"}, tt.target)
+			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -619,7 +619,7 @@ image:
 			}
 
 			// Process update
-			err = u.ProcessImageUpdates(ctx, "test-image", &clients.ImageInfo{Digest: tt.latestDigest, Tag: "v1.0.0"}, target)
+			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}

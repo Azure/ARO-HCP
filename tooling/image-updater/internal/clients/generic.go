@@ -79,7 +79,7 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 	return allTags, nil
 }
 
-func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*ImageInfo, error) {
+func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	allTags, err := c.getAllTags(repository)
@@ -134,7 +134,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		// If multiArch is requested, return the multi-arch manifest list digest
 		if multiArch && desc.MediaType.IsIndex() {
 			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
-			return &ImageInfo{Digest: desc.Digest.String(), Tag: tag.Name}, nil
+			tag.Digest = desc.Digest.String()
+			return &tag, nil
 		}
 
 		if desc.MediaType.IsIndex() {
@@ -162,7 +163,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 				logger.Error(err, "failed to get image digest", "tag", tag.Name)
 				continue
 			}
-			return &ImageInfo{Digest: digest.String(), Tag: tag.Name}, nil
+			tag.Digest = digest.String()
+			return &tag, nil
 		}
 
 		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)

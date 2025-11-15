@@ -89,7 +89,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 }
 
 // fetchLatestDigest retrieves the latest digest from the appropriate registry
-func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (*clients.ImageInfo, error) {
+func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (*clients.Tag, error) {
 	registry, repository, err := source.ParseImageReference()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
@@ -109,10 +109,10 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 }
 
 // ProcessImageUpdates sets up the updates needed for a specific image and target
-func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, imageInfo *clients.ImageInfo, target config.Target) error {
+func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	logger.Info("Processing image", "name", name, "latestDigest", imageInfo.Digest, "tag", imageInfo.Tag)
+	logger.Info("Processing image", "name", name, "latestDigest", tag.Digest, "tag", tag.Name)
 
 	editor, exists := u.YAMLEditors[target.FilePath]
 	if !exists {
@@ -128,9 +128,9 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, imageInf
 
 	// If the target path ends with .sha, we need to strip the sha256: prefix
 	// from the digest since sha fields only contain the hash value
-	newDigest := imageInfo.Digest
+	newDigest := tag.Digest
 	if strings.HasSuffix(target.JsonPath, ".sha") {
-		newDigest = strings.TrimPrefix(imageInfo.Digest, "sha256:")
+		newDigest = strings.TrimPrefix(tag.Digest, "sha256:")
 	}
 
 	if currentDigest == newDigest && !u.ForceUpdate {
@@ -152,7 +152,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, imageInf
 			"line", line,
 			"from", currentDigest,
 			"to", newDigest,
-			"tag", imageInfo.Tag)
+			"tag", tag.Name)
 		return nil
 	}
 
@@ -160,7 +160,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, imageInf
 		Name:      name,
 		NewDigest: newDigest,
 		OldDigest: currentDigest,
-		Tag:       imageInfo.Tag,
+		Tag:       tag.Name,
 		JsonPath:  target.JsonPath,
 		FilePath:  target.FilePath,
 		Line:      line,
