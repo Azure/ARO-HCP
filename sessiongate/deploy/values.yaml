@@ -1,0 +1,10 @@
+namespace: sessiongate
+image: registry/image:tag
+replicas: 1
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  name: sessiongate
+  workloadIdentityClientId: ""
+  workloadIdentityTenantId: ""

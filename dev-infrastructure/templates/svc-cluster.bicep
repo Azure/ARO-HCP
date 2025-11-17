@@ -397,6 +397,15 @@ param adminApiIngressCertName string
 @description('The issuer of the Admin API certificate')
 param adminApiIngressCertIssuer string
 
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
+@description('The namespace of the Session Gate managed identity')
+param sessiongateNamespace string
+
+@description('The service account name of the Session Gate managed identity')
+param sessiongateServiceAccountName string
+
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
@@ -466,6 +475,11 @@ var workloadIdentities = items({
     uamiName: adminApiMIName
     namespace: adminApiNamespace
     serviceAccountName: adminApiServiceAccountName
+  }
+  sessiongate_wi: {
+    uamiName: sessiongateMIName
+    namespace: sessiongateNamespace
+    serviceAccountName: sessiongateServiceAccountName
   }
 })
 

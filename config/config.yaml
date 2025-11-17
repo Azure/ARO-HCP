@@ -174,7 +174,7 @@ defaults:
         tagValue: geneva-actions
       certificate:
         name: genevaAction
-        issuer: OneCertV2-PrivateCA
+        issuer: OneCertV2-PublicCA
         manage: true
       allowedAcisExtensions: "AzureRedHatHypershiftExtension,Azure Red Hat Hypershift"
       genevaActionsPrincipalId: ""
@@ -469,6 +469,17 @@ defaults:
       serviceAccountName: admin-api
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+  # Session Gate
+  sessiongate:
+    image:
+      registry: arohcpsvcdev.azurecr.io
+      repository: test-goberlec-sessiongate
+      digest: ""
+    managedIdentityName: sessiongate
+    k8s:
+      replicas: 1
+      namespace: sessiongate
+      serviceAccountName: sessiongate
   # Frontend
   frontend:
     audit:

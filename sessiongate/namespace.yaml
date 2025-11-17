@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "{{ .sessiongate.k8s.namespace }}"
+  labels:
+    "istio.io/rev": "{{ .svc.istio.tag }}"

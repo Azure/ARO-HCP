@@ -1,0 +1,10 @@
+namespace: "{{ .sessiongate.k8s.namespace }}"
+image: "{{ .acr.svc.name }}.azurecr.io/{{ .sessiongate.image.repository }}:latest"
+replicas: "{{ .sessiongate.k8s.replicas }}"
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  name: "{{ .sessiongate.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__sessiongateMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
