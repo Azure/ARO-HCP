@@ -16,6 +16,7 @@ package bicep
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -154,16 +155,77 @@ type buildParamsParams struct {
 }
 
 type buildParamsResult struct {
-	Success    bool   `json:"success"`
-	Template   string `json:"template"`
-	Parameters string `json:"parameters"`
+	Success     bool         `json:"success"`
+	Template    string       `json:"template"`
+	Parameters  string       `json:"parameters"`
+	Diagnostics []diagnostic `json:"diagnostics"`
+}
+
+type diagnostic struct {
+	Source  string      `json:"source,omitempty"`
+	Range   sourceRange `json:"range,omitempty"`
+	Level   string      `json:"level,omitempty"`
+	Code    string      `json:"code,omitempty"`
+	Message string      `json:"message,omitempty"`
+}
+
+func (d diagnostic) String() string {
+	return fmt.Sprintf("%s: %s: %s (%s): %s", d.Level, d.Code, d.Source, d.Range.String(), d.Message)
+}
+
+type sourceRange struct {
+	Start *sourcePosition `json:"start,omitempty"`
+	End   *sourcePosition `json:"end,omitempty"`
+}
+
+func (s sourceRange) String() string {
+	if s.Start == nil && s.End == nil {
+		return ""
+	}
+	msg := s.Start.String()
+	if s.End != nil {
+		msg += "-" + s.End.String()
+	}
+	return msg
+}
+
+type sourcePosition struct {
+	Line int `json:"line,omitempty"`
+	Char int `json:"char,omitempty"`
+}
+
+func (s sourcePosition) String() string {
+	return fmt.Sprintf("L%d:%d", s.Line, s.Char)
 }
 
 // BuildParams builds a .bicepparam file at `path` into an ARM template and parameters content.
 func (c *LSPClient) BuildParams(ctx context.Context, path string) (string, string, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to determine logger from context: %w", err)
+	}
+
 	result := &buildParamsResult{}
 	if err := protocol.Call(ctx, c.conn, "bicep/compileParams", buildParamsParams{Path: path, ParameterOverrides: make(map[string]any)}, result); err != nil {
 		return "", "", fmt.Errorf("failed to call bicep/buildParams: %w", err)
+	}
+	if !result.Success {
+		var errs int
+		for _, d := range result.Diagnostics {
+			diagLogger := logger.WithValues(
+				"source", d.Source,
+				"level", d.Level,
+				"range", d.Range.String(),
+				"code", d.Code,
+			)
+			if d.Level == "Error" {
+				diagLogger.Error(errors.New(d.Message), "invalid .bicepparam")
+				errs++
+			}
+			diagLogger.Info(d.Message)
+		}
+
+		return "", "", fmt.Errorf("failed to compile bicepparam: %d errors", errs)
 	}
 	return result.Template, result.Parameters, nil
 }
