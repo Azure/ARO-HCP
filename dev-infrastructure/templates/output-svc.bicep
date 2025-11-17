@@ -7,6 +7,9 @@ param msiRefresherMIName string
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
 
+@description('The name of the Session Gate managed identity')
+param sessiongateMIName string
+
 // CS MI resource ID
 resource csMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: csMIName
@@ -27,5 +30,12 @@ resource adminApiMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
 }
 
 output adminApi string = adminApiMSI.id
+
+// Session Gate MI resource ID
+resource sessiongateMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: sessiongateMIName
+}
+
+output sessiongate string = sessiongateMSI.id
 
 output subscriptionId string = subscription().id
