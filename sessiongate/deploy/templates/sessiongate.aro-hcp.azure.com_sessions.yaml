@@ -1,0 +1,226 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sessions.sessiongate.aro-hcp.azure.com
+spec:
+  group: sessiongate.aro-hcp.azure.com
+  names:
+    kind: Session
+    listKind: SessionList
+    plural: sessions
+    singular: session
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    additionalPrinterColumns:
+    - name: Endpoint
+      type: string
+      jsonPath: .status.endpoint
+    - name: Expires
+      type: string
+      format: date-time
+      jsonPath: .status.expiresAt
+    schema:
+      openAPIV3Schema:
+        description: Session is the Schema for the sessions API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of Session
+            properties:
+              accessLevel:
+                description: accessLevel defines the access permissions for the session
+                properties:
+                  group:
+                    description: group is the name of the access group
+                    type: string
+                required:
+                - group
+                type: object
+              hostedControlPlane:
+                description: hostedControlPlane specifies the hosted control plane
+                properties:
+                  resourceId:
+                    description: resourceId is the Azure resource ID of the hosted control plane
+                    type: string
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/Microsoft\.RedHatOpenshift/hcpOpenShiftClusters/[^/]+$'
+                  namespace:
+                    description: namespace of the HostedControlPlane CR
+                    type: string
+                required:
+                - resourceId
+                - namespace
+                type: object
+              managementCluster:
+                description: managementCluster specifies the AKS management cluster
+                properties:
+                  resourceId:
+                    description: resourceId is the Azure resource ID of the management cluster
+                    type: string
+                    pattern: '^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/Microsoft\.ContainerService/managedClusters/[^/]+$'
+                required:
+                - resourceId
+                type: object
+              ttl:
+                description: ttl is the time-to-live duration for the session
+                type: string
+              owner:
+                description: owner identifies the principal (user or service account) that owns this session
+                properties:
+                  type:
+                    description: type specifies the authentication method
+                    enum:
+                    - User
+                    type: string
+                  userPrincipal:
+                    description: userPrincipal identifies the user principal
+                    properties:
+                      claim:
+                        default: upn
+                        description: |-
+                          claim specifies which JWT claim to use for authentication (e.g., "upn", "email", "sub", "preferred_username").
+                          Must be a top-level claim name. Nested claims are not currently supported.
+                          Note: While dots are valid in JWT claim names and Istio treats them literally (not as path separators),
+                          we restrict the pattern to alphanumeric, underscore, hyphen, and slash for safety and simplicity.
+                          To access nested claims in the future, Istio requires bracket notation like [parent][child].
+                        type: string
+                        pattern: ^[a-zA-Z0-9_/-]+$
+                        minLength: 1
+                        maxLength: 256
+                      name:
+                        description: name is the user principal name (e.g., UPN for Azure AD like user@domain.com)
+                        type: string
+                    required:
+                    - claim
+                    - name
+                    type: object
+                required:
+                - type
+                type: object
+                x-kubernetes-validations:
+                - rule: "self.type == 'User' ? has(self.userPrincipal) : true"
+                  message: "userPrincipal must be set when type is User"
+            required:
+            - accessLevel
+            - hostedControlPlane
+            - managementCluster
+            - owner
+            - ttl
+            type: object
+            x-kubernetes-validations:
+            - rule: "self == oldSelf"
+              message: "spec is immutable"
+          status:
+            description: status defines the observed state of Session
+            properties:
+              conditions:
+                description: |-
+                  conditions represent the current state of the Session resource.
+                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
+
+                  Standard condition types include:
+                  - "Available": the resource is fully functional
+                  - "Progressing": the resource is being created or updated
+                  - "Degraded": the resource failed to reach or maintain its desired state
+                  - "Credentials": credentials are being provisioned or ready
+
+                  The status of each condition is one of True, False, or Unknown.
+                items:
+                  description: Condition contains details for one aspect of the current state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              endpoint:
+                description: endpoint is the URL endpoint for accessing the session
+                type: string
+              expiresAt:
+                description: expiresAt is the timestamp when the session will expire
+                format: date-time
+                type: string
+              credentialsSecretRef:
+                description: credentialsSecretRef references the Secret containing the session credentials (private key and certificate)
+                type: string
+              backendKASURL:
+                description: backendKASURL is the Kubernetes API server URL for the backend cluster
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - rule: "self.metadata.name.size() <= 63"
+          message: "session name must be 63 characters or less"
+        - rule: "self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')"
+          message: "session name must be a valid DNS label (lowercase alphanumeric with hyphens)"
+    served: true
+    storage: true
+    subresources:
+      status: {}

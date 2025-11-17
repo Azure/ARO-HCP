@@ -263,7 +263,7 @@ spec:
   http:
   - match:
     - uri:
-        regex: '.+'
+        prefix: /admin/
     headers:
       request:
         add:
@@ -273,4 +273,16 @@ spec:
         host: admin-api
         port:
           number: 8443
+  - match:
+    - uri:
+        prefix: /sessiongate/
+    headers:
+      request:
+        add:
+          mise-inbound-policies-to-filter: "Session Gate"
+    route:
+    - destination:
+        host: sessiongate.sessiongate.svc.cluster.local
+        port:
+          number: 8080
 

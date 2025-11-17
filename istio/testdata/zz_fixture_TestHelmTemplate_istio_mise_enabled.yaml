@@ -106,6 +106,14 @@ spec:
           value: 'https://management.azure.com'
         - name: AzureAd__InboundPolicies__1__ValidApplicationIds__0
           value: "__genevaActionsAppId__"
+        - name: AzureAd__InboundPolicies__2__Label
+          value: "Session Gate"
+        - name: AzureAd__InboundPolicies__2__Authority
+          value: "https://sts.windows.net/__tenantId__"
+        - name: AzureAd__InboundPolicies__2__AuthenticationSchemes__0
+          value: "Bearer"
+        - name: AzureAd__InboundPolicies__2__ValidAudiences__0
+          value: '6dae42f8-4368-4678-94ff-3960e28e3630'
         - name: AllowedHosts
           value: "*"
         - name: Kestrel__Endpoints__Http__Url

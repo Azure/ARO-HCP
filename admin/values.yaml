@@ -47,3 +47,7 @@ fpa:
   keyVaultName: "{{ .serviceKeyVault.name }}"
   certName: "{{ .firstPartyAppCertificate.name }}"
   clientId: "{{ .firstPartyAppClientId }}"
+sessiongate:
+  namespace: "{{ .sessiongate.k8s.namespace }}"
+  mise:
+    policyLabel: "{{ .mise.sessiongate.policyLabel }}"

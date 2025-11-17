@@ -38,6 +38,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.AdminAPI
         pipelinePath: admin/pipeline.yaml
         purpose: Deploy the Admin API.
+      - serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+        pipelinePath: sessiongate/pipeline.yaml
+        purpose: Deploy the Session Gate.
       pipelinePath: dev-infrastructure/svc-pipeline.yaml
       purpose: Deploy the service cluster and supporting infrastructure.
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
