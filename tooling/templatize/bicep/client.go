@@ -16,6 +16,7 @@ package bicep
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -134,29 +135,23 @@ type LSPClient struct {
 	conn jsonrpc2.Conn
 }
 
-type versionParams struct{}
-
-type versionResult struct {
-	Version string `json:"version"`
-}
-
-func (c *LSPClient) Version(ctx context.Context) (string, error) {
-	result := &versionResult{}
-	if err := protocol.Call(ctx, c.conn, "bicep/version", versionParams{}, result); err != nil {
-		return "", fmt.Errorf("failed to call bicep/version: %w", err)
-	}
-	return result.Version, nil
-}
-
 type buildParamsParams struct {
 	Path               string         `json:"path"`
 	ParameterOverrides map[string]any `json:"parameterOverrides"`
 }
 
 type buildParamsResult struct {
-	Success    bool   `json:"success"`
-	Template   string `json:"template"`
-	Parameters string `json:"parameters"`
+	Success     bool                    `json:"success"`
+	Template    string                  `json:"template"`
+	Parameters  string                  `json:"parameters"`
+	Diagnostics []buildParamsDiagnostic `json:"diagnostics"`
+}
+
+type buildParamsDiagnostic struct {
+	Source  string `json:"source"`
+	Level   string `json:"level"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // BuildParams builds a .bicepparam file at `path` into an ARM template and parameters content.
@@ -165,22 +160,12 @@ func (c *LSPClient) BuildParams(ctx context.Context, path string) (string, strin
 	if err := protocol.Call(ctx, c.conn, "bicep/compileParams", buildParamsParams{Path: path, ParameterOverrides: make(map[string]any)}, result); err != nil {
 		return "", "", fmt.Errorf("failed to call bicep/buildParams: %w", err)
 	}
-	return result.Template, result.Parameters, nil
-}
-
-type getFileReferencesParams struct {
-	Path string `json:"path"`
-}
-
-type getFileReferencesResult struct {
-	Paths []string `json:"filePaths"`
-}
-
-// GetFileReferences determines all the .bicep files referenced by the entrypoint path.
-func (c *LSPClient) GetFileReferences(ctx context.Context, path string) ([]string, error) {
-	result := &getFileReferencesResult{}
-	if err := protocol.Call(ctx, c.conn, "bicep/getFileReferences", getFileReferencesParams{Path: path}, result); err != nil {
-		return nil, fmt.Errorf("failed to call bicep/getFileReferences: %w", err)
+	if !result.Success {
+		err := fmt.Errorf("failed to build params")
+		for _, diagnostic := range result.Diagnostics {
+			err = errors.Join(err, fmt.Errorf("source: '%s', level: '%s', code: '%s', message: '%s'", diagnostic.Source, diagnostic.Level, diagnostic.Code, diagnostic.Message))
+		}
+		return "", "", err
 	}
-	return result.Paths, nil
+	return result.Template, result.Parameters, nil
 }
