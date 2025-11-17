@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:91917c6a0983595ea4a2a68e9e3bb79a275fe35b34643885bd9f1506644340af
+      digest: sha256:36af83cb58a10b3211b9be5dace5f1b29c1d325407551d8698ca58bd2dcf13e1
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:e59d3827a2b2895dd2aad000f8b1f7d47f3697d7f3c14b7ce66f9fc1a8d2a497
+      digest: sha256:4286f5fcbc4bcfd1daf0fe1fd477ab9b92b1338a1ed4a0cf0f3b3fd446a76176
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -65,7 +65,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
+    digest: sha256:9bd40eff54aa7cb1fc2ae4e801079c4cbf8b7eca14fd9b4751fbbf0ad0b45a92
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -203,7 +203,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
+    digest: sha256:1336063c1cb99368853f14d41ed88be00e031bcabd1991437f0c9bc1ce1a1552
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -328,7 +328,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:1d3de0410e7d8b4e016383d110e9bc576cd365b9a21bb80398c87615b4c71e28
+    digest: sha256:d3c7f6cc6a934021395509c337b5bf649579bd0a0db2de3db7e3514fa8859f88
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
