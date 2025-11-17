@@ -58,10 +58,10 @@ func GenerateBreakGlassCredentialHREF(clusterPath string, credentialName string)
 
 type InternalID = api.InternalID
 
-// GetClusterClient returns a v1 ClusterClient from the InternalID.
+// getClusterClient returns a v1 ClusterClient from the InternalID.
 // This works for both cluster and node pool resources. The transport
 // is most likely to be a Connection object from the SDK.
-func GetClusterClient(id InternalID, transport http.RoundTripper) (*cmv1.ClusterClient, bool) {
+func getClusterClient(id InternalID, transport http.RoundTripper) (*cmv1.ClusterClient, bool) {
 	switch matchClusterPath(id.Path()) {
 	case v1ClusterPattern:
 		return cmv1.NewClusterClient(transport, id.Path()), true
@@ -77,8 +77,8 @@ func GetClusterClient(id InternalID, transport http.RoundTripper) (*cmv1.Cluster
 	}
 }
 
-// GetAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
-func GetAroHCPClusterClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
+// getAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
+func getAroHCPClusterClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
 	switch matchClusterPath(id.Path()) {
 	case v1ClusterPattern:
 		// support clusters received via cluster APIs

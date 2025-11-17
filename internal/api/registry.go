@@ -16,6 +16,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,10 +49,10 @@ func init() {
 				return a.UTC().Equal(b.UTC())
 			},
 			func(a, b azcorearm.ResourceID) bool {
-				return a.String() == b.String()
+				return strings.EqualFold(a.String(), b.String())
 			},
 			func(a, b azcorearm.ResourceType) bool {
-				return a.String() == b.String()
+				return strings.EqualFold(a.String(), b.String())
 			},
 			func(a, b InternalID) bool {
 				return a.String() == b.String()

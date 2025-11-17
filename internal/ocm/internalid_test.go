@@ -108,9 +108,9 @@ func TestInternalID(t *testing.T) {
 			}
 
 			transport := &FakeTransport{}
-			_, ok := GetClusterClient(internalID, transport)
+			_, ok := getClusterClient(internalID, transport)
 			assert.NotEqual(t, tt.expectErr, ok)
-			_, ok = GetAroHCPClusterClient(internalID, transport)
+			_, ok = getAroHCPClusterClient(internalID, transport)
 			assert.NotEqual(t, tt.expectErr, ok)
 
 			if tt.expectErr {
