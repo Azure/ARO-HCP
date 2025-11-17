@@ -71,13 +71,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
+              digest: sha256:1336063c1cb99368853f14d41ed88be00e031bcabd1991437f0c9bc1ce1a1552
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
+              digest: sha256:9bd40eff54aa7cb1fc2ae4e801079c4cbf8b7eca14fd9b4751fbbf0ad0b45a92
           # Admin API
           adminApi:
             image:
@@ -85,7 +85,7 @@ clouds:
           # Hypershift
           hypershift:
             image:
-              digest: sha256:dc4560440d9e21a8461173fc8e9773f0ac1aa5f4f58226f1a0005ff8b6e41597
+              digest: sha256:39818ad9a097f4b38a814c524c6cb30a517c5e14fc4e13c34df0f566e25b0456
           # Maestro
           maestro:
             image:
