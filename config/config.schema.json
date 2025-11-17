@@ -788,6 +788,9 @@
     }
   },
   "properties": {
+    "geoShortId": {
+      "type": "string"
+    },
     "tenantId": {
       "type": "string"
     },
@@ -1545,26 +1548,54 @@
     "kusto": {
       "type": "object",
       "properties": {
+        "rg": {
+          "type": "string"
+        },
+        "manageInstance": {
+          "type": "boolean"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "serviceLogsDatabase": {
+          "type": "string"
+        },
+        "hostedControlPlaneLogsDatabase": {
+          "type": "string"
+        },
+        "adminGroups": {
+          "type": "string"
+        },
+        "viewerGroups": {
+          "type": "string"
+        },
         "resourceGroup": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "cluster": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "ingestionUrl": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "environmentName": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "enabled": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
-        "resourceGroup",
-        "cluster"
+        "manageInstance"
       ]
     },
     "mise": {
@@ -1881,6 +1912,22 @@
           "additionalProperties": false,
           "required": [
             "image"
+          ]
+        },
+        "kusto": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "environmentName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "environmentName"
           ]
         },
         "mdsd": {
@@ -2567,6 +2614,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "geoShortId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

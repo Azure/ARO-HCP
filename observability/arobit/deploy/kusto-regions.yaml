@@ -1,0 +1,10 @@
+# This is a mapping of the currently used geographies to
+# the regions we deploy Kusto to.
+au: australiaeast
+br: brazilsouth
+ca: canadacentral
+in: centralindia
+us: eastus2
+eu: westeurope
+ch: switzerlandnorth
+uk: uksouth

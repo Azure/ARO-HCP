@@ -86,3 +86,7 @@ services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Observability
   pipelinePath: observability/tracing/pipeline.yaml
   purpose: Deploy the development tracing stack.
+# Kusto Infra pipeline
+- serviceGroup: Microsoft.Azure.ARO.HCP.Log.Infra
+  pipelinePath: dev-infrastructure/kusto-pipeline.yaml
+  purpose: Deploy the kusto log infrastructure.

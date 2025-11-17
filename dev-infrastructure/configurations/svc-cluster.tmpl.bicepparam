@@ -155,3 +155,7 @@ param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
+
+param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
+param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
+param geoShortId = '{{ .geoShortId }}'

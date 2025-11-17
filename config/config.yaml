@@ -23,6 +23,7 @@ defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
   #
+  geoShortId: "{{ .ev2.geoShortId }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   regionBuildout: false
@@ -97,6 +98,8 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
+    kusto:
+      enabled: false
     mdsd:
       enabled: true
       image:
@@ -180,11 +183,12 @@ defaults:
         useSNI: true
         manage: true
   kusto:
-    enabled: false
-    resourceGroup: ""
-    cluster: ""
-    ingestionUrl: ""
-    environmentName: {{ .ctx.environment }}
+    manageInstance: false
+    rg: "hcp-kusto-us"
+    serviceLogsDatabase: "ServiceLogs"
+    hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
+    adminGroups: ""
+    viewerGroups: ""
   # Hypershift
   hypershift:
     image:
@@ -773,14 +777,15 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
-      kusto:
-        ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
       kubeEvents:
         enabled: false
       automationDryRun: false
       arobit:
         mdsd:
           enabled: false
+        kusto:
+          enabled: true
+          environmentName: "{{ .ctx.environment }}"
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
@@ -999,7 +1004,11 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           kusto:
-            enabled: true
+            manageInstance: true
+            rg: "hcp-kusto-us"
+            sku: "Dev(No SLA)_Standard_D11_v2"
+            tier: "Basic"
+            adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
@@ -1035,8 +1044,6 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          kusto:
-            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           # Service Key Vault
           serviceKeyVault:
@@ -1090,8 +1097,6 @@ clouds:
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
-          kusto:
-            enabled: true
           regionRG: "{{ .ctx.region }}-shared-resources"
           serviceKeyVault:
             name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]

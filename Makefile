@@ -121,6 +121,10 @@ infra.mgmt.aks.kubeconfigfile:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfigfile
 .PHONY: infra.mgmt.aks.kubeconfigfile
 
+infra.kusto:
+	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make kusto
+.PHONY: infra.kusto
+
 infra.monitoring:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make monitoring
 .PHONY: infra.monitoring
@@ -273,10 +277,11 @@ local-run: $(TEMPLATIZE)
 	                                 --topology-config topology.yaml \
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
-	                                 $(WHAT) \
+	                                 $(WHAT) $(EXTRA_ARGS) \
 	                                 --dry-run=$(DRY_RUN) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT)
+
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix graph/entrypoint/,$(entrypoints)):
