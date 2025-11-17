@@ -29,7 +29,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
     dstsGroups: []
-    location: location
     sku: sku
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
