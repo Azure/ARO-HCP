@@ -39,3 +39,5 @@ adminApi:
 apiBindPort: 8443
 virtualService:
   host: "rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
+# here just temporary until we move the gateway to the istio chart
+adminApiHost: "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
