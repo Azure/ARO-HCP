@@ -730,6 +730,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	} else {
 		builder = ocmClusterDefaults()
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
+		// remove autoscaler as BuildCSCluster returns it separately
+		builder = builder.Autoscaler(nil)
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
@@ -737,12 +739,6 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(0))).
-		Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().
-			PodPriorityThreshold(-10).
-			MaxNodeProvisionTime("15m").
-			MaxPodGracePeriod(600).
-			ResourceLimits(arohcpv1alpha1.NewAutoscalerResourceLimits().
-				MaxNodesTotal(0))).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 				Mode(csCIDRBlockAllowAccessModeAllowAll))))
@@ -859,7 +855,7 @@ func TestBuildCSCluster(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
+			actualBuilder, _, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.updating)
 			require.NoError(t, err)
 			actual, err := actualBuilder.Build()
 			require.NoError(t, err)
