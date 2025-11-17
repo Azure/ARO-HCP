@@ -28,15 +28,6 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
   identity: {
     type: 'SystemAssigned'
   }
-  // properties: {
-  //   optimizedAutoscale: {
-  //     version: 1
-  //     isEnabled: true
-  //     minimum: 2
-  //     maximum: 10
-  //   }
-  //   enableAutoStop: false
-  // }
 
   // Cluster level permissions
   resource clusterAdminPermissionsForGroups 'principalAssignments' = [

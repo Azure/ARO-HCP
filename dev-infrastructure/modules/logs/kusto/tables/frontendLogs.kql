@@ -1,4 +1,4 @@
-.create-merge table frontendContainerLogs (
+.create-merge table frontendLogs (
   timestamp: datetime,
   log: dynamic,
   environment: string,
@@ -32,7 +32,7 @@
   unmatched: dynamic
 )
 
-.create-or-alter table frontendContainerLogs ingestion json mapping 'ingestionMapping'
+.create-or-alter table frontendLogs ingestion json mapping 'ingestionMapping'
 ```
 [
   {"column":"log","Properties":{"path":"$.log.log"}},

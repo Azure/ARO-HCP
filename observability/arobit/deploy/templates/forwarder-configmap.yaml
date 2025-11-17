@@ -224,7 +224,7 @@ data:
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
         Ingestion_Endpoint {{ $ingestionEndoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name frontendContainerLogs
+        Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 
@@ -237,7 +237,7 @@ data:
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
         Ingestion_Endpoint {{ $ingestionEndoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
-        Table_Name backendContainerLogs
+        Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto
 {{- end }}
