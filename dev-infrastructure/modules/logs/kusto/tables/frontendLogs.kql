@@ -17,6 +17,8 @@
   correlationRequestId: string,
   subscriptionId: string,
   resourceGroup: string,
+  resource_id: string,
+  resoruce_name: string,
   requestMethod: string,
   requestPath: string,
   requestProto: string,
@@ -28,8 +30,7 @@
   bodyWrittenBytes: int,
   responseStatusCode: string,
   duration: int,
-  tag: string,
-  unmatched: dynamic
+  tag: string
 )
 
 .create-or-alter table frontendLogs ingestion json mapping 'ingestionMapping'
@@ -54,6 +55,8 @@
   {"column":"correlationRequestId","Properties":{"path":"$.log.correlation_request_id"}},
   {"column":"subscriptionId", "Properties": {"path":"$log.subscription_id"}},
   {"column":"resourceGroup", "Properties": {"path":"$log.resource_group"}},
+  {"column":"resourceId","Properties":{"path":"$.log.resource_id"}},
+  {"column":"resourceName","Properties":{"path":"$.log.resource_name"}},
   {"column":"requestMethod","Properties":{"path":"$.log.request_method"}},
   {"column":"requestPath","Properties":{"path":"$.log.request_path"}},
   {"column":"requestProto","Properties":{"path":"$.log.request_proto"}},
@@ -65,6 +68,5 @@
   {"column":"bodyWrittenBytes","Properties":{"path":"$.log.body_written_bytes"}},
   {"column":"responseStatusCode","Properties":{"path":"$.log.response_status_code"}},
   {"column":"duration","Properties":{"path":"$.log.duration"}},
-  {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
 ]
 ```

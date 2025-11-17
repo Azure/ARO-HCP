@@ -10,8 +10,7 @@
   labels: string,
   podName: string,
   region: string,
-  tag: string,
-  unmatched: dynamic
+  tag: string
 )
 
 .create-or-alter table containerLogs ingestion json mapping 'ingestionMapping'
@@ -29,6 +28,5 @@
   {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
   {"column":"podName","Properties":{"path":"$.log.kubernetes.pod_name"}},
   {"column":"tag","Properties":{"path":"$.tag"}},
-  {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
 ]
 ```

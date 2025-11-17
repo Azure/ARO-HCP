@@ -22,8 +22,7 @@
   objectUID: string,
   reason: string,
   sourceComponent: string,
-  tag: string,
-  unmatched: dynamic
+  tag: string
 )
 
 
@@ -54,6 +53,5 @@
   {"column":"objectUID","Properties":{"path":"$.log.involved_object.uid"}},
   {"column":"reason","Properties":{"path":"$.log.reason"}},
   {"column":"sourceComponent","Properties":{"path":"$.log.source.component"}},
-  {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
 ]
 ```

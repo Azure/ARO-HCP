@@ -21,8 +21,7 @@
   cloudErrorCode: string,
   cloudErrorMessage: string,
   subscriptionId: string,
-  tag: string,
-  unmatched: dynamic
+  tag: string
 )
 
 .create-or-alter table backendLogs ingestion json mapping 'ingestionMapping'
@@ -51,6 +50,5 @@
   {"column":"cloudErrorCode","Properties":{"path":"$.log.cloud_error_code"}},
   {"column":"cloudErrorMessage","Properties":{"path":"$.log.cloud_error_message"}},
   {"column":"subscriptionId","Properties":{"path":"$.log.subscription_id"}},
-  {"column":"unmatched","Properties":{"path":"$", "Transform":"DropMappedFields" }}
 ]
 ```
