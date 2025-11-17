@@ -44,6 +44,7 @@ import (
 
 func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTestInfo, initialDataDir fs.FS) error {
 	internalIDToCluster := map[string][]any{}
+	internalIDToAutoscaler := map[string][]any{}
 	internalIDToExternalAuth := map[string][]any{}
 	internalIDToNodePool := map[string][]any{}
 
@@ -78,6 +79,7 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 					return fmt.Errorf("duplicate cluster: %s", obj.HREF())
 				}
 				internalIDToCluster[obj.HREF()] = []any{obj}
+				internalIDToAutoscaler[obj.HREF()] = []any{obj}
 
 			case strings.HasSuffix(dirEntry.Name(), "-external-auth.json"):
 			case strings.HasSuffix(dirEntry.Name(), "-node-pool.json"):
@@ -88,12 +90,18 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 	}
 
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_clusters", internalIDToCluster))
-	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, builder *csarhcpv1alpha1.ClusterBuilder) (*csarhcpv1alpha1.Cluster, error) {
+	testInfo.MockClusterServiceClient.EXPECT().PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterBuilder *csarhcpv1alpha1.ClusterBuilder, autoscalerBuilder *csarhcpv1alpha1.ClusterAutoscalerBuilder) (*csarhcpv1alpha1.Cluster, error) {
 		justID := rand.String(10)
-		builder.ID(justID)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
-		builder = builder.HREF(internalID)
-		ret, err := builder.Build()
+
+		autoscaler, err := autoscalerBuilder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToAutoscaler[internalID] = append(internalIDToAutoscaler[internalID], autoscaler)
+
+		ret, err := clusterBuilder.ID(justID).HREF(internalID).Build()
 		if err != nil {
 			return nil, err
 		}
@@ -116,13 +124,22 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		internalIDToCluster[id.String()] = append(internalIDToCluster[id.String()], ret)
 		return ret, nil
 	}).AnyTimes()
+	testInfo.MockClusterServiceClient.EXPECT().UpdateClusterAutoscaler(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
+		ret, err := builder.Build()
+		if err != nil {
+			return nil, err
+		}
+
+		internalIDToAutoscaler[id.String()] = append(internalIDToAutoscaler[id.String()], ret)
+		return ret, nil
+	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.Cluster, error) {
-		return mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[id.String()])
+		return mergeClusterServiceClusterAndAutoscaler(internalIDToCluster[id.String()], internalIDToAutoscaler[id.String()])
 	}).AnyTimes()
 	testInfo.MockClusterServiceClient.EXPECT().ListClusters(gomock.Any()).DoAndReturn(func(s string) ocm.ClusterListIterator {
 		allObjs := []*csarhcpv1alpha1.Cluster{}
 		for _, key := range sets.StringKeySet(internalIDToCluster).List() {
-			obj, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](internalIDToCluster[key])
+			obj, err := mergeClusterServiceClusterAndAutoscaler(internalIDToCluster[key], internalIDToAutoscaler[key])
 			if err != nil {
 				panic(err)
 			}
@@ -305,11 +322,31 @@ func mergeClusterServiceInstance[T any](history []any) (*T, error) {
 	return unmarshalClusterServiceAny[T](mergedJSON)
 }
 
+func mergeClusterServiceClusterAndAutoscaler(clusterHistory []any, autoscalerHistory []any) (*arohcpv1alpha1.Cluster, error) {
+	cluster, err := mergeClusterServiceInstance[csarhcpv1alpha1.Cluster](clusterHistory)
+	if err != nil {
+		return nil, err
+	}
+
+	autoscaler, err := mergeClusterServiceInstance[csarhcpv1alpha1.ClusterAutoscaler](autoscalerHistory)
+	if err != nil {
+		return nil, err
+	}
+
+	return csarhcpv1alpha1.NewCluster().Copy(cluster).Autoscaler(csarhcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler)).Build()
+}
+
 func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {
 	var obj T
 	switch any(&obj).(type) {
 	case *csarhcpv1alpha1.Cluster:
 		ret, err := csarhcpv1alpha1.UnmarshalCluster(mergedJSON)
+		if err != nil {
+			return nil, err
+		}
+		return any(ret).(*T), err
+	case *csarhcpv1alpha1.ClusterAutoscaler:
+		ret, err := csarhcpv1alpha1.UnmarshalClusterAutoscaler(mergedJSON)
 		if err != nil {
 			return nil, err
 		}
@@ -337,6 +374,12 @@ func marshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
 	case *csarhcpv1alpha1.Cluster:
 		buf := &bytes.Buffer{}
 		if err := csarhcpv1alpha1.MarshalCluster(castObj, buf); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	case *csarhcpv1alpha1.ClusterAutoscaler:
+		buf := &bytes.Buffer{}
+		if err := csarhcpv1alpha1.MarshalClusterAutoscaler(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil

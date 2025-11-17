@@ -23,6 +23,8 @@ linters:
     importas:
       no-unaliased: true
       alias:
+      - pkg: github.com/openshift-online/ocm-sdk-go/aro_hcp/v1alpha1
+        alias: arohcpv1alpha1
       - pkg: github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1
         alias: cmv1
       - pkg: github.com/Azure/azure-sdk-for-go/sdk/azcore/arm

@@ -451,39 +451,9 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-
-	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-	}
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
-		return
-	}
-
-	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+	responseBody, cloudError := f.MarshalCluster(ctx, resourceID, versionedInterface)
+	if cloudError != nil {
+		arm.WriteCloudError(writer, cloudError)
 		return
 	}
 
@@ -632,14 +602,14 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder)
+	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
@@ -885,7 +855,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -893,6 +863,12 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+	_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, oldCosmosCluster.InternalID, newClusterServiceAutoscalerBuilder)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
+		return
+	}
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldCosmosCluster.InternalID, newClusterServiceClusterBuilder)
 	if err != nil {
 		logger.Error(err.Error())
@@ -1719,8 +1695,10 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	}
 
 	var responseBody []byte
+	var cloudError *arm.CloudError
 
-	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
+	switch doc.InternalID.Kind() {
+	case cmv1.BreakGlassCredentialKind:
 		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
@@ -1734,9 +1712,15 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 			return
 		}
-	} else {
-		var cloudError *arm.CloudError
 
+	case arohcpv1alpha1.ClusterKind:
+		responseBody, cloudError = f.MarshalCluster(ctx, doc.ExternalID, versionedInterface)
+		if cloudError != nil {
+			arm.WriteCloudError(writer, cloudError)
+			return
+		}
+
+	default:
 		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
