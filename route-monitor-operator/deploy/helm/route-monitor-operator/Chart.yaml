@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 0.1.852-g7f505c9
+appVersion: 0.1.864-g27d9cae
 description: A Helm chart for Route Monitor Operator
 keywords:
 - operator-sdk
@@ -11,6 +11,6 @@ keywords:
 - redhat
 name: route-monitor-operator
 sources:
-- https://gitlab.cee.redhat.com/service/saas-route-monitor-operator-bundle/route-monitor-operator/0.1.852-g7f505c9
+- https://gitlab.cee.redhat.com/service/saas-route-monitor-operator-bundle/route-monitor-operator/0.1.864-g27d9cae
 type: application
-version: 0.1.852-g7f505c9
+version: 0.1.864-g27d9cae
