@@ -95,6 +95,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			op:     operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.issuer.url", message: "Required value"},
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 			},
 		},
 		{
@@ -107,6 +108,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.issuer.url", message: "must be https URL"},
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 			},
 		},
 		{
@@ -119,6 +121,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 				{fieldPath: "properties.issuer.audiences", message: "must have at least 1 items"},
 			},
 		},

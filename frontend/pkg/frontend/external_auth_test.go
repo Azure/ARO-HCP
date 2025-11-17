@@ -107,8 +107,7 @@ func TestCreateExternalAuth(t *testing.T) {
 					Claim(dummyClaim).
 					Prefix("").
 					PrefixPolicy(""),
-				).
-				Groups(arohcpv1alpha1.NewGroupsClaim()),
+				),
 			).
 			ValidationRules(),
 		).
