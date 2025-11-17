@@ -52,6 +52,6 @@
   {"column":"objectApiVersion","Properties":{"path":"$.log.involved_object.api_version"}},
   {"column":"objectUID","Properties":{"path":"$.log.involved_object.uid"}},
   {"column":"reason","Properties":{"path":"$.log.reason"}},
-  {"column":"sourceComponent","Properties":{"path":"$.log.source.component"}},
+  {"column":"sourceComponent","Properties":{"path":"$.log.source.component"}}
 ]
 ```
