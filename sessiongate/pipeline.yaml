@@ -1,0 +1,76 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.SessionGate
+rolloutName: Session Gate Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: sessiongate.image.registry
+    repository:
+      configRef: sessiongate.image.repository
+    digest:
+      configRef: sessiongate.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+- name: service
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../dev-infrastructure/modules/sessiongate/sessiongate-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/sessiongate-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: 'sessiongate'
+    releaseNamespace: '{{ .sessiongate.k8s.namespace }}'
+    chartDir: ./deploy/
+    valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
+    inputVariables:
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+      sessiongateMsiClientId:
+        resourceGroup: service
+        step: output
+        name: sessiongateMsiClientId
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      csiSecretStoreClientId:
+        resourceGroup: service
+        step: output
+        name: csiSecretStoreClientId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
