@@ -34,9 +34,9 @@ var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
 var allServiceLogsTablesKQL = {
-  backendContainerLogs: loadTextContent('tables/backendLogs.kql')
+  backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
-  frontendContainerLogs: loadTextContent('tables/frontendLogs.kql')
+  frontendLogs: loadTextContent('tables/frontendLogs.kql')
 }
 
 var allCustomerLogsTablesKQL = {
