@@ -10,6 +10,9 @@
   "Successfully lists clusters filtered by subscription ID",
   "creates a cluster and fails to update its name with a PATCH request",
   "creates and deletes vm type NC6sv3 in a single cluster",
+  "should allow API access only from authorized VM IP",
+  "should be able to create a HCP cluster with empty authorized CIDRs",
+  "should be able to create a HCP cluster with valid authorized CIDRs",
   "should be able to create a cluster with an external auth config and get the external auth config",
   "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
   "should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group",
@@ -19,5 +22,8 @@
   "should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
-  "should not be able to create a 4.18 HCP cluster"
+  "should not be able to create a 4.18 HCP cluster",
+  "should reject cluster creation with IPv6 CIDR",
+  "should reject cluster creation with invalid CIDR format",
+  "should reject cluster creation with too many CIDRs"
 ]
