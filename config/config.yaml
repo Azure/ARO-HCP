@@ -100,6 +100,7 @@ defaults:
         digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
     kusto:
       enabled: false
+      environmentName: "{{ .ctx.environment }}"
     mdsd:
       enabled: true
       image:
@@ -785,7 +786,6 @@ clouds:
           enabled: false
         kusto:
           enabled: true
-          environmentName: "{{ .ctx.environment }}"
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
