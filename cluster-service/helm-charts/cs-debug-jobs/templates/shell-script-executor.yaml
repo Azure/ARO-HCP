@@ -71,7 +71,7 @@ spec:
           # TODO create a custom image with the needed
           # commands instead of installing them at runtime
           echo "Setting up tools..."
-          tdnf update
+          tdnf update -y
           echo "Installing kubectl..."
           tdnf install -y kubectl
           echo "Installing jq..."
