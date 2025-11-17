@@ -228,7 +228,7 @@ rules:
   - patch
   - update
 ---
-# Source: maestro-agent/templates/maestro-agent.agent:extension-apiserver.role.yaml
+# Source: maestro-agent/templates/maestro-agent.agent-extension-apiserver.role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -261,7 +261,7 @@ subjects:
   name: 'maestro'
   namespace: 'maestro'
 ---
-# Source: maestro-agent/templates/maestro-agent.agent:extension-apiserver.rolebinding.yaml
+# Source: maestro-agent/templates/maestro-agent.agent-extension-apiserver.rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
