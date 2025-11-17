@@ -213,7 +213,7 @@ param geoShortId string
 param arobitKustoEnabled bool
 @description('Names of the databases to write logs to')
 param serviceLogsDatabase string
-param customerLogsDatabase string
+param hostedControlPlaneLogsDatabase string
 
 @description('Name of the Kusto resource group')
 var kustoResourceGroup string = 'hcp-kusto-${geoShortId}'
@@ -544,12 +544,12 @@ module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arob
   scope: resourceGroup(kustoResourceGroup)
 }
 
-module grantKustoCustomerIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
-  name: 'grantKustoCustomerIngest'
+module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+  name: 'grantKustoHostedControlPlaneIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     geoShortId: geoShortId
-    databaseName: customerLogsDatabase
+    databaseName: hostedControlPlaneLogsDatabase
   }
   scope: resourceGroup(kustoResourceGroup)
 }

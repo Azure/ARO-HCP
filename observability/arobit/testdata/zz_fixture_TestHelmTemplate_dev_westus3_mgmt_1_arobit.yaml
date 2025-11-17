@@ -194,7 +194,7 @@ data:
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
         Ingestion_Endpoint https://ingest-hcp-us.eastus2.kusto.windows.net
-        Database_Name CustomerLogs
+        Database_Name HostedControlPlaneLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto

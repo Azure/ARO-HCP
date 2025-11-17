@@ -13,8 +13,8 @@ param manageInstance bool
 @description('Name of the service logs database.')
 param serviceLogsDatabase string
 
-@description('Name of the customer logs database.')
-param customerLogsDatabase string
+@description('Name of the hosted control plane logs database.')
+param hostedControlPlaneLogsDatabase string
 
 @description('CSV seperated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
@@ -33,7 +33,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     sku: sku
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
-    customerLogsDatabase: customerLogsDatabase
+    hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     geoShortId: geoShortId

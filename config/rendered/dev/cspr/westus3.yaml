@@ -337,7 +337,7 @@ kubeEvents:
     repository: shared/kube-events
 kusto:
   adminGroups: ""
-  customerLogsDatabase: CustomerLogs
+  hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   manageInstance: false
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs

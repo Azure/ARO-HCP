@@ -1563,7 +1563,7 @@
         "serviceLogsDatabase": {
           "type": "string"
         },
-        "customerLogsDatabase": {
+        "hostedControlPlaneLogsDatabase": {
           "type": "string"
         },
         "adminGroups": {

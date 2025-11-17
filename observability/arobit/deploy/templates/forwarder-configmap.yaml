@@ -210,7 +210,7 @@ data:
         client_id {{ .Values.forwarder.msiClientId }}
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
         Ingestion_Endpoint {{ $ingestionEndoint }}
-        Database_Name {{ .Values.forwarder.kusto.customerLogsDatabase }}
+        Database_Name {{ .Values.forwarder.kusto.hostedControlPlaneLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/kusto

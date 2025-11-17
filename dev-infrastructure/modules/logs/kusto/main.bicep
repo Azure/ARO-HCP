@@ -13,8 +13,8 @@ param location string
 @description('Name of the service logs database.')
 param serviceLogsDatabase string
 
-@description('Name of the customer logs database.')
-param customerLogsDatabase string
+@description('Name of the hosted control plane logs database.')
+param hostedControlPlaneLogsDatabase string
 
 @description('CSV seperated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
@@ -29,10 +29,10 @@ var kustoName = 'hcp-${geoShortId}'
 
 var db = {
   serviceLogs: serviceLogsDatabase
-  customerLogs: customerLogsDatabase
+  hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
 }
 
-var databases = [db.serviceLogs, db.customerLogs]
+var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
@@ -70,11 +70,11 @@ module serviceLogs 'database.bicep' = {
   dependsOn: [cluster]
 }
 
-module customerLogs 'database.bicep' = {
-  name: 'customerLogs'
+module hostedControlPlaneLogs 'database.bicep' = {
+  name: 'hostedControlPlaneLogs'
   params: {
     kustoName: kustoName
-    databaseName: db.customerLogs
+    databaseName: db.hostedControlPlaneLogs
     softDeletePeriod: 'P14D'
     hotCachePeriod: 'P2D'
   }
@@ -97,18 +97,18 @@ module serviceLogsTables 'script.bicep' = [
   }
 ]
 
-module customerLogsTables 'script.bicep' = [
+module hostedControlPlaneLogsTables 'script.bicep' = [
   for tableName in objectKeys(allCustomerLogsTablesKQL): {
     name: 'customerLogsTablesScript-${tableName}'
     params: {
       kustoName: kustoName
-      databaseName: db.customerLogs
+      databaseName: db.hostedControlPlaneLogs
       scriptName: tableName
       scriptContent: allCustomerLogsTablesKQL[tableName]
       principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
       continueOnErrors: false
     }
-    dependsOn: [customerLogs]
+    dependsOn: [hostedControlPlaneLogs]
   }
 ]
 
@@ -122,7 +122,7 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.customerLogs ? [customerLogs] : [serviceLogs]
+    dependsOn: database == db.hostedControlPlaneLogs ? [hostedControlPlaneLogs] : [serviceLogs]
   }
 ]
 
@@ -142,7 +142,7 @@ module removePermission 'script.bicep' = [
     dependsOn: [
       databaseUserScripts
       serviceLogsTables
-      customerLogsTables
+      hostedControlPlaneLogsTables
     ]
   }
 ]

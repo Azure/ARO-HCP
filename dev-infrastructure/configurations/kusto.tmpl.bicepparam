@@ -6,9 +6,11 @@ param tier = '{{ .kusto.tier }}'
 
 param manageInstance = {{ .kusto.manageInstance }}
 
+param geoShortId = '{{ .geoShortId }}'
+
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 
-param customerLogsDatabase = '{{ .kusto.customerLogsDatabase }}'
+param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
 
 param adminGroups = '{{ .kusto.adminGroups }}'
 

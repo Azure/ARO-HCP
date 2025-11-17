@@ -55,7 +55,7 @@ forwarder:
       pullPolicy: IfNotPresent
   kusto:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
-    customerLogsDatabase: {{ .kusto.customerLogsDatabase }}
+    hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"

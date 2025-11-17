@@ -186,7 +186,7 @@ defaults:
     manageInstance: false
     rg: "hcp-kusto-us"
     serviceLogsDatabase: "ServiceLogs"
-    customerLogsDatabase: "CustomerLogs"
+    hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
     viewerGroups: ""
   # Hypershift
