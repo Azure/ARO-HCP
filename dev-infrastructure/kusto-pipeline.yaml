@@ -29,5 +29,5 @@ resourceGroups:
   - name: deploy
     action: ARM
     template: templates/kusto.bicep
-    parameters: configurations/kusto.bicepparam
+    parameters: configurations/kusto.tmpl.bicepparam
     deploymentLevel: ResourceGroup
