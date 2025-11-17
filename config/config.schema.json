@@ -147,14 +147,14 @@
       "type": "string",
       "minLength": 3,
       "maxLength": 44,
-      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$",
       "description": "Server name must only contain lowercase letters, numbers, and hyphens. The server name must not start or end in a hyphen. Name must be between 3 be 63 characters long but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
     },
     "keyVaultName": {
       "type": "string",
       "minLength": 3,
       "maxLength": 24,
-      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$",
       "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
     },
     "operatorConfig": {
@@ -372,7 +372,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 80,
-          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9_]$"
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9_]$"
         },
         "accessMode": {
           "type": "string",
@@ -463,7 +463,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 44,
-          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9]$",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$",
           "description": "The name needs to be between 3-63 characters and can contain only letters, numbers, underscores, and hyphens. The name must start and end with a letter or number. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "vnetAddressPrefix": {
