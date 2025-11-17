@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:91917c6a0983595ea4a2a68e9e3bb79a275fe35b34643885bd9f1506644340af
+      digest: sha256:21619c9bf1bd100cb3c88daa309a054a3e6a1fd5dc9a2a3e7ca1dc73d859a6ab
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:e59d3827a2b2895dd2aad000f8b1f7d47f3697d7f3c14b7ce66f9fc1a8d2a497
+      digest: sha256:706da20b666dec8b5df5571b4dc4a7426b4cbfd1bcd37a6cda78e3ea1ad0cdae
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
+    digest: sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -206,7 +206,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
+    digest: sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -310,7 +310,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:dc4560440d9e21a8461173fc8e9773f0ac1aa5f4f58226f1a0005ff8b6e41597
+    digest: sha256:39818ad9a097f4b38a814c524c6cb30a517c5e14fc4e13c34df0f566e25b0456
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
@@ -332,7 +332,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:1d3de0410e7d8b4e016383d110e9bc576cd365b9a21bb80398c87615b4c71e28
+    digest: sha256:d3c7f6cc6a934021395509c337b5bf649579bd0a0db2de3db7e3514fa8859f88
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
