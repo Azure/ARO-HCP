@@ -1,6 +1,5 @@
 import {
   csvToArray
-  getGeoShortForRegion
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
 
@@ -207,12 +206,17 @@ param pkoNamespace string
 @description('Service account name of the PKO')
 param pkoServiceAccountName string
 
+@description('Geo short ID of the region')
+param geoShortId string
+
 @description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
 param arobitKustoEnabled bool
 @description('Names of the databases to write logs to')
 param serviceLogsDatabase string
 param customerLogsDatabase string
-var kustoResourceGroup string = 'hcp-kusto-${getGeoShortForRegion(location)}'
+
+@description('Name of the Kusto resource group')
+var kustoResourceGroup string = 'hcp-kusto-${geoShortId}'
 
 //
 //   M A N A G E D   I D E N T I T I E S
@@ -534,7 +538,7 @@ module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arob
   name: 'grantKustoSvcIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    clusterLocation: location
+    geoShortId: geoShortId
     databaseName: serviceLogsDatabase
   }
   scope: resourceGroup(kustoResourceGroup)
@@ -544,7 +548,7 @@ module grantKustoCustomerIngest '../modules/logs/kusto/grant-ingest.bicep' = if 
   name: 'grantKustoCustomerIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    clusterLocation: location
+    geoShortId: geoShortId
     databaseName: customerLogsDatabase
   }
   scope: resourceGroup(kustoResourceGroup)

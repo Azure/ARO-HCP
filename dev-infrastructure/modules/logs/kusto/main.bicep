@@ -1,5 +1,3 @@
-import { getGeoShortForRegion } from '../../common.bicep'
-
 @description('The SKU of the cluster')
 param sku string = 'Standard_D12_v2'
 
@@ -24,7 +22,10 @@ param adminGroups string
 @description('CSV seperated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
-var kustoName = 'hcp-${getGeoShortForRegion(location)}'
+@description('Geo short ID of the region')
+param geoShortId string
+
+var kustoName = 'hcp-${geoShortId}'
 
 var db = {
   serviceLogs: serviceLogsDatabase

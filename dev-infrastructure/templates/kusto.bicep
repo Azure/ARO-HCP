@@ -22,6 +22,9 @@ param adminGroups string
 @description('CSV seperated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
+@description('Geo short ID of the region')
+param geoShortId string
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -33,5 +36,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     customerLogsDatabase: customerLogsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    geoShortId: geoShortId
   }
 }

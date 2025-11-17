@@ -788,6 +788,9 @@
     }
   },
   "properties": {
+    "geoShortId": {
+      "type": "string"
+    },
     "tenantId": {
       "type": "string"
     },
@@ -2611,6 +2614,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "geoShortId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

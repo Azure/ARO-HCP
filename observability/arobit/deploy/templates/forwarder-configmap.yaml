@@ -1,6 +1,5 @@
-{{- $geo := get ( get ( .Files.Get "geo-regions.json" | fromJson ) .Values.forwarder.region) "geoShortId" -}}
-{{- $kustoRegion := get ( .Files.Get "kusto-regions.yaml" | fromYaml ) $geo -}}
-{{- $ingestionEndoint := nospace ( cat "https://ingest-hcp-" $geo "." $kustoRegion ".kusto.windows.net" ) -}}
+{{- $kustoRegion := get ( .Files.Get "kusto-regions.yaml" | fromYaml ) .Values.forwarder.geoShortId -}}
+{{- $ingestionEndoint := nospace ( cat "https://ingest-hcp-" .Values.forwarder.geoShortId "." $kustoRegion ".kusto.windows.net" ) -}}
 ---
 apiVersion: v1
 kind: ConfigMap

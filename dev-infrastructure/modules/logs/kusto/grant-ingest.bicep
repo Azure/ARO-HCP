@@ -1,10 +1,11 @@
-import { getGeoShortForRegion } from '../../common.bicep'
-
 param clusterLogManagedIdentityId string
-param clusterLocation string
 
 param databaseName string
-var kustoName = 'hcp-${getGeoShortForRegion(clusterLocation)}'
+
+@description('Geo short ID of the region')
+param geoShortId string
+
+var kustoName = 'hcp-${geoShortId}'
 
 resource database 'Microsoft.Kusto/clusters/databases@2024-04-13' existing = {
   name: '${kustoName}/${databaseName}'

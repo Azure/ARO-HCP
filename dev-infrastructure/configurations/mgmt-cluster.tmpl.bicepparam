@@ -91,3 +91,4 @@ param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 param customerLogsDatabase = '{{ .kusto.customerLogsDatabase }}'
+param geoShortId = '{{ .geoShortId }}'

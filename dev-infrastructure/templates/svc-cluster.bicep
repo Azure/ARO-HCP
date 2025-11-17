@@ -2,7 +2,6 @@ import {
   csvToArray
   determineZoneRedundancy
   determineZoneRedundancyForRegion
-  getGeoShortForRegion
   getLocationAvailabilityZonesCSV
 } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
@@ -407,7 +406,11 @@ param arobitKustoEnabled bool
 @description('Name of the database to write logs to')
 param serviceLogsDatabase string
 
-var kustoResourceGroup string = 'hcp-kusto-${getGeoShortForRegion(location)}'
+@description('Geo short ID of the region')
+param geoShortId string
+
+@description('Name of the Kusto resource group')
+var kustoResourceGroup string = 'hcp-kusto-${geoShortId}'
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -1028,7 +1031,7 @@ module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKu
   name: 'grantKustoIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    clusterLocation: location
+    geoShortId: geoShortId
     databaseName: serviceLogsDatabase
   }
   scope: resourceGroup(kustoResourceGroup)
