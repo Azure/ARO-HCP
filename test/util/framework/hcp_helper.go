@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/sync/errgroup"
 
 	v1 "k8s.io/api/rbac/v1"
@@ -35,6 +37,29 @@ import (
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
+
+// checkOperationResult ensures the result model returned by a runtime.Poller
+// matches the resource model returned from a GET request.
+func checkOperationResult(expectModel, resultModel any) error {
+	diff := cmp.Diff(expectModel, resultModel,
+		// Add per-model fields that should be ignored in the comparison. For example
+		// read-only values that change on their own, or are computed asynchronously
+		// and may not be immediately available in the operation result response.
+		//
+		// Note: I'm anticipating adding "Identity.UserAssignedIdentities" here once
+		// the RP takes over fetching client and principal IDs from the Managed Identity
+		// service. That would be a concrete example of asynchronously computed fields.
+		cmpopts.IgnoreFields(hcpsdk20240610preview.HcpOpenShiftCluster{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20240610preview.NodePool{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20240610preview.ExternalAuth{}, "SystemData"),
+	)
+
+	if len(diff) > 0 {
+		return fmt.Errorf("operation result model did not match expected model for type %T:\n%s", resultModel, diff)
+	}
+
+	return nil
+}
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
@@ -158,6 +183,15 @@ func UpdateHCPCluster(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
+		// Make sure the operation result content matches the current cluster model.
+		expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
+		if err != nil {
+			return nil, err
+		}
 		return &m.HcpOpenShiftCluster, nil
 	default:
 		return nil, fmt.Errorf("unknown type %T", m)
@@ -294,8 +328,15 @@ func CreateOrUpdateExternalAuthAndWait(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse:
-		// TODO someone may want this return value.  We'll have to work it out then.
-		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
+		// Make sure the operation result content matches the current external auth model.
+		expect, err := GetExternalAuth(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.ExternalAuth, &m.ExternalAuth)
+		if err != nil {
+			return nil, err
+		}
 		return &m.ExternalAuth, nil
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
@@ -435,6 +476,15 @@ func CreateHCPClusterAndWait(
 		}
 		switch m := any(operationResult).(type) {
 		case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+			// Make sure the operation result content matches the current cluster model.
+			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+			if err != nil {
+				return nil, err
+			}
+			err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
+			if err != nil {
+				return nil, err
+			}
 			return &m.HcpOpenShiftCluster, nil
 		default:
 			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
@@ -526,6 +576,15 @@ func CreateNodePoolAndWait(
 	}
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
+		// Make sure the operation result content matches the current node pool model.
+		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.NodePool, &m.NodePool)
+		if err != nil {
+			return nil, err
+		}
 		return &m.NodePool, nil
 	default:
 		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
