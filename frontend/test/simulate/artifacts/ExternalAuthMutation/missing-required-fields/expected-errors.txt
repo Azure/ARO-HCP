@@ -1,5 +1,5 @@
 InvalidRequestContent: properties.issuer.url: Required value
-InvalidRequestContent: properties.issuer.audiences: Invalid value: 0: must have at least 1 items
+InvalidRequestContent: properties.issuer.audiences: Required value
 InvalidRequestContent: properties.claim.mappings.username.claim: Required value
 InvalidRequestContent: properties.clients[0].component: Required value
 InvalidRequestContent: properties.clients[0].clientId: Required value

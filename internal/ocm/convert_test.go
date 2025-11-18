@@ -401,8 +401,7 @@ func getBaseCSExternalAuthBuilder() *arohcpv1alpha1.ExternalAuthBuilder {
 					Claim("").
 					Prefix("").
 					PrefixPolicy(""),
-				).
-				Groups(arohcpv1alpha1.NewGroupsClaim()),
+				),
 			).
 			ValidationRules(),
 		).
@@ -434,8 +433,7 @@ func TestBuildCSExternalAuth(t *testing.T) {
 						Claim("").
 						Prefix("").
 						PrefixPolicy(string(api.UsernameClaimPrefixPolicyPrefix)),
-					).
-					Groups(arohcpv1alpha1.NewGroupsClaim()),
+					),
 				).
 				ValidationRules(),
 			),

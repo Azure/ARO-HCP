@@ -93,7 +93,6 @@ func TestCreateNodePool(t *testing.T) {
 				SizeGibibytes(64).
 				StorageAccountType("Premium_LRS")),
 		).
-		Labels(make(map[string]string)).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
 			ID("openshift-v" + dummyVersionID).

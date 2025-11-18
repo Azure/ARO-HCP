@@ -709,15 +709,17 @@ func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, np *arohcpv1alpha1.No
 		}
 	}
 
-	taints := make([]api.Taint, 0, len(np.Taints()))
-	for _, t := range np.Taints() {
-		taints = append(taints, api.Taint{
-			Effect: api.Effect(t.Effect()),
-			Key:    t.Key(),
-			Value:  t.Value(),
-		})
+	if np.Taints() != nil {
+		taints := make([]api.Taint, 0, len(np.Taints()))
+		for _, t := range np.Taints() {
+			taints = append(taints, api.Taint{
+				Effect: api.Effect(t.Effect()),
+				Key:    t.Key(),
+				Value:  t.Value(),
+			})
+		}
+		nodePool.Properties.Taints = taints
 	}
-	nodePool.Properties.Taints = taints
 
 	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
 		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
@@ -761,7 +763,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
 	}
 
-	if len(nodePool.Properties.Taints) > 0 {
+	if nodePool.Properties.Taints != nil {
 		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
 		for _, t := range nodePool.Properties.Taints {
 			newTaintBuilder := arohcpv1alpha1.NewTaint().
@@ -909,11 +911,18 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 		return err
 	}
 
-	groupsClaim := arohcpv1alpha1.NewGroupsClaim()
+	tokenClaimMappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings().
+		UserName(arohcpv1alpha1.NewUsernameClaim().
+			Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
+			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
+			PrefixPolicy(usernameClaimPrefixPolicy),
+		)
 	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		groupsClaim.
-			Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix)
+		tokenClaimMappingsBuilder = tokenClaimMappingsBuilder.Groups(
+			arohcpv1alpha1.NewGroupsClaim().
+				Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
+				Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
+		)
 	}
 
 	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
@@ -926,14 +935,7 @@ func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExt
 
 	externalAuthBuilder.
 		Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(arohcpv1alpha1.NewTokenClaimMappings().
-				UserName(arohcpv1alpha1.NewUsernameClaim().
-					Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-					Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-					PrefixPolicy(usernameClaimPrefixPolicy),
-				).
-				Groups(groupsClaim),
-			).
+			Mappings(tokenClaimMappingsBuilder).
 			ValidationRules(validationRules...),
 		)
 

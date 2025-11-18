@@ -187,6 +187,7 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toTokenIssuerProfileURL), startsWithHTTPSRegex, startsWithHTTPSErrorString)...)
 
 	//Audiences []string `json:"audiences" validate:"required,max=10"`
+	errs = append(errs, validate.RequiredSlice(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences))...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 10)...)
 	// TODO I bet these were forgotten

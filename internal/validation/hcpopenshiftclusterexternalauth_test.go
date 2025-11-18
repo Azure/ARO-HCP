@@ -54,6 +54,10 @@ func TestExternalAuthRequired(t *testing.T) {
 					message:   "supported values: \"NoPrefix\", \"None\", \"Prefix\"",
 					fieldPath: "properties.claim.mappings.username.prefixPolicy",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "properties.issuer.audiences",
+				},
 			},
 		},
 		{
@@ -68,7 +72,10 @@ func TestExternalAuthRequired(t *testing.T) {
 					message:   "Required value",
 					fieldPath: "properties.issuer.url",
 				},
-			},
+				{
+					message:   "Required value",
+					fieldPath: "properties.issuer.audiences",
+				}},
 		},
 		{
 			name:     "Minimum valid external auth",
