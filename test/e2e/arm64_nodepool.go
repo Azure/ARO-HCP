@@ -1,0 +1,104 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package e2e
+
+import (
+	"context"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
+	"github.com/Azure/ARO-HCP/test/util/labels"
+)
+
+var _ = Describe("Customer", func() {
+	BeforeEach(func() {
+		// do nothing. per-test initialization usually ages better than shared.
+	})
+
+	It("should be able to create node pools with ARM64-based VMs",
+		labels.RequireNothing,
+		labels.Critical,
+		labels.Positive,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
+			const (
+				customerNetworkSecurityGroupName = "arm64-vm-customer-nsg"
+				customerVnetName                 = "arm64-vm-customer-vnet"
+				customerVnetSubnetName           = "arm64-vm-subnet1"
+				customerClusterName              = "arm64-vm-hcp-cluster"
+				customerNodePoolName             = "arm64-vm-np-1"
+				openshiftControlPlaneVersionId   = "4.19"
+				openshiftNodeVersionId           = "4.19.7"
+				nodePoolVMSize                   = "Standard_D2pls_v6"
+			)
+
+			tc := framework.NewTestContext()
+
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "arm64-vm-cluster", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
+
+			By("creating customer resources")
+			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue":        false,
+					"customerNsgName":        customerNetworkSecurityGroupName,
+					"customerVnetName":       customerVnetName,
+					"customerVnetSubnetName": customerVnetSubnetName,
+				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = framework.CreateHCPClusterFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the ARM64-based (Standard_D2pls_v6) node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
+			nodePoolParams.Replicas = int32(2)
+			nodePoolParams.VMSize = nodePoolVMSize
+
+			err = framework.CreateNodePoolFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+		})
+})
