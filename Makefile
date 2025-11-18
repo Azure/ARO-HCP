@@ -77,6 +77,31 @@ record-nonlocal-e2e:
 		jq '[.[] | .SpecReports[]? | select(.State == "passed") | .LeafNodeText] | sort' test/e2e/report.json > ./nonlocal-e2e-specs.txt
 .PHONY: record-nonlocal-e2e
 
+e2e/local: e2e-local/setup
+	$(MAKE) e2e-local/run
+.PHONY: e2e/local
+
+e2e-local/setup:
+	@SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
+	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	curl --silent --show-error --include \
+		--request PUT \
+		--header "Content-Type: application/json" \
+		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
+		"http://localhost:8443/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
+.PHONY: e2e-local/setup
+
+e2e-local/run:
+	$(MAKE) -C test
+	export LOCATION="westus3"; \
+	export AROHCP_ENV="development"; \
+	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
+	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
+	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	mkdir -p "$$ARTIFACT_DIR"; \
+	./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+.PHONY: e2e-local/run
+
 mega-lint:
 	docker run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|maestro/server/deploy/templates/allow-cluster-service.authorizationpolicy.yaml|acm/deploy/helm/multicluster-engine-config/charts/policy/charts' \
