@@ -190,6 +190,8 @@ defaults:
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
     viewerGroups: ""
+    sku: ""
+    tier: ""
   # Hypershift
   hypershift:
     image:
