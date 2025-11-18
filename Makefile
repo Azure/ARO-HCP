@@ -82,16 +82,24 @@ e2e/local: e2e-local/setup
 .PHONY: e2e/local
 
 e2e-local/setup:
-	source test/e2e_local_env_vars && cd demo && ./01-register-sub.sh
+	@SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \
+	TENANT_ID="$$(az account show --query tenantId --output tsv)"; \
+	curl --silent --show-error --include \
+		--request PUT \
+		--header "Content-Type: application/json" \
+		--data '{"state":"Registered", "registrationDate": "now", "properties": { "tenantId": "'$${TENANT_ID}'"}}' \
+		"http://localhost:8443/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
 e2e-local/run:
-	source test/e2e_local_env_vars && $(MAKE) -C test
-	source test/e2e_local_env_vars && if [ "$(DEPLOY_ENV)" = "prow" ]; then \
-		./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel" --junit-path="$${ARTIFACT_DIR}/junit.xml"; \
-	else \
-		./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel"; \
-	fi
+	$(MAKE) -C test
+	export LOCATION="westus3"; \
+	export AROHCP_ENV="development"; \
+	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
+	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
+	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
+	mkdir -p "$$ARTIFACT_DIR"; \
+	./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
 .PHONY: e2e-local/run
 
 mega-lint:
