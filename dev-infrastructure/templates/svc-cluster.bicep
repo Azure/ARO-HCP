@@ -410,7 +410,7 @@ param serviceLogsDatabase string
 param geoShortId string
 
 @description('Name of the Kusto resource group')
-var kustoResourceGroup string = 'hcp-kusto-${geoShortId}'
+var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName

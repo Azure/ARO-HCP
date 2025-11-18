@@ -216,7 +216,7 @@ param serviceLogsDatabase string
 param hostedControlPlaneLogsDatabase string
 
 @description('Name of the Kusto resource group')
-var kustoResourceGroup string = 'hcp-kusto-${geoShortId}'
+var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
 
 //
 //   M A N A G E D   I D E N T I T I E S
