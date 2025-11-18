@@ -16,11 +16,8 @@ package cleanup
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -30,9 +27,7 @@ import (
 
 	"github.com/Azure/ARO-Tools/pkg/graph"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -152,16 +147,13 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 		return fmt.Errorf("failed to generate execution graph: %w", err)
 	}
 
-	group, _ := errgroup.WithContext(ctx)
-	clients := map[string]*armresources.ResourceGroupsClient{}
-	for _, resourceGroup := range executionGraph.ResourceGroups {
+	group, groupCtx := errgroup.WithContext(ctx)
+
+	for rgName, resourceGroup := range executionGraph.ResourceGroups {
 		rgLogger := logger.WithValues("resourceGroup", resourceGroup.ResourceGroup)
-		if o.IgnoreResourceGroups.Has(resourceGroup.ResourceGroup) {
+
+		if o.IgnoreResourceGroups.Has(rgName) {
 			rgLogger.Info("Ignoring resource group")
-			continue
-		}
-		if o.DryRun {
-			rgLogger.Info("Would delete resource group.")
 			continue
 		}
 
@@ -170,40 +162,36 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 		}
 
-		var rgClient *armresources.ResourceGroupsClient
-		if client, exists := clients[subscriptionID]; exists {
-			rgClient = client
+		if o.DryRun {
+			rgLogger.Info("Would delete resource group (dry-run mode)")
 		} else {
-			resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, o.AzureCredential, nil)
-			if err != nil {
-				return fmt.Errorf("failed to create resource group client for subscription %s: %w", subscriptionID, err)
-			}
-			rgClient = resourceGroupClient
-			clients[subscriptionID] = rgClient
+			rgLogger.Info("Deleting resource group with ordered resource cleanup")
 		}
 
-		rgLogger.Info("Deleting resource group.")
-		poller, err := rgClient.BeginDelete(ctx, resourceGroup.ResourceGroup, nil)
-		var deleteErr *azcore.ResponseError
-		alreadyGone := errors.As(err, &deleteErr) && deleteErr.StatusCode == http.StatusNotFound
-		if alreadyGone {
-			rgLogger.Info("Resource group already deleted.")
-			continue
-		}
-		if err != nil {
-			return fmt.Errorf("failed to delete resource group %s: %w", resourceGroup.ResourceGroup, err)
+		// Create deleter for this resource group
+		deleter := &resourceGroupDeleter{
+			resourceGroupName: resourceGroup.ResourceGroup,
+			subscriptionID:    subscriptionID,
+			credential:        o.AzureCredential,
+			logger:            rgLogger,
+			dryRun:            o.DryRun,
 		}
 
 		if o.Wait {
+			// Capture for goroutine
 			group.Go(func() error {
-				if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second}); err != nil {
-					return fmt.Errorf("failed to wait for resource group %s to be deleted: %w", resourceGroup.ResourceGroup, err)
-				}
-				rgLogger.Info("Deleted resource group.")
-				return nil
+				return deleter.execute(groupCtx)
 			})
+		} else {
+			// Fire and forget
+			go func() {
+				if err := deleter.execute(ctx); err != nil {
+					rgLogger.Error(err, "Failed to delete resource group asynchronously")
+				}
+			}()
 		}
 	}
+
 	if o.Wait {
 		if err := group.Wait(); err != nil {
 			return err
