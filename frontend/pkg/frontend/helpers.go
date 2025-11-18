@@ -250,7 +250,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
-func (f *Frontend) MarshalCluster(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
+func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, *arm.CloudError) {
 	logger := LoggerFromContext(ctx)
 
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
@@ -269,13 +269,13 @@ func (f *Frontend) MarshalCluster(ctx context.Context, resourceID *azcorearm.Res
 		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 	}
 
-	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
+	externalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		return nil, arm.NewInternalServerError()
 	}
 
-	return responseBody, nil
+	return externalCluster, nil
 }
 
 func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {

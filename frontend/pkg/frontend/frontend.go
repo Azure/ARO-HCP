@@ -216,8 +216,6 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	// the requirements of a skipToken for ARM pagination. We then query
 	// Cluster Service for the exact set of IDs returned by Cosmos.
 
-	// MiddlewareReferer ensures Referer is present.
-
 	internalClusterIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
 		logger.Error(err.Error())
@@ -234,6 +232,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 		arm.WriteInternalServerError(writer)
 		return
 	}
+	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalClusterIterator.GetContinuationToken())
 	if err != nil {
 		logger.Error(err.Error())
@@ -254,13 +253,19 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 
 	for csCluster := range csIterator.Items(ctx) {
 		if internalCluster, ok := clustersByClusterServiceID[csCluster.HREF()]; ok {
-			value, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
+			resultingExternalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
 				return
 			}
-			pagedResponse.AddValue(value)
+			jsonBytes, err := arm.MarshalJSON(resultingExternalCluster)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(jsonBytes)
 		}
 	}
 	err = csIterator.GetError()
@@ -547,13 +552,19 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	responseBody, cloudError := f.MarshalCluster(ctx, resourceID, versionedInterface)
+	resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
 	if cloudError != nil {
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
+	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -787,14 +798,20 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
+	resultingExternalCluster, err := mergeToExternalCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBytes)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -1028,14 +1045,20 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
+	resultingExternalCluster, err := mergeToExternalCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
+	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBytes)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -1625,9 +1648,9 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-// marshalCSCluster renders a CS Cluster object in JSON format, applying
+// mergeToExternalCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) ([]byte, error) {
+func mergeToExternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
 	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
 	if err != nil {
 		return nil, err
@@ -1646,7 +1669,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HC
 		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
 	}
 
-	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster))
+	return versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster), nil
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1801,10 +1824,15 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case arohcpv1alpha1.ClusterKind:
-		responseBody, cloudError = f.MarshalCluster(ctx, doc.ExternalID, versionedInterface)
+		resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, doc.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
 			return
+		}
+		responseBody, err = arm.MarshalJSON(resultingExternalCluster)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
 		}
 
 	default:
