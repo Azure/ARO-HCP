@@ -140,27 +140,27 @@ func UpdateHCPCluster(
 	hcpClusterName string,
 	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
-) (hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse, error) {
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 	if err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, err
+		return nil, err
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
 	}
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
-		return m, nil
+		return &m.HcpOpenShiftCluster, nil
 	default:
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("unknown type %T", m)
+		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
 
