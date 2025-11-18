@@ -16,4 +16,5 @@ use (
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/yamlwrap
+	./sessiongate
 )

@@ -24,7 +24,7 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
-        image: {{ .Values.image }}
+        image: {{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}
         name: sessiongate-controller
         ports:
         - containerPort: 8081

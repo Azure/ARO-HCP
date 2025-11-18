@@ -2664,6 +2664,7 @@
     "regionRG",
     "regionBuildout",
     "serviceKeyVault",
+    "sessiongate",
     "svc",
     "msiRp",
     "msiCredentialsRefresher",

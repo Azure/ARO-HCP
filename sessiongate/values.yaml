@@ -1,5 +1,8 @@
 namespace: "{{ .sessiongate.k8s.namespace }}"
-image: "{{ .acr.svc.name }}.azurecr.io/{{ .sessiongate.image.repository }}:latest"
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ .sessiongate.image.repository }}"
+  digest: "{{ .sessiongate.image.digest }}"
 replicas: "{{ .sessiongate.k8s.replicas }}"
 nodeSelector: {}
 tolerations: []
@@ -7,4 +10,10 @@ affinity: {}
 serviceAccount:
   name: "{{ .sessiongate.k8s.serviceAccountName }}"
   workloadIdentityClientId: "__sessiongateMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
+# Pull binding configuration for ACR Pull Operator
+pullBinding:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  scope: "repository:{{ .sessiongate.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"

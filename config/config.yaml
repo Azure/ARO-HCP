@@ -473,7 +473,7 @@ defaults:
   sessiongate:
     image:
       registry: arohcpsvcdev.azurecr.io
-      repository: test-goberlec-sessiongate
+      repository: arohcpsessiongate
       digest: ""
     managedIdentityName: sessiongate
     k8s:

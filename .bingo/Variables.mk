@@ -77,3 +77,9 @@ $(YQ): $(BINGO_DIR)/yq.mod
 	@echo "(re)installing $(GOBIN)/yq-v4.44.5"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=yq.mod -o=$(GOBIN)/yq-v4.44.5 "github.com/mikefarah/yq/v4"
 
+
+CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.19.0
+$(CONTROLLER_GEN): $(BINGO_DIR)/controller-gen.mod
+	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
+	@echo "(re)installing $(GOBIN)/controller-gen-v0.19.0"
+	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=controller-gen.mod -o=$(GOBIN)/controller-gen-v0.19.0 "sigs.k8s.io/controller-tools/cmd/controller-gen"
