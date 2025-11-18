@@ -573,10 +573,9 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	if updating {
 		builder = arohcpv1alpha1.NewCluster()
 	} else {
-		builder = ocmClusterDefaults()
-		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 		// remove autoscaler as BuildCSCluster returns it separately
-		builder = builder.Autoscaler(nil)
+		builder = ocmClusterDefaults().Autoscaler(nil)
+		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
