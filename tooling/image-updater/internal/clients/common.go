@@ -15,11 +15,16 @@
 package clients
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
 // FilterTagsByPattern filters tags by a regex pattern
@@ -86,6 +91,73 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 	})
 
 	return tags, nil
+}
+
+// validateArchSpecificDigestWithGoContainerRegistry contains the common logic for validating
+// architecture-specific digests using the go-containerregistry library.
+// This is shared between QuayClient and GenericRegistryClient.
+func validateArchSpecificDigestWithGoContainerRegistry(ctx context.Context, registryURL, repository, tagPattern, arch string, multiArch bool, tags []Tag) (string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	preparedTags, err := PrepareTagsForArchValidation(tags, repository, tagPattern)
+	if err != nil {
+		return "", err
+	}
+
+	for _, tag := range preparedTags {
+		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", registryURL, repository, tag.Name))
+		if err != nil {
+			logger.Error(err, "failed to parse reference", "tag", tag.Name)
+			continue
+		}
+
+		desc, err := remote.Get(ref)
+		if err != nil {
+			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
+			continue
+		}
+
+		// If multiArch is requested, return the multi-arch manifest list digest
+		if multiArch && desc.MediaType.IsIndex() {
+			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+			return desc.Digest.String(), nil
+		}
+
+		if desc.MediaType.IsIndex() {
+			logger.Info("skipping multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
+			continue
+		}
+
+		img, err := desc.Image()
+		if err != nil {
+			logger.Error(err, "failed to get image", "tag", tag.Name)
+			continue
+		}
+
+		configFile, err := img.ConfigFile()
+		if err != nil {
+			logger.Error(err, "failed to get config", "tag", tag.Name)
+			continue
+		}
+
+		normalizedArch := NormalizeArchitecture(configFile.Architecture)
+
+		if normalizedArch == arch && configFile.OS == "linux" {
+			digest, err := img.Digest()
+			if err != nil {
+				logger.Error(err, "failed to get image digest", "tag", tag.Name)
+				continue
+			}
+			return digest.String(), nil
+		}
+
+		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", configFile.Architecture, "os", configFile.OS, "wantArch", arch)
+	}
+
+	if multiArch {
+		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
+	}
+	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }
 
 // NewRegistryClient creates a new registry client based on the registry URL
