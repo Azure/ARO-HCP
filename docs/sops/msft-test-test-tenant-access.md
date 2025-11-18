@@ -148,6 +148,10 @@ The ARO HCP project uses service principals to authenticate OpenShift CI (Prow) 
    - Secret name: `hcp-msft-test-test-credentials`
    - Access: Requires OpenShift CI admin permissions
 
+### Future Improvement: OIDC Federation
+
+> **TODO**: Investigate OIDC federation between the MSFT Test Test tenant and OpenShift CI clusters to enable Managed Service Identity (MSI) authentication.
+
 ### Credential Expiration
 
 > **⚠️ IMPORTANT: Service Principal Credential Expires on September 30, 2026**
@@ -197,6 +201,10 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 
 **Note**: Other 5 production regions (switzerlandnorth, canadacentral, australiaeast, westeurope, eastus2) do not have E2E tests configured yet, so vCPU quotas were not requested.
 
+#### Boskos Quota Slices
+
+> **TODO**: Configure Boskos quota slices to limit concurrent CI jobs in the MSFT Test Test tenant subscriptions.
+
 #### How to Request Additional Quotas
 
 If you need to request quota increases for new regions or resources:
@@ -207,24 +215,11 @@ If you need to request quota increases for new regions or resources:
 4. Find the quota you need to increase (e.g., "Total Regional vCPUs")
 5. Click the pencil icon and request a new limit
 
-### Disabling Entra ID Soft Deletion
+### Entra ID Directory Object Limits
 
-High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. We are working on the request of disabling Entra ID Soft Deletion
+High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. Microsoft has rejected requests to disable Entra ID Soft Deletion.
 
-
-### Cleaning Up Test Resources
-
-E2E tests should clean up after themselves, but sometimes resources are left behind:
-
-```bash
-# List resource groups created by E2E tests
-az group list --query "[?starts_with(name, 'premerge-') || starts_with(name, 'periodic-')].name" -o table
-
-# Delete old resource groups (use with caution!)
-az group delete --name <resource-group-name> --yes --no-wait
-```
-
-**⚠️ Warning**: Only delete resources you created or that are confirmed to be expired test resources.
+> **TODO**: Consider reusing Managed Service Identities (MSI) where possible to reduce the number of directory objects created.
 
 ## Automated Cleanup
 
