@@ -75,6 +75,57 @@ func TestLoadFromFile_ValidConfig(t *testing.T) {
 	assert.Equal(t, []string{"custom.annotation", "operator.io"}, config.AnnotationPrefixesToRemove)
 }
 
+func TestLoadFromFile_WithManifestOverrides(t *testing.T) {
+	configYAML := heredoc.Doc(`
+		chartName: "test-operator"
+		chartDescription: "Test operator chart"
+		operatorDeploymentNames:
+		  - "test-operator"
+		manifestOverrides:
+		  - selector:
+		      kind: Deployment
+		      name: test-deployment
+		    operations:
+		      - op: add
+		        path: metadata.labels
+		        merge: true
+		        value:
+		          test-label: "true"
+		  - selector:
+		      kind: ServiceAccount
+		      name: test-sa
+		    operations:
+		      - op: replace
+		        path: metadata.annotations.test-annotation
+		        value: "test-value"
+	`)
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	err := os.WriteFile(configPath, []byte(configYAML), 0644)
+	require.NoError(t, err)
+
+	config, err := LoadFromFile(configPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-operator", config.ChartName)
+	assert.Len(t, config.ManifestOverrides, 2)
+
+	// Validate first override
+	assert.Equal(t, "Deployment", config.ManifestOverrides[0].Selector.Kind)
+	assert.Equal(t, "test-deployment", config.ManifestOverrides[0].Selector.Name)
+	assert.Len(t, config.ManifestOverrides[0].Operations, 1)
+	assert.Equal(t, "add", config.ManifestOverrides[0].Operations[0].Op)
+	assert.Equal(t, "metadata.labels", config.ManifestOverrides[0].Operations[0].Path)
+	assert.True(t, config.ManifestOverrides[0].Operations[0].Merge)
+
+	// Validate second override
+	assert.Equal(t, "ServiceAccount", config.ManifestOverrides[1].Selector.Kind)
+	assert.Equal(t, "test-sa", config.ManifestOverrides[1].Selector.Name)
+	assert.Len(t, config.ManifestOverrides[1].Operations, 1)
+	assert.Equal(t, "replace", config.ManifestOverrides[1].Operations[0].Op)
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -184,6 +235,128 @@ func TestValidate(t *testing.T) {
 				ImageRepositoryParam:    "imageRepository",
 			},
 			wantErr: false,
+		},
+		{
+			name: "valid manifestOverrides - should pass",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ManifestOverrides: []ManifestOverride{
+					{
+						Selector: Selector{
+							Kind: "Deployment",
+							Name: "test",
+						},
+						Operations: []Operation{
+							{
+								Op:    "add",
+								Path:  "metadata.labels",
+								Value: map[string]interface{}{"test": "value"},
+								Merge: true,
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "manifestOverride with invalid op - should fail",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ManifestOverrides: []ManifestOverride{
+					{
+						Selector: Selector{
+							Kind: "Deployment",
+							Name: "test",
+						},
+						Operations: []Operation{
+							{
+								Op:    "invalid-op",
+								Path:  "metadata.labels",
+								Value: map[string]interface{}{"test": "value"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "invalid operation type",
+		},
+		{
+			name: "manifestOverride with missing kind - should fail",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ManifestOverrides: []ManifestOverride{
+					{
+						Selector: Selector{
+							Name: "test",
+						},
+						Operations: []Operation{
+							{
+								Op:    "add",
+								Path:  "metadata.labels",
+								Value: map[string]interface{}{"test": "value"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "selector kind cannot be empty",
+		},
+		{
+			name: "manifestOverride with missing path - should fail",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ManifestOverrides: []ManifestOverride{
+					{
+						Selector: Selector{
+							Kind: "Deployment",
+							Name: "test",
+						},
+						Operations: []Operation{
+							{
+								Op:    "add",
+								Value: map[string]interface{}{"test": "value"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "operation path cannot be empty",
+		},
+		{
+			name: "manifestOverride add/replace without value - should fail",
+			config: &BundleConfig{
+				ChartName:               "test",
+				ChartDescription:        "Test",
+				OperatorDeploymentNames: []string{"test"},
+				ManifestOverrides: []ManifestOverride{
+					{
+						Selector: Selector{
+							Kind: "Deployment",
+							Name: "test",
+						},
+						Operations: []Operation{
+							{
+								Op:   "add",
+								Path: "metadata.labels",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "operation value is required for add and replace operations",
 		},
 	}
 

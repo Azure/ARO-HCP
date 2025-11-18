@@ -47,7 +47,29 @@ type BundleConfig struct {
 	RequiredResources      []string `yaml:"requiredResources"`      // required Kubernetes resource types
 
 	// Customization
-	AnnotationPrefixesToRemove []string `yaml:"annotationPrefixesToRemove"` // annotation prefixes to remove from manifests
+	AnnotationPrefixesToRemove []string           `yaml:"annotationPrefixesToRemove"`  // annotation prefixes to remove from manifests
+	ManifestOverrides          []ManifestOverride `yaml:"manifestOverrides,omitempty"` // manifest-level overrides for fine-grained customization
+}
+
+// ManifestOverride defines a set of operations to apply to manifests matching a selector
+type ManifestOverride struct {
+	Selector   Selector    `yaml:"selector"`
+	Operations []Operation `yaml:"operations"`
+}
+
+// Selector identifies which manifests to apply operations to
+type Selector struct {
+	Kind       string `yaml:"kind"`                 // Kubernetes resource kind (required)
+	Name       string `yaml:"name,omitempty"`       // Resource name (optional, matches all if empty)
+	APIVersion string `yaml:"apiVersion,omitempty"` // API version for disambiguation (optional)
+}
+
+// Operation defines a modification to apply to a manifest field
+type Operation struct {
+	Op    string      `yaml:"op"`              // Operation type: add, replace, remove
+	Path  string      `yaml:"path"`            // JSONPath-like path to the field
+	Value interface{} `yaml:"value,omitempty"` // Value to set (required for add/replace)
+	Merge bool        `yaml:"merge,omitempty"` // For add operations on maps, merge with existing values
 }
 
 // LoadFromFile loads configuration from a YAML file
@@ -95,5 +117,34 @@ func (c *BundleConfig) Validate() error {
 	if c.ImageRootRepositoryParam != "" && c.ImageRepositoryParam != "" {
 		return fmt.Errorf("imageRootRepositoryParam and imageRepositoryParam are mutually exclusive - only one can be set")
 	}
+
+	for i, override := range c.ManifestOverrides {
+		if override.Selector.Kind == "" {
+			return fmt.Errorf("manifestOverrides[%d]: selector kind cannot be empty", i)
+		}
+
+		if len(override.Operations) == 0 {
+			return fmt.Errorf("manifestOverrides[%d]: at least one operation must be specified", i)
+		}
+
+		for j, op := range override.Operations {
+			if op.Op != "add" && op.Op != "replace" && op.Op != "remove" {
+				return fmt.Errorf("manifestOverrides[%d].operations[%d]: invalid operation type '%s', must be one of: add, replace, remove", i, j, op.Op)
+			}
+
+			if op.Path == "" {
+				return fmt.Errorf("manifestOverrides[%d].operations[%d]: operation path cannot be empty", i, j)
+			}
+
+			if (op.Op == "add" || op.Op == "replace") && op.Value == nil {
+				return fmt.Errorf("manifestOverrides[%d].operations[%d]: operation value is required for add and replace operations", i, j)
+			}
+
+			if op.Merge && op.Op != "add" {
+				return fmt.Errorf("manifestOverrides[%d].operations[%d]: merge flag can only be used with add operation", i, j)
+			}
+		}
+	}
+
 	return nil
 }
