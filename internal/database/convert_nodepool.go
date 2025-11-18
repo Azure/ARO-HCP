@@ -15,12 +15,9 @@
 package database
 
 import (
-	"fmt"
-
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*NodePool, error) {
@@ -28,18 +25,17 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		return nil, nil
 	}
 
-	resourceID, err := azcorearm.ParseResourceID(internalObj.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID '%s': %w", internalObj.ID, err)
-	}
-
 	cosmosObj := &NodePool{
-		TypedDocument: TypedDocument{},
+		TypedDocument: TypedDocument{
+			BaseDocument: BaseDocument{
+				ID: internalObj.ServiceProviderProperties.CosmosUID,
+			},
+		},
 		NodePoolProperties: NodePoolProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: resourceID,
+				ResourceID: internalObj.ID,
+				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
 				// TODO
-				//InternalID:        ocm.InternalID{},
 				//ActiveOperationID: "",
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
@@ -61,6 +57,8 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	cosmosObj.InternalState.InternalAPI.Properties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.SystemData = nil
 	cosmosObj.InternalState.InternalAPI.Tags = nil
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
 
 	return cosmosObj, nil
 }
@@ -76,7 +74,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	// some pieces of data are stored on the ResourceDocument, so we need to restore that data
 	internalObj.TrackedResource = arm.TrackedResource{
 		Resource: arm.Resource{
-			ID:         cosmosObj.ResourceID.String(),
+			ID:         cosmosObj.ResourceID,
 			Name:       cosmosObj.ResourceID.Name,
 			Type:       cosmosObj.ResourceID.ResourceType.String(),
 			SystemData: cosmosObj.SystemData,
@@ -88,6 +86,8 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Properties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.SystemData = cosmosObj.SystemData
 	internalObj.Tags = copyTags(cosmosObj.Tags)
+	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
+	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
 
 	return internalObj, nil
 }

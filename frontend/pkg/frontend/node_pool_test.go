@@ -57,11 +57,11 @@ var dummyVersionID = "4.18.0"
 func TestCreateNodePool(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
-	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
+	clusterDoc.InternalID, _ = api.NewInternalID(dummyClusterHREF)
 
 	nodePoolResourceID, _ := azcorearm.ParseResourceID(api.TestNodePoolResourceID)
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
-	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
+	nodePoolDoc.InternalID, _ = api.NewInternalID(dummyNodePoolHREF)
 
 	arm.SetAzureLocation(api.TestLocation)
 	location := arm.GetAzureLocation()

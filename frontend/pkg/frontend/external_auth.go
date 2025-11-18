@@ -247,7 +247,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
+		resourceDoc.InternalID, err = api.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)

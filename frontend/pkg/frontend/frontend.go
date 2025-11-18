@@ -371,7 +371,7 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 				arm.WriteInternalServerError(writer)
 				return
 			}
-			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
+			value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
 			if err != nil {
 				logger.Error(err.Error())
 				arm.WriteInternalServerError(writer)
@@ -590,7 +590,9 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// this sets many default values, which are then sometimes overridden by Normalize
-	newInternalCluster := &api.HCPOpenShiftCluster{}
+	newInternalCluster := &api.HCPOpenShiftCluster{
+		TrackedResource: arm.NewTrackedResource(resourceID),
+	}
 	newExternalCluster.Normalize(newInternalCluster)
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
@@ -616,23 +618,23 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return
 	}
 
-	newCosmosCluster := database.NewResourceDocument(resourceID)
-	newCosmosCluster.InternalID, err = ocm.NewInternalID(resultingClusterServiceCluster.HREF())
+	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(resultingClusterServiceCluster.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = newCosmosCluster.InternalID.String()
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, newCosmosCluster.ResourceID, newCosmosCluster.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, newInternalCluster.ID, newInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
+	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
+	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
 	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -1087,7 +1089,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
-	internalID, err := ocm.NewInternalID(csCredential.HREF())
+	internalID, err := api.NewInternalID(csCredential.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1536,12 +1538,7 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 // marshalCSCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
 func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) ([]byte, error) {
-	resourceID, err := azcorearm.ParseResourceID(internalCluster.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID: %w", err)
-	}
-
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -1747,7 +1744,7 @@ func featuresMap(features *[]arm.Feature) map[string]string {
 	return featureMap
 }
 
-func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
+func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
 	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftVersion(hcpVersion))
 }

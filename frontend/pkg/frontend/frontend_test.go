@@ -76,7 +76,7 @@ func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest
 }
 
 func newClusterInternalID(t *testing.T) ocm.InternalID {
-	internalID, err := ocm.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
+	internalID, err := api.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
 	require.NoError(t, err)
 	return internalID
 }

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -56,7 +58,7 @@ func TestExternalAuthRequired(t *testing.T) {
 		},
 		{
 			name:     "Default external auth",
-			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(nil),
+			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth"))),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
