@@ -71,13 +71,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427 # d466ccd
+              digest: sha256:4b78db98f518e599719b0340c7dd908f4ec220a6dd8bce415e63c28a4268ddce # 8289751
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca # d466ccd
+              digest: sha256:67b960c675221bb5daf442d0802c93e2f14757f0251bb9ac38a736c030218f9d # 8289751
           # Admin API
           adminApi:
             image:
@@ -173,13 +173,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427"
+              digest: sha256:4b78db98f518e599719b0340c7dd908f4ec220a6dd8bce415e63c28a4268ddce # 8289751
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca"
+              digest: sha256:67b960c675221bb5daf442d0802c93e2f14757f0251bb9ac38a736c030218f9d # 8289751
           # Admin API
           adminApi:
             image:
@@ -274,13 +274,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: "sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427"
+              digest: sha256:4b78db98f518e599719b0340c7dd908f4ec220a6dd8bce415e63c28a4268ddce # 8289751
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: "sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca"
+              digest: sha256:67b960c675221bb5daf442d0802c93e2f14757f0251bb9ac38a736c030218f9d # 8289751
           # Admin API
           adminApi:
             image:
