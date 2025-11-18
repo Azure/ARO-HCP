@@ -90,19 +90,19 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		newMiddlewareValidateSubscriptionState(f.dbClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, api.ClusterResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListClusters))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, api.ClusterResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListClusters))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.NodePoolResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListNodePools))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, api.ExternalAuthResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListExternalAuths))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, api.VersionResourceTypeName),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceList))
+		postMuxMiddleware.HandlerFunc(f.ArmResourceListVersion))
 
 	// Resource read endpoints
 	postMuxMiddleware = NewMiddleware(

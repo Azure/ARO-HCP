@@ -331,14 +331,20 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resultingInternalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterNodePool, database.NodePool](resultingCosmosObj)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
+	responseBody, err := marshalCSNodePool(csNodePool, resultingInternalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -352,11 +358,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ocm.ConvertCStoNodePool(doc.ResourceID, csNodePool)
-	hcpNodePool.SystemData = doc.SystemData
-	hcpNodePool.Tags = maps.Clone(doc.Tags)
-	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
+func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, versionedInterface api.Version) ([]byte, error) {
+	hcpNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, csNodePool)
+	hcpNodePool.SystemData = internalNodePool.SystemData
+	hcpNodePool.Tags = maps.Clone(internalNodePool.Tags)
+	hcpNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }
