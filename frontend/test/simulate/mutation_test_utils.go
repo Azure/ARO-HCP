@@ -94,12 +94,14 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 		justID := rand.String(10)
 		internalID := "/api/clusters_mgmt/v1/clusters/" + justID
 
-		autoscaler, err := autoscalerBuilder.Build()
-		if err != nil {
-			return nil, err
-		}
+		if autoscalerBuilder != nil {
+			autoscaler, err := autoscalerBuilder.Build()
+			if err != nil {
+				return nil, err
+			}
 
-		internalIDToAutoscaler[internalID] = append(internalIDToAutoscaler[internalID], autoscaler)
+			internalIDToAutoscaler[internalID] = append(internalIDToAutoscaler[internalID], autoscaler)
+		}
 
 		ret, err := clusterBuilder.ID(justID).HREF(internalID).Build()
 		if err != nil {
@@ -328,12 +330,18 @@ func mergeClusterServiceClusterAndAutoscaler(clusterHistory []any, autoscalerHis
 		return nil, err
 	}
 
-	autoscaler, err := mergeClusterServiceInstance[csarhcpv1alpha1.ClusterAutoscaler](autoscalerHistory)
-	if err != nil {
-		return nil, err
+	clusterBuilder := csarhcpv1alpha1.NewCluster().Copy(cluster)
+
+	if len(autoscalerHistory) > 0 {
+		autoscaler, err := mergeClusterServiceInstance[csarhcpv1alpha1.ClusterAutoscaler](autoscalerHistory)
+		if err != nil {
+			return nil, err
+		}
+
+		clusterBuilder.Autoscaler(csarhcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler))
 	}
 
-	return csarhcpv1alpha1.NewCluster().Copy(cluster).Autoscaler(csarhcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler)).Build()
+	return clusterBuilder.Build()
 }
 
 func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {
