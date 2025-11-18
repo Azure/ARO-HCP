@@ -21,7 +21,7 @@ import (
 
 // RegistryClient defines the interface for container registry clients
 type RegistryClient interface {
-	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error)
+	GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error)
 }
 
 type Tag struct {

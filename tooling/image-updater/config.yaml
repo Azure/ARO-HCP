@@ -96,6 +96,8 @@ images:
       image: mcr.microsoft.com/aks/msi-acrpull
       tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
     targets:
+    - jsonPath: clouds.dev.defaults.acrPull.image.digest
+      filePath: ../../config/config.yaml
     - jsonPath: clouds.public.environments.int.defaults.acrPull.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
   # Arobit images
@@ -138,6 +140,8 @@ images:
     - jsonPath: clouds.public.environments.int.defaults.mgmt.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.svc.prometheus.prometheusOperator.image.sha
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.defaults.mgmt.prometheus.prometheusOperator.image.sha
       filePath: ../../config/config.yaml
   prometheus:
     source:
