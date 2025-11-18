@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:21619c9bf1bd100cb3c88daa309a054a3e6a1fd5dc9a2a3e7ca1dc73d859a6ab
+      digest: sha256:b9e342a90e25484074ccb6e9649e8593b8b992a618ce488f25b42d58725b829d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:706da20b666dec8b5df5571b4dc4a7426b4cbfd1bcd37a6cda78e3ea1ad0cdae
+      digest: sha256:22a259c478393ad7c66c5be9a680b95f6fb1515d18c99a8e9e458d3c3eaccc77
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca
+    digest: sha256:e8d59cdd88c504aa424cb1a19fcfa2c66575d45170ab69e371324f589ffc8ea6
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -206,7 +206,7 @@ frontend:
     private: true
     zoneRedundantMode: Auto
   image:
-    digest: sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427
+    digest: sha256:ee9944879d089861c95cb42212d6c55f36365a9b59b012f2a9448f801bba34b1
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -479,7 +479,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
   rg: hcp-underlay-perf-usw3ptest-mgmt-1
@@ -729,7 +729,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
       version: ""
