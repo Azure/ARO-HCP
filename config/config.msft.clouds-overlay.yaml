@@ -46,7 +46,7 @@ clouds:
                   sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879 # v3.7.1-1
+                  sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.1-1
               prometheusConfigReloader:
                 image:
                   sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
@@ -61,7 +61,7 @@ clouds:
                   sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
               prometheusSpec:
                 image:
-                  sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879 # v3.7.1-1
+                  sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.1-1
               prometheusConfigReloader:
                 image:
                   sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
@@ -71,13 +71,13 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427 # d466ccd
+              digest: sha256:ee9944879d089861c95cb42212d6c55f36365a9b59b012f2a9448f801bba34b1 # d466ccd
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca # d466ccd
+              digest: sha256:e8d59cdd88c504aa424cb1a19fcfa2c66575d45170ab69e371324f589ffc8ea6 # d466ccd
           # Admin API
           adminApi:
             image:
