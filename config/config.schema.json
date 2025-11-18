@@ -1595,7 +1595,13 @@
       },
       "additionalProperties": false,
       "required": [
-        "manageInstance"
+        "manageInstance",
+        "sku",
+        "tier",
+        "serviceLogsDatabase",
+        "hostedControlPlaneLogsDatabase",
+        "adminGroups",
+        "viewerGroups"
       ]
     },
     "mise": {
