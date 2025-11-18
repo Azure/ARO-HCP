@@ -588,3 +588,84 @@ The tool includes image reference processing that supports both tag and digest f
 3. Update `applyDefaults()` method to handle new fields
 4. Add validation logic in `Validate()` method if needed
 5. Update configuration file documentation and examples
+
+### Manifest Override Path Syntax and Limitations
+
+The manifest override system uses a JSONPath-like syntax to navigate and modify Kubernetes object fields. Understanding the supported syntax and its limitations is important for creating effective manifest overrides.
+
+#### Supported Path Syntax
+
+The path parser supports three types of path expressions:
+
+**1. Simple Nested Fields**
+```
+metadata.name
+spec.template.metadata.labels
+```
+
+**2. Array Indexing (by numeric index)**
+```
+spec.containers[0].image
+spec.containers[1].name
+```
+
+**3. Array Filtering (by field value)**
+```
+spec.containers[name=manager].image
+spec.containers[name=manager].env[name=WATCH_NAMESPACE].value
+```
+
+#### Path Parsing Limitations
+
+**Dots in Filter Values**
+
+Filter values **cannot contain dots** (`.`) because the parser splits the path on dots before applying regex matching. This is a fundamental limitation of the current implementation.
+
+❌ **Does NOT work:**
+```
+spec.containers[name=manager.v1].image
+# Parsed as: ["spec", "containers[name=manager", "v1]", "image"]
+```
+
+✅ **Works:**
+```
+spec.containers[name=manager-v1].image
+# Parsed as: ["spec", "containers[name=manager-v1]", "image"]
+```
+
+**Brackets in Filter Values**
+
+Filter values containing brackets will cause regex match failures.
+
+❌ **Does NOT work:**
+```
+spec.containers[name=manager[0]].image
+```
+
+**Supported Special Characters in Filter Values**
+
+Filter values can contain:
+- Hyphens: `manager-v1`
+- Underscores: `WATCH_NAMESPACE`
+- Alphanumeric characters: `abc123`
+
+Filter values cannot contain:
+- Dots: `manager.v1`
+- Brackets: `manager[0]`
+
+#### Implementation Details
+
+The parser operates in two stages:
+1. **Split on dots**: `strings.Split(path, ".")` splits the path into segments
+2. **Regex matching**: Each segment is matched against array indexing and filtering patterns
+   - Array index pattern: `^(\w+)\[(\d+)\]$`
+   - Array filter pattern: `^(\w+)\[(\w+)=([^\]]+)\]$`
+
+Because splitting happens first, any dots within `[...]` brackets are treated as path separators, breaking the filter syntax.
+
+#### Workarounds
+
+If you need to match resources with dots in their names:
+- Use array indexing instead: `containers[0]` instead of `containers[name=manager.v1]`
+- Ensure resource names don't contain dots when possible
+- Use alternative naming conventions (hyphens instead of dots)

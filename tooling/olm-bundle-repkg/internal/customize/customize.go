@@ -55,6 +55,17 @@ func CustomizeManifests(objects []unstructured.Unstructured, config *BundleConfi
 		}
 		customizedManifests[i] = obj
 	}
+
+	// Apply manifest overrides after all other customizations
+	// This ensures overrides are applied to already-templated manifests
+	if len(config.ManifestOverrides) > 0 {
+		var err error
+		customizedManifests, err = ApplyOverrides(customizedManifests, config.ManifestOverrides)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to apply manifest overrides: %w", err)
+		}
+	}
+
 	return customizedManifests, makeNestedMap(parameters), nil
 }
 
