@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:cf99abe06897d1b72d19af98648c5befb16624fcfa0b2829b8f502f446e88eca
+    digest: sha256:67b960c675221bb5daf442d0802c93e2f14757f0251bb9ac38a736c030218f9d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -124,7 +124,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:cdbd84afe623b7cd58e879a6196325519f52b322a054f2355771639ce2f836d3
+    digest: sha256:4eece9b42afe23a6bbbf9831a3f27983b3aa555d62cc4dac5c54e04fcb3da422
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -206,7 +206,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:51183d6d781ff4c6ed02594f52acefe96cad634957e8f3df0368617a5d011427
+    digest: sha256:4b78db98f518e599719b0340c7dd908f4ec220a6dd8bce415e63c28a4268ddce
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
