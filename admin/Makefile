@@ -35,7 +35,7 @@ $(BINARY): $(ADMIN_API_SOURCES)
 	cd api && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
-	./${BINARY} --location ${LOCATION}
+	./${BINARY} serve --location ${LOCATION}
 .PHONY: run
 
 clean:
