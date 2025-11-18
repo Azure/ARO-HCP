@@ -15,7 +15,6 @@ prometheusRules:
     - KubeAPIErrorBudgetBurn
   - groupName: kubernetes-resources
     alerts:
-    - KubeCPUOvercommit
     - KubeCPUQuotaOvercommit
     - KubeMemoryOvercommit
     - KubeMemoryQuotaOvercommit
