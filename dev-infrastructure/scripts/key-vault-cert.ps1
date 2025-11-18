@@ -15,8 +15,6 @@ param (
 
     [string]$SecretContentType = 'application/x-pkcs12',
 
-    [switch]$Disabled,
-
     [bool]$Force
 )
 
@@ -53,7 +51,6 @@ try
             SecretContentType         = $SecretContentType
             ValidityInMonths          = $ValidityInMonths
             IssuerName                = $IssuerName
-            Disabled                  = $Disabled
             SubjectName               = $SubjectName
             DnsNames                  = $DNSNamesArray
             KeyUsage                  = @('DigitalSignature', 'KeyEncipherment')
@@ -74,7 +71,6 @@ try
                     $ExistingPolicy.SecretContentType -ne $SecretContentType -or
                     $ExistingPolicy.ValidityInMonths -ne $ValidityInMonths -or
                     $ExistingPolicy.IssuerName -ne $IssuerName -or
-                    $ExistingPolicy.Enabled -eq $Disabled -or
                     (Compare-Object -ReferenceObject $ExistingPolicy.DnsNames -DifferenceObject $DNSNamesArray)
                 )
 
