@@ -1575,6 +1575,10 @@
         "viewerGroups": {
           "type": "string"
         },
+        "staticKustoName": {
+          "type": "string",
+          "description": "Name of the static Kusto cluster to use for dev environments"
+        },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
           "type": "string"

@@ -2,13 +2,8 @@ param clusterLogManagedIdentityId string
 
 param databaseName string
 
-@description('Geo short ID of the region')
-param geoShortId string
-
-@description('Environment name')
-param environmentName string
-
-var kustoName = 'hcp-${environmentName}-${geoShortId}'
+@description('Name of the Kusto cluster to grant ingest to')
+param kustoName string
 
 resource database 'Microsoft.Kusto/clusters/databases@2024-04-13' existing = {
   name: '${kustoName}/${databaseName}'

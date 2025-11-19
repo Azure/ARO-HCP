@@ -343,6 +343,7 @@ kusto:
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: Dev(No SLA)_Standard_D11_v2
+  staticKustoName: hcp-dev-us
   tier: Basic
   viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb

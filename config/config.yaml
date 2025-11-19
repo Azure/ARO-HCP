@@ -187,6 +187,7 @@ defaults:
   kusto:
     manageInstance: false
     rg: "hcp-kusto-us"
+    staticKustoName: ""
     serviceLogsDatabase: "ServiceLogs"
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
@@ -780,6 +781,8 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
+      kusto:
+        staticKustoName: "hcp-dev-us"
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
         enabled: false
