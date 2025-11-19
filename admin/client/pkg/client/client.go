@@ -50,6 +50,7 @@ func NewClient(endpoint string, hostHeader string, token string, insecureSkipVer
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
+					ServerName:         hostHeader,
 				},
 			},
 		}
