@@ -4,6 +4,9 @@ param persistTagValue bool = false
 @description('Name of the hypershift cluster')
 param clusterName string
 
+@description('Array of MSI resource IDs from leased pool')
+param msiIds array
+
 @description('Node pool osDisk Size in GiB')
 param nodePoolOsDiskSizeGiB int = 128
 
@@ -23,7 +26,7 @@ module customerInfra 'modules/customer-infra.bicep' = {
 module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'managedIdentities'
   params: {
-    clusterName: clusterName
+    msiIds: msiIds
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName
