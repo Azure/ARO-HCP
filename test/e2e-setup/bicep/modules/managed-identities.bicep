@@ -1,19 +1,40 @@
-@description('Name of the hypershift cluster')
-param clusterName string
+@description('Array of MSI resource IDs from leased pool')
+param msiIds array
 
-@description('The Network security group name for the hcp cluster resources')
+@description('The Network security group name for the HCP cluster resources')
 param nsgName string
 
-@description('The virtual network name for the hcp cluster resources')
+@description('The virtual network name for the HCP cluster resources')
 param vnetName string
 
-@description('The subnet name for deploying hcp cluster resources.')
+@description('The subnet name for deploying HCP cluster resources')
 param subnetName string
 
 @description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
-var randomSuffix = toLower(uniqueString(resourceGroup().id))
+//
+// M S I   M A P P I N G
+//
+var msi = {
+  controlPlane: {
+    clusterApiAzure: msiIds[0]
+    controlPlane: msiIds[1]
+    cloudControllerManager: msiIds[2]
+    ingress: msiIds[3]
+    diskCsiDriver: msiIds[4]
+    fileCsiDriver: msiIds[5]
+    imageRegistry: msiIds[6]
+    cloudNetworkConfig: msiIds[7]
+    kms: msiIds[8]
+  }
+  dataPlane: {
+    diskCsiDriver: msiIds[9]
+    fileCsiDriver: msiIds[10]
+    imageRegistry: msiIds[11]
+  }
+  service: msiIds[12]
+}
 
 //
 // E X I S T I N G   R E S O U R C E S
@@ -36,6 +57,16 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
   name: keyVaultName
 }
 
+
+//
+// M S I   C O N T A I N E R
+//
+
+resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
+  name: split(msi.service, '/')[4]
+}
+
+
 //
 // C O N T R O L   P L A N E   I D E N T I T I E S
 //
@@ -44,9 +75,9 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
 // C L U S T E R   A P I   A Z U R E   M I
 //
 
-resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-cluster-api-azure-${randomSuffix}'
-  location: resourceGroup().location
+resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.clusterApiAzure, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
@@ -70,9 +101,9 @@ resource hcpClusterApiProviderRoleSubnetAssignment 'Microsoft.Authorization/role
 // C O N T R O L   P L A N E   O P E R A T O R   M A N A G E D   I D E N T I T Y
 //
 
-resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-control-plane-${randomSuffix}'
-  location: resourceGroup().location
+resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.controlPlane, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator
@@ -106,9 +137,9 @@ resource hcpControlPlaneOperatorNsgRoleAssignment 'Microsoft.Authorization/roleA
 // C L O U D   C O N T R O L L E R   M A N A G E R   M A N A G E D   I D E N T I T Y
 //
 
-resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-cloud-controller-manager-${randomSuffix}'
-  location: resourceGroup().location
+resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.cloudControllerManager, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Cloud Controller Manager
@@ -142,9 +173,9 @@ resource cloudControllerManagerRoleNsgAssignment 'Microsoft.Authorization/roleAs
 // I N G R E S S   M A N A G E D   I D E N T I T Y
 //
 
-resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-ingress-${randomSuffix}'
-  location: resourceGroup().location
+resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.ingress, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Cluster Ingress Operator
@@ -168,9 +199,9 @@ resource ingressOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssign
 // D I S K   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
 //
 
-resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-disk-csi-driver-${randomSuffix}'
-  location: resourceGroup().location
+resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.diskCsiDriver, '/'))
+  scope: rg
 }
 
 
@@ -178,9 +209,9 @@ resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 // F I L E   C S I   D R I V E R   M A N A G E D   I D E N T I T Y
 //
 
-resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-file-csi-driver-${randomSuffix}'
-  location: resourceGroup().location
+resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.fileCsiDriver, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift File Storage Operator
@@ -214,9 +245,9 @@ resource fileStorageOperatorRoleNsgAssignment 'Microsoft.Authorization/roleAssig
 // I M A G E   R E G I S T R Y   M A N A G E D   I D E N T I T Y
 //
 
-resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-image-registry-${randomSuffix}'
-  location: resourceGroup().location
+resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.imageRegistry, '/'))
+  scope: rg
 }
 
 
@@ -224,9 +255,9 @@ resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 // C L O U D   N E T W O R K   C O N F I G   M A N A G E D   I D E N T I T Y
 //
 
-resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-cloud-network-config-${randomSuffix}'
-  location: resourceGroup().location
+resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.cloudNetworkConfig, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Network Operator
@@ -268,9 +299,9 @@ var federatedCredentialsRoleId = subscriptionResourceId(
   'ef318e2a-8334-4a05-9e4a-295a196c6a6e'
 )
 
-resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-dp-disk-csi-driver-${randomSuffix}'
-  location: resourceGroup().location
+resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.dataPlane.diskCsiDriver, '/'))
+  scope: rg
 }
 
 resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -283,9 +314,9 @@ resource dpDiskCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
   }
 }
 
-resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-dp-file-csi-driver-${randomSuffix}'
-  location: resourceGroup().location
+resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.dataPlane.fileCsiDriver, '/'))
+  scope: rg
 }
 
 resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -296,7 +327,6 @@ resource dpFileCsiDriverMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
     principalType: 'ServicePrincipal'
     roleDefinitionId: federatedCredentialsRoleId
   }
-}
 
 resource dpFileCsiDriverFileStorageOperatorRoleSubnetAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, dpFileCsiDriverMi.id, fileStorageOperatorRoleId, subnet.id)
@@ -318,9 +348,9 @@ resource dpFileCsiDriverFileStorageOperatorRoleNsgAssignment 'Microsoft.Authoriz
   }
 }
 
-resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-dp-image-registry-${randomSuffix}'
-  location: resourceGroup().location
+resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.dataPlane.imageRegistry, '/'))
+  scope: rg
 }
 
 resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -337,9 +367,9 @@ resource dpImageRegistryMiFederatedCredentialsRoleAssignment 'Microsoft.Authoriz
 // S E R V I C E   M A N A G E D   I D E N T I T Y
 //
 
-resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-service-managed-identity-${randomSuffix}'
-  location: resourceGroup().location
+resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.service, '/'))
+  scope: rg
 }
 
 // Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
@@ -385,9 +415,9 @@ resource serviceManagedIdentityRoleAssignmentNSG 'Microsoft.Authorization/roleAs
 // KMS identity
 //
 
-resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${clusterName}-cp-kms-${randomSuffix}'
-  location: resourceGroup().location
+resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: last(split(msi.controlPlane.kms, '/'))
+  scope: rg
 }
 
 var keyVaultCryptoUserRoleId = subscriptionResourceId(
@@ -405,26 +435,30 @@ resource keyVaultCryptoUserToKeyVaultRoleAssignment 'Microsoft.Authorization/rol
   }
 }
 
-
 //
 // R E A D E R    R O L E
 //
-
-module readerRoles 'managed-identities-reader-roles.bicep' = {
-  name: 'managedIdentitiesReaderRoles'
-  params: {
-    serviceManagedIdentityId: serviceManagedIdentity.id
-    clusterApiAzureMiId: clusterApiAzureMi.id
-    controlPlaneMiId: controlPlaneMi.id
-    cloudControllerManagerMiId: cloudControllerManagerMi.id
-    ingressMiId: ingressMi.id
-    diskCsiDriverMiId: diskCsiDriverMi.id
-    fileCsiDriverMiId: fileCsiDriverMi.id
-    imageRegistryMiId: imageRegistryMi.id
-    cloudNetworkConfigMiId: cloudNetworkConfigMi.id
-    kmsMiId: kmsMi.id
+resource serviceManagedIdentityReaderAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for target in [
+    clusterApiAzureMi
+    controlPlaneMi
+    cloudControllerManagerMi
+    ingressMi
+    diskCsiDriverMi
+    fileCsiDriverMi
+    imageRegistryMi
+    cloudNetworkConfigMi
+    kmsMi
+  ]: {
+    name: guid(target.id, serviceManagedIdentity.id, readerRoleId)
+    scope: target
+    properties: {
+      principalId: serviceManagedIdentity.properties.principalId
+      principalType: 'ServicePrincipal'
+      roleDefinitionId: readerRoleId
+    }
   }
-}
+]
 
 //
 // Outputs

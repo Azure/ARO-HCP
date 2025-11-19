@@ -74,7 +74,13 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating a managed identities")
+			By("getting MSIs from pool for first cluster")
+			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+			Expect(err).NotTo(HaveOccurred())
+			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating role assignments for pooled MSIs")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
@@ -83,7 +89,7 @@ var _ = Describe("Customer", func() {
 				"managed-identities",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
-					"clusterName":  customerClusterName,
+					"msiIds":       msiIds,
 					"nsgName":      customerNetworkSecurityGroupName,
 					"vnetName":     customerVnetName,
 					"subnetName":   customerVnetSubnetName,
@@ -138,6 +144,10 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
+			By("getting MSIs from pool for second cluster")
+			msiIds, err = msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating a second managed identities")
 			keyVaultName, err = framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
@@ -147,7 +157,7 @@ var _ = Describe("Customer", func() {
 				"managed-identities-2",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
-					"clusterName":  customerClusterName2,
+					"msiIds":       msiIds,
 					"nsgName":      customerNetworkSecurityGroupName2,
 					"vnetName":     customerVnetName2,
 					"subnetName":   customerVnetSubnetName2,
@@ -200,6 +210,9 @@ var _ = Describe("Customer", func() {
 				},
 				45*time.Minute,
 			)
+
+			By("getting MSIs from pool for third cluster")
+			msiIds, err = msiPool.GetLeasedMSIs(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a third managed identities")
@@ -211,7 +224,7 @@ var _ = Describe("Customer", func() {
 				"managed-identities-3",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
-					"clusterName":  customerClusterName3,
+					"msiIds":       msiIds,
 					"nsgName":      customerNetworkSecurityGroupName3,
 					"vnetName":     customerVnetName3,
 					"subnetName":   customerVnetSubnetName3,

@@ -63,6 +63,12 @@ var _ = Describe("Customer", func() {
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
+			By("getting MSIs from pool")
+			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+			Expect(err).NotTo(HaveOccurred())
+			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating customer resources")
 			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
@@ -74,6 +80,7 @@ var _ = Describe("Customer", func() {
 					"customerVnetName":       customerVnetName,
 					"customerVnetSubnetName": customerVnetSubnetName,
 				},
+				msiIds,
 				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())
