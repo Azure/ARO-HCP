@@ -18,17 +18,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/bombsimon/logrusr/v4"
 	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -46,14 +45,10 @@ import (
 
 // testLogger is a logr-compatible logger with timestamps enabled for test framework logging
 var testLogger logr.Logger = func() logr.Logger {
-	logrusLogger := logrus.New()
-	logrusLogger.SetOutput(ginkgo.GinkgoWriter)
-	logrusLogger.SetFormatter(&logrus.TextFormatter{
-		DisableColors:   true,
-		FullTimestamp:   true,
-		TimestampFormat: time.RFC3339,
+	handler := slog.NewTextHandler(ginkgo.GinkgoWriter, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
 	})
-	return logrusr.New(logrusLogger)
+	return logr.FromSlogHandler(handler)
 }()
 
 type perItOrDescribeTestContext struct {
