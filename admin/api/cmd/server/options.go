@@ -27,9 +27,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+
 	"github.com/Azure/ARO-HCP/admin/api/handlers"
 	"github.com/Azure/ARO-HCP/admin/api/interrupts"
 	"github.com/Azure/ARO-HCP/admin/api/middleware"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -46,6 +50,8 @@ type RawOptions struct {
 	HealthPort         int
 	Location           string
 	ClustersServiceURL string
+	CosmosURL          string
+	CosmosName         string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -53,6 +59,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.HealthPort, "health-port", opts.HealthPort, "Port to serve health and readiness on.")
 	cmd.Flags().StringVar(&opts.Location, "location", opts.Location, "Location to serve content on.")
 	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the Clusters Service.")
+	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", opts.CosmosURL, "URL of the Cosmos DB.")
+	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "Name of the Cosmos DB.")
 	return nil
 }
 
@@ -72,6 +80,7 @@ type completedOptions struct {
 	HealthPort            int
 	Location              string
 	ClustersServiceClient ocm.ClusterServiceClientSpec
+	DbClient              database.DBClient
 }
 
 type Options struct {
@@ -88,6 +97,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
 		Insecure(true).
@@ -99,12 +109,30 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 	csClient := ocm.NewClusterServiceClient(csConnection, "", false, false)
 
+	// Create the database client.
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+		o.CosmosURL,
+		o.CosmosName,
+		azcore.ClientOptions{
+			// FIXME Cloud should be determined by other means.
+			Cloud: cloud.AzurePublic,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
+	}
+	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the database client: %w", err)
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                  o.Port,
 			HealthPort:            o.HealthPort,
 			Location:              o.Location,
 			ClustersServiceClient: csClient,
+			DbClient:              dbClient,
 		},
 	}, nil
 }
@@ -125,6 +153,7 @@ func (opts *Options) Run(ctx context.Context) error {
 	logger.Info("Running server", "port", opts.Port)
 	mux := http.NewServeMux()
 	mux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+	mux.Handle("GET /admin/listclusters", handlers.ListClustersHandler(opts.ClustersServiceClient, opts.DbClient))
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
 		Handler: middleware.WithURLPathValue(middleware.WithLogger(logger, mux)),
