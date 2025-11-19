@@ -92,3 +92,4 @@ param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
 param geoShortId = '{{ .geoShortId }}'
+param environmentName = '{{ .environmentName }}'

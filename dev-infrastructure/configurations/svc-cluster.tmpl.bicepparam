@@ -159,3 +159,4 @@ param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 param geoShortId = '{{ .geoShortId }}'
+param environmentName = '{{ .environmentName }}'

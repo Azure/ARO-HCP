@@ -181,6 +181,7 @@ e2e:
   regionTest:
     gatePromotion: false
     prowJobName: ""
+environmentName: dev
 ev2:
   assistedId:
     applicationId: ""

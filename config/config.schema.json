@@ -788,6 +788,9 @@
     }
   },
   "properties": {
+    "environmentName": {
+      "type": "string"
+    },
     "geoShortId": {
       "type": "string"
     },

@@ -57,7 +57,7 @@ arobit:
       repository: oss/v2/fluent/fluent-bit
   kusto:
     enabled: true
-    environmentName: ntly
+    environmentName: dev
   mdsd:
     enabled: false
     image:
@@ -181,6 +181,7 @@ e2e:
   regionTest:
     gatePromotion: false
     prowJobName: ""
+environmentName: ntly
 ev2:
   assistedId:
     applicationId: ""

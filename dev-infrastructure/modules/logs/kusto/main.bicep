@@ -22,7 +22,10 @@ param viewerGroups string
 @description('Geo short ID of the region')
 param geoShortId string
 
-var kustoName = 'hcp-${geoShortId}'
+@description('Environment name')
+param environmentName string
+
+var kustoName = 'hcp-${environmentName}-${geoShortId}'
 
 var db = {
   serviceLogs: serviceLogsDatabase

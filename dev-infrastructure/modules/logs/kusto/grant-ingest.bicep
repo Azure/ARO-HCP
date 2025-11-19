@@ -5,7 +5,10 @@ param databaseName string
 @description('Geo short ID of the region')
 param geoShortId string
 
-var kustoName = 'hcp-${geoShortId}'
+@description('Environment name')
+param environmentName string
+
+var kustoName = 'hcp-${environmentName}-${geoShortId}'
 
 resource database 'Microsoft.Kusto/clusters/databases@2024-04-13' existing = {
   name: '${kustoName}/${databaseName}'
