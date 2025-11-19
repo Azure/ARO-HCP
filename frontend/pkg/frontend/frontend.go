@@ -1656,29 +1656,40 @@ func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
 		messages = append(messages, fmt.Sprintf("Subscription state changed from %s to %s", oldSub.State, newSub.State))
 	}
 
-	if oldSub.Properties != nil && newSub.Properties != nil {
-		if oldSub.Properties.TenantId != nil && newSub.Properties.TenantId != nil &&
-			*oldSub.Properties.TenantId != *newSub.Properties.TenantId {
-			messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", *oldSub.Properties.TenantId, *newSub.Properties.TenantId))
+	if oldSub.Properties == nil {
+		oldSub.Properties = &arm.SubscriptionProperties{}
+	}
+	if newSub.Properties == nil {
+		newSub.Properties = &arm.SubscriptionProperties{}
+	}
+
+	var oldTenantId, newTenantId string
+
+	if oldSub.Properties.TenantId != nil {
+		oldTenantId = *oldSub.Properties.TenantId
+	}
+	if newSub.Properties.TenantId != nil {
+		newTenantId = *newSub.Properties.TenantId
+	}
+
+	if oldTenantId != newTenantId {
+		messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", oldTenantId, newTenantId))
+	}
+
+	oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
+	newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
+
+	for featureName, oldState := range oldFeatures {
+		newState, exists := newFeatures[featureName]
+		if !exists {
+			messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
+		} else if oldState != newState {
+			messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
 		}
-
-		if oldSub.Properties.RegisteredFeatures != nil && newSub.Properties.RegisteredFeatures != nil {
-			oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
-			newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
-
-			for featureName, oldState := range oldFeatures {
-				newState, exists := newFeatures[featureName]
-				if !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
-				} else if oldState != newState {
-					messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
-				}
-			}
-			for featureName, newState := range newFeatures {
-				if _, exists := oldFeatures[featureName]; !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
-				}
-			}
+	}
+	for featureName, newState := range newFeatures {
+		if _, exists := oldFeatures[featureName]; !exists {
+			messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
 		}
 	}
 
@@ -1822,13 +1833,12 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 }
 
 func featuresMap(features *[]arm.Feature) map[string]string {
-	if features == nil {
-		return nil
-	}
-	featureMap := make(map[string]string, len(*features))
-	for _, feature := range *features {
-		if feature.Name != nil && feature.State != nil {
-			featureMap[*feature.Name] = *feature.State
+	featureMap := make(map[string]string)
+	if features != nil {
+		for _, feature := range *features {
+			if feature.Name != nil && feature.State != nil {
+				featureMap[*feature.Name] = *feature.State
+			}
 		}
 	}
 	return featureMap
