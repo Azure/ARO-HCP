@@ -12,26 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package admin
+package middleware
 
 import (
-	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/go-logr/logr"
 )
 
-func (a *Admin) adminRoutes() *http.ServeMux {
-
-	adminMux := http.NewServeMux()
-
-	adminMux.HandleFunc("/admin/helloworld", func(writer http.ResponseWriter, request *http.Request) {
-
-		// Return Hello, world! to the client
-		fmt.Fprintln(writer, "Hello, world!")
+func WithLogger(logger logr.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		start := time.Now()
+		requestLogger := logger.WithValues("path", request.URL.Path, "method", request.Method)
+		requestLogger.Info("Got request.")
+		next.ServeHTTP(writer, request.WithContext(logr.NewContext(request.Context(), requestLogger)))
+		requestLogger = requestLogger.WithValues("duration", time.Since(start).String())
+		requestLogger.Info("Completed request.")
 	})
-
-	adminMux.HandleFunc("/v1/<something>", func(writer http.ResponseWriter, request *http.Request) {
-		// Queries something
-	})
-
-	return adminMux
 }
