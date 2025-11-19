@@ -11,7 +11,7 @@ resourceGroups:
     environments:
     - int
     regions:
-    - eastus
+    - uksouth
   - clouds:
     - public
     environments:
