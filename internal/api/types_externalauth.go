@@ -17,6 +17,8 @@ package api
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -28,6 +30,20 @@ type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties" validate:"required"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+}
+
+var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
+
+func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() CosmosData {
+	return CosmosData{
+		ID:                o.ID,
+		ProvisioningState: o.Properties.ProvisioningState,
+		ClusterServiceID:  o.ServiceProviderProperties.ClusterServiceID,
+	}
+}
+
+func (o *HCPOpenShiftClusterExternalAuth) SetCosmosDocumentData(cosmosUID uuid.UUID) {
+	o.ServiceProviderProperties.CosmosUID = cosmosUID.String()
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
@@ -151,6 +167,6 @@ func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID)
 	}
 }
 
-func (externalAuth *HCPOpenShiftClusterExternalAuth) Validate() []arm.CloudErrorBody {
+func (o *HCPOpenShiftClusterExternalAuth) Validate() []arm.CloudErrorBody {
 	return nil
 }

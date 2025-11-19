@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -30,6 +32,20 @@ type HCPOpenShiftClusterNodePool struct {
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty" validate:"required"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"   validate:"omitempty"`
+}
+
+var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
+
+func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
+	return CosmosData{
+		ID:                o.ID,
+		ProvisioningState: o.Properties.ProvisioningState,
+		ClusterServiceID:  o.ServiceProviderProperties.ClusterServiceID,
+	}
+}
+
+func (o *HCPOpenShiftClusterNodePool) SetCosmosDocumentData(cosmosUID uuid.UUID) {
+	o.ServiceProviderProperties.CosmosUID = cosmosUID.String()
 }
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
