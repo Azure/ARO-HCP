@@ -81,7 +81,7 @@ clouds:
           # Admin API
           adminApi:
             image:
-              digest: sha256:b09ae29fb369037c14f6b6b413d5182471224e6e8cb7d48e0e54df2f610ea374
+              digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c # f833f83
           # Hypershift
           hypershift:
             image:
