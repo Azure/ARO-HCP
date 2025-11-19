@@ -42,7 +42,7 @@ func toIdentityUpdate(identity *hcpsdk20240610preview.ManagedServiceIdentity) *h
 var _ = Describe("Update HCPOpenShiftCluster", func() {
 	Context("Negative", func() {
 		It("creates a cluster and fails to update its name with a PATCH request",
-			labels.RequireNothing, labels.Medium, labels.Negative, labels.AroRpApiCompatible,
+			labels.RequireNothing, labels.Medium, labels.Negative,
 			func(ctx context.Context) {
 				const clusterName = "patch-name-cluster"
 
