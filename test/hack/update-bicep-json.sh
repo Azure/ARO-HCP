@@ -12,6 +12,7 @@ OUTPUT_DIR="${1:-${ACTUAL_OUTPUT_DIR}}"
 mkdir -p "${OUTPUT_DIR}/standard-cluster-create"
 mkdir -p "${OUTPUT_DIR}/illegal-install-version"
 mkdir -p "${OUTPUT_DIR}/image-registry"
+mkdir -p "${OUTPUT_DIR}/customer-managed-kms-etcd"
 
 # Function to calculate SHA256 hash of a file
 calculate_hash() {
