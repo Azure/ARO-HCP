@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -345,26 +344,28 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 }
 
 var (
-	toVersionID = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	toVersionID    = func(oldObj *api.VersionProfile) *string { return &oldObj.ID }
+	toChannelGroup = func(oldObj *api.VersionProfile) *string { return &oldObj.ChannelGroup }
 )
 
 // Version                 VersionProfile              `json:"version,omitempty"`
 func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.VersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
+	// Version should be immutable once is created
+	// additional validations may depend on the subscription, hence they will be done in the admission package
 	// ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toVersionID))...)
+
+	// ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toChannelGroup))...)
+
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
+
+	// Version ID is required for non-stable channel groups
 	if newObj.ChannelGroup != "stable" {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
 	}
-	errs = append(errs, OpenshiftVersionWithoutMicro(ctx, op, fldPath.Child("id"), &newObj.ID, nil)...)
-
-	// ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil)...)
-	// XXX For now, "stable" is the only accepted value. In the future, we may
-	//     allow unlocking other channel groups through Azure Feature Exposure
-	//     Control (AFEC) flags or some other mechanism.
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable"))...)
 
 	return errs
 }

@@ -51,15 +51,11 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
+					fieldPath: "customerProperties.version.channelGroup",
 				},
 				{
 					message:   "Required value",
-					fieldPath: "customerProperties.version.channelGroup",
-				},
-				{
-					message:   "Unsupported value",
-					fieldPath: "customerProperties.version.channelGroup",
+					fieldPath: "customerProperties.version.id",
 				},
 				{
 					message:   "Unsupported value",
@@ -235,38 +231,6 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad openshift_version",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
-						ID: "bad.version",
-					},
-				},
-			},
-			expectErrors: []expectedError{
-				{
-					message:   "Malformed version",
-					fieldPath: "customerProperties.version.id",
-				},
-			},
-		},
-		{
-			name: "Version cannot be MAJOR.MINOR.PATCH",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
-						ID: "4.18.1",
-					},
-				},
-			},
-			expectErrors: []expectedError{
-				{
-					message:   "must be specified as MAJOR.MINOR; the PATCH value is managed",
-					fieldPath: "customerProperties.version.id",
-				},
-			},
-		},
-		{
 			name: "Bad enum_outboundtype",
 			tweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
@@ -279,6 +243,22 @@ func TestClusterValidate(t *testing.T) {
 				{
 					message:   "supported values: \"LoadBalancer\"",
 					fieldPath: "customerProperties.platform.outboundType",
+				},
+			},
+		},
+		{
+			name: "Bad required_unless",
+			tweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ChannelGroup: "fast",
+					},
+				},
+			},
+			expectErrors: []expectedError{
+				{
+					message:   "Required value",
+					fieldPath: "customerProperties.version.id",
 				},
 			},
 		},
@@ -373,26 +353,6 @@ func TestClusterValidate(t *testing.T) {
 				{
 					message:   "must be less than or equal to 26",
 					fieldPath: "customerProperties.network.hostPrefix",
-				},
-			},
-		},
-		{
-			name: "Bad required_unless",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
-						ChannelGroup: "fast",
-					},
-				},
-			},
-			expectErrors: []expectedError{
-				{
-					message:   "Required value",
-					fieldPath: "customerProperties.version.id",
-				},
-				{
-					message:   "supported values: \"stable\"",
-					fieldPath: "customerProperties.version.channelGroup",
 				},
 			},
 		},
@@ -551,23 +511,6 @@ func TestClusterValidate(t *testing.T) {
 		// Complex multi-field validation
 		//--------------------------------
 
-		{
-			name: "Cluster with invalid channel group",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{
-						ID:           "4.99",
-						ChannelGroup: "freshmeat",
-					},
-				},
-			},
-			expectErrors: []expectedError{
-				{
-					message:   "supported values: \"stable\"",
-					fieldPath: "customerProperties.version.channelGroup",
-				},
-			},
-		},
 		{
 			name: "Cluster with overlapping machine and service CIDRs",
 			tweaks: &api.HCPOpenShiftCluster{
