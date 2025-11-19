@@ -844,16 +844,13 @@
     "list": [
       {
         "allowCustomValue": false,
-        "current": {
-          "text": "Managed_Prometheus_hcps-usw3scla",
-          "value": "hcps-usw3scla"
-        },
+        "current": {},
         "includeAll": true,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_hcps-.*$",
         "type": "datasource"
       }
     ]

@@ -42,3 +42,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/msi-credential-refresher
   - name: Performance & Scale
     path: ./grafana-dashboards/perfscale-dashboards
+  - name: HCP Kube API Server
+    path: ./grafana-dashboards/kas-monitor
