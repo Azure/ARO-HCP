@@ -73,7 +73,6 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
 // MDSD / Genevabits
-@description('The namespace of the logs')
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
