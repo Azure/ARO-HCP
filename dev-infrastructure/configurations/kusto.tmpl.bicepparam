@@ -6,6 +6,8 @@ param tier = '{{ .kusto.tier }}'
 
 param manageInstance = {{ .kusto.manageInstance }}
 
+param environmentName = '{{ .environmentName }}'
+
 param geoShortId = '{{ .geoShortId }}'
 
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'

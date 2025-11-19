@@ -1,5 +1,5 @@
 {{- $kustoRegion := get ( .Files.Get "kusto-regions.yaml" | fromYaml ) .Values.forwarder.geoShortId -}}
-{{- $ingestionEndoint := nospace ( cat "https://ingest-hcp-" .Values.forwarder.geoShortId "." $kustoRegion ".kusto.windows.net" ) -}}
+{{- $ingestionEndoint := nospace ( cat "https://ingest-hcp-" .Values.forwarder.environment "-" .Values.forwarder.geoShortId "." $kustoRegion ".kusto.windows.net" ) -}}
 ---
 apiVersion: v1
 kind: ConfigMap

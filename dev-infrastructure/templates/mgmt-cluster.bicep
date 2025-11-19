@@ -209,6 +209,9 @@ param pkoServiceAccountName string
 @description('Geo short ID of the region')
 param geoShortId string
 
+@description('Environment name')
+param environmentName string
+
 @description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
 param arobitKustoEnabled bool
 @description('Names of the databases to write logs to')
@@ -540,6 +543,7 @@ module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arob
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     geoShortId: geoShortId
     databaseName: serviceLogsDatabase
+    environmentName: environmentName
   }
   scope: resourceGroup(kustoResourceGroup)
 }
@@ -550,6 +554,7 @@ module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bi
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     geoShortId: geoShortId
     databaseName: hostedControlPlaneLogsDatabase
+    environmentName: environmentName
   }
   scope: resourceGroup(kustoResourceGroup)
 }

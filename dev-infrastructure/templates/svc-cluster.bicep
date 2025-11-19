@@ -409,6 +409,9 @@ param serviceLogsDatabase string
 @description('Geo short ID of the region')
 param geoShortId string
 
+@description('Environment name')
+param environmentName string
+
 @description('Name of the Kusto resource group')
 var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
 
@@ -1033,6 +1036,7 @@ module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKu
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     geoShortId: geoShortId
     databaseName: serviceLogsDatabase
+    environmentName: environmentName
   }
   scope: resourceGroup(kustoResourceGroup)
 }

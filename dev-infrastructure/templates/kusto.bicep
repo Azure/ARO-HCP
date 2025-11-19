@@ -10,6 +10,9 @@ param tier string
 @description('Toggle if instance should be created/managed')
 param manageInstance bool
 
+@description('Environment name')
+param environmentName string
+
 @description('Name of the service logs database.')
 param serviceLogsDatabase string
 
@@ -36,5 +39,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     geoShortId: geoShortId
+    environmentName: environmentName
   }
 }
