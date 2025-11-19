@@ -42,8 +42,15 @@ var _ = Describe("Customer", func() {
 				customerClusterName              = "basic-hcp-cluster"
 				openshiftControlPlaneVersionId   = "4.19"
 
-				customerClusterName2 = "basic-hcp-cluster2"
-				customerClusterName3 = "basic-hcp-cluster3"
+				customerNetworkSecurityGroupName2 = "customer-nsg2-name"
+				customerVnetName2                 = "customer-vnet2-name"
+				customerVnetSubnetName2           = "customer-vnet-subnet2"
+				customerClusterName2              = "basic-hcp-cluster2"
+
+				customerNetworkSecurityGroupName3 = "customer-nsg3-name"
+				customerVnetName3                 = "customer-vnet3-name"
+				customerVnetSubnetName3           = "customer-vnet-subnet3"
+				customerClusterName3              = "basic-hcp-cluster3"
 			)
 			tc := framework.NewTestContext()
 
@@ -115,7 +122,21 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Try to create another cluster in the same resource group
+			By("creating a second customer-infra")
+			customerInfraDeploymentResult, err = framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*customerResourceGroup.Name,
+				"customer-infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+				map[string]interface{}{
+					"persistTagValue":        false,
+					"customerNsgName":        customerNetworkSecurityGroupName2,
+					"customerVnetName":       customerVnetName2,
+					"customerVnetSubnetName": customerVnetSubnetName2,
+				},
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating a second managed identities")
 			keyVaultName, err = framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
@@ -127,9 +148,9 @@ var _ = Describe("Customer", func() {
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
 					"clusterName":  customerClusterName2,
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
+					"nsgName":      customerNetworkSecurityGroupName2,
+					"vnetName":     customerVnetName2,
+					"subnetName":   customerVnetSubnetName2,
 					"keyVaultName": keyVaultName,
 				},
 				45*time.Minute,
@@ -153,13 +174,29 @@ var _ = Describe("Customer", func() {
 					"openshiftVersionId":          openshiftControlPlaneVersionId,
 					"clusterName":                 customerClusterName2,
 					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
+					"nsgName":                     customerNetworkSecurityGroupName2,
+					"subnetName":                  customerVnetSubnetName2,
+					"vnetName":                    customerVnetName2,
 					"userAssignedIdentitiesValue": userAssignedIdentities,
 					"identityValue":               identity,
 					"keyVaultName":                keyVaultName,
 					"etcdEncryptionKeyName":       etcdEncryptionKeyName,
+				},
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating a third customer-infra")
+			customerInfraDeploymentResult, err = framework.CreateBicepTemplateAndWait(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				*customerResourceGroup.Name,
+				"customer-infra",
+				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+				map[string]interface{}{
+					"persistTagValue":        false,
+					"customerNsgName":        customerNetworkSecurityGroupName3,
+					"customerVnetName":       customerVnetName3,
+					"customerVnetSubnetName": customerVnetSubnetName3,
 				},
 				45*time.Minute,
 			)
@@ -175,9 +212,9 @@ var _ = Describe("Customer", func() {
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 				map[string]interface{}{
 					"clusterName":  customerClusterName3,
-					"nsgName":      customerNetworkSecurityGroupName,
-					"vnetName":     customerVnetName,
-					"subnetName":   customerVnetSubnetName,
+					"nsgName":      customerNetworkSecurityGroupName3,
+					"vnetName":     customerVnetName3,
+					"subnetName":   customerVnetSubnetName3,
 					"keyVaultName": keyVaultName,
 				},
 				45*time.Minute,
@@ -201,9 +238,9 @@ var _ = Describe("Customer", func() {
 					"clusterName":        customerClusterName3,
 					// Here we're using the managed resource group from the previous cluster
 					"managedResourceGroupName":    managedResourceGroupName,
-					"nsgName":                     customerNetworkSecurityGroupName,
-					"subnetName":                  customerVnetSubnetName,
-					"vnetName":                    customerVnetName,
+					"nsgName":                     customerNetworkSecurityGroupName3,
+					"subnetName":                  customerVnetSubnetName3,
+					"vnetName":                    customerVnetName3,
 					"userAssignedIdentitiesValue": userAssignedIdentities,
 					"identityValue":               identity,
 					"keyVaultName":                keyVaultName,
