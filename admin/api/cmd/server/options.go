@@ -23,11 +23,14 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	sdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/admin/api/handlers"
 	"github.com/Azure/ARO-HCP/admin/api/interrupts"
 	"github.com/Azure/ARO-HCP/admin/api/middleware"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func DefaultOptions() *RawOptions {
@@ -39,15 +42,17 @@ func DefaultOptions() *RawOptions {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	Port       int
-	HealthPort int
-	Location   string
+	Port               int
+	HealthPort         int
+	Location           string
+	ClustersServiceURL string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.Port, "port", opts.Port, "Port to serve content on.")
 	cmd.Flags().IntVar(&opts.HealthPort, "health-port", opts.HealthPort, "Port to serve health and readiness on.")
 	cmd.Flags().StringVar(&opts.Location, "location", opts.Location, "Location to serve content on.")
+	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the Clusters Service.")
 	return nil
 }
 
@@ -63,9 +68,10 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port       int
-	HealthPort int
-	Location   string
+	Port                  int
+	HealthPort            int
+	Location              string
+	ClustersServiceClient ocm.ClusterServiceClientSpec
 }
 
 type Options struct {
@@ -82,12 +88,23 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
+		URL(o.ClustersServiceURL).
+		Insecure(true).
+		MetricsSubsystem("adminapi_clusters_service_client").
+		MetricsRegisterer(prometheus.DefaultRegisterer).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Clusters Service client: %w", err)
+	}
+	csClient := ocm.NewClusterServiceClient(csConnection, "", false, false)
 
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:       o.Port,
-			HealthPort: o.HealthPort,
-			Location:   o.Location,
+			Port:                  o.Port,
+			HealthPort:            o.HealthPort,
+			Location:              o.Location,
+			ClustersServiceClient: csClient,
 		},
 	}, nil
 }

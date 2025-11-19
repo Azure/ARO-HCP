@@ -4,6 +4,8 @@ ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
 
+export HCPCTL := $(HCPCTL)
+
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ADMIN_API_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
@@ -37,6 +39,10 @@ $(BINARY): $(ADMIN_API_SOURCES)
 run: $(BINARY)
 	./${BINARY} serve --location ${LOCATION}
 .PHONY: run
+
+run-with-sc-integration: $(BINARY)
+	./hack/run-with-port-forward.sh "${CS_PORT_FORWARD_SPEC}" ./${BINARY} serve --location ${LOCATION} --clusters-service-url http://localhost:${CS_LOCAL_PORT}
+.PHONY: run-with-sc-integration
 
 clean:
 	rm -f ${BINARY}
@@ -73,6 +79,10 @@ record-override: $(YQ) $(ORAS)
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+#
+#   C L I
+#
 
 build-cli: $(CLI_BINARY)
 .PHONY: build-cli
