@@ -74,9 +74,10 @@ jobs:
     - name: 'Dry Run Backend'
       run: |
         make backend.dry_run
-    - name: 'Dry Run Frontend'
-      run: |
-        make frontend.dry_run
+    # temporary disable frontend controller dry run until we figured out the helm dry-run issue
+    # - name: 'Dry Run Frontend'
+    #   run: |
+    #     make frontend.dry_run
     - name: 'Dry Run Maestro Server'
       run: |
         make maestro.server.dry_run
