@@ -15,6 +15,8 @@
 package api
 
 import (
+	"github.com/google/uuid"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -27,6 +29,20 @@ type HCPOpenShiftCluster struct {
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty" validate:"required"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"   validate:"omitempty"`
+}
+
+var _ CosmosPersistable = &HCPOpenShiftCluster{}
+
+func (o *HCPOpenShiftCluster) GetCosmosData() CosmosData {
+	return CosmosData{
+		ID:                o.ID,
+		ProvisioningState: o.ServiceProviderProperties.ProvisioningState,
+		ClusterServiceID:  o.ServiceProviderProperties.ClusterServiceID,
+	}
+}
+
+func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID uuid.UUID) {
+	o.ServiceProviderProperties.CosmosUID = cosmosUID.String()
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -219,6 +235,6 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID) *HCPOpenShi
 	}
 }
 
-func (cluster *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
+func (o *HCPOpenShiftCluster) Validate() []arm.CloudErrorBody {
 	return nil
 }

@@ -219,8 +219,7 @@ func TestCreateNodePool(t *testing.T) {
 			// CreateOrUpdateNodePool
 			nodePoolItemID := uuid.New().String()
 			mockDBTransaction.EXPECT().
-				CreateResourceDoc(test.nodePoolDoc, gomock.Any() /*functions aren't self-comparable*/, nil).
-				Return(nodePoolItemID)
+				AddStep(gomock.Any()) // functions aren't comparable
 			// CreateOrUpdateNodePool
 			mockDBTransaction.EXPECT().
 				PatchResourceDoc(nodePoolItemID, gomock.Any(), nil)

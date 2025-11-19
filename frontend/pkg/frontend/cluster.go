@@ -327,7 +327,12 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
 	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
-	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
+	cosmosUID, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
@@ -358,7 +363,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		patchOperations.SetTags(newInternalCluster.Tags)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -370,7 +375,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingCosmosCluster, err := transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosUID)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
