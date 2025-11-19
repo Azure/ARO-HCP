@@ -115,11 +115,11 @@ deploy-pr-env-deps:
 		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
-	AZURE_TENANT_ID=$(shell az account show --query tenantId --output tsv) && \
-	AZURE_RESOURCE_CLEANER_CLIENT_ID=$(shell az identity show -g hcp-dev-automation-account -n hcp-dev-automation --query clientId -o tsv) && \
 	./cspr/deploy-resource-cleaner.sh \
-		--azure-client-id "$${AZURE_RESOURCE_CLEANER_CLIENT_ID}" \
-		--azure-tenant-id "$${AZURE_TENANT_ID}"
+		--resource-group "${RESOURCEGROUP}" \
+		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
+		--mi-keyvault "${CX_MI_KV_NAME}" \
+		--acr-name "${OCP_ACR_NAME}"
 
 cspr-jenkins-kubeconfig:
 	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig

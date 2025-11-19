@@ -8,7 +8,6 @@
 #   - AZURE_TENANT_ID
 #   - MAESTRO_URL
 #   - RETENTION_HOURS
----
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -36,8 +35,8 @@ metadata:
   name: resource-cleaner-cronjob
   namespace: ${RESOURCE_CLEANER_NAMESPACE}
   annotations:
-     azure.workload.identity/tenant-id: "${AZURE_TENANT_ID}"
-     azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
+    azure.workload.identity/tenant-id: "${AZURE_TENANT_ID}"
+    azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
   labels:
     azure.workload.identity/use: "true"
 ---
@@ -60,13 +59,13 @@ metadata:
   name: resource-cleaner
   namespace: ${RESOURCE_CLEANER_NAMESPACE}
 spec:
-  schedule: "0 */3 * * *"  # Run every 3 hours
+  schedule: "0 */3 * * *" # Run every 3 hours
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
-  concurrencyPolicy: Forbid  # Don't run concurrent jobs
+  concurrencyPolicy: Forbid # Don't run concurrent jobs
   jobTemplate:
     spec:
-      backoffLimit: 2  # Retry up to 2 times on failure
+      backoffLimit: 2 # Retry up to 2 times on failure
       template:
         metadata:
           labels:
@@ -83,14 +82,14 @@ spec:
             - -c
             - |
               set -euo pipefail
-              
+
               echo "========================================"
               echo "ARO-HCP Resource Cleaner"
               echo "Started at: $(date -u)"
               echo "========================================"
-              
+
               echo "Checking for required tools..."
-              
+
               # Check if jq is available, if not download it
               if ! command -v jq > /dev/null 2>&1; then
                 echo "jq not found, downloading static binary..."
@@ -100,7 +99,7 @@ spec:
               else
                 echo "✓ jq already available"
               fi
-              
+
               # Verify all required tools
               echo "Verifying required tools..."
               for tool in az jq python3 curl bash; do
@@ -110,8 +109,7 @@ spec:
                 fi
               done
               echo "✓ All required tools verified"
-              
-              
+
               echo "Logging into Azure using workload identity..."
               az login --service-principal \
                 --username "${AZURE_CLIENT_ID}" \
@@ -121,23 +119,23 @@ spec:
                 echo "Ensure workload identity is properly configured"
                 exit 1
               }
-              
+
               echo "Verifying Azure authentication..."
               az account show
-              
+
               echo "Starting resource cleanup..."
-              
+
               # Run the resource cleaner
               ./scripts/resource-cleaner.sh ${RETENTION_HOURS} --maestro-url "${MAESTRO_URL}"
-              
+
               EXIT_CODE=$?
-              
+
               echo "========================================"
               echo "Resource Cleaner completed"
               echo "Exit code: ${EXIT_CODE}"
               echo "Finished at: $(date -u)"
               echo "========================================"
-              
+
               exit ${EXIT_CODE}
             env:
             - name: RETENTION_HOURS
