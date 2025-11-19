@@ -56,6 +56,12 @@ var _ = Describe("Customer", func() {
 			clusterParams.Network.MachineCIDR = "10.0.0.0/16"
 			clusterParams.Network.HostPrefix = 23
 
+			By("getting MSIs from pool")
+			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+			Expect(err).NotTo(HaveOccurred())
+			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating customer resources")
 			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
@@ -63,6 +69,7 @@ var _ = Describe("Customer", func() {
 				map[string]interface{}{
 					"persistTagValue": false,
 				},
+				msiIds,
 				TestArtifactsFS,
 			)
 			Expect(err).NotTo(HaveOccurred())

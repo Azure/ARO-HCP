@@ -719,3 +719,11 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 
 	ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
 }
+
+func (tc *perItOrDescribeTestContext) GetSubscriptionID(ctx context.Context) string {
+	return tc.perBinaryInvocationTestContext.subscriptionID
+}
+
+func (tc *perItOrDescribeTestContext) GetAzureCredentialOrDie(ctx context.Context) azcore.TokenCredential {
+	return Must(tc.perBinaryInvocationTestContext.getAzureCredentials())
+}

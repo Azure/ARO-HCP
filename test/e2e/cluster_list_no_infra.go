@@ -52,6 +52,12 @@ var _ = Describe("Customer", func() {
 				clusterName := "list-test-cluster-" + rand.String(6)
 				clusterNames = append(clusterNames, clusterName)
 
+				By("getting MSIs from pool")
+				msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+				Expect(err).NotTo(HaveOccurred())
+				msiIds, err := msiPool.GetLeasedMSIs(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
@@ -60,6 +66,7 @@ var _ = Describe("Customer", func() {
 					map[string]any{
 						"clusterName":     clusterName,
 						"persistTagValue": false,
+						"msiIds":          msiIds,
 					},
 					45*time.Minute,
 				)

@@ -213,6 +213,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	resourceGroup *armresources.ResourceGroup,
 	clusterParams ClusterParams,
 	infraParameters map[string]interface{},
+	msiIds []string,
 	artifactsFS embed.FS,
 ) (ClusterParams, error) {
 	startTime := time.Now()
@@ -241,7 +242,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		"managed-identities",
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 		map[string]interface{}{
-			"clusterName":  clusterParams.ClusterName,
+			"msiIds":       msiIds,
 			"nsgName":      clusterParams.NsgName,
 			"vnetName":     clusterParams.VnetName,
 			"subnetName":   clusterParams.SubnetName,
