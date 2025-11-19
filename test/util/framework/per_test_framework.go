@@ -134,12 +134,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 
 	errCleanupResourceGroups := CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
 	if errCleanupResourceGroups != nil {
-		testLogger.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
+		testLogger.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
-		testLogger.Error(err, "at least one app registration failed to delete: %w", err)
+		testLogger.Error(err, "at least one app registration failed to delete")
 	}
 
 	testLogger.Info("finished deleting created resources")
@@ -217,7 +217,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		testLogger.Error(err, "at least one resource group failed to collect: %w", err)
+		testLogger.Error(err, "at least one resource group failed to collect")
 	}
 
 	testLogger.Info("finished collecting debug info")
