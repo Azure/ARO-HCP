@@ -115,13 +115,13 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(f.GetHCPCluster))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternNodePools),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.GetNodePool))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternProviders, PatternLocations, PatternVersions),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.GetOpenshiftVersions))
 	middlewareMux.Handle(
 		MuxPattern(http.MethodGet, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters, PatternExternalAuth),
-		postMuxMiddleware.HandlerFunc(f.ArmResourceRead))
+		postMuxMiddleware.HandlerFunc(f.GetExternalAuth))
 
 	// Resource create/update/delete endpoints
 	postMuxMiddleware = NewMiddleware(
