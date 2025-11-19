@@ -7,6 +7,12 @@ param imagePullerMsiName string
 @description('The name of the AKS cluster in which the AdminAPI will run')
 param aksClusterName string
 
+@description('The name of the CosmosDB in which the AdminAPI will store data')
+param cosmosDbName string
+
+@description('The name of the resource group for regional infrastructure')
+param regionalResourceGroup string
+
 //
 //   A D M I N   A P I   L O O K U P
 //
@@ -35,3 +41,14 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' exis
 }
 
 output csiSecretStoreClientId string = aksCluster.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.clientId
+
+//
+//   C O S M O S D B   L O O K U P
+//
+
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+  name: cosmosDbName
+  scope: resourceGroup(regionalResourceGroup)
+}
+
+output cosmosDBDocumentEndpoint string = cosmosDbAccount.properties.documentEndpoint

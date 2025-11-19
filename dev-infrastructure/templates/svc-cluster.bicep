@@ -637,6 +637,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 
 var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
+var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'
@@ -647,6 +648,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
     disableLocalAuth: disableLocalAuth
     userAssignedMIs: [frontendMI, backendMI]
+    readOnlyUserAssignedMIs: [adminApiMI]
     private: rpCosmosDbPrivate
   }
 }

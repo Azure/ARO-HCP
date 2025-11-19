@@ -36,3 +36,11 @@ azure:
 mise:
   policyLabel: "{{ .mise.genevaActions.policyLabel }}"
   deploy: {{ .mise.deploy }}
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"
+cosmosDB:
+  url: "__cosmosDBDocumentEndpoint__"
+  name: "{{ .frontend.cosmosDB.name }}"
+kusto:
+  #endpoint: "__kustoEndpoint__"
+  endpoint: "https://hcp-dev-us.eastus2.kusto.windows.net" # statically defined until we have output chaining

@@ -4,6 +4,8 @@ ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
 
+export HCPCTL := $(HCPCTL)
+
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 ADMIN_API_IMAGE_TAG ?= $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ../generate-tag.sh)
@@ -35,8 +37,16 @@ $(BINARY): $(ADMIN_API_SOURCES)
 	cd api && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
-	./${BINARY} serve --location ${LOCATION}
+	@COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
+	./${BINARY} serve --location ${LOCATION} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME}
 .PHONY: run
+
+run-with-sc-integration: $(BINARY)
+	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
+	./hack/run-with-port-forward.sh "${CS_PORT_FORWARD_SPEC}" \
+		./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
+			./${BINARY} serve --location ${LOCATION} --clusters-service-url http://localhost:${CS_LOCAL_PORT} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME}
+.PHONY: run-with-sc-integration
 
 clean:
 	rm -f ${BINARY}
@@ -73,6 +83,10 @@ record-override: $(YQ) $(ORAS)
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+#
+#   C L I
+#
 
 build-cli: $(CLI_BINARY)
 .PHONY: build-cli

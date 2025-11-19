@@ -14,5 +14,61 @@
 
 package middleware
 
+import (
+	"context"
+	"fmt"
+)
+
 // contextKey is an unexported type used to embed content in the request context, so users must acquire the value with our getters.
 type contextKey string
+
+type ContextError struct {
+	got any
+	key contextKey
+}
+
+func (c *ContextError) Error() string {
+	return fmt.Sprintf(
+		"error retrieving value for key %q from context, value obtained was '%v' and type obtained was '%T'",
+		c.key,
+		c.got,
+		c.got,
+	)
+}
+
+const (
+	contextKeyOriginalUrlPathValue = contextKey("url_path.original_value")
+	contextKeyUrlPathValue         = contextKey("url_path.value")
+)
+
+func ContextWithOriginalUrlPathValue(ctx context.Context, originalUrlPathValue string) context.Context {
+	return context.WithValue(ctx, contextKeyOriginalUrlPathValue, originalUrlPathValue)
+}
+
+func OriginalUrlPathValueFromContext(ctx context.Context) (string, error) {
+	originalUrlPathValue, ok := ctx.Value(contextKeyOriginalUrlPathValue).(string)
+	if !ok {
+		err := &ContextError{
+			got: originalUrlPathValue,
+			key: contextKeyOriginalUrlPathValue,
+		}
+		return originalUrlPathValue, err
+	}
+	return originalUrlPathValue, nil
+}
+
+func ContextWithUrlPathValue(ctx context.Context, urlPathValue string) context.Context {
+	return context.WithValue(ctx, contextKeyUrlPathValue, urlPathValue)
+}
+
+func UrlPathValueFromContext(ctx context.Context) (string, error) {
+	urlPathValue, ok := ctx.Value(contextKeyUrlPathValue).(string)
+	if !ok {
+		err := &ContextError{
+			got: urlPathValue,
+			key: contextKeyUrlPathValue,
+		}
+		return urlPathValue, err
+	}
+	return urlPathValue, nil
+}

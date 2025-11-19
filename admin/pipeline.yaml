@@ -67,6 +67,14 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: csiSecretStoreClientId
+      cosmosDBDocumentEndpoint:
+        resourceGroup: service
+        step: output
+        name: cosmosDBDocumentEndpoint
+      # kustoEndpoint:
+      #   resourceGroup: service
+      #   step: output
+      #   name: kustoEndpoint
     dependsOn:
     - resourceGroup: global
       step: mirror-image
