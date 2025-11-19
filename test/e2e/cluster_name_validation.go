@@ -37,6 +37,11 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 2, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-name-duplicate", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
@@ -103,6 +108,11 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-cluster-name-validation", tc.Location())
