@@ -107,16 +107,6 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
         --role "Contributor" \
         --scope "/subscriptions/${SUBSCRIPTION_ID}"
 
-    # Assign User Access Administrator role with conditions
-    echo "  Assigning User Access Administrator role with conditions..."
-    az role assignment create \
-        --assignee "${APP_ID}" \
-        --role "User Access Administrator" \
-        --scope "/subscriptions/${SUBSCRIPTION_ID}" \
-        --condition "${UAA_CONDITION}" \
-        --condition-version "2.0" \
-        --description "Allow user to assign all roles except privileged administrator roles Owner, UAA, RBAC (Recommended)"
-
     # Assign Role Based Access Control Administrator role with conditions
     echo "  Assigning Role Based Access Control Administrator role with conditions..."
     az role assignment create \
