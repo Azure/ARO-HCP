@@ -36,3 +36,5 @@ azure:
 mise:
   policyLabel: "{{ .mise.genevaActions.policyLabel }}"
   deploy: {{ .mise.deploy }}
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"

@@ -43,6 +43,8 @@ spec:
         args:
         - "--location"
         - "{{ .Values.location }}"
+        - "--clusters-service-url"
+        - "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000"
         ports:
         - containerPort: 8443
           name: http

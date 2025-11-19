@@ -1,4 +1,4 @@
-using '../templates/cs-mgmt-akv-permissions.bicep'
+using '../templates/svc-mgmt-permissions.bicep'
 
 // CX KV
 param cxKeyVaultName = '{{ .cxKeyVault.name }}'
@@ -13,3 +13,7 @@ param clusterServiceMIResourceId = '__clusterServiceMIResourceId__'
 // MSI Refresher identity
 // used for Key Vault access
 param msiRefresherMIResourceId = '__msiRefresherMIResourceId__'
+
+// Admin API identity
+// used for Resource Group introspection
+param adminApiMIResourceId = '__adminApiMIResourceId__'

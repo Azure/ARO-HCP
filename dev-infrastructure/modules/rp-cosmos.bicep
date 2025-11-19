@@ -7,6 +7,7 @@ param disableLocalAuth bool = true
 param location string
 param zoneRedundant bool
 param userAssignedMIs array
+param readOnlyUserAssignedMIs array
 param private bool
 
 var containers = [
@@ -28,6 +29,7 @@ var containers = [
 ]
 
 param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
+param readOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000001'
 
 // Main
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
@@ -135,6 +137,18 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
     parent: cosmosDbAccount
     properties: {
       roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${roleDefinitionId}'
+      principalId: uami.uamiPrincipalID
+      scope: cosmosDbAccount.id
+    }
+  }
+]
+
+resource sqlRoleAssignmentReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
+  for uami in readOnlyUserAssignedMIs: {
+    name: guid(readOnlyRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    parent: cosmosDbAccount
+    properties: {
+      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${readOnlyRoleDefinitionId}'
       principalId: uami.uamiPrincipalID
       scope: cosmosDbAccount.id
     }

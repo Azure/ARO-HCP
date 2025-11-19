@@ -10,6 +10,9 @@ param msiRefresherMIResourceId string
 @description('CS MI resource ID, used to grant KeyVault access')
 param clusterServiceMIResourceId string
 
+@description('Admin API MI resource ID, used to grant resource group introspection access')
+param adminApiMIResourceId string
+
 resource cxKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: cxKeyVaultName
 }
@@ -43,5 +46,32 @@ module msiRefresherKeyVaultAccess '../modules/mgmt-kv-access.bicep' = if (res.is
     managedIdentityResourceId: msiRefresherMIResourceId
     cxKeyVaultName: ''
     msiKeyVaultName: msiKeyVault.name
+  }
+}
+
+//
+//   A D M I N   A P I   R E S O U R C E   G R O U P   I N T R O S P E C T I O N   A C C E S S
+//
+
+// Reader role
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+var adminApiMIRef = res.msiRefFromId(adminApiMIResourceId)
+resource adminApiMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(adminApiMIRef.resourceGroup.subscriptionId, adminApiMIRef.resourceGroup.name)
+  name: adminApiMIRef.name
+}
+
+resource resourceGroupReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (res.isMsiResourceId(adminApiMIResourceId)) {
+  scope: resourceGroup()
+  name: guid(resourceGroup().id, adminApiMIResourceId, '00000000-0000-0000-0000-000000000001')
+  properties: {
+    roleDefinitionId: readerRoleId
+    principalId: adminApiMSI.properties.principalId
+    principalType: 'ServicePrincipal'
   }
 }

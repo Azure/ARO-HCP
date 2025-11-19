@@ -25,7 +25,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 )
 
@@ -34,12 +33,7 @@ var single *manager
 var logger logr.Logger
 
 func init() {
-	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
-		Level:       slog.LevelInfo,
-		AddSource:   false,
-		ReplaceAttr: nil,
-	})
-	logger = logr.FromSlogHandler(prettyHandler)
+	logger = logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
 
 	m := sync.Mutex{}
 	single = &manager{

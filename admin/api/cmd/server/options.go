@@ -19,15 +19,26 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	sdk "github.com/openshift-online/ocm-sdk-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/Azure/ARO-HCP/admin/api/handlers"
 	"github.com/Azure/ARO-HCP/admin/api/interrupts"
+	"github.com/Azure/ARO-HCP/admin/api/inventory"
 	"github.com/Azure/ARO-HCP/admin/api/middleware"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 )
 
 func DefaultOptions() *RawOptions {
@@ -39,15 +50,21 @@ func DefaultOptions() *RawOptions {
 
 // RawOptions holds input values.
 type RawOptions struct {
-	Port       int
-	HealthPort int
-	Location   string
+	Port               int
+	HealthPort         int
+	Location           string
+	ClustersServiceURL string
+	CosmosURL          string
+	CosmosName         string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&opts.Port, "port", opts.Port, "Port to serve content on.")
 	cmd.Flags().IntVar(&opts.HealthPort, "health-port", opts.HealthPort, "Port to serve health and readiness on.")
 	cmd.Flags().StringVar(&opts.Location, "location", opts.Location, "Location to serve content on.")
+	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the Clusters Service.")
+	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", opts.CosmosURL, "URL of the Cosmos DB.")
+	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "Name of the Cosmos DB.")
 	return nil
 }
 
@@ -63,9 +80,12 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port       int
-	HealthPort int
-	Location   string
+	Port                  int
+	HealthPort            int
+	Location              string
+	ClustersServiceClient ocm.ClusterServiceClientSpec
+	DbClient              database.DBClient
+	MgmtClusterInventory  *inventory.MgmtClusterInventory
 }
 
 type Options struct {
@@ -82,12 +102,53 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	// Create CS client
+	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
+		URL(o.ClustersServiceURL).
+		Insecure(true).
+		MetricsSubsystem("adminapi_clusters_service_client").
+		MetricsRegisterer(prometheus.DefaultRegisterer).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Clusters Service client: %w", err)
+	}
+	csClient := ocm.NewClusterServiceClient(csConnection, "", false, false)
 
+	// Create the database client.
+	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(
+		o.CosmosURL,
+		o.CosmosName,
+		azcore.ClientOptions{
+			// FIXME Cloud should be determined by other means.
+			Cloud: cloud.AzurePublic,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
+	}
+	dbClient, err := database.NewDBClient(ctx, cosmosDatabaseClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the database client: %w", err)
+	}
+
+	// Get Azure credentials
+	azureCredential, err := cmdutils.GetAzureTokenCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
+	}
+
+	// Create management cluster discovery
+	mgmtClusterInventory := inventory.NewMgmtClusterInventory(
+		inventory.NewGraphMgmtClusterInventoryBackend(o.Location, azureCredential),
+	)
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:       o.Port,
-			HealthPort: o.HealthPort,
-			Location:   o.Location,
+			Port:                  o.Port,
+			HealthPort:            o.HealthPort,
+			Location:              o.Location,
+			ClustersServiceClient: csClient,
+			DbClient:              dbClient,
+			MgmtClusterInventory:  mgmtClusterInventory,
 		},
 	}, nil
 }
@@ -107,12 +168,17 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	logger.Info("Running server", "port", opts.Port)
 	mux := http.NewServeMux()
-	mux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+	mux.Handle(MuxPattern(http.MethodGet, "helloworld"), handlers.HelloWorldHandler())
+
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithURLPathValue(middleware.WithLogger(logger, mux)),
+		Handler: middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, mux)),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
 	return nil
+}
+
+func MuxPattern(method string, segments ...string) string {
+	return fmt.Sprintf("%s /admin/%s", method, strings.ToLower(path.Join(segments...)))
 }
