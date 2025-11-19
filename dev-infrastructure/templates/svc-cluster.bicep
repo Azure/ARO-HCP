@@ -409,6 +409,9 @@ param serviceLogsDatabase string
 @description('Geo short ID of the region')
 param geoShortId string
 
+@description('Name of the static Kusto cluster to use for dev environments')
+param staticKustoName string
+
 @description('Environment name')
 param environmentName string
 
@@ -1030,13 +1033,14 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 //  K U S T O   I N G E S T    P E R M I S S I O N S
 //
 
+var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
+
 module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
   name: 'grantKustoIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    geoShortId: geoShortId
     databaseName: serviceLogsDatabase
-    environmentName: environmentName
+    kustoName: kustoName
   }
   scope: resourceGroup(kustoResourceGroup)
 }

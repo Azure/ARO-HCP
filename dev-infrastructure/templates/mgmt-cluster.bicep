@@ -212,6 +212,9 @@ param geoShortId string
 @description('Environment name')
 param environmentName string
 
+@description('Name of the static Kusto cluster to use for dev environments')
+param staticKustoName string
+
 @description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
 param arobitKustoEnabled bool
 @description('Names of the databases to write logs to')
@@ -537,13 +540,14 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 //  K U S T O   I N G E S T    P E R M I S S I O N S
 //
 
+var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
+
 module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
   name: 'grantKustoSvcIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    geoShortId: geoShortId
     databaseName: serviceLogsDatabase
-    environmentName: environmentName
+    kustoName: kustoName
   }
   scope: resourceGroup(kustoResourceGroup)
 }
@@ -552,9 +556,8 @@ module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bi
   name: 'grantKustoHostedControlPlaneIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    geoShortId: geoShortId
     databaseName: hostedControlPlaneLogsDatabase
-    environmentName: environmentName
+    kustoName: kustoName
   }
   scope: resourceGroup(kustoResourceGroup)
 }

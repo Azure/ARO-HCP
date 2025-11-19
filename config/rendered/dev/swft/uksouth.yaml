@@ -343,6 +343,7 @@ kusto:
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: ""
+  staticKustoName: hcp-dev-us
   tier: ""
   viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
