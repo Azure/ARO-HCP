@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:21619c9bf1bd100cb3c88daa309a054a3e6a1fd5dc9a2a3e7ca1dc73d859a6ab
+      digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:706da20b666dec8b5df5571b4dc4a7426b4cbfd1bcd37a6cda78e3ea1ad0cdae
+      digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-usw3j
   image:
-    digest: sha256:9b14303b5d975b23d734215e52676c30e198d781ac340c5048078513c36ec793
+    digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:67b960c675221bb5daf442d0802c93e2f14757f0251bb9ac38a736c030218f9d
+    digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -207,7 +207,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:4b78db98f518e599719b0340c7dd908f4ec220a6dd8bce415e63c28a4268ddce
+    digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -382,7 +382,7 @@ maestro:
     name: arohcp-prow-maestro-usw3j
     private: false
   image:
-    digest: sha256:959c5bb3128cb5a9521bc9547f577d2127359726543b2887c03edd4d3febd3c6
+    digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -472,18 +472,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b
+        sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+        sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
   rg: hcp-underlay-prow-usw3j-mgmt-1
@@ -724,18 +724,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b
+        sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+        sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
       version: ""
