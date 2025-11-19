@@ -185,8 +185,8 @@ func DeleteAllHCPClusters(
 		if err != nil {
 			return fmt.Errorf("failed listing hcp clusters in resourcegroup=%q: %w", resourceGroupName, err)
 		}
-		for _, sub := range page.Value {
-			hcpClusterNames = append(hcpClusterNames, *sub.Name)
+		for _, cluster := range page.Value {
+			hcpClusterNames = append(hcpClusterNames, *cluster.Name)
 		}
 	}
 
