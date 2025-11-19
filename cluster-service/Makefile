@@ -115,6 +115,11 @@ deploy-pr-env-deps:
 		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
+	./cspr/deploy-resource-cleaner.sh \
+		--resource-group "${RESOURCEGROUP}" \
+		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
+		--mi-keyvault "${CX_MI_KV_NAME}" \
+		--acr-name "${OCP_ACR_NAME}"
 
 cspr-jenkins-kubeconfig:
 	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig

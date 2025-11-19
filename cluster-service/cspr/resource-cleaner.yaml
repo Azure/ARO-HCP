@@ -1,0 +1,162 @@
+# ARO-HCP Resource Cleaner Kubernetes Deployment
+# This file uses sed for variable substitution
+# Required environment variables:
+#   - RESOURCE_CLEANER_NAMESPACE
+#   - RESOURCE_CLEANER_CLUSTERROLE_NAME
+#   - AZURE_CLI_IMAGE
+#   - AZURE_CLIENT_ID
+#   - AZURE_TENANT_ID
+#   - MAESTRO_URL
+#   - RETENTION_HOURS
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${RESOURCE_CLEANER_NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ${RESOURCE_CLEANER_CLUSTERROLE_NAME}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs: ["get", "list"]
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs: ["get", "list"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: resource-cleaner-cronjob
+  namespace: ${RESOURCE_CLEANER_NAMESPACE}
+  annotations:
+    azure.workload.identity/tenant-id: "${AZURE_TENANT_ID}"
+    azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
+  labels:
+    azure.workload.identity/use: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: resource-cleaner-cronjob
+subjects:
+- kind: ServiceAccount
+  name: resource-cleaner-cronjob
+  namespace: ${RESOURCE_CLEANER_NAMESPACE}
+roleRef:
+  kind: ClusterRole
+  name: ${RESOURCE_CLEANER_CLUSTERROLE_NAME}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: resource-cleaner
+  namespace: ${RESOURCE_CLEANER_NAMESPACE}
+spec:
+  schedule: "0 */3 * * *" # Run every 3 hours
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid # Don't run concurrent jobs
+  jobTemplate:
+    spec:
+      backoffLimit: 2 # Retry up to 2 times on failure
+      template:
+        metadata:
+          labels:
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: resource-cleaner-cronjob
+          restartPolicy: Never
+          containers:
+          - name: resource-cleaner
+            image: ${AZURE_CLI_IMAGE}
+            imagePullPolicy: Always
+            command: ["/bin/bash"]
+            args:
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "========================================"
+              echo "ARO-HCP Resource Cleaner"
+              echo "Started at: $(date -u)"
+              echo "========================================"
+
+              echo "Checking for required tools..."
+
+              # Check if jq is available, if not download it
+              if ! command -v jq > /dev/null 2>&1; then
+                echo "jq not found, downloading static binary..."
+                curl -sL https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64 -o /usr/local/bin/jq
+                chmod +x /usr/local/bin/jq
+                echo "✓ jq installed"
+              else
+                echo "✓ jq already available"
+              fi
+
+              # Verify all required tools
+              echo "Verifying required tools..."
+              for tool in az jq python3 curl bash; do
+                if ! command -v $tool > /dev/null 2>&1; then
+                  echo "ERROR: Required tool '$tool' is not available"
+                  exit 1
+                fi
+              done
+              echo "✓ All required tools verified"
+
+              echo "Logging into Azure using workload identity..."
+              az login --service-principal \
+                --username "${AZURE_CLIENT_ID}" \
+                --tenant "${AZURE_TENANT_ID}" \
+                --federated-token "$(cat ${AZURE_FEDERATED_TOKEN_FILE})" || {
+                echo "ERROR: Failed to authenticate with Azure"
+                echo "Ensure workload identity is properly configured"
+                exit 1
+              }
+
+              echo "Verifying Azure authentication..."
+              az account show
+
+              echo "Starting resource cleanup..."
+
+              # Run the resource cleaner
+              ./scripts/resource-cleaner.sh ${RETENTION_HOURS} --maestro-url "${MAESTRO_URL}"
+
+              EXIT_CODE=$?
+
+              echo "========================================"
+              echo "Resource Cleaner completed"
+              echo "Exit code: ${EXIT_CODE}"
+              echo "Finished at: $(date -u)"
+              echo "========================================"
+
+              exit ${EXIT_CODE}
+            env:
+            - name: RETENTION_HOURS
+              value: "${RETENTION_HOURS}"
+            - name: MAESTRO_URL
+              value: "${MAESTRO_URL}"
+            - name: DRY_RUN
+              value: "false"
+            volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          volumes:
+          - name: scripts
+            configMap:
+              name: resource-cleaner-scripts
+              defaultMode: 0755
