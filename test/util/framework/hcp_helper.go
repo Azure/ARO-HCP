@@ -383,6 +383,20 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	return nil
 }
 
+func BeginCreateHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
+) error {
+	_, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+	return nil
+}
+
 func CreateHCPClusterAndWait(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,

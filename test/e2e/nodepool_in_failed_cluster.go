@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -37,72 +38,98 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Negative,
 		labels.Medium,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			By("creating resource group ")
+			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-nodepool-into-failed-cluster", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
 			clusterName := "failed-cluster" + rand.String(6)
 
-			By("creating cluster using bicep template with invalid network configuration to force failure")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-				*resourceGroup.Name,
-				"invalid-network-config-cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/invalid-network-config-cluster.json")),
-				map[string]any{
-					"clusterName": clusterName,
-				},
-				45*time.Minute,
-			)
+			By("creating cluster parameters and customer resources")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = clusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			By("verifying cluster provisioning failed as expected due to invalid network configuration")
-			Expect(err).To(HaveOccurred())
+			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
+				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				resourceGroup,
+				clusterParams,
+				map[string]any{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating cluster with invalid subnet ID that will fail after ARM resource creation")
+			cluster := framework.BuildHCPClusterFromParams(clusterParams, tc.Location())
+
+			if cluster.Properties != nil && cluster.Properties.Platform != nil {
+				subscriptionID := ""
+				if resourceGroup.ID != nil {
+					// Resource group ID format: /subscriptions/{subscription-id}/resourceGroups/{rg-name}
+					parts := strings.Split(*resourceGroup.ID, "/")
+					if len(parts) >= 3 {
+						subscriptionID = parts[2]
+					}
+				}
+				cluster.Properties.Platform.SubnetID = to.Ptr(fmt.Sprintf("/subscriptions/%s/resourceGroups/nonexistent-rg/providers/Microsoft.Network/virtualNetworks/nonexistent-vnet/subnets/nonexistent-subnet", subscriptionID))
+			}
+
+			err = framework.BeginCreateHCPCluster(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				clusterName,
+				cluster,
+			)
+			By("verifying error does not occur before ARM resource is created")
+			Expect(err).NotTo(HaveOccurred())
 
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 
+			By("verifying the cluster resource exists")
 			Eventually(func() bool {
-				By("verifying the cluster resource exists even if deployment failed")
+
 				_, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 				return err == nil
-			}, 5*time.Minute, 10*time.Second).Should(BeTrue(), "Cluster resource should exist even if deployment failed")
+			}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "Cluster ARM resource should be created")
 
+			By("waiting for cluster to reach failed provisioning state")
 			Eventually(func() hcpsdk20240610preview.ProvisioningState {
-				By("verifying the cluster is in a failed provisioning state")
 				cluster, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
 				if err != nil {
+					By(fmt.Sprintf("Error getting cluster: %v", err))
 					return ""
 				}
 				if cluster.Properties != nil && cluster.Properties.ProvisioningState != nil {
-					return *cluster.Properties.ProvisioningState
+					currentState := *cluster.Properties.ProvisioningState
+					By(fmt.Sprintf("Current cluster provisioning state: %s", currentState))
+					return currentState
 				}
 				return ""
+			}, 3*time.Minute, 10*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateFailed))
 
-			}, 15*time.Minute, 30*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateFailed))
+			By("attempting to deploy nodepool into cluster with failed provisioning state")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = clusterName
+			nodePoolParams.NodePoolName = "nodepool1"
+			nodePoolParams.VMSize = "Standard_D2s_v3"
+			nodePoolParams.Replicas = int32(1)
 
-			By("attempting to deploy nodepool via direct API call into cluster with failed provisioning state")
-			nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
-			nodePoolName := "nodepool1"
-			nodePool := hcpsdk20240610preview.NodePool{
-				Location: to.Ptr(tc.Location()),
-				Properties: &hcpsdk20240610preview.NodePoolProperties{
-					Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
-						VMSize: to.Ptr("Standard_D2s_v3"),
-					},
-					Replicas: to.Ptr(int32(1)),
-				},
-			}
-			nodePoolCtx, nodePoolCancel := context.WithTimeout(ctx, 5*time.Minute)
-			defer nodePoolCancel()
+			err = framework.CreateNodePoolFromParam(ctx,
+				tc,
+				*resourceGroup.Name,
+				clusterName,
+				nodePoolParams,
+				5*time.Minute,
+			)
 
-			_, err = nodePoolClient.BeginCreateOrUpdate(nodePoolCtx, *resourceGroup.Name, clusterName, nodePoolName, nodePool, nil)
-
-			By("verifying nodepool failed to deploy")
+			By("verifying nodepool deployment failed with appropriate error code")
 			Expect(err).To(HaveOccurred())
-
-			By("verifying the error message matches the expected")
 			By(fmt.Sprintf("nodepool deployment error: %q", err.Error()))
 			Expect(err.Error()).To(ContainSubstring("Node pools can only be created on clusters in 'ready' state, cluster requested is in 'error' state."))
 
