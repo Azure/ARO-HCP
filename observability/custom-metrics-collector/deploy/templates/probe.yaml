@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: custom-metrics-collector-probe
+  namespace: {{ .Release.Namespace }}
+  labels:
+    release: arohcp-monitor
+spec:
+  jobName: custom-metrics-collector-health
+  prober:
+    url: blackbox-exporter:9115
+    path: /probe
+  module: http_2xx
+  targets:
+    staticConfig:
+      static: ['custom-metrics-collector:8080/healthz']

@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: custom-metrics-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    release: arohcp-monitor
+spec:
+  groups:
+  - name: custom-metrics
+    rules:
+    - alert: TenantQuotaCritical
+      expr: tenant_quota_usage_percentage >= 95
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Tenant quota usage is critical"
+        description: 'Tenant {{ print "{{" }} $labels.tenant_name {{ print "}}" }} is at {{ print "{{" }} $value {{ print "}}" }}% capacity'
+    - alert: TenantQuotaWarning
+      expr: tenant_quota_usage_percentage >= 90
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Tenant quota usage is high"
+        description: 'Tenant {{ print "{{" }} $labels.tenant_name {{ print "}}" }} is at {{ print "{{" }} $value {{ print "}}" }}% capacity'
+    - alert: TenantQuotaInfo
+      expr: tenant_quota_usage_percentage >= 80
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        summary: "Tenant quota usage is elevated"
+        description: 'Tenant {{ print "{{" }} $labels.tenant_name {{ print "}}" }} is at {{ print "{{" }} $value {{ print "}}" }}% capacity'

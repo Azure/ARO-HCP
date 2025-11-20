@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: custom-metrics-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    release: arohcp-monitor
+spec:
+  selector:
+    matchLabels:
+      app: custom-metrics-collector
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

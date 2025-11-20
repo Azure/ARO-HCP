@@ -1,0 +1,4 @@
+# Ignore Bicep files
+*.bicep
+*.bicepparam
+

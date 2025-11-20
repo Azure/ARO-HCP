@@ -249,6 +249,12 @@ var workloadIdentities = items({
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
   }
+  custom_metrics_collector_wi: {
+    uamiName: 'custom-metrics-collector'
+    namespace: 'observability'
+    serviceAccountName: 'custom-metrics-collector'
+  }
+  // added for Workload Identity support
 })
 
 module managedIdentities '../modules/managed-identities.bicep' = {

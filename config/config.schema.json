@@ -1912,6 +1912,27 @@
         "ocMirror"
       ]
     },
+    "customMetricsCollector": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "bundleVersion": {
+          "type": "string",
+          "description": "Version of the custom metrics collector bundle"
+        },
+        "servicePrincipalClientId": {
+          "type": "string",
+          "description": "Client ID of the service principal used for Microsoft Graph API access."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "bundleVersion"
+      ]
+    },
     "arobit": {
       "type": "object",
       "properties": {
@@ -2631,6 +2652,7 @@
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",
+    "customMetricsCollector",
     "cxKeyVault",
     "firstPartyAppClientId",
     "firstPartyAppCertificate",
