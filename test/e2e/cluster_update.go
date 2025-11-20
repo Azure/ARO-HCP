@@ -52,15 +52,29 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-name", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("deploying demo template (single-step infra + identities + cluster)")
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
+				By("creating cluster parameters")
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = clusterName
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+				By("creating customer resources")
+				clusterParams, err = framework.CreateClusterCustomerResources(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-					*resourceGroup.Name,
-					"aro-hcp-demo",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
+					resourceGroup,
+					clusterParams,
 					map[string]interface{}{
-						"clusterName": clusterName,
+						"persistTagValue": false,
 					},
+					TestArtifactsFS,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating the HCP cluster")
+				err = framework.CreateHCPClusterFromParam(ctx,
+					tc,
+					*resourceGroup.Name,
+					clusterParams,
 					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -100,7 +114,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 	Context("Positive", func() {
 		It("creates a cluster and updates tags with a PATCH request",
-			labels.RequireNothing, labels.Medium, labels.Positive,
+			labels.RequireNothing, labels.Medium, labels.Positive, labels.AroRpApiCompatible,
 			func(ctx context.Context) {
 				const clusterName = "patch-tags-cluster"
 
@@ -110,15 +124,29 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "patch-tags", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("deploying demo template (single-step infra + identities + cluster)")
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
+				By("creating cluster parameters")
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = clusterName
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+				By("creating customer resources")
+				clusterParams, err = framework.CreateClusterCustomerResources(ctx,
 					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
-					*resourceGroup.Name,
-					"aro-hcp-demo",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
+					resourceGroup,
+					clusterParams,
 					map[string]interface{}{
-						"clusterName": clusterName,
+						"persistTagValue": false,
 					},
+					TestArtifactsFS,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating the HCP cluster")
+				err = framework.CreateHCPClusterFromParam(ctx,
+					tc,
+					*resourceGroup.Name,
+					clusterParams,
 					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -139,17 +167,8 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 
 				By("sending a PATCH request to set a tag")
 				val := "should succeed"
-				// Fetch the current cluster to get the existing identity
-				got, err := framework.GetHCPCluster(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					clusterName,
-				)
-				Expect(err).NotTo(HaveOccurred())
-
 				update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
-					Identity: toIdentityUpdate(got.Identity),
+					Identity: toIdentityUpdate(clusterParams.Identity),
 					Tags: map[string]*string{
 						"test": &val,
 					},
@@ -170,16 +189,16 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(*resp.Tags["test"]).To(Equal(val))
 
 				By("verifying the tag is present on the cluster")
-				got, err = framework.GetHCPCluster(
+				respGet, err := framework.GetHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 				)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(got.Tags).ToNot(BeNil())
-				Expect(got.Tags["test"]).ToNot(BeNil())
-				Expect(*got.Tags["test"]).To(Equal(val))
+				Expect(respGet.Tags).ToNot(BeNil())
+				Expect(respGet.Tags["test"]).ToNot(BeNil())
+				Expect(*respGet.Tags["test"]).To(Equal(val))
 			},
 		)
 	})
