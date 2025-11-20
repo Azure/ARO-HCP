@@ -388,13 +388,15 @@ func BeginCreateHCPCluster(
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
-) error {
-	_, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	clusterParams ClusterParams,
+	location string,
+) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	cluster := BuildHCPClusterFromParams(clusterParams, location)
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
-		return fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
-	return nil
+	return poller, nil
 }
 
 func CreateHCPClusterAndWait(
