@@ -17,7 +17,7 @@ fi
 
 echo "Starting Prow job: ${PROW_JOB_NAME}"
 set +o errexit
-./prow-job-executor execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}"
+"${PROW_JOB_EXECUTOR}" execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}"
 JOB_EXIT_CODE=$?
 set -o errexit
 
