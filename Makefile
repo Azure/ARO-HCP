@@ -1,6 +1,7 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
 include ./tooling/templatize/Makefile
+include ./test/Makefile
 SHELL = /bin/bash
 PATH := $(GOBIN):$(PATH)
 
@@ -91,15 +92,14 @@ e2e-local/setup:
 		"http://localhost:8443/subscriptions/$${SUBSCRIPTION_ID}?api-version=2.0"
 .PHONY: e2e-local/setup
 
-e2e-local/run:
-	$(MAKE) -C test
+e2e-local/run: $(ARO_HCP_TESTS)
 	export LOCATION="westus3"; \
 	export AROHCP_ENV="development"; \
 	export CUSTOMER_SUBSCRIPTION="$$(az account show --output tsv --query 'name')"; \
 	export ARTIFACT_DIR=$${ARTIFACT_DIR:-_artifacts}; \
 	export JUNIT_PATH=$${JUNIT_PATH:-$$ARTIFACT_DIR/junit.xml}; \
 	mkdir -p "$$ARTIFACT_DIR"; \
-	./test/aro-hcp-tests run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
+	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH"
 .PHONY: e2e-local/run
 
 mega-lint:
