@@ -25,8 +25,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -66,48 +64,42 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating cluster with invalid subnet ID that will fail after ARM resource creation")
-			cluster := framework.BuildHCPClusterFromParams(clusterParams, tc.Location())
-
-			if cluster.Properties != nil && cluster.Properties.Platform != nil {
-				subscriptionID := ""
-				if resourceGroup.ID != nil {
-					// Resource group ID format: /subscriptions/{subscription-id}/resourceGroups/{rg-name}
-					parts := strings.Split(*resourceGroup.ID, "/")
-					if len(parts) >= 3 {
-						subscriptionID = parts[2]
-					}
+			subscriptionID := ""
+			if resourceGroup.ID != nil {
+				// Resource group ID format: /subscriptions/{subscription-id}/resourceGroups/{rg-name}
+				parts := strings.Split(*resourceGroup.ID, "/")
+				if len(parts) >= 3 {
+					subscriptionID = parts[2]
 				}
-				cluster.Properties.Platform.SubnetID = to.Ptr(fmt.Sprintf("/subscriptions/%s/resourceGroups/nonexistent-rg/providers/Microsoft.Network/virtualNetworks/nonexistent-vnet/subnets/nonexistent-subnet", subscriptionID))
 			}
+			clusterParams.SubnetResourceID = fmt.Sprintf("/subscriptions/%s/resourceGroups/nonexistent-rg/providers/Microsoft.Network/virtualNetworks/nonexistent-vnet/subnets/nonexistent-subnet", subscriptionID)
 
-			err = framework.BeginCreateHCPCluster(ctx,
+			_, err = framework.BeginCreateHCPCluster(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				cluster,
+				clusterParams,
+				tc.Location(),
 			)
 			By("verifying error does not occur before ARM resource is created")
 			Expect(err).NotTo(HaveOccurred())
 
-			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
-
 			By("verifying the cluster resource exists")
 			Eventually(func() bool {
-
-				_, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+				_, err := framework.GetHCPCluster(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(), *resourceGroup.Name, clusterName)
 				return err == nil
 			}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "Cluster ARM resource should be created")
 
 			By("waiting for cluster to reach failed provisioning state")
 			Eventually(func() hcpsdk20240610preview.ProvisioningState {
-				cluster, err := clusterClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
+				cluster, err := framework.GetHCPCluster(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(), *resourceGroup.Name, clusterName)
 				if err != nil {
-					By(fmt.Sprintf("Error getting cluster: %v", err))
+					GinkgoLogr.Error(err, "Error getting cluster")
 					return ""
 				}
 				if cluster.Properties != nil && cluster.Properties.ProvisioningState != nil {
 					currentState := *cluster.Properties.ProvisioningState
-					By(fmt.Sprintf("Current cluster provisioning state: %s", currentState))
+					GinkgoLogr.Info("Current cluster provisioning state", "state", currentState)
 					return currentState
 				}
 				return ""
@@ -130,7 +122,7 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodepool deployment failed with appropriate error code")
 			Expect(err).To(HaveOccurred())
-			By(fmt.Sprintf("nodepool deployment error: %q", err.Error()))
+			GinkgoLogr.Error(err, "nodepool deployment error")
 			Expect(err.Error()).To(ContainSubstring("Node pools can only be created on clusters in 'ready' state, cluster requested is in 'error' state."))
 
 		})
