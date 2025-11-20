@@ -18,14 +18,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"golang.org/x/sync/errgroup"
@@ -42,14 +40,6 @@ import (
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
-
-// testLogger is a logr-compatible logger with timestamps enabled for test framework logging
-var testLogger logr.Logger = func() logr.Logger {
-	handler := slog.NewTextHandler(ginkgo.GinkgoWriter, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
-	return logr.FromSlogHandler(handler)
-}()
 
 type perItOrDescribeTestContext struct {
 	perBinaryInvocationTestContext *perBinaryInvocationTestContext
@@ -101,23 +91,23 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 // deleteCreatedResources deletes what was created that we know of.
 func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
 	if tc.perBinaryInvocationTestContext.skipCleanup {
-		testLogger.Info("skipping resource cleanup")
+		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
 	}
 
 	hcpClientFactory, err := tc.Get20240610ClientFactory(ctx)
 	if err != nil {
-		testLogger.Error(err, "failed to get HCP client")
+		ginkgo.GinkgoLogr.Error(err, "failed to get HCP client")
 		return
 	}
 	resourceGroupsClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
 	if err != nil {
-		testLogger.Error(err, "failed to get ARM client")
+		ginkgo.GinkgoLogr.Error(err, "failed to get ARM client")
 		return
 	}
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
-		testLogger.Error(err, "failed to get Graph client")
+		ginkgo.GinkgoLogr.Error(err, "failed to get Graph client")
 		return
 	}
 
@@ -125,22 +115,22 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
 	defer tc.contextLock.RUnlock()
-	testLogger.Info("deleting created resources")
+	ginkgo.GinkgoLogr.Info("deleting created resources")
 
 	errCleanupResourceGroups := CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
 	if errCleanupResourceGroups != nil {
-		testLogger.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
-		testLogger.Error(err, "at least one app registration failed to delete")
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete: %w", err)
 	}
 
-	testLogger.Info("finished deleting created resources")
+	ginkgo.GinkgoLogr.Info("finished deleting created resources")
 	// Register error to ginkgo reporter to ensure the test fails if any errors occur except for not found resource group or resource.
 	if isIgnorableResourceGroupCleanupError(errCleanupResourceGroups) {
-		testLogger.Info("ignoring not found resource group or resource cleanup error")
+		ginkgo.GinkgoLogr.Info("ignoring not found resource group or resource cleanup error")
 	} else {
 		gomega.Expect(errCleanupResourceGroups).ToNot(gomega.HaveOccurred())
 	}
@@ -197,7 +187,7 @@ func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview
 func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	tc.contextLock.RLock()
 	defer tc.contextLock.RUnlock()
-	testLogger.Info("collecting debug info")
+	ginkgo.GinkgoLogr.Info("collecting debug info")
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
@@ -212,10 +202,10 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		testLogger.Error(err, "at least one resource group failed to collect")
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
 	}
 
-	testLogger.Info("finished collecting debug info")
+	ginkgo.GinkgoLogr.Info("finished collecting debug info")
 }
 
 func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, resourceGroupPrefix, location string) (*armresources.ResourceGroup, error) {
@@ -226,12 +216,12 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 		defer tc.contextLock.Unlock()
 		tc.knownResourceGroups = append(tc.knownResourceGroups, resourceGroupName)
 	}()
-	testLogger.Info("creating resource group", "resourceGroup", resourceGroupName)
+	ginkgo.GinkgoLogr.Info("creating resource group", "resourceGroup", resourceGroupName)
 
 	if len(tc.perBinaryInvocationTestContext.sharedDir) > 0 {
 		resourceGroupCleanupFilename := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "tracked-resource-group_"+resourceGroupName)
 		if err := os.WriteFile(resourceGroupCleanupFilename, []byte{}, 0644); err != nil {
-			testLogger.Error(err, "failed writing resource group cleanup file", "resourceGroup", resourceGroupName)
+			ginkgo.GinkgoLogr.Error(err, "failed writing resource group cleanup file", "resourceGroup", resourceGroupName)
 		}
 	}
 
@@ -249,12 +239,12 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 func cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
 	errs := []error{}
 
-	testLogger.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
+	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, 60*time.Minute); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
-	testLogger.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, 60*time.Minute); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
@@ -276,7 +266,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 		return fmt.Errorf("failed to get ARM resource client: %w", err)
 	}
 
-	testLogger.Info("collecting deployments", "resourceGroup", resourceGroupName)
+	ginkgo.GinkgoLogr.Info("collecting deployments", "resourceGroup", resourceGroupName)
 	allDeployments, err := ListAllDeployments(ctx, armResourceClient.NewDeploymentsClient(), resourceGroupName, 10*time.Minute)
 	if err != nil {
 		return fmt.Errorf("failed to list deployments in %q: %w", resourceGroupName, err)
@@ -294,7 +284,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	}
 
 	for _, deployment := range allDeployments {
-		testLogger.Info("collecting operations", "resourceGroup", resourceGroupName, "deployment", *deployment.Name)
+		ginkgo.GinkgoLogr.Info("collecting operations", "resourceGroup", resourceGroupName, "deployment", *deployment.Name)
 		allOperations, err := ListAllOperations(ctx, armResourceClient.NewDeploymentOperationsClient(), resourceGroupName, *deployment.Name, 10*time.Minute)
 		if err != nil {
 			return fmt.Errorf("failed to list operations in %q: %w", *deployment.Name, err)
@@ -317,7 +307,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 
 func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx context.Context) (*graphutil.Application, *graphutil.ServicePrincipal, error) {
 	appName := fmt.Sprintf("aro-hcp-e2e-%d", rand.Int())
-	testLogger.Info("creating app registration", "appName", appName)
+	ginkgo.GinkgoLogr.Info("creating app registration", "appName", appName)
 
 	graphClient, err := tc.GetGraphClient(ctx)
 	if err != nil {
