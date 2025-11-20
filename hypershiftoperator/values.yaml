@@ -7,3 +7,5 @@ imageDigest: "{{ .hypershift.image.digest }}"
 registryOverrides: "quay.io/openshift-release-dev/ocp-v4.0-art-dev={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-release={{ .acr.ocp.name }}.azurecr.io/openshift-release-dev/ocp-release,registry.redhat.io/redhat={{ .acr.ocp.name }}.azurecr.io/redhat"
 azureKeyVaultClientId: "__csiSecretStoreClientId__"
 additionalArgs: "{{ .hypershift.additionalInstallArg }}"
+operatorEnvVars:
+  sharedIngressIPTag: "{{ .hypershift.sharedIngressIPTag }}"

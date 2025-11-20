@@ -1847,6 +1847,14 @@
         },
         "namespace": {
           "type": "string"
+        },
+        "sharedIngressIPTag": {
+          "type": "string",
+          "enum": [
+            "FirstPartyUsage=/aro-hcp-prod-inbound-customerapi",
+            "FirstPartyUsage=/NonProd",
+            ""
+          ]
         }
       },
       "additionalProperties": false,

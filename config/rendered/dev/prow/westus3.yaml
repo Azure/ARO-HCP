@@ -315,6 +315,7 @@ hypershift:
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
+  sharedIngressIPTag: ""
 imageSync:
   environmentName: aro-hcp-image-sync
   ocMirror:
