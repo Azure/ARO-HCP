@@ -138,25 +138,17 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to read pull-secret file from %s", pullSecretFilePath)
 
 			By("parsing pull-secret file")
-			var pullSecretConfig map[string]interface{}
+			var pullSecretConfig framework.DockerConfigJSON
 			err = json.Unmarshal(pullSecretFileData, &pullSecretConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse pull-secret file")
 
 			By("extracting registry.redhat.io credentials")
-			auths, ok := pullSecretConfig["auths"].(map[string]interface{})
-			Expect(ok).To(BeTrue(), "auths field not found in pull-secret file")
-
 			const redhatRegistryHost = "registry.redhat.io"
-			redhatRegistryAuth, ok := auths[redhatRegistryHost].(map[string]interface{})
+			redhatRegistryAuth, ok := pullSecretConfig.Auths[redhatRegistryHost]
 			Expect(ok).To(BeTrue(), "registry.redhat.io credentials not found in pull-secret file")
 
-			redhatRegistryAuthString, ok := redhatRegistryAuth["auth"].(string)
-			Expect(ok).To(BeTrue(), "auth field not found in registry.redhat.io credentials")
-
-			redhatRegistryEmail := ""
-			if email, ok := redhatRegistryAuth["email"].(string); ok {
-				redhatRegistryEmail = email
-			}
+			redhatRegistryAuthString := redhatRegistryAuth.Auth
+			redhatRegistryEmail := redhatRegistryAuth.Email
 
 			By("updating additional-pull-secret to add registry.redhat.io credentials")
 			// Get the current additional-pull-secret
@@ -164,21 +156,15 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
 
 			// Parse the current dockerconfigjson
-			var currentConfig map[string]interface{}
+			var currentConfig framework.DockerConfigJSON
 			err = json.Unmarshal(currentSecret.Data[corev1.DockerConfigJsonKey], &currentConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to parse current pull secret")
 
-			currentAuths, ok := currentConfig["auths"].(map[string]interface{})
-			Expect(ok).To(BeTrue(), "auths field not found in current pull secret")
-
 			// Add registry.redhat.io credentials to the existing auths
-			redhatAuthEntry := map[string]interface{}{
-				"auth": redhatRegistryAuthString,
+			currentConfig.Auths[redhatRegistryHost] = framework.RegistryAuth{
+				Auth:  redhatRegistryAuthString,
+				Email: redhatRegistryEmail,
 			}
-			if redhatRegistryEmail != "" {
-				redhatAuthEntry["email"] = redhatRegistryEmail
-			}
-			currentAuths[redhatRegistryHost] = redhatAuthEntry
 
 			// Marshal back to JSON
 			updatedDockerConfigJSON, err := json.Marshal(currentConfig)

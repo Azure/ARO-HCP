@@ -390,11 +390,11 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
 	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 
-	dockerConfig := map[string]interface{}{
-		"auths": map[string]interface{}{
-			host: map[string]interface{}{
-				"email": email,
-				"auth":  auth,
+	dockerConfig := DockerConfigJSON{
+		Auths: map[string]RegistryAuth{
+			host: {
+				Email: email,
+				Auth:  auth,
 			},
 		},
 	}

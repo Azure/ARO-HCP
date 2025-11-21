@@ -23,6 +23,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
 type verifyPullSecretMergedIntoGlobal struct {
@@ -44,17 +46,12 @@ func (v verifyPullSecretMergedIntoGlobal) Verify(ctx context.Context, adminRESTC
 		return fmt.Errorf("failed to get global-pull-secret: %w", err)
 	}
 
-	var globalConfig map[string]interface{}
+	var globalConfig framework.DockerConfigJSON
 	if err := json.Unmarshal(globalSecret.Data[corev1.DockerConfigJsonKey], &globalConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal global pull secret: %w", err)
 	}
 
-	globalAuths, ok := globalConfig["auths"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("auths field is not a map")
-	}
-
-	if _, exists := globalAuths[v.expectedHost]; !exists {
+	if _, exists := globalConfig.Auths[v.expectedHost]; !exists {
 		return fmt.Errorf("expected host %q not found in global pull secret", v.expectedHost)
 	}
 
@@ -112,32 +109,22 @@ func (v verifyPullSecretAuthData) Verify(ctx context.Context, adminRESTConfig *r
 		return fmt.Errorf("failed to get secret %s/%s: %w", v.namespace, v.secretName, err)
 	}
 
-	var config map[string]interface{}
+	var config framework.DockerConfigJSON
 	if err := json.Unmarshal(secret.Data[corev1.DockerConfigJsonKey], &config); err != nil {
 		return fmt.Errorf("failed to unmarshal pull secret: %w", err)
 	}
 
-	auths, ok := config["auths"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("auths field is not a map")
-	}
-
-	hostEntry, exists := auths[v.expectedHost]
+	hostAuth, exists := config.Auths[v.expectedHost]
 	if !exists {
 		return fmt.Errorf("expected host %q not found in pull secret", v.expectedHost)
 	}
 
-	hostData, ok := hostEntry.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("host entry for %q is not a map", v.expectedHost)
+	if hostAuth.Email != v.expectedEmail {
+		return fmt.Errorf("expected email %q, got %q", v.expectedEmail, hostAuth.Email)
 	}
 
-	if email, ok := hostData["email"].(string); !ok || email != v.expectedEmail {
-		return fmt.Errorf("expected email %q, got %q", v.expectedEmail, email)
-	}
-
-	if auth, ok := hostData["auth"].(string); !ok || auth != v.expectedAuth {
-		return fmt.Errorf("expected auth %q, got %q", v.expectedAuth, auth)
+	if hostAuth.Auth != v.expectedAuth {
+		return fmt.Errorf("expected auth %q, got %q", v.expectedAuth, hostAuth.Auth)
 	}
 
 	return nil
