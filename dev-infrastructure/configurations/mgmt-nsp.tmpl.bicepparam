@@ -19,4 +19,4 @@ param mgmtNSPAccessMode = '{{ .mgmt.nsp.accessMode }}'
 param serviceClusterSubscriptionId = '__serviceClusterSubscriptionId__'
 
 // HCP Backups
-param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

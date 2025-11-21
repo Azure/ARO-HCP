@@ -54,6 +54,8 @@ param logAnalyticsWorkspaceId string = ''
 @maxLength(24)
 param hcpBackupsStorageAccountName string
 param hcpBackupsStorageAccountContainerName string = 'backups'
+param hcpBackupsStorageAccountZoneRedundantMode string = 'Auto'
+param hcpBackupsStorageAccountPublic bool = true
 
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
@@ -166,6 +168,8 @@ module hcpBackupsStorage '../modules/hcp-backups/storage.bicep' = {
     storageAccountName: hcpBackupsStorageAccountName
     location: location
     containerName: hcpBackupsStorageAccountContainerName
+    zoneRedundantMode: hcpBackupsStorageAccountZoneRedundantMode
+    public: hcpBackupsStorageAccountPublic
   }
 }
 
