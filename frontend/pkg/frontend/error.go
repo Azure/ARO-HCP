@@ -54,9 +54,11 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...i
 	logger.Error(fmt.Sprintf("%v", err), args...) // fmt used to handle nil
 
 	var cloudErr *arm.CloudError
-	if errors.As(err, &cloudErr) {
-		arm.WriteCloudError(w, cloudErr)
-		return nil
+	if err != nil && errors.As(err, &cloudErr) {
+		if cloudErr != nil { // difference between interface is nil and the content is nil
+			arm.WriteCloudError(w, cloudErr)
+			return nil
+		}
 	}
 
 	arm.WriteInternalServerError(w)

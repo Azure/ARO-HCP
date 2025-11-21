@@ -44,8 +44,8 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return err
 	}
 
-	resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
-	if cloudError != nil {
+	resultingExternalCluster, err := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
+	if err != nil {
 		return err
 	}
 	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
@@ -202,7 +202,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	case http.MethodPatch:
 		return arm.NewResourceNotFoundError(resourceID)
 	default:
-		return arm.NewResourceNotFoundError(resourceID)
+		return fmt.Errorf("unsupported method %s", request.Method)
 
 	}
 
@@ -390,6 +390,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldCosmosCluster.InternalID)
 	if err != nil {
+		logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
 		return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 	}
 
@@ -443,7 +444,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
 		successStatusCode = http.StatusAccepted
 	default:
-		return arm.NewResourceNotFoundError(resourceID)
+		return fmt.Errorf("unsupported method %s", request.Method)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
