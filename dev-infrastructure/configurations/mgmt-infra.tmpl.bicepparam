@@ -31,5 +31,7 @@ param globalMSIId = '__globalMSIId__'
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 
 // HCP Backups Storage Account
-param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
+param hcpBackupsStorageAccountZoneRedundantMode = '{{ .mgmt.hcpBackups.storageAccount.zoneRedundantMode }}'
+param hcpBackupsStorageAccountPublic = {{ .mgmt.hcpBackups.storageAccount.public }}
 param hcpBackupsStorageAccountContainerName = '{{ .mgmt.hcpBackups.storageAccountContainerName }}'

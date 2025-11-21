@@ -38,26 +38,28 @@ var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
 var scriptToRun = 'storage.sh'
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  location: location
-  name: accountName
-  kind: 'StorageV2'
-  sku: {
-    name: skuName
-  }
-  properties: {
+module storageAccount '../../storage/storage.bicep' = {
+  name: 'oidcStorageAccount'
+  params: {
+    storageAccountName: accountName
+    location: location
+    skuName: skuName
     accessTier: 'Hot'
-    supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: allowBlobPublicAccess
-    minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
     publicNetworkAccess: 'Enabled'
+    configureNetworkAcls: false
+    configureEncryption: false
   }
 }
 
+resource storageAccountResource 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: accountName
+}
+
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (principalId != '') {
-  name: guid(storageAccount.id, principalId, storageBlobDataContributorRole)
-  scope: storageAccount
+  name: guid(storageAccountResource.id, principalId, storageBlobDataContributorRole)
+  scope: storageAccountResource
   properties: {
     principalId: principalId
     principalType: 'ServicePrincipal'
@@ -66,8 +68,8 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = i
 }
 
 resource storageAccountContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, deploymentMsiId, storageAccountContributorRole)
-  scope: storageAccount
+  name: guid(storageAccountResource.id, deploymentMsiId, storageAccountContributorRole)
+  scope: storageAccountResource
   properties: {
     principalId: reference(deploymentMsiId, '2023-01-31').principalId
     principalType: 'ServicePrincipal'
@@ -102,4 +104,4 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   ]
 }
 
-output storageName string = storageAccount.name
+output storageName string = storageAccount.outputs.storageAccountName

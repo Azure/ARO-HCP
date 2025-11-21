@@ -457,8 +457,11 @@ mgmt:
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
   hcpBackups:
+    storageAccount:
+      name: oadpprowusw3j1
+      public: true
+      zoneRedundantMode: Auto
     storageAccountContainerName: backups
-    storageAccountName: oadpprowusw3j1
   jaeger:
     deploy: false
   nsp:

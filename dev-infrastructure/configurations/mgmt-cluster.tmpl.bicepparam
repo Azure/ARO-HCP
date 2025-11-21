@@ -97,4 +97,4 @@ param environmentName = '{{ .environmentName }}'
 param staticKustoName = '{{ .kusto.staticKustoName }}'
 
 // HCP Backups Storage Account
-param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'
