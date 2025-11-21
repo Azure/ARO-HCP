@@ -88,4 +88,4 @@ param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 
 // HCP Backups Storage Account
-param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccountName }}'
+param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

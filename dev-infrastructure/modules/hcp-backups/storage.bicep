@@ -1,3 +1,13 @@
+import {
+  csvToArray
+  determineZoneRedundancy
+  getLocationAvailabilityZonesCSV
+} from '../common.bicep'
+
+@description('Availability Zones to use for the infrastructure, as a CSV string. Defaults to all the zones of the location')
+param locationAvailabilityZones string = getLocationAvailabilityZonesCSV(location)
+var locationAvailabilityZoneList = csvToArray(locationAvailabilityZones)
+
 @description('The name of the Azure Storage account to create.')
 @minLength(3)
 @maxLength(24)
@@ -9,41 +19,36 @@ param location string
 @description('The name of the blob container to create.')
 param containerName string = 'backups'
 
+@description('Zone redundant mode for the storage account.')
+param zoneRedundantMode string = 'Auto'
+
+@description('Whether the storage account should allow public access.')
+param public bool = false
+
 // Storage Account for HCP Backups
 // Configured using MSFTs recommended workload https://docs.azure.cn/en-us/storage/common/storage-account-overview#recommended-workload-configurations
-resource hcpBackupsStorageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
-  name: storageAccountName
-  location: location
-  kind: 'StorageV2'
-  sku: {
-    name: 'Standard_ZRS'
-  }
-  properties: {
+module hcpBackupsStorageAccount '../storage/storage.bicep' = {
+  name: 'hcpBackupsStorageAccount'
+  params: {
+    storageAccountName: storageAccountName
+    location: location
+    skuName: determineZoneRedundancy(locationAvailabilityZoneList, zoneRedundantMode) ? 'Standard_ZRS' : 'Standard_LRS'
     accessTier: 'Cool'
-    minimumTlsVersion: 'TLS1_2'
-    allowBlobPublicAccess: false
-    supportsHttpsTrafficOnly: true
-    encryption: {
-      services: {
-        blob: {
-          enabled: true
-        }
-        file: {
-          enabled: true
-        }
-      }
-      keySource: 'Microsoft.Storage'
-    }
-    networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: 'Allow'
-    }
+    allowBlobPublicAccess: public
+    allowSharedKeyAccess: true
+    publicNetworkAccess: 'Enabled'
+    configureNetworkAcls: true
+    networkAclsBypass: 'AzureServices'
+    networkAclsDefaultAction: 'Allow'
+    configureEncryption: true
   }
 }
 
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
-  name: 'default'
-  parent: hcpBackupsStorageAccount
+  name: '${toLower(storageAccountName)}/default'
+  dependsOn: [
+    hcpBackupsStorageAccount
+  ]
 }
 
 resource hcpBackupsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-09-01' = {
@@ -51,6 +56,6 @@ resource hcpBackupsContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   parent: blobService
 }
 
-output storageAccountId string = hcpBackupsStorageAccount.id
-output storageAccountName string = hcpBackupsStorageAccount.name
-output containerName string = hcpBackupsContainer.name
+output storageAccountId string = hcpBackupsStorageAccount.outputs.storageAccountId
+output storageAccountName string = hcpBackupsStorageAccount.outputs.storageAccountName
+output containerName string = containerName
