@@ -23,7 +23,7 @@ $(BICEP_OUTPUT_DIR)%.json: $(TEST_BICEP_DIR)/%.bicep
 update: $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
 .PHONY: update
 
-TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o name '*.bicep')
+TEST_SOURCES = $(shell find $(TEST_DIR) -name '*.go' -o -name '*.json' -o -name '*.bicep')
 ARO_HCP_TESTS = $(TEST_DIR)aro-hcp-tests
 $(ARO_HCP_TESTS): $(TEST_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/go.mod $(TEST_DIR)/go.sum $(DEMO_BICEP_OUTPUTS) $(TEST_BICEP_OUTPUTS)
 	cd $(TEST_DIR) && go build -o $@ ./cmd/aro-hcp-tests
