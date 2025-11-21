@@ -23,6 +23,9 @@ param aksKeyVaultName string
 @description('ID of the Service Cluster subscription. Will be used to grant access to the NSP.')
 param serviceClusterSubscriptionId string
 
+@description('The name of the HCP Backups Storage Account.')
+param hcpBackupsStorageAccountName string = ''
+
 resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: mgmtKeyVaultName
 }
@@ -39,6 +42,10 @@ resource aksKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: aksKeyVaultName
 }
 
+resource hcpBackupsStorageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: hcpBackupsStorageAccountName
+}
+
 module nsp '../modules/network/nsp.bicep' = {
   name: 'nsp-${uniqueString(resourceGroup().name)}'
   params: {
@@ -47,6 +54,15 @@ module nsp '../modules/network/nsp.bicep' = {
   }
 }
 
+// Build the list of associated resources, including the storage account
+var associatedResources = [
+  cxKeyVault.id
+  mgmtKeyVault.id
+  msiKeyVault.id
+  aksKeyVault.id
+  hcpBackupsStorageAccount.id
+]
+
 module externalProfile '../modules/network/nsp-profile.bicep' = {
   name: 'profile-${uniqueString(resourceGroup().name)}'
   params: {
@@ -54,12 +70,7 @@ module externalProfile '../modules/network/nsp-profile.bicep' = {
     nspName: mgmtNSPName
     profileName: '${mgmtNSPName}-profile'
     location: location
-    associatedResources: [
-      cxKeyVault.id
-      mgmtKeyVault.id
-      msiKeyVault.id
-      aksKeyVault.id
-    ]
+    associatedResources: associatedResources
     // TODO: will add EV2 Service Tags here
     // TODO: add service cluster subscription here
     subscriptions: [
