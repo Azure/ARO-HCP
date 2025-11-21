@@ -194,6 +194,13 @@ defaults:
     viewerGroups: ""
     sku: ""
     tier: ""
+    subscription:
+      usePlannedQuota: false
+      key: "kusto-{{ .ev2.geoShortId }}"
+      displayName: "Azure Red Hat OpenShift HCP - Kusto - {{ .ev2.geoShortId }}"
+      providers:
+        'Microsoft.Kusto':
+          poll: true
   # Hypershift
   hypershift:
     image:
@@ -786,6 +793,8 @@ clouds:
     defaults:
       kusto:
         staticKustoName: "hcp-dev-us"
+        subscription:
+          key: ARO Hosted Control Planes (EA Subscription 1)
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
         enabled: false
