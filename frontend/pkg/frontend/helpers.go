@@ -33,7 +33,7 @@ import (
 // CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
-func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) *arm.CloudError {
+func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) error {
 	logger := LoggerFromContext(ctx)
 
 	switch operationRequest {
@@ -112,7 +112,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	return nil
 }
 
-func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) *arm.CloudError {
+func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) error {
 	logger := LoggerFromContext(ctx)
 
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
@@ -250,7 +250,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
-func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, *arm.CloudError) {
+func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
 	logger := LoggerFromContext(ctx)
 
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
@@ -278,7 +278,7 @@ func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID
 	return externalCluster, nil
 }
 
-func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
+func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, error) {
 	var responseBody []byte
 
 	logger := LoggerFromContext(ctx)

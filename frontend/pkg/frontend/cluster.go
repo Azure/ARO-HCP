@@ -44,8 +44,8 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 		return err
 	}
 
-	resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
-	if cloudError != nil {
+	resultingExternalCluster, err := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
+	if err != nil {
 		return err
 	}
 	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)

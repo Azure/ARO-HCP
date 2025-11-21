@@ -134,8 +134,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 					}
 				} else {
-					if !tt.directConflict(provisioningState) || cloudError.StatusCode != http.StatusConflict {
-						t.Errorf("Got unexpected error: %d %s", cloudError.StatusCode, http.StatusText(cloudError.StatusCode))
+					if !tt.directConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
+						t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
 					}
 				}
 			})
@@ -178,8 +178,8 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							t.Errorf("Expected %d %s but got no error", http.StatusConflict, http.StatusText(http.StatusConflict))
 						}
 					} else {
-						if !tt.parentConflict(provisioningState) || cloudError.StatusCode != http.StatusConflict {
-							t.Errorf("Got unexpected error: %d %s", cloudError.StatusCode, http.StatusText(cloudError.StatusCode))
+						if !tt.parentConflict(provisioningState) || cloudError.(*arm.CloudError).StatusCode != http.StatusConflict {
+							t.Errorf("Got unexpected error: %d %s", cloudError.(*arm.CloudError).StatusCode, http.StatusText(cloudError.(*arm.CloudError).StatusCode))
 						}
 					}
 				})
