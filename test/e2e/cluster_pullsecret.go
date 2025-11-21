@@ -133,7 +133,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("reading pull-secret file from aro-hcp-qe-pull-secret directory")
-			pullSecretFilePath := filepath.Join("/var/run/aro-hcp-qe-pull-secret", "pull-secret")
+			pullSecretFilePath := filepath.Join(tc.PullSecretPath(), "pull-secret")
 			pullSecretFileData, err := os.ReadFile(pullSecretFilePath)
 			Expect(err).NotTo(HaveOccurred(), "failed to read pull-secret file from %s", pullSecretFilePath)
 

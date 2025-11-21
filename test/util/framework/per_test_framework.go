@@ -501,3 +501,7 @@ func (tc *perItOrDescribeTestContext) Location() string {
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
+
+func (tc *perItOrDescribeTestContext) PullSecretPath() string {
+	return tc.perBinaryInvocationTestContext.pullSecretPath
+}
