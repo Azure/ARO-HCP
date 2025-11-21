@@ -179,7 +179,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
-    gatePromotion: false
+    gatePromotion: true
     prowJobName: ""
 environmentName: dev
 ev2:
