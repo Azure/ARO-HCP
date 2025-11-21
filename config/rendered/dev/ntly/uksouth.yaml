@@ -345,6 +345,13 @@ kusto:
   serviceLogsDatabase: ServiceLogs
   sku: ""
   staticKustoName: hcp-dev-us
+  subscription:
+    displayName: Azure Red Hat OpenShift HCP - Kusto - uk
+    key: ARO Hosted Control Planes (EA Subscription 1)
+    providers:
+      Microsoft.Kusto:
+        poll: true
+    usePlannedQuota: false
   tier: ""
   viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
