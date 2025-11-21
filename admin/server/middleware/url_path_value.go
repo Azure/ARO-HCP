@@ -15,20 +15,20 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
+	"strings"
 )
 
-const (
-	URLPathValue = contextKey("url_path_value")
-)
-
-// WithURLPathValue adds the current URL's path to the context.
-func WithURLPathValue(next http.Handler) http.Handler {
+// WithLowercaseURLPathValue lowercases the URL path and adds the original and lowercase URL path values to the context.
+func WithLowercaseURLPathValue(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(
+		ctx := ContextWithOriginalUrlPathValue(
 			r.Context(),
-			URLPathValue,
+			r.URL.Path,
+		)
+		r.URL.Path = strings.ToLower(r.URL.Path)
+		ctx = ContextWithUrlPathValue(
+			ctx,
 			r.URL.Path,
 		)
 		next.ServeHTTP(w, r.WithContext(ctx))

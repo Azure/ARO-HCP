@@ -23,7 +23,7 @@ LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/admin/pkg/version.buildDate=${BUILD_DATE}"
 
 # Source files
-ADMIN_API_SOURCES = $(shell find api -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+ADMIN_API_SOURCES = $(shell find server -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 CLI_SOURCES = $(shell find client -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 
 # Default target
@@ -34,7 +34,7 @@ build: $(BINARY)
 .PHONY: build
 
 $(BINARY): $(ADMIN_API_SOURCES)
-	cd api && go build $(LDFLAGS) -o ../$(BINARY) .
+	cd server && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
 	@COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
@@ -45,7 +45,7 @@ run-with-sc-integration: $(BINARY)
 	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	./hack/run-with-port-forward.sh "${CS_PORT_FORWARD_SPEC}" \
 		./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
-			./${BINARY} serve --location ${LOCATION} --clusters-service-url http://localhost:${CS_LOCAL_PORT} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME} \
+			./${BINARY} serve --location ${LOCATION} --clusters-service-url http://localhost:${CS_LOCAL_PORT} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME}
 .PHONY: run-with-sc-integration
 
 clean:

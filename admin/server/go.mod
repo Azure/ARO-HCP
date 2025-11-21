@@ -1,4 +1,4 @@
-module github.com/Azure/ARO-HCP/admin/api
+module github.com/Azure/ARO-HCP/admin/server
 
 go 1.24.3
 

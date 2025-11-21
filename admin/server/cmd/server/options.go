@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,11 +32,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/Azure/ARO-HCP/admin/api/handlers"
-	"github.com/Azure/ARO-HCP/admin/api/interrupts"
-	"github.com/Azure/ARO-HCP/admin/api/middleware"
+	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/inventory"
+	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 )
 
 func DefaultOptions() *RawOptions {
@@ -81,6 +86,7 @@ type completedOptions struct {
 	Location              string
 	ClustersServiceClient ocm.ClusterServiceClientSpec
 	DbClient              database.DBClient
+	MgmtClusterInventory  *inventory.MgmtClusterInventory
 }
 
 type Options struct {
@@ -126,6 +132,16 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create the database client: %w", err)
 	}
 
+	// Get Azure credentials
+	azureCredential, err := cmdutils.GetAzureTokenCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain Azure credentials: %w", err)
+	}
+
+	// Create management cluster discovery
+	mgmtClusterInventory := inventory.NewMgmtClusterInventory(
+		inventory.NewGraphMgmtClusterInventoryBackend(o.Location, azureCredential),
+	)
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                  o.Port,
@@ -133,6 +149,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Location:              o.Location,
 			ClustersServiceClient: csClient,
 			DbClient:              dbClient,
+			MgmtClusterInventory:  mgmtClusterInventory,
 		},
 	}, nil
 }
@@ -152,13 +169,37 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	logger.Info("Running server", "port", opts.Port)
 	mux := http.NewServeMux()
-	mux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
-	mux.Handle("GET /admin/listclusters", handlers.ListClustersHandler(opts.ClustersServiceClient, opts.DbClient))
+	mux.Handle(MuxPattern(http.MethodGet, "helloworld"), handlers.HelloWorldHandler())
+	mux.Handle(
+		MuxPatternHCP(http.MethodGet, "kubeconfig"),
+		middleware.WithHCPResourceID(handlers.GetHCPKubeconfig(opts.ClustersServiceClient, opts.DbClient, opts.MgmtClusterInventory)),
+	)
+
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithURLPathValue(middleware.WithLogger(logger, mux)),
+		Handler: middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, mux)),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
 	return nil
+}
+
+const (
+	WildcardSubscriptionID    = "{" + middleware.PathSegmentSubscriptionID + "}"
+	WildcardResourceGroupName = "{" + middleware.PathSegmentResourceGroupName + "}"
+	WildcardResourceName      = "{" + middleware.PathSegmentResourceName + "}"
+
+	PatternSubscriptions  = "subscriptions/" + WildcardSubscriptionID
+	PatternResourceGroups = "resourcegroups/" + WildcardResourceGroupName
+	PatternProviders      = "providers/" + api.ProviderNamespace
+	PatternClusters       = api.ClusterResourceTypeName + "/" + WildcardResourceName
+)
+
+func MuxPatternHCP(method string, segments ...string) string {
+	segments = append([]string{PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters}, segments...)
+	return MuxPattern(method, segments...)
+}
+
+func MuxPattern(method string, segments ...string) string {
+	return fmt.Sprintf("%s /admin/%s", method, strings.ToLower(path.Join(segments...)))
 }

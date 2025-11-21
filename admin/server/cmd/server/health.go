@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/admin/api/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 )
 
 // Health keeps a request multiplexer for health liveness and readiness endpoints

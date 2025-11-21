@@ -23,8 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/admin/api/cmd/server"
-	"github.com/Azure/ARO-HCP/admin/api/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/cmd/server"
+	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 )
 
 func main() {

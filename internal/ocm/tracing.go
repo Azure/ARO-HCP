@@ -145,6 +145,18 @@ func (csc *clusterServiceClientWithTracing) ListClusters(searchExpression string
 	return csc.csc.ListClusters(searchExpression)
 }
 
+func (csc *clusterServiceClientWithTracing) GetClusterProvisionShard(ctx context.Context, internalID InternalID) (*cmv1.ProvisionShard, error) {
+	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetClusterProvisionShard")
+	defer span.End()
+
+	shard, err := csc.csc.GetClusterProvisionShard(ctx, internalID)
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return shard, err
+}
+
 func (csc *clusterServiceClientWithTracing) GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error) {
 	ctx, span := csc.startChildSpan(ctx, "ClusterServiceClient.GetNodePool")
 	defer span.End()
