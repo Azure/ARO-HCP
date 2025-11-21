@@ -16,10 +16,12 @@ package frontend
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"dario.cat/mergo"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -166,9 +168,28 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	}
 
 	updating := oldInternalCluster != nil
-
 	if updating {
-		return f.updateHCPCluster(writer, request, oldInternalCluster)
+		// re-write oldInternalCluster for as long as cluster-service needs to be consulted for pre-existing state.
+		oldInternalCluster, err = f.readInternalClusterFromClusterService(ctx, oldInternalCluster, writer.Header())
+		if err != nil {
+			return err
+		}
+		// CheckForProvisioningStateConflict does not log conflict errors
+		// but does log unexpected errors like database failures.
+		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
+			return err
+		}
+
+		switch request.Method {
+		case http.MethodPut:
+			return f.updateHCPCluster(writer, request, oldInternalCluster)
+
+		case http.MethodPatch:
+			return f.patchHCPCluster(writer, request, oldInternalCluster)
+
+		default:
+			return arm.NewResourceNotFoundError(resourceID)
+		}
 	}
 
 	return f.createHCPCluster(writer, request)
@@ -288,7 +309,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
 
 	// set fields that were not known until the operation doc instance was created.
-	// TODO once we we have separate creation/vaidation of operation documents, this can be done ahead of time.
+	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
 	newInternalCluster.ServiceProviderProperties.ActiveOperationID = operationCosmosID
 	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
@@ -369,29 +390,14 @@ func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, ol
 }
 
 func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.HCPOpenShiftCluster) error {
-	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
 	// PUT requests overlay the request body onto a default resource
 	// struct, which only has API-specified non-zero default values.
 	// This means all required properties must be specified in the
 	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -406,30 +412,11 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
-	correlationData, err := CorrelationDataFromContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	operationRequest := database.OperationRequestUpdate
-	var newExternalCluster api.VersionedHCPOpenShiftCluster
-	var successStatusCode int
-
-	oldInternalCluster, err = f.readInternalClusterFromClusterService(ctx, oldInternalCluster, writer.Header())
-	if err != nil {
-		return err
-	}
-	// CheckForProvisioningStateConflict does not log conflict errors, but does log unexpected errors like database failures.
-	if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ProvisioningState); err != nil {
-		return err
-	}
-
-	// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
-	switch request.Method {
-	case http.MethodPut:
+	var newInternalCluster *api.HCPOpenShiftCluster
+	{ // scoped so that variables we want to remove aren't depended upon
 		// Initialize versionedRequestCluster to include both
 		// non-zero default values and current read-only values.
-		defaultInternalClusterWithSomeFieldsSetToOldValues := api.NewDefaultHCPOpenShiftCluster(resourceID)
+		defaultInternalClusterWithSomeFieldsSetToOldValues := api.NewDefaultHCPOpenShiftCluster(oldInternalCluster.ID)
 
 		// Some optional create-only fields have dynamic default
 		// values that are determined downstream of this phase of
@@ -443,62 +430,75 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
 		conversion.CopyReadOnlyClusterValues(defaultInternalClusterWithSomeFieldsSetToOldValues, oldInternalCluster)
 
-		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(defaultInternalClusterWithSomeFieldsSetToOldValues)
+		defaultExternalClusterWithSomeFieldsSetToOldValues := versionedInterface.NewHCPOpenShiftCluster(defaultInternalClusterWithSomeFieldsSetToOldValues)
 
-		successStatusCode = http.StatusOK
+		externalClusterFromRequest := versionedInterface.NewHCPOpenShiftCluster(&api.HCPOpenShiftCluster{})
+		if err := json.Unmarshal(body, &externalClusterFromRequest); err != nil {
+			return err
+		}
 
-	case http.MethodPatch:
-		// TODO find a way to represent the desired change without starting from internal state here (very confusing)
-		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(oldInternalCluster)
-		successStatusCode = http.StatusAccepted
-	default:
-		return fmt.Errorf("unsupported method %s", request.Method)
+		// this strategy means that our `newInternalCluster` is not what the user specified, but instead a series of overlays
+		// 1. defaults (notice that these defaults are INTERNAL defaults, not external defaults)
+		// 2. old values for some specific fields
+		// 3. user requested values (notice that a user specifying nil for a default of old value will not actually clear that value)
+		// 4. some forced overridden content
+		newExternalCluster := defaultExternalClusterWithSomeFieldsSetToOldValues
+		err = mergo.Merge(newExternalCluster, externalClusterFromRequest, mergo.WithOverride)
+		if err != nil {
+			return err
+		}
+
+		newExternalCluster.Normalize(newInternalCluster)
+
+		// ServiceProviderProperties contains two types of information
+		// 1. values that a user cannot change because the external type does not expose the information.
+		//    We must overwrite those values with the oldInternalCluster values so the values don't change, because the user's input will always be empty.
+		// 2. values that a user cannot change due to validation requirements, but the user *can* specify the values.
+		//    We are overwriting these values that we consider to be status values.
+		//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
+		//    validation errors on status fields that the user isn't trying to modify.
+		newInternalCluster.SystemData = systemData
+		newInternalCluster.ServiceProviderProperties = oldInternalCluster.ServiceProviderProperties
+		// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
+		// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
+		// TODO we probably update validation to require this field is cleared.
+		//newInternalCluster.Identity.UserAssignedIdentities = nil
 	}
 
-	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-	if err := api.ApplyRequestBody(request, body, newExternalCluster); err != nil {
+	return f.updateHCPClusterInCosmos(ctx, writer, request, newInternalCluster, oldInternalCluster, versionedInterface)
+}
+
+func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) error {
+	logger := LoggerFromContext(ctx)
+
+	correlationData, err := CorrelationDataFromContext(ctx)
+	if err != nil {
 		return err
 	}
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	newExternalCluster.Normalize(newInternalCluster)
-	// ServiceProviderProperties contains two types of information
-	// 1. values that a user cannot change because the external type does not expose the information.
-	//    We must overwrite those values with the oldInternalCluster values so the values don't change, because the user's input will always be empty.
-	// 2. values that a user cannot change due to validation requirements, but the user *can* specify the values.
-	//    We are overwriting these values that we consider to be status values.
-	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
-	//    validation errors on status fields that the user isn't trying to modify.
-
-	newInternalCluster.SystemData = systemData
-	newInternalCluster.ServiceProviderProperties = oldInternalCluster.ServiceProviderProperties
-	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
-	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
-	// TODO we probably update validation to require this field is cleared.
-	//newInternalCluster.Identity.UserAssignedIdentities = nil
 
 	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
-		return err
+	if newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs); newValidationErr != nil {
+		return newValidationErr
 	}
 
 	// Now that validation is done we clear the user-assigned identities map since that is reconstructed from Cluster Service data
 	// TODO this is bad, see above TODOs. We want to validate what we store.
 	newInternalCluster.Identity.UserAssignedIdentities = nil
 
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
+	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, request.Header, newInternalCluster, true)
 	if err != nil {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
+	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
+		return ocm.CSErrorToCloudError(err, oldInternalCluster.ID, writer.Header())
 	}
 
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
+	pk := database.NewPartitionKey(oldInternalCluster.ID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)
-	operationDoc := database.NewOperationDocument(operationRequest, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
+	operationDoc := database.NewOperationDocument(database.OperationRequestUpdate, oldInternalCluster.ID, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
@@ -551,9 +551,65 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
-	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBytes)
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Request, oldInternalCluster *api.HCPOpenShiftCluster) error {
+	// PATCH requests overlay the request body onto a resource struct
+	// that represents an existing resource to be updated.
+
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	if request.Method != http.MethodPatch {
+		logger.Error("unexpected method: " + request.Method)
+		return arm.NewResourceNotFoundError(oldInternalCluster.ID)
+	}
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	body, err := BodyFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	systemData, err := SystemDataFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	newInternalCluster := &api.HCPOpenShiftCluster{}
+	{ // scoped to prevent accidental escapes of variables we want to remove
+		// TODO find a way to represent the desired change without starting from internal state here (very confusing)
+		// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
+		var newExternalCluster api.VersionedHCPOpenShiftCluster
+		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(oldInternalCluster)
+		if err = api.ApplyRequestBody(request, body, newExternalCluster); err != nil {
+			return err
+		}
+		newExternalCluster.Normalize(newInternalCluster)
+
+		// ServiceProviderProperties contains two types of information
+		// 1. values that a user cannot change because the external type does not expose the information.
+		//    We must overwrite those values with the oldInternalCluster values so the values don't change, because the user's input will always be empty.
+		// 2. values that a user cannot change due to validation requirements, but the user *can* specify the values.
+		//    We are overwriting these values that we consider to be status values.
+		//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
+		//    validation errors on status fields that the user isn't trying to modify.
+		newInternalCluster.SystemData = systemData
+		newInternalCluster.ServiceProviderProperties = oldInternalCluster.ServiceProviderProperties
+		// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
+		// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
+		// TODO we probably update validation to require this field is cleared.
+		//newInternalCluster.Identity.UserAssignedIdentities = nil
+	}
+
+	return f.updateHCPClusterInCosmos(ctx, writer, request, newInternalCluster, oldInternalCluster, versionedInterface)
 }
