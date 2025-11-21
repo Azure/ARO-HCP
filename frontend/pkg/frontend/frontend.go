@@ -941,9 +941,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
-		resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, cosmosOperation.ExternalID, versionedInterface)
-		if cloudError != nil {
-			return cloudError
+		resultingExternalCluster, err := f.GetExternalClusterFromStorage(ctx, cosmosOperation.ExternalID, versionedInterface)
+		if err != nil {
+			return err
 		}
 		responseBody, err = arm.MarshalJSON(resultingExternalCluster)
 		if err != nil {
