@@ -32,7 +32,7 @@ import (
 
 // AddAsyncOperationHeader adds an "Azure-AsyncOperation" header to the ResponseWriter
 // with a URL of the operation status endpoint.
-func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
+func AddAsyncOperationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -56,7 +56,7 @@ func (f *Frontend) AddAsyncOperationHeader(writer http.ResponseWriter, request *
 
 // AddLocationHeader adds a "Location" header to the ResponseWriter with a URL of the
 // operation result endpoint.
-func (f *Frontend) AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
+func AddLocationHeader(writer http.ResponseWriter, request *http.Request, operationID *azcorearm.ResourceID) {
 	logger := LoggerFromContext(request.Context())
 
 	// MiddlewareReferer ensures Referer is present.
@@ -118,10 +118,10 @@ func (f *Frontend) ExposeOperation(writer http.ResponseWriter, request *http.Req
 		// Add callback header(s) based on the request method.
 		switch request.Method {
 		case http.MethodDelete, http.MethodPatch, http.MethodPost:
-			f.AddLocationHeader(writer, request, operationResourceID)
+			AddLocationHeader(writer, request, operationResourceID)
 			fallthrough
 		case http.MethodPut:
-			f.AddAsyncOperationHeader(writer, request, operationResourceID)
+			AddAsyncOperationHeader(writer, request, operationResourceID)
 		}
 	})
 }

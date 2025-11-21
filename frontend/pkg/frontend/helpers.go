@@ -30,6 +30,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
+func operationNotificationFn(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
+	return func(result database.DBTransactionResult) {
+		// If ARM passed a notification URI, acknowledge it.
+		if len(notificationURI) > 0 {
+			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
+		}
+
+		// Add callback header(s) based on the request method.
+		switch request.Method {
+		case http.MethodDelete, http.MethodPatch, http.MethodPost:
+			AddLocationHeader(writer, request, operationID)
+			fallthrough
+		case http.MethodPut:
+			AddAsyncOperationHeader(writer, request, operationID)
+		}
+	}
+}
+
 // checkForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
