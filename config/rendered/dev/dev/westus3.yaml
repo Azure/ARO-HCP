@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787
+      digest: sha256:7adfc9137be409ae9c9e41433b3f96c01a79993ee6fbf7e9058b1d73a4e7cd86
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273
+      digest: sha256:841abf362198cdd5e62a57694e69cd43c8dcb85bf27740753521e1870b9b2c4c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-dev-usw3
   image:
-    digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c
+    digest: sha256:4635f465a63b90e89a7fe52561e8a33dcc8fbcd0dcc0ce9b6c85b4e9c3c9b835
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -52,7 +52,7 @@ armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
 arobit:
   forwarder:
     image:
-      digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
+      digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7
+    digest: sha256:11917df686dd14a8a091653784a40c0e4c4686c6742493b1dcbd967042b51ab8
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -207,7 +207,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d
+    digest: sha256:8090456c636957262baaff3c56b8bc7613e95bee22fee4ea217937cdf7a8e412
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -383,7 +383,7 @@ maestro:
     name: arohcp-dev-maestro-usw3
     private: false
   image:
-    digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76
+    digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -462,7 +462,7 @@ mgmt:
   prometheus:
     kubeStateMetrics:
       image:
-        digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637
+        digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -482,7 +482,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
+        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
       replicas: 2
       shards: 1
   rg: hcp-underlay-dev-westus3-mgmt-1
@@ -712,7 +712,7 @@ svc:
   prometheus:
     kubeStateMetrics:
       image:
-        digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637
+        digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -732,7 +732,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
+        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
       replicas: 2
       shards: 1
       version: ""

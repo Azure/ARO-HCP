@@ -47,13 +47,13 @@ clouds:
                   sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
               prometheusSpec:
                 image:
-                  sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+                  sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
               prometheusConfigReloader:
                 image:
                   sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
               kubeStateMetrics:
                 image:
-                  digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+                  digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           # MC cluster settings
           mgmt:
             prometheus:
@@ -62,35 +62,35 @@ clouds:
                   sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
               prometheusSpec:
                 image:
-                  sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+                  sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
               prometheusConfigReloader:
                 image:
                   sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
               kubeStateMetrics:
                 image:
-                  digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+                  digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           # RP Frontend
           frontend:
             image:
-              digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d # f833f83
+              digest: sha256:8090456c636957262baaff3c56b8bc7613e95bee22fee4ea217937cdf7a8e412 # 0e37620
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7 # f833f83
+              digest: sha256:11917df686dd14a8a091653784a40c0e4c4686c6742493b1dcbd967042b51ab8 # 0e37620
           # Admin API
           adminApi:
             image:
-              digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c # f833f83
+              digest: sha256:4635f465a63b90e89a7fe52561e8a33dcc8fbcd0dcc0ce9b6c85b4e9c3c9b835 # 0e37620
           # Hypershift
           hypershift:
             image:
-              digest: sha256:949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6 # sha256-949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6
+              digest: sha256:7cf5048187883cac7232dd56d8834e06e3205bbb915d1382825aad01d6a01d1d # sha256-7cf5048187883cac7232dd56d8834e06e3205bbb915d1382825aad01d6a01d1d
           # Maestro
           maestro:
             image:
-              digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76 # 5f52709b927aa0d8218b46f3a5ead2a8224483b2
+              digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36 # e8412ccd0826304e3f5bc0faa3069373c8ac7142
             agent:
               sidecar:
                 image:

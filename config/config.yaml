@@ -98,7 +98,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
+        digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a # v4.1.1
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -644,13 +644,13 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273 # v2.14.2-285
+        digest: sha256:841abf362198cdd5e62a57694e69cd43c8dcb85bf27740753521e1870b9b2c4c # v2.14.2-288
     mce:
       version: "2.9.2"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787 # v2.9.2-123
+        digest: sha256:7adfc9137be409ae9c9e41433b3f96c01a79993ee6fbf7e9058b1d73a4e7cd86 # v2.9.2-125
   # Cluster Service
   clustersService:
     image:
@@ -845,7 +845,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76 # 5f52709b927aa0d8218b46f3a5ead2a8224483b2
+          digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36 # e8412ccd0826304e3f5bc0faa3069373c8ac7142
       # ACR Pull
       acrPull:
         image:
@@ -877,7 +877,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c # f833f83
+          digest: sha256:4635f465a63b90e89a7fe52561e8a33dcc8fbcd0dcc0ce9b6c85b4e9c3c9b835 # 0e37620
         cert:
           issuer: Self
       # Frontend
@@ -885,11 +885,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d # f833f83
+          digest: sha256:8090456c636957262baaff3c56b8bc7613e95bee22fee4ea217937cdf7a8e412 # 0e37620
       # Backend
       backend:
         image:
-          digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7 # f833f83
+          digest: sha256:11917df686dd14a8a091653784a40c0e4c4686c6742493b1dcbd967042b51ab8 # 0e37620
       # Image Sync
       imageSync:
         ocMirror:
@@ -930,13 +930,13 @@ clouds:
               sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
           kubeStateMetrics:
             image:
-              digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+              digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           prometheusOperator:
             image:
               sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
           prometheusSpec:
             image:
-              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+              sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
             shards: 1
       mgmt:
         subscription:
@@ -969,13 +969,13 @@ clouds:
               sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
           kubeStateMetrics:
             image:
-              digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+              digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           prometheusOperator:
             image:
               sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
           prometheusSpec:
             image:
-              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+              sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
             shards: 1
       # ACRs
       acr:
@@ -1238,7 +1238,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6 # sha256-949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6
+              digest: sha256:7cf5048187883cac7232dd56d8834e06e3205bbb915d1382825aad01d6a01d1d # sha256-7cf5048187883cac7232dd56d8834e06e3205bbb915d1382825aad01d6a01d1d
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
