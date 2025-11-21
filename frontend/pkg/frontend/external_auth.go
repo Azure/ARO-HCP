@@ -33,64 +33,50 @@ import (
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
+		return arm.NewResourceNotFoundError(resourceID)
 	}
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID, nil)
 	}
 
 	responseBody, err := mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
-func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
@@ -99,9 +85,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 
 	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	pagedResponse := arm.NewPagedResponse()
@@ -109,26 +93,20 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 	externalAuthsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterExternalAuth)
 	internalExternalAuthIteraotr, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	for _, externalAuth := range internalExternalAuthIteraotr.Items(ctx) {
 		externalAuthsByClusterServiceID[externalAuth.ServiceProviderProperties.ClusterServiceID.String()] = externalAuth
 	}
 	err = internalExternalAuthIteraotr.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalExternalAuthIteraotr.GetContinuationToken())
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Build a Cluster Service query that looks for
@@ -145,27 +123,24 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.HREF()]; ok {
 			value, err := mergeToExternalExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
 			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
+				return err
 			}
 			pagedResponse.AddValue(value)
 		}
 	}
 	err = csIterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, nil, writer.Header())
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
-func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -185,45 +160,34 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
+		return err
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	var updating = (resourceDoc != nil)
@@ -237,15 +201,12 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 		}
 
 		hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(resourceID, csExternalAuth)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
+			return err
 		}
 
 		hcpExternalAuth.SystemData = resourceDoc.SystemData
@@ -275,9 +236,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			successStatusCode = http.StatusAccepted
 		default:
-			logger.Error("Unsupported method")
-			arm.WriteInternalServerError(writer)
-			return
+			return fmt.Errorf("unsupported method %s", request.Method)
 		}
 	} else {
 		operationRequest = database.OperationRequestCreate
@@ -294,14 +253,9 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
-			// PATCH requests never create a new resource.
-			logger.Error("Resource not found")
-			arm.WriteResourceNotFoundError(writer, resourceID)
-			return
+			return arm.NewResourceNotFoundError(resourceID)
 		default:
-			logger.Error("Unsupported method")
-			arm.WriteInternalServerError(writer)
-			return
+			return fmt.Errorf("unsupported method %s", request.Method)
 		}
 
 		resourceDoc = database.NewResourceDocument(resourceID)
@@ -309,17 +263,13 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
+
+	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+		return err
 	}
 
-	cloudError = api.ApplyRequestBody(request, body, versionedRequestExternalAuth)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
+	if err := api.ApplyRequestBody(request, body, versionedRequestExternalAuth); err != nil {
+		return err
 	}
 
 	newInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
@@ -335,13 +285,8 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		validationErrs = validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
 
 	}
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
+	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
+		return err
 	}
 
 	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
@@ -349,9 +294,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	var csExternalAuth *arohcpv1alpha1.ExternalAuth
@@ -360,31 +303,23 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
 		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
+			return err
 		}
 
 		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuthBuilder)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+			return err
 		}
 
 		resourceDoc.InternalID, err = api.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
+			return err
 		}
 	}
 
@@ -415,36 +350,29 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Read back the resource document so the response body is accurate.
 	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](resultingCosmosObj)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	responseBody, err := mergeToExternalExternalAuth(csExternalAuth, internalObj, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
 // the necessary conversions for the API version of the request.
