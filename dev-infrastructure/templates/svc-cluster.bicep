@@ -400,6 +400,24 @@ param adminApiIngressCertIssuer string
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
+param arobitKustoEnabled bool
+
+@description('Name of the database to write logs to')
+param serviceLogsDatabase string
+
+@description('Geo short ID of the region')
+param geoShortId string
+
+@description('Name of the static Kusto cluster to use for dev environments')
+param staticKustoName string
+
+@description('Environment name')
+param environmentName string
+
+@description('Name of the Kusto resource group')
+var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
+
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -1009,4 +1027,20 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
   dependsOn: [
     svcNSP
   ]
+}
+
+//
+//  K U S T O   I N G E S T    P E R M I S S I O N S
+//
+
+var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
+
+module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+  name: 'grantKustoIngest'
+  params: {
+    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    databaseName: serviceLogsDatabase
+    kustoName: kustoName
+  }
+  scope: resourceGroup(kustoResourceGroup)
 }

@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cs-shell-scripts
-  namespace: '{{ .Release.Namespace }}'
-data:
-  arbitrary-commands.sh: |
-    {{- (.Files.Get "scripts/arbitrary-commands.sh") | nindent 4 }}

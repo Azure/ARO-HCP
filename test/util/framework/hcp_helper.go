@@ -188,8 +188,8 @@ func DeleteAllHCPClusters(
 		if err != nil {
 			return fmt.Errorf("failed listing hcp clusters in resourcegroup=%q: %w", resourceGroupName, err)
 		}
-		for _, sub := range page.Value {
-			hcpClusterNames = append(hcpClusterNames, *sub.Name)
+		for _, cluster := range page.Value {
+			hcpClusterNames = append(hcpClusterNames, *cluster.Name)
 		}
 	}
 
@@ -414,6 +414,22 @@ func CreateTestDockerConfigSecret(host, username, password, email, secretName, n
 			corev1.DockerConfigJsonKey: dockerConfigJSON,
 		},
 	}, nil
+}
+
+func BeginCreateHCPCluster(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	clusterParams ClusterParams,
+	location string,
+) (*runtime.Poller[hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse], error) {
+	cluster := BuildHCPClusterFromParams(clusterParams, location)
+	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+	}
+	return poller, nil
 }
 
 func CreateHCPClusterAndWait(

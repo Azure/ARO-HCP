@@ -95,6 +95,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			op:     operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.issuer.url", message: "Required value"},
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 			},
 		},
 		{
@@ -107,6 +108,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
 				{fieldPath: "properties.issuer.url", message: "must be https URL"},
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 			},
 		},
 		{
@@ -119,6 +121,7 @@ func TestValidateExternalAuth(t *testing.T) {
 			}(),
 			op: operation.Operation{Type: operation.Create},
 			expectErrors: []expectedError{
+				{fieldPath: "properties.issuer.audiences", message: "Required value"},
 				{fieldPath: "properties.issuer.audiences", message: "must have at least 1 items"},
 			},
 		},
@@ -707,7 +710,7 @@ func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	return &api.HCPOpenShiftClusterExternalAuth{
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
-				ID:   "/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth",
+				ID:   api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth")),
 				Name: "test-auth",
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/externalAuth",
 			},

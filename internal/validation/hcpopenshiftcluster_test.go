@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -95,7 +97,7 @@ func TestClusterRequired(t *testing.T) {
 		},
 		{
 			name:     "Default cluster",
-			resource: api.NewDefaultHCPOpenShiftCluster(nil),
+			resource: api.NewDefaultHCPOpenShiftCluster(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"))),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",

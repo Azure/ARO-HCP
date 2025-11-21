@@ -30,18 +30,19 @@ import (
 // mockRegistryClient is a simple mock for testing
 type mockRegistryClient struct {
 	digest string
+	tag    string
 	err    error
 }
 
-func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
+func (m *mockRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*clients.Tag, error) {
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
 	// Verify the architecture passed is the expected constant (or empty, which defaults to amd64)
 	if arch != DefaultArchitecture && arch != "" {
-		return "", fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
+		return nil, fmt.Errorf("unexpected architecture: %s, expected %s", arch, DefaultArchitecture)
 	}
-	return m.digest, nil
+	return &clients.Tag{Digest: m.digest, Name: m.tag}, nil
 }
 
 func TestUpdater_UpdateImages(t *testing.T) {
@@ -51,6 +52,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 		registryDigest  string
 		registryError   error
 		dryRun          bool
+		forceUpdate     bool
 		wantErr         bool
 		wantErrMsg      string
 		wantUpdateNames []string
@@ -140,8 +142,32 @@ func TestUpdater_UpdateImages(t *testing.T) {
 			},
 			registryDigest:  "sha256:olddigest",
 			dryRun:          false,
+			forceUpdate:     false,
 			wantErr:         false,
 			wantUpdateNames: []string{},
+		},
+		{
+			name: "force update when digest is same",
+			config: &config.Config{
+				Images: map[string]config.ImageConfig{
+					"test-image": {
+						Source: config.Source{
+							Image: "quay.io/test/app",
+						},
+						Targets: []config.Target{
+							{
+								FilePath: "test.yaml",
+								JsonPath: "image.digest",
+							},
+						},
+					},
+				},
+			},
+			registryDigest:  "sha256:olddigest",
+			dryRun:          false,
+			forceUpdate:     true,
+			wantErr:         false,
+			wantUpdateNames: []string{"test-image"},
 		},
 	}
 
@@ -186,6 +212,7 @@ image:
 			u := &Updater{
 				Config:          tt.config,
 				DryRun:          tt.dryRun,
+				ForceUpdate:     tt.forceUpdate,
 				RegistryClients: registryClients,
 				YAMLEditors:     yamlEditors,
 				Updates:         make(map[string][]yaml.Update),
@@ -376,7 +403,7 @@ image:
 				Updates:         make(map[string][]yaml.Update),
 			}
 
-			err := u.ProcessImageUpdates(ctx, "test-image", "sha256:newdigest", tt.target)
+			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -592,7 +619,7 @@ image:
 			}
 
 			// Process update
-			err = u.ProcessImageUpdates(ctx, "test-image", tt.latestDigest, target)
+			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}

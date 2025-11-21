@@ -15,34 +15,29 @@
 package ocm
 
 import (
-	"fmt"
 	"net/http"
 	"path"
 	"strings"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 // Resource Keys
 const (
-	clusterKey              = "clusters"
-	nodePoolKey             = "node_pools"
-	externalAuthKey         = "external_auth_config/external_auths"
-	breakGlassCredentialKey = "break_glass_credentials"
+	clusterKey      = "clusters"
+	nodePoolKey     = "node_pools"
+	externalAuthKey = "external_auth_config/external_auths"
 )
 
 var (
-	v1Pattern                     = "/api/clusters_mgmt/v1"
-	v1ClusterPattern              = path.Join(v1Pattern, clusterKey, "*")
-	v1NodePoolPattern             = path.Join(v1ClusterPattern, nodePoolKey, "*")
-	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
-	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
+	v1Pattern        = "/api/clusters_mgmt/v1"
+	v1ClusterPattern = path.Join(v1Pattern, clusterKey, "*")
 
-	aroHcpV1Alpha1Pattern             = "/api/aro_hcp/v1alpha1"
-	aroHcpV1Alpha1ClusterPattern      = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
-	aroHcpV1Alpha1NodePoolPattern     = path.Join(aroHcpV1Alpha1ClusterPattern, nodePoolKey, "*")
-	aroHcpV1Alpha1ExternalAuthPattern = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
+	aroHcpV1Alpha1Pattern        = "/api/aro_hcp/v1alpha1"
+	aroHcpV1Alpha1ClusterPattern = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
 )
 
 func GenerateClusterHREF(clusterName string) string {
@@ -61,123 +56,20 @@ func GenerateBreakGlassCredentialHREF(clusterPath string, credentialName string)
 	return path.Join(clusterPath, "break_glass_credentials", credentialName)
 }
 
-// InternalID represents a Cluster Service resource.
-type InternalID struct {
-	path string
-	kind string
-}
+type InternalID = api.InternalID
 
-func (id *InternalID) validate() error {
-	var match bool
-
-	// This is where we will catch and convert any legacy API versions
-	// to the version the RP is actively using.
-	//
-	// For example, once the RP is using "v2" we will convert "v1"
-	// and any other legacy transitional versions we see to "v2".
-
-	if match, _ = path.Match(v1ClusterPattern, id.path); match {
-		id.kind = cmv1.ClusterKind
-		return nil
-	}
-
-	if match, _ = path.Match(v1NodePoolPattern, id.path); match {
-		id.kind = cmv1.NodePoolKind
-		return nil
-	}
-
-	if match, _ = path.Match(v1ExternalAuthPattern, id.path); match {
-		id.kind = cmv1.ExternalAuthKind
-		return nil
-	}
-
-	if match, _ = path.Match(v1BreakGlassCredentialPattern, id.path); match {
-		id.kind = cmv1.BreakGlassCredentialKind
-		return nil
-	}
-
-	if match, _ = path.Match(aroHcpV1Alpha1ClusterPattern, id.path); match {
-		id.kind = arohcpv1alpha1.ClusterKind
-		return nil
-	}
-
-	if match, _ = path.Match(aroHcpV1Alpha1NodePoolPattern, id.path); match {
-		id.kind = arohcpv1alpha1.NodePoolKind
-		return nil
-	}
-
-	if match, _ = path.Match(aroHcpV1Alpha1ExternalAuthPattern, id.path); match {
-		id.kind = arohcpv1alpha1.ExternalAuthKind
-		return nil
-	}
-
-	return fmt.Errorf("invalid InternalID: %q", id.path)
-}
-
-// NewInternalID attempts to create a new InternalID from a Cluster Service
-// API path, returning an error if the API path is invalid or unsupported.
-func NewInternalID(path string) (InternalID, error) {
-	internalID := InternalID{path: strings.ToLower(path)}
-	if err := internalID.validate(); err != nil {
-		return InternalID{}, err
-	}
-	return internalID, nil
-}
-
-// String allows an InternalID to be used as a fmt.Stringer.
-func (id *InternalID) String() string {
-	return id.path
-}
-
-// MarshalText allows an InternalID to be used as an encoding.TextMarshaler.
-func (id InternalID) MarshalText() ([]byte, error) {
-	return []byte(id.path), nil
-}
-
-// UnmarshalText allows an InternalID to be used as an encoding.TextUnmarshaler.
-func (id *InternalID) UnmarshalText(text []byte) error {
-	id.path = strings.ToLower(string(text))
-	return id.validate()
-}
-
-// ID returns the last path element of the resource described by InternalID.
-func (id *InternalID) ID() string {
-	return path.Base(id.path)
-}
-
-// ClusterID returns the path element following "clusters", if present.
-func (id *InternalID) ClusterID() string {
-	var returnNextElement bool
-
-	for _, element := range strings.Split(id.path, "/") {
-		if returnNextElement {
-			return element
-		} else if element == "clusters" {
-			returnNextElement = true
-		}
-	}
-
-	return ""
-}
-
-// Kind returns the kind of resource described by InternalID, currently
-// limited to "Cluster" and "NodePool".
-func (id *InternalID) Kind() string {
-	return id.kind
-}
-
-// GetClusterClient returns a v1 ClusterClient from the InternalID.
+// getClusterClient returns a v1 ClusterClient from the InternalID.
 // This works for both cluster and node pool resources. The transport
 // is most likely to be a Connection object from the SDK.
-func (id *InternalID) GetClusterClient(transport http.RoundTripper) (*cmv1.ClusterClient, bool) {
-	switch matchClusterPath(id.path) {
+func getClusterClient(id InternalID, transport http.RoundTripper) (*cmv1.ClusterClient, bool) {
+	switch matchClusterPath(id.Path()) {
 	case v1ClusterPattern:
-		return cmv1.NewClusterClient(transport, id.path), true
+		return cmv1.NewClusterClient(transport, id.Path()), true
 
 	case aroHcpV1Alpha1ClusterPattern:
 		// support clusters received via ARO HCP APIs
 		// without duplicating the whole codebase calling this method
-		newPath := strings.ReplaceAll(id.path, aroHcpV1Alpha1Pattern, v1Pattern)
+		newPath := strings.ReplaceAll(id.Path(), aroHcpV1Alpha1Pattern, v1Pattern)
 		return cmv1.NewClusterClient(transport, newPath), true
 
 	default:
@@ -185,17 +77,17 @@ func (id *InternalID) GetClusterClient(transport http.RoundTripper) (*cmv1.Clust
 	}
 }
 
-// GetAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
-func (id *InternalID) GetAroHCPClusterClient(transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
-	switch matchClusterPath(id.path) {
+// getAroHCPClusterClient returns a arohcpv1alpha1 ClusterClient from the InternalID.
+func getAroHCPClusterClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.ClusterClient, bool) {
+	switch matchClusterPath(id.Path()) {
 	case v1ClusterPattern:
 		// support clusters received via cluster APIs
 		// without duplicating the whole codebase calling this method
-		newPath := strings.ReplaceAll(id.path, v1Pattern, aroHcpV1Alpha1Pattern)
+		newPath := strings.ReplaceAll(id.Path(), v1Pattern, aroHcpV1Alpha1Pattern)
 		return arohcpv1alpha1.NewClusterClient(transport, newPath), true
 
 	case aroHcpV1Alpha1ClusterPattern:
-		return arohcpv1alpha1.NewClusterClient(transport, id.path), true
+		return arohcpv1alpha1.NewClusterClient(transport, id.Path()), true
 
 	default:
 		return nil, false
@@ -222,28 +114,28 @@ func matchClusterPath(clusterPath string) string {
 
 // GetNodePoolClient returns a arohcpv1alpha1 NodePoolClient from the InternalID.
 // The transport is most likely to be a Connection object from the SDK.
-func (id *InternalID) GetNodePoolClient(transport http.RoundTripper) (*arohcpv1alpha1.NodePoolClient, bool) {
+func GetNodePoolClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.NodePoolClient, bool) {
 	if id.Kind() != arohcpv1alpha1.NodePoolKind {
 		return nil, false
 	}
-	return arohcpv1alpha1.NewNodePoolClient(transport, id.path), true
+	return arohcpv1alpha1.NewNodePoolClient(transport, id.Path()), true
 }
 
 // GetExternalAuthClient returns a arohcpv1alpha1 ExternalAuthClient from the InternalID.
 // The transport is most likely to be a Connection object from the SDK.
-func (id *InternalID) GetExternalAuthClient(transport http.RoundTripper) (*arohcpv1alpha1.ExternalAuthClient, bool) {
+func GetExternalAuthClient(id InternalID, transport http.RoundTripper) (*arohcpv1alpha1.ExternalAuthClient, bool) {
 	if id.Kind() != arohcpv1alpha1.ExternalAuthKind {
 		return nil, false
 	}
-	return arohcpv1alpha1.NewExternalAuthClient(transport, id.path), true
+	return arohcpv1alpha1.NewExternalAuthClient(transport, id.Path()), true
 }
 
 // GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
 // from the InternalID. The transport is most likely to be a Connection
 // object from the SDK.
-func (id *InternalID) GetBreakGlassCredentialClient(transport http.RoundTripper) (*cmv1.BreakGlassCredentialClient, bool) {
+func GetBreakGlassCredentialClient(id InternalID, transport http.RoundTripper) (*cmv1.BreakGlassCredentialClient, bool) {
 	if id.Kind() != cmv1.BreakGlassCredentialKind {
 		return nil, false
 	}
-	return cmv1.NewBreakGlassCredentialClient(transport, id.path), true
+	return cmv1.NewBreakGlassCredentialClient(transport, id.Path()), true
 }

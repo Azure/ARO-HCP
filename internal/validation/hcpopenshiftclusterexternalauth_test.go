@@ -19,6 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -52,11 +54,15 @@ func TestExternalAuthRequired(t *testing.T) {
 					message:   "supported values: \"NoPrefix\", \"None\", \"Prefix\"",
 					fieldPath: "properties.claim.mappings.username.prefixPolicy",
 				},
+				{
+					message:   "Required value",
+					fieldPath: "properties.issuer.audiences",
+				},
 			},
 		},
 		{
 			name:     "Default external auth",
-			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(nil),
+			resource: api.NewDefaultHCPOpenShiftClusterExternalAuth(api.Must(azcorearm.ParseResourceID("/subscriptions/test-sub/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/externalAuth/test-auth"))),
 			expectErrors: []expectedError{
 				{
 					message:   "Required value",
@@ -66,7 +72,10 @@ func TestExternalAuthRequired(t *testing.T) {
 					message:   "Required value",
 					fieldPath: "properties.issuer.url",
 				},
-			},
+				{
+					message:   "Required value",
+					fieldPath: "properties.issuer.audiences",
+				}},
 		},
 		{
 			name:     "Minimum valid external auth",

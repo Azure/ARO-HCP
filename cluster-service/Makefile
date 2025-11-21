@@ -42,8 +42,8 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	./hack/helm.sh cluster-service deploy ${NAMESPACE} \
-	  -f deploy/$${OVERRIDES} \
+	./hack/helm.sh cluster-service helm-charts/cluster-service ${NAMESPACE} \
+	  -f helm-charts/cluster-service/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
@@ -94,8 +94,12 @@ deploy:
 	  --set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
-	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT} \
-	  --set deployDebugJob=${DEPLOY_DEBUG_JOB}
+	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT}
+
+deploy-cs-debug-jobs:
+	./hack/helm.sh cs-debug-jobs helm-charts/cs-debug-jobs ${NAMESPACE} \
+	  --set imageDigest=${IMAGE_DIGEST} \
+	  --set deployDebugJobs=${DEPLOY_DEBUG_JOBS}
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -111,6 +115,11 @@ deploy-pr-env-deps:
 		-p MSI_MOCK_CLIENT_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_CLIENT_ID} \
 		-p MSI_MOCK_PRINCIPAL_ID=${AZURE_MI_MOCK_SERVICE_PRINCIPAL_PRINCIPAL_ID} | oc apply -f -
 	oc process --local -f cspr/orphaned-namespace-cleaner.yaml | oc apply -f -
+	./cspr/deploy-resource-cleaner.sh \
+		--resource-group "${RESOURCEGROUP}" \
+		--cx-keyvault "${CX_SECRETS_KV_NAME}" \
+		--mi-keyvault "${CX_MI_KV_NAME}" \
+		--acr-name "${OCP_ACR_NAME}"
 
 cspr-jenkins-kubeconfig:
 	./cspr-kubeconfig.sh cluster-service-admin cluster-service-mgmt ./cspr.kubeconfig
@@ -152,13 +161,13 @@ personal-runtime-config:
 .PHONY: personal-runtime-config
 
 local-azure-operators-managed-identities-config:
-	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
+	helm template helm-charts/cluster-service -s templates/azure-operators-managed-identities-config.configmap.yaml \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
 
 local-aro-hcp-ocp-versions-config:
-	helm template deploy \
+	helm template helm-charts/cluster-service \
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \

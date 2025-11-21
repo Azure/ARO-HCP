@@ -19,6 +19,8 @@ import (
 
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview/generated"
@@ -301,9 +303,14 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 		return ret
 	}
 
+	idString := ""
+	if from.ID != nil {
+		idString = from.ID.String()
+	}
+
 	out := &HcpOpenShiftCluster{
 		generated.HcpOpenShiftCluster{
-			ID:         api.PtrOrNil(from.ID),
+			ID:         api.PtrOrNil(idString),
 			Name:       api.PtrOrNil(from.Name),
 			Type:       api.PtrOrNil(from.Type),
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
@@ -335,7 +342,7 @@ func (c *HcpOpenShiftCluster) GetVersion() api.Version {
 
 func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.ID != nil {
-		out.ID = *c.ID
+		out.ID = api.Must(azcorearm.ParseResourceID(*c.ID))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name
@@ -364,21 +371,7 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 	if c.Location != nil {
 		out.Location = *c.Location
 	}
-	if c.Identity != nil {
-		out.Identity = &arm.ManagedServiceIdentity{}
-		if c.Identity.PrincipalID != nil {
-			out.Identity.PrincipalID = *c.Identity.PrincipalID
-		}
-		if c.Identity.TenantID != nil {
-			out.Identity.TenantID = *c.Identity.TenantID
-		}
-		if c.Identity.Type != nil {
-			out.Identity.Type = (arm.ManagedServiceIdentityType)(*c.Identity.Type)
-		}
-		if c.Identity.UserAssignedIdentities != nil {
-			normalizeIdentityUserAssignedIdentities(c.Identity.UserAssignedIdentities, &out.Identity.UserAssignedIdentities)
-		}
-	}
+	out.Identity = normalizeManagedIdentity(c.Identity)
 	// Per RPC-Patch-V1-04, the Tags field does NOT follow
 	// JSON merge-patch (RFC 7396) semantics:
 	//
@@ -423,6 +416,28 @@ func (c *HcpOpenShiftCluster) Normalize(out *api.HCPOpenShiftCluster) {
 			}
 		}
 	}
+}
+
+func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
+	if identity == nil {
+		return nil
+	}
+
+	ret := &arm.ManagedServiceIdentity{}
+	if identity.PrincipalID != nil {
+		ret.PrincipalID = *identity.PrincipalID
+	}
+	if identity.TenantID != nil {
+		ret.TenantID = *identity.TenantID
+	}
+	if identity.Type != nil {
+		ret.Type = (arm.ManagedServiceIdentityType)(*identity.Type)
+	}
+	if identity.UserAssignedIdentities != nil {
+		normalizeIdentityUserAssignedIdentities(identity.UserAssignedIdentities, &ret.UserAssignedIdentities)
+	}
+
+	return ret
 }
 
 func normalizeVersion(p *generated.VersionProfile, out *api.VersionProfile) {

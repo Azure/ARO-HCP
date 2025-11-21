@@ -15,6 +15,7 @@ param location string = resourceGroup().location
 param force bool = false
 var boolstring = force == false ? '$false' : '$true'
 param validityInMonths int = 12
+param renewAtPercentageLifetime int = 24
 
 module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
   name: 'kv-cert-officer-access-${keyVaultName}-${uniqueString(keyVaultManagedIdentityId, deployment().name)}'
@@ -37,7 +38,7 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
   kind: 'AzurePowerShell'
   properties: {
     azPowerShellVersion: '12.0.0'
-    arguments: ' -VaultName ${keyVaultName} -ValidityInMonths ${validityInMonths} -IssuerName ${issuerName} -CertName ${certName} -SubjectName ${subjectName} -DnsNames ${join(dnsNames,'_')} -Force ${boolstring}'
+    arguments: ' -VaultName ${keyVaultName} -ValidityInMonths ${validityInMonths} -RenewAtPercentageLifetime ${renewAtPercentageLifetime} -IssuerName ${issuerName} -CertName ${certName} -SubjectName ${subjectName} -DnsNames ${join(dnsNames,'_')} -Force ${boolstring}'
     scriptContent: loadTextContent('../../scripts/key-vault-cert.ps1')
     forceUpdateTag: now
     cleanupPreference: 'Always'

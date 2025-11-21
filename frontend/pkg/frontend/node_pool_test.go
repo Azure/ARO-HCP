@@ -57,11 +57,11 @@ var dummyVersionID = "4.18.0"
 func TestCreateNodePool(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
-	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
+	clusterDoc.InternalID, _ = api.NewInternalID(dummyClusterHREF)
 
 	nodePoolResourceID, _ := azcorearm.ParseResourceID(api.TestNodePoolResourceID)
 	nodePoolDoc := database.NewResourceDocument(nodePoolResourceID)
-	nodePoolDoc.InternalID, _ = ocm.NewInternalID(dummyNodePoolHREF)
+	nodePoolDoc.InternalID, _ = api.NewInternalID(dummyNodePoolHREF)
 
 	arm.SetAzureLocation(api.TestLocation)
 	location := arm.GetAzureLocation()
@@ -93,7 +93,6 @@ func TestCreateNodePool(t *testing.T) {
 				SizeGibibytes(64).
 				StorageAccountType("Premium_LRS")),
 		).
-		Labels(make(map[string]string)).
 		Subnet("").
 		Version(arohcpv1alpha1.NewVersion().
 			ID("openshift-v" + dummyVersionID).

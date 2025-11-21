@@ -188,6 +188,24 @@ subjects:
   name: metrics-proxy-sa
   namespace: 'maestro'
 ---
+# Source: maestro-agent/templates/maestro-agent.agent-extension-apiserver.role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maestro-agent:agent:extension-apiserver-dev-westus3-mgmt-1-maestro-agent
+  namespace: kube-system
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - extension-apiserver-authentication
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
 # Source: maestro-agent/templates/maestro-agent.agent.role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -228,23 +246,20 @@ rules:
   - patch
   - update
 ---
-# Source: maestro-agent/templates/maestro-agent.agent:extension-apiserver.role.yaml
+# Source: maestro-agent/templates/maestro-agent.agent-extension-apiserver.rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: RoleBinding
 metadata:
   name: maestro-agent:agent:extension-apiserver-dev-westus3-mgmt-1-maestro-agent
   namespace: kube-system
-rules:
-- apiGroups:
-  - ""
-  resourceNames:
-  - extension-apiserver-authentication
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: maestro-agent:agent:extension-apiserver-dev-westus3-mgmt-1-maestro-agent
+subjects:
+- kind: ServiceAccount
+  name: 'maestro'
+  namespace: 'maestro'
 ---
 # Source: maestro-agent/templates/maestro-agent.agent.rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -256,21 +271,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: maestro-agent:agent
-subjects:
-- kind: ServiceAccount
-  name: 'maestro'
-  namespace: 'maestro'
----
-# Source: maestro-agent/templates/maestro-agent.agent:extension-apiserver.rolebinding.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: maestro-agent:agent:extension-apiserver-dev-westus3-mgmt-1-maestro-agent
-  namespace: kube-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: maestro-agent:agent:extension-apiserver-dev-westus3-mgmt-1-maestro-agent
 subjects:
 - kind: ServiceAccount
   name: 'maestro'

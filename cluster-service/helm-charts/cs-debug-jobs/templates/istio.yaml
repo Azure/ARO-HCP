@@ -1,0 +1,21 @@
+{{- if .Values.deployDebugJobs }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-shell-script-executor-to-clusters-service
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/{{ .Release.Namespace }}/sa/cs-shell-script-executor"
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+{{- end }}

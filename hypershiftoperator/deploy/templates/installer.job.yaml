@@ -28,6 +28,9 @@ spec:
             --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
             --platform-monitoring=None \
             --enable-size-tagging=true \
+            {{- if .Values.operatorEnvVars.sharedIngressIPTag }}
+            --additional-operator-env-vars SHARED_INGRESS_AZURE_PIP_IP_TAGS={{ .Values.operatorEnvVars.sharedIngressIPTag }} \
+            {{- end }}
             {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer

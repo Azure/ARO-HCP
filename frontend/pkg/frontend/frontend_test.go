@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -76,7 +77,7 @@ func equalListActiveOperationDocsOptions(expectRequest database.OperationRequest
 }
 
 func newClusterInternalID(t *testing.T) ocm.InternalID {
-	internalID, err := ocm.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
+	internalID, err := api.NewInternalID(ocm.GenerateClusterHREF("myCluster"))
 	require.NoError(t, err)
 	return internalID
 }
@@ -149,6 +150,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 		urlPath            string
 		subscription       *arm.Subscription
 		subDoc             *arm.Subscription
+		expectUpdated      bool
 		expectedStatusCode int
 	}{
 		{
@@ -177,7 +179,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:    "PUT Subscription - Doc Exists",
+			name:    "PUT Subscription - Update with no changes",
 			urlPath: api.TestSubscriptionResourceID,
 			subscription: &arm.Subscription{
 				State:            arm.SubscriptionStateRegistered,
@@ -189,6 +191,30 @@ func TestSubscriptionsPUT(t *testing.T) {
 				RegistrationDate: api.Ptr(time.Now().String()),
 				Properties:       nil,
 			},
+			expectUpdated:      false,
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:    "PUT Subscription - Update registered features",
+			urlPath: api.TestSubscriptionResourceID,
+			subscription: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties: &arm.SubscriptionProperties{
+					RegisteredFeatures: &[]arm.Feature{
+						{
+							Name:  api.Ptr("Microsoft.RedHatOpenShift/TestFeature"),
+							State: api.Ptr("Registered"),
+						},
+					},
+				},
+			},
+			subDoc: &arm.Subscription{
+				State:            arm.SubscriptionStateRegistered,
+				RegistrationDate: api.Ptr(time.Now().String()),
+				Properties:       nil,
+			},
+			expectUpdated:      true,
 			expectedStatusCode: http.StatusOK,
 		},
 		{
@@ -270,7 +296,12 @@ func TestSubscriptionsPUT(t *testing.T) {
 						CreateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
 				} else {
 					mockDBClient.EXPECT().
-						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any())
+						UpdateSubscriptionDoc(gomock.Any(), gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, subscriptionID string, callback func(updateSubscription *arm.Subscription) bool) (bool, error) {
+							updated := callback(test.subDoc)
+							assert.Equal(t, test.expectUpdated, updated)
+							return updated, nil
+						})
 				}
 			}
 

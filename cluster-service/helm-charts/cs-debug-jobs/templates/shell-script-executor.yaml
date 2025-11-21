@@ -1,0 +1,52 @@
+{{- if .Values.deployDebugJobs }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cs-shell-script-executor-{{ randAlphaNum 5 | lower }}
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  ttlSecondsAfterFinished: 300
+  # Limit the job's maximum execution time to 30 minutes.
+  activeDeadlineSeconds: 1800
+  # Retries use exponential backoff (starting at 10s, then 20s, 40s, etc.), with a maximum wait time of six minutes between each retry.
+  # The job will be retried up to 50 times if it fails.
+  backoffLimit: 50
+  template:
+    spec:
+      serviceAccountName: cs-shell-script-executor
+      restartPolicy: Never
+      volumes:
+      - name: scripts
+        configMap:
+          name: cs-shell-scripts
+          defaultMode: 0755
+      containers:
+      - name: cs-shell-script-executor
+        image: 'mcr.microsoft.com/azurelinux/base/core:3.0'
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+
+          # TODO create a custom image with the needed
+          # commands instead of installing them at runtime
+          echo "Setting up tools..."
+          tdnf update -y
+          echo "Installing kubectl..."
+          tdnf install -y kubectl
+          echo "Installing jq..."
+          tdnf install -y jq
+
+          # Run your arbitrary commands below
+          echo "Running arbitrary commands..."
+          /bin/bash /scripts/arbitrary-commands.sh
+          ARB_COMMANDS_EXIT_CODE="$?"
+          if [ "${ARB_COMMANDS_EXIT_CODE}" -ne 0 ]; then
+            echo "Error: Arbitrary commands execution finished with non zero exit code: ${ARB_COMMANDS_EXIT_CODE}"
+            exit 1
+          fi
+
+          echo "Execution completed successfully"
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+{{- end }}

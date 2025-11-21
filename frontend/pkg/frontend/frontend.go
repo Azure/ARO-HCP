@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 
@@ -33,7 +32,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
@@ -44,7 +42,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
-	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -173,18 +170,12 @@ func (f *Frontend) Location(writer http.ResponseWriter, request *http.Request) {
 	_, _ = writer.Write([]byte(arm.GetAzureLocation()))
 }
 
-func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
+func dbListOptionsFromRequest(request *http.Request) *database.DBClientListResourceDocsOptions {
+	// FIXME We may want to cap pageSizeHint. If we get a large enough
+	//       $top argument (and there's enough actual clusters to reach
+	//       that), we could potentially hit the 8MB response size limit.
 
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	options := database.DBClientListResourceDocsOptions{
+	options := &database.DBClientListResourceDocsOptions{
 		PageSizeHint: api.Ptr(int32(20)),
 	}
 
@@ -199,191 +190,45 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 			options.PageSizeHint = api.Ptr(int32(top))
 		}
 	}
+	return options
+}
 
-	// FIXME We may want to cap pageSizeHint. If we get a large enough
-	//       $top argument (and there's enough actual clusters to reach
-	//       that), we could potentially hit the 8MB response size limit.
+func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-	resourceTypeName := path.Base(request.URL.Path)
 	location := request.PathValue(PathSegmentLocation)
-
-	var resourceTypeUsesDatabase bool
-	var clusterInternalID ocm.InternalID
-	var query string
-
-	// Map of resource documents by Cluster Service item ID.
-	documentMap := make(map[string]*database.ResourceDocument)
 
 	pagedResponse := arm.NewPagedResponse()
 
-	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		options.ResourceType = &api.ClusterResourceType
-		resourceTypeUsesDatabase = true
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		options.ResourceType = &api.NodePoolResourceType
-		resourceTypeUsesDatabase = true
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		options.ResourceType = &api.ExternalAuthResourceType
-		resourceTypeUsesDatabase = true
-	}
-
-	if resourceTypeUsesDatabase {
-		var needClusterInternalID bool
-
-		// Even though the bulk of the list content comes from Cluster Service,
-		// we start by querying Cosmos DB because its continuation token meets
-		// the requirements of a skipToken for ARM pagination. We then query
-		// Cluster Service for the exact set of IDs returned by Cosmos.
-
-		prefixParts := []string{"/subscriptions", subscriptionID}
-		if resourceGroupName != "" {
-			prefixParts = append(prefixParts, "resourceGroups", resourceGroupName)
-		}
-		if resourceName != "" {
-			// This is a nested resource request. Build a resource ID for
-			// the parent cluster. We use this below to get the cluster's
-			// ResourceDocument from Cosmos DB.
-			prefixParts = append(prefixParts, "providers", api.ProviderNamespace, api.ClusterResourceTypeName, resourceName)
-			needClusterInternalID = true
-		}
-		prefix, err := azcorearm.ParseResourceID(path.Join(prefixParts...))
+	csIterator := f.clusterServiceClient.ListVersions()
+	for csVersion := range csIterator.Items(ctx) {
+		versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
+		stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
+			"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
+		resourceID, err := azcorearm.ParseResourceID(stringResource)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
-		dbIterator := f.dbClient.ListResourceDocs(prefix, &options)
-
-		for _, resourceDoc := range dbIterator.Items(ctx) {
-			documentMap[resourceDoc.InternalID.ID()] = resourceDoc
-		}
-
-		err = dbIterator.GetError()
+		value, err := marshalCSVersion(resourceID, csVersion, versionedInterface)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
 			return
 		}
-
-		// MiddlewareReferer ensures Referer is present.
-		err = pagedResponse.SetNextLink(request.Referer(), dbIterator.GetContinuationToken())
-		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
-		}
-
-		// Build a Cluster Service query that looks for
-		// the specific IDs returned by the Cosmos query.
-		queryIDs := make([]string, 0, len(documentMap))
-		for key := range documentMap {
-			queryIDs = append(queryIDs, "'"+key+"'")
-		}
-		query = fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
-		logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
-
-		if needClusterInternalID {
-			_, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, prefix)
-			if err != nil {
-				logger.Error(err.Error())
-				if database.IsResponseError(err, http.StatusNotFound) {
-					arm.WriteResourceNotFoundError(writer, prefix)
-				} else {
-					arm.WriteInternalServerError(writer)
-				}
-				return
-			}
-			clusterInternalID = resourceDoc.InternalID
-		}
+		pagedResponse.AddValue(value)
 	}
-
-	switch resourceTypeName {
-	case strings.ToLower(api.ClusterResourceTypeName):
-		csIterator := f.clusterServiceClient.ListClusters(query)
-
-		for csCluster := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csCluster.ID()]; ok {
-				internalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](doc)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-
-				value, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.NodePoolResourceTypeName):
-		csIterator := f.clusterServiceClient.ListNodePools(clusterInternalID, query)
-
-		for csNodePool := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csNodePool.ID()]; ok {
-				value, err := marshalCSNodePool(csNodePool, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.ExternalAuthResourceTypeName):
-		csIterator := f.clusterServiceClient.ListExternalAuths(clusterInternalID, query)
-
-		for csExternalAuth := range csIterator.Items(ctx) {
-			if doc, ok := documentMap[csExternalAuth.ID()]; ok {
-				value, err := marshalCSExternalAuth(csExternalAuth, doc, versionedInterface)
-				if err != nil {
-					logger.Error(err.Error())
-					arm.WriteInternalServerError(writer)
-					return
-				}
-				pagedResponse.AddValue(value)
-			}
-		}
-		err = csIterator.GetError()
-
-	case strings.ToLower(api.VersionResourceTypeName):
-		csIterator := f.clusterServiceClient.ListVersions()
-
-		for csVersion := range csIterator.Items(ctx) {
-			versionName := strings.Replace(csVersion.ID(), api.OpenShiftVersionPrefix, "", 1)
-			stringResource := "/subscriptions/" + subscriptionID + "/providers/" + api.ProviderNamespace +
-				"/locations/" + location + "/" + api.VersionResourceTypeName + "/" + versionName
-			resourceID, err := azcorearm.ParseResourceID(stringResource)
-			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			value, err := marshalCSVersion(*resourceID, csVersion, versionedInterface)
-			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
-			}
-			pagedResponse.AddValue(value)
-		}
-		err = csIterator.GetError()
-
-	default:
-		err = fmt.Errorf("unsupported resource type: %s", resourceTypeName)
-	}
+	err = csIterator.GetError()
 
 	// Check for iteration error.
 	if err != nil {
@@ -398,10 +243,10 @@ func (f *Frontend) ArmResourceList(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-// ArmResourceRead implements the GET single resource API contract for ARM
+// GetOpenshiftVersions implements the GET single resource API contract for ARM
 // * 200 If the resource exists
 // * 404 If the resource does not exist
-func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
@@ -411,7 +256,6 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		arm.WriteInternalServerError(writer)
 		return
 	}
-
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
 		logger.Error(err.Error())
@@ -419,68 +263,15 @@ func (f *Frontend) ArmResourceRead(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	responseBody, cloudError := f.MarshalResource(ctx, resourceID, versionedInterface)
-	if cloudError != nil {
+	versionName := resourceID.Name
+	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
+	if err != nil {
+		logger.Error(err.Error())
+		cloudError := ocm.CSErrorToCloudError(err, resourceID, nil)
 		arm.WriteCloudError(writer, cloudError)
 		return
 	}
-
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-}
-
-// GetHCPCluster implements the GET single resource API contract for HCP Clusters
-// * 200 If the resource exists
-// * 404 If the resource does not exist
-func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
-	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
-	resourceName := request.PathValue(PathSegmentResourceName)
-
-	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-	}
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	clusterServiceID, err := ocm.NewInternalID(internalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterServiceID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
-		return
-	}
-
-	responseBody, err := marshalCSCluster(csCluster, internalCluster, versionedInterface)
+	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -488,486 +279,6 @@ func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Reque
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-}
-
-func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
-	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
-
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
-
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	updating := resourceDoc != nil
-
-	if updating {
-		f.updateHCPCluster(writer, request, resourceItemID, resourceDoc)
-		return
-	}
-
-	f.createHCPCluster(writer, request)
-}
-
-func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) {
-	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
-
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
-
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	switch request.Method {
-	case http.MethodPut:
-		// expected
-	case http.MethodPatch:
-		// PATCH requests never create a new resource.
-		logger.Error("Resource not found")
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-	default:
-		logger.Error("unexpected method: " + request.Method)
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-
-	}
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	systemData, err := SystemDataFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	correlationData, err := CorrelationDataFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	operationRequest := database.OperationRequestCreate
-
-	// Initialize top-level resource fields from the request path.
-	// If the request body specifies these fields, validation should
-	// accept them as long as they match (case-insensitively) values
-	// from the request path.
-	newExternalCluster := versionedInterface.NewHCPOpenShiftCluster(api.NewDefaultHCPOpenShiftCluster(resourceID))
-	successStatusCode := http.StatusCreated
-
-	cloudError := api.ApplyRequestBody(request, body, newExternalCluster)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	// this sets many default values, which are then sometimes overridden by Normalize
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	newExternalCluster.Normalize(newInternalCluster)
-	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
-	}
-
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
-	}
-
-	newCosmosCluster := database.NewResourceDocument(resourceID)
-	newCosmosCluster.InternalID, err = ocm.NewInternalID(resultingClusterServiceCluster.HREF())
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = newCosmosCluster.InternalID.String()
-
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
-
-	operationDoc := database.NewOperationDocument(operationRequest, newCosmosCluster.ResourceID, newCosmosCluster.InternalID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
-
-	f.ExposeOperation(writer, request, operationID, transaction)
-
-	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
-
-	// TODO some of this becomes extraneous once we build the cosmosCluster from the internalCluster
-	// Record the latest system data values form ARM, if present.
-	if systemData != nil {
-		patchOperations.SetSystemData(systemData)
-	}
-
-	// Record managed identity type an any system-assigned identifiers.
-	// Omit the user-assigned identities map since that is reconstructed
-	// from Cluster Service data.
-	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
-		PrincipalID: newInternalCluster.Identity.PrincipalID,
-		TenantID:    newInternalCluster.Identity.TenantID,
-		Type:        newInternalCluster.Identity.Type,
-	})
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags != nil {
-		patchOperations.SetTags(newInternalCluster.Tags)
-	}
-
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
-
-	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
-		EnableContentResponseOnWrite: true,
-	})
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// Read back the resource document so the response body is accurate.
-	resultingCosmosCluster, err := transactionResult.GetResourceDoc(resourceItemID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-}
-
-func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, cosmosID string, oldCosmosCluster *database.ResourceDocument) {
-	var err error
-
-	// This handles both PUT and PATCH requests. PATCH requests will
-	// never create a new resource. The only other notable difference
-	// is the target struct that request bodies are overlayed onto:
-	//
-	// PUT requests overlay the request body onto a default resource
-	// struct, which only has API-specified non-zero default values.
-	// This means all required properties must be specified in the
-	// request body, whether creating or updating a resource.
-	//
-	// PATCH requests overlay the request body onto a resource struct
-	// that represents an existing resource to be updated.
-
-	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
-
-	versionedInterface, err := VersionFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	resourceID, err := ResourceIDFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	body, err := BodyFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	systemData, err := SystemDataFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	correlationData, err := CorrelationDataFromContext(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	operationRequest := database.OperationRequestUpdate
-	var oldExternalCluster api.VersionedHCPOpenShiftCluster
-	var newExternalCluster api.VersionedHCPOpenShiftCluster
-	var successStatusCode int
-
-	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldCosmosCluster.InternalID)
-	if err != nil {
-		logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
-	}
-
-	internalOldCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, oldClusterServiceCluster)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// Do not set the TrackedResource.Tags field here. We need
-	// the Tags map to remain nil so we can see if the request
-	// body included a new set of resource tags.
-
-	internalOldCluster.SystemData = oldCosmosCluster.SystemData
-	internalOldCluster.ServiceProviderProperties.ProvisioningState = oldCosmosCluster.ProvisioningState
-	if internalOldCluster.Identity == nil {
-		internalOldCluster.Identity = &arm.ManagedServiceIdentity{}
-	}
-
-	if oldCosmosCluster.Identity != nil {
-		internalOldCluster.Identity.PrincipalID = oldCosmosCluster.Identity.PrincipalID
-		internalOldCluster.Identity.TenantID = oldCosmosCluster.Identity.TenantID
-		internalOldCluster.Identity.Type = oldCosmosCluster.Identity.Type
-	}
-
-	// This is slightly repetitive for the sake of clarity on PUT vs PATCH.
-	switch request.Method {
-	case http.MethodPut:
-		// Initialize versionedRequestCluster to include both
-		// non-zero default values and current read-only values.
-		newInternalCluster := api.NewDefaultHCPOpenShiftCluster(resourceID)
-
-		// Some optional create-only fields have dynamic default
-		// values that are determined downstream of this phase of
-		// request processing. To ensure idempotency, add these
-		// values to the target struct for the incoming request.
-		newInternalCluster.CustomerProperties.Version.ID = internalOldCluster.CustomerProperties.Version.ID
-		newInternalCluster.CustomerProperties.DNS.BaseDomainPrefix = internalOldCluster.CustomerProperties.DNS.BaseDomainPrefix
-		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup = internalOldCluster.CustomerProperties.Platform.ManagedResourceGroup
-
-		// read-only values are an internal concern since they're the source, so we convert.
-		// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
-		conversion.CopyReadOnlyClusterValues(newInternalCluster, internalOldCluster)
-		oldExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
-		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(newInternalCluster)
-
-		successStatusCode = http.StatusOK
-
-	case http.MethodPatch:
-		oldExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
-		// TODO find a way to represent the desired change without starting from internal state here (very confusing)
-		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
-		successStatusCode = http.StatusAccepted
-	default:
-		logger.Error("unexpected method: " + request.Method)
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
-	}
-
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, oldCosmosCluster)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-	cloudError = api.ApplyRequestBody(request, body, newExternalCluster)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
-	}
-
-	newInternalCluster := &api.HCPOpenShiftCluster{}
-	newExternalCluster.Normalize(newInternalCluster)
-
-	oldInternalCluster := &api.HCPOpenShiftCluster{}
-	oldExternalCluster.Normalize(oldInternalCluster)
-	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
-	}
-
-	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldCosmosCluster.InternalID, newClusterServiceClusterBuilder)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
-	}
-
-	pk := database.NewPartitionKey(resourceID.SubscriptionID)
-	transaction := f.dbClient.NewTransaction(pk)
-	operationDoc := database.NewOperationDocument(operationRequest, oldCosmosCluster.ResourceID, oldCosmosCluster.InternalID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
-
-	f.ExposeOperation(writer, request, operationID, transaction)
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
-
-	// Record the latest system data values form ARM, if present.
-	if systemData != nil {
-		patchOperations.SetSystemData(systemData)
-	}
-
-	// Record managed identity type an any system-assigned identifiers.
-	// Omit the user-assigned identities map since that is reconstructed
-	// from Cluster Service data.
-	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
-		PrincipalID: newInternalCluster.Identity.PrincipalID,
-		TenantID:    newInternalCluster.Identity.TenantID,
-		Type:        newInternalCluster.Identity.Type,
-	})
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags != nil {
-		patchOperations.SetTags(newInternalCluster.Tags)
-	}
-
-	transaction.PatchResourceDoc(cosmosID, patchOperations, nil)
-
-	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
-		EnableContentResponseOnWrite: true,
-	})
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	// Read back the resource document so the response body is accurate.
-	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosID)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	responseBody, err := marshalCSCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
-	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -1111,7 +422,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 		return
 	}
 
-	internalID, err := ocm.NewInternalID(csCredential.HREF())
+	internalID, err := api.NewInternalID(csCredential.HREF())
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -1557,15 +868,10 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	}
 }
 
-// marshalCSCluster renders a CS Cluster object in JSON format, applying
+// mergeToExternalCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) ([]byte, error) {
-	resourceID, err := azcorearm.ParseResourceID(internalCluster.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse resource ID: %w", err)
-	}
-
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, csCluster)
+func mergeToExternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
+	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
 	if err != nil {
 		return nil, err
 	}
@@ -1583,7 +889,7 @@ func marshalCSCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HC
 		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
 	}
 
-	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster))
+	return versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster), nil
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -1593,29 +899,40 @@ func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
 		messages = append(messages, fmt.Sprintf("Subscription state changed from %s to %s", oldSub.State, newSub.State))
 	}
 
-	if oldSub.Properties != nil && newSub.Properties != nil {
-		if oldSub.Properties.TenantId != nil && newSub.Properties.TenantId != nil &&
-			*oldSub.Properties.TenantId != *newSub.Properties.TenantId {
-			messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", *oldSub.Properties.TenantId, *newSub.Properties.TenantId))
+	if oldSub.Properties == nil {
+		oldSub.Properties = &arm.SubscriptionProperties{}
+	}
+	if newSub.Properties == nil {
+		newSub.Properties = &arm.SubscriptionProperties{}
+	}
+
+	var oldTenantId, newTenantId string
+
+	if oldSub.Properties.TenantId != nil {
+		oldTenantId = *oldSub.Properties.TenantId
+	}
+	if newSub.Properties.TenantId != nil {
+		newTenantId = *newSub.Properties.TenantId
+	}
+
+	if oldTenantId != newTenantId {
+		messages = append(messages, fmt.Sprintf("Subscription tenantId changed from %s to %s", oldTenantId, newTenantId))
+	}
+
+	oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
+	newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
+
+	for featureName, oldState := range oldFeatures {
+		newState, exists := newFeatures[featureName]
+		if !exists {
+			messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
+		} else if oldState != newState {
+			messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
 		}
-
-		if oldSub.Properties.RegisteredFeatures != nil && newSub.Properties.RegisteredFeatures != nil {
-			oldFeatures := featuresMap(oldSub.Properties.RegisteredFeatures)
-			newFeatures := featuresMap(newSub.Properties.RegisteredFeatures)
-
-			for featureName, oldState := range oldFeatures {
-				newState, exists := newFeatures[featureName]
-				if !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s removed", featureName))
-				} else if oldState != newState {
-					messages = append(messages, fmt.Sprintf("Feature %s state changed from %s to %s", featureName, oldState, newState))
-				}
-			}
-			for featureName, newState := range newFeatures {
-				if _, exists := oldFeatures[featureName]; !exists {
-					messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
-				}
-			}
+	}
+	for featureName, newState := range newFeatures {
+		if _, exists := oldFeatures[featureName]; !exists {
+			messages = append(messages, fmt.Sprintf("Feature %s added with state %s", featureName, newState))
 		}
 	}
 
@@ -1642,7 +959,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	doc, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
+	cosmosOperation, err := f.dbClient.GetOperationDoc(ctx, pk, resourceID.Name)
 	if err != nil {
 		logger.Error(err.Error())
 		if database.IsResponseError(err, http.StatusNotFound) {
@@ -1655,7 +972,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	// Validate the identity retrieving the operation result is the
 	// same identity that triggered the operation. Return 404 if not.
-	if !f.OperationIsVisible(request, resourceID.Name, doc) {
+	if !f.OperationIsVisible(request, resourceID.Name, cosmosOperation) {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -1680,7 +997,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	//
 	//     [1] https://stackoverflow.microsoft.com/a/318573/106707
 	//
-	switch doc.Status {
+	switch cosmosOperation.Status {
 	case arm.ProvisioningStateSucceeded:
 		// Handled below.
 	case arm.ProvisioningStateFailed, arm.ProvisioningStateCanceled:
@@ -1689,7 +1006,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return
 	default:
 		// Operation is still in progress.
-		f.AddLocationHeader(writer, request, doc.OperationID)
+		f.AddLocationHeader(writer, request, cosmosOperation.OperationID)
 		writer.WriteHeader(http.StatusAccepted)
 		return
 	}
@@ -1699,7 +1016,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	var successStatusCode int
 
-	switch doc.Request {
+	switch cosmosOperation.Request {
 	case database.OperationRequestCreate:
 		successStatusCode = http.StatusCreated
 	case database.OperationRequestUpdate:
@@ -1713,15 +1030,16 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		logger.Error(fmt.Sprintf("Unhandled request type: %s", doc.Request))
+		logger.Error(fmt.Sprintf("Unhandled request type: %s", cosmosOperation.Request))
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	var responseBody []byte
 
-	if doc.InternalID.Kind() == cmv1.BreakGlassCredentialKind {
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, doc.InternalID)
+	switch {
+	case cosmosOperation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
+		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, cosmosOperation.InternalID)
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -1734,14 +1052,63 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 			arm.WriteInternalServerError(writer)
 			return
 		}
-	} else {
-		var cloudError *arm.CloudError
 
-		responseBody, cloudError = f.MarshalResource(ctx, doc.ExternalID, versionedInterface)
+	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
+		resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, cosmosOperation.ExternalID, versionedInterface)
 		if cloudError != nil {
 			arm.WriteCloudError(writer, cloudError)
 			return
 		}
+		responseBody, err = arm.MarshalJSON(resultingExternalCluster)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+		}
+
+	case cosmosOperation.ExternalID.ResourceType.String() == api.NodePoolResourceType.String():
+		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).NodePools(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+			return
+		}
+		responseBody, err = mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+	case cosmosOperation.ExternalID.ResourceType.String() == api.ExternalAuthResourceType.String():
+		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).ExternalAuth(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+		clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+			return
+		}
+		responseBody, err = mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
+		if err != nil {
+			logger.Error(err.Error())
+			arm.WriteInternalServerError(writer)
+			return
+		}
+
+	default:
+		logger.Error(fmt.Sprintf("unsupported operator reference: %s", cosmosOperation.ExternalID))
+		arm.WriteInternalServerError(writer)
+		return
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
@@ -1751,19 +1118,18 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 }
 
 func featuresMap(features *[]arm.Feature) map[string]string {
-	if features == nil {
-		return nil
-	}
-	featureMap := make(map[string]string, len(*features))
-	for _, feature := range *features {
-		if feature.Name != nil && feature.State != nil {
-			featureMap[*feature.Name] = *feature.State
+	featureMap := make(map[string]string)
+	if features != nil {
+		for _, feature := range *features {
+			if feature.Name != nil && feature.State != nil {
+				featureMap[*feature.Name] = *feature.State
+			}
 		}
 	}
 	return featureMap
 }
 
-func marshalCSVersion(resourceID azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
+func marshalCSVersion(resourceID *azcorearm.ResourceID, version *arohcpv1alpha1.Version, versionedInterface api.Version) ([]byte, error) {
 	hcpVersion := ocm.ConvertCStoHCPOpenShiftVersion(resourceID, version)
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftVersion(hcpVersion))
 }

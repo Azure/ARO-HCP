@@ -31,6 +31,7 @@ import (
 type RawUpdateOptions struct {
 	ConfigPath        string
 	DryRun            bool
+	ForceUpdate       bool
 	Components        string
 	ExcludeComponents string
 }
@@ -54,6 +55,7 @@ func DefaultUpdateOptions() *RawUpdateOptions {
 func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ConfigPath, "config", "", "Path to image-updater configuration file")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show what would be updated without making changes")
+	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
 
@@ -154,7 +156,7 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 	}
 
-	return updater.New(v.Config, v.DryRun, registryClients, yamlEditors), nil
+	return updater.New(v.Config, v.DryRun, v.ForceUpdate, registryClients, yamlEditors), nil
 }
 
 // validateConfig ensures the configuration is complete and valid

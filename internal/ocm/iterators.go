@@ -19,6 +19,7 @@ import (
 	"iter"
 	"math"
 
+	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
@@ -88,6 +89,7 @@ func (iter *simpleListIterator[T]) GetError() error {
 }
 
 type clusterListIterator struct {
+	conn    *sdk.Connection
 	request *arohcpv1alpha1.ClustersListRequest
 	err     error
 }
@@ -131,6 +133,12 @@ func (iter *clusterListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1al
 				//     ClusterList.Slice() may be less efficient but
 				//     is easier to work with.
 				for _, item := range items.Slice() {
+					item, err = resolveClusterLinks(ctx, iter.conn, item)
+					if err != nil {
+						iter.err = err
+						return
+					}
+
 					if !yield(item) {
 						return
 					}
@@ -147,6 +155,7 @@ func (iter clusterListIterator) GetError() error {
 }
 
 type nodePoolListIterator struct {
+	conn    *sdk.Connection
 	request *arohcpv1alpha1.NodePoolsListRequest
 	err     error
 }
@@ -185,6 +194,12 @@ func (iter *nodePoolListIterator) Items(ctx context.Context) iter.Seq[*arohcpv1a
 				//     NodePoolList.Slice() may be less efficient but
 				//     is easier to work with.
 				for _, item := range items.Slice() {
+					item, err = resolveNodePoolLinks(ctx, iter.conn, item)
+					if err != nil {
+						iter.err = err
+						return
+					}
+
 					if !yield(item) {
 						return
 					}

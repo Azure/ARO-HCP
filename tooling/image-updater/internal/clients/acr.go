@@ -119,17 +119,17 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 	return c.client
 }
 
-func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (string, error) {
+func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch all tags: %w", err)
+		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
 	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	client := c.getClient()
@@ -153,7 +153,7 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		// If multiArch is requested and this is a multi-arch manifest, return it
 		if multiArch && len(manifest.RelatedArtifacts) > 0 {
 			logger.Info("found multi-arch manifest", "tag", tag.Name, "relatedArtifacts", len(manifest.RelatedArtifacts), "digest", tag.Digest)
-			return tag.Digest, nil
+			return &tag, nil
 		}
 
 		if len(manifest.RelatedArtifacts) > 0 {
@@ -169,14 +169,14 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 		normalizedArch := NormalizeArchitecture(string(*manifest.Architecture))
 
 		if normalizedArch == arch && string(*manifest.OperatingSystem) == "linux" {
-			return tag.Digest, nil
+			return &tag, nil
 		}
 
 		logger.Info("skipping non-matching architecture", "tag", tag.Name, "arch", string(*manifest.Architecture), "os", string(*manifest.OperatingSystem), "wantArch", arch)
 	}
 
 	if multiArch {
-		return "", fmt.Errorf("no multi-arch manifest found for repository %s", repository)
+		return nil, fmt.Errorf("no multi-arch manifest found for repository %s", repository)
 	}
-	return "", fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
+	return nil, fmt.Errorf("no single-arch %s/linux image found for repository %s (all tags are either multi-arch or different architecture)", arch, repository)
 }

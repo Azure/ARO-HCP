@@ -17,6 +17,7 @@ package frontend
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -31,6 +32,138 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
+
+func (f *Frontend) GetExternalAuth(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+		return
+	}
+
+	responseBody, err := mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+
+	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pagedResponse := arm.NewPagedResponse()
+
+	externalAuthsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterExternalAuth)
+	internalExternalAuthIteraotr, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).ExternalAuth(resourceName).List(ctx, dbListOptionsFromRequest(request))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	for _, externalAuth := range internalExternalAuthIteraotr.Items(ctx) {
+		externalAuthsByClusterServiceID[externalAuth.ServiceProviderProperties.ClusterServiceID.String()] = externalAuth
+	}
+	err = internalExternalAuthIteraotr.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), internalExternalAuthIteraotr.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(externalAuthsByClusterServiceID))
+	for key := range externalAuthsByClusterServiceID {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	csIterator := f.clusterServiceClient.ListExternalAuths(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
+	for csExternalAuth := range csIterator.Items(ctx) {
+		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.HREF()]; ok {
+			value, err := mergeToExternalExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
 
 func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, request *http.Request) {
 	var err error
@@ -247,7 +380,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csExternalAuth.HREF())
+		resourceDoc.InternalID, err = api.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -288,14 +421,20 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](resultingCosmosObj)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSExternalAuth(csExternalAuth, resourceDoc, versionedInterface)
+	responseBody, err := mergeToExternalExternalAuth(csExternalAuth, internalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -309,14 +448,14 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(doc.ResourceID, csEternalAuth)
+func mergeToExternalExternalAuth(csEternalAuth *arohcpv1alpha1.ExternalAuth, internalObj *api.HCPOpenShiftClusterExternalAuth, versionedInterface api.Version) ([]byte, error) {
+	hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(internalObj.ID, csEternalAuth)
 	if err != nil {
 		return nil, err
 	}
 
-	hcpExternalAuth.SystemData = doc.SystemData
-	hcpExternalAuth.Properties.ProvisioningState = doc.ProvisioningState
+	hcpExternalAuth.SystemData = internalObj.SystemData
+	hcpExternalAuth.Properties.ProvisioningState = internalObj.Properties.ProvisioningState
 
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth))
 }

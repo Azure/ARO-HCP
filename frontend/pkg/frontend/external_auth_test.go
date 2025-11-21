@@ -72,11 +72,11 @@ var dummyClaim = "4.18.0"
 func TestCreateExternalAuth(t *testing.T) {
 	clusterResourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
 	clusterDoc := database.NewResourceDocument(clusterResourceID)
-	clusterDoc.InternalID, _ = ocm.NewInternalID(dummyClusterHREF)
+	clusterDoc.InternalID, _ = api.NewInternalID(dummyClusterHREF)
 
 	externalAuthResourceID, _ := azcorearm.ParseResourceID(api.TestExternalAuthResourceID)
 	externalAuthDoc := database.NewResourceDocument(externalAuthResourceID)
-	externalAuthDoc.InternalID, _ = ocm.NewInternalID(dummyExternalAuthHREF)
+	externalAuthDoc.InternalID, _ = api.NewInternalID(dummyExternalAuthHREF)
 
 	requestBody := generated.ExternalAuth{
 		Properties: &generated.ExternalAuthProperties{
@@ -107,8 +107,7 @@ func TestCreateExternalAuth(t *testing.T) {
 					Claim(dummyClaim).
 					Prefix("").
 					PrefixPolicy(""),
-				).
-				Groups(arohcpv1alpha1.NewGroupsClaim()),
+				),
 			).
 			ValidationRules(),
 		).

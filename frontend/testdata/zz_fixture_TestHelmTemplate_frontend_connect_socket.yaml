@@ -291,19 +291,30 @@ kind: Gateway
 metadata:
   name: aro-hcp-gateway-external
   namespace: aks-istio-ingress
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   selector:
     istio: aks-istio-ingressgateway-external
   servers:
   - port:
       number: 443
-      name: https
+      name: frontend-https
       protocol: HTTPS
     tls:
       mode: SIMPLE
       credentialName: frontend-credential
     hosts:
-    - "*"
+    - "rp.westus3.hcpsvc.osadev.cloud"
+  - port:
+      number: 443
+      name: admin-api-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: admin-api-credential
+    hosts:
+    - "admin.westus3.hcpsvc.osadev.cloud"
 ---
 # Source: frontend/templates/peerauthentication.yaml
 apiVersion: security.istio.io/v1beta1

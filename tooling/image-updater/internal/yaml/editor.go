@@ -29,6 +29,7 @@ type Update struct {
 	Name      string // Image/component name
 	OldDigest string // Current digest value
 	NewDigest string // New digest value
+	Tag       string // Image tag (e.g., "v1.2.3")
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
 	Line      int    // Line number in the file
@@ -111,6 +112,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 		return updates[i].Line < updates[j].Line
 	})
 
+	// Read the original file content to check if it ends with a newline
+	originalContent, err := os.ReadFile(e.filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file %s: %v", e.filePath, err)
+	}
+	endsWithNewline := len(originalContent) > 0 && originalContent[len(originalContent)-1] == '\n'
+
 	// Read the original file and copy to a temp file, applying updates on the fly
 	// Then replace the original file with the temp file
 	// This preserves the original formatting instead of rewriting with a yaml library
@@ -131,21 +139,56 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 
 	lineNum := 1
 	updateIndex := 0
+	var lines []string
 	for scanner.Scan() {
 		line := scanner.Text()
 		if updateIndex < len(updates) && updates[updateIndex].Line == lineNum {
-			line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
+			// Find the old digest and replace everything from that point to end of line
+			digestIdx := strings.Index(line, updates[updateIndex].OldDigest)
+			if digestIdx != -1 {
+				// Keep everything before the digest, replace with new digest
+				line = line[:digestIdx] + updates[updateIndex].NewDigest
+			} else {
+				// Fallback: simple replace if digest not found
+				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
+			}
+
+			// Add the tag comment
+			if updates[updateIndex].Tag != "" {
+				line = line + " # " + updates[updateIndex].Tag
+			}
 			updateIndex++
 		}
-		_, err := writer.WriteString(line + "\n")
-		if err != nil {
-			return fmt.Errorf("failed to write to temp file: %v", err)
-		}
+		lines = append(lines, line)
 		lineNum++
 	}
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("error reading file %s: %v", e.filePath, err)
+	}
+
+	// Write all lines, preserving original newline behavior
+	for i, line := range lines {
+		if i < len(lines)-1 {
+			// Not the last line, always add newline
+			_, err := writer.WriteString(line + "\n")
+			if err != nil {
+				return fmt.Errorf("failed to write to temp file: %v", err)
+			}
+		} else {
+			// Last line: add newline only if original file had one
+			if endsWithNewline {
+				_, err := writer.WriteString(line + "\n")
+				if err != nil {
+					return fmt.Errorf("failed to write to temp file: %v", err)
+				}
+			} else {
+				_, err := writer.WriteString(line)
+				if err != nil {
+					return fmt.Errorf("failed to write to temp file: %v", err)
+				}
+			}
+		}
 	}
 
 	// Flush and sync before closing

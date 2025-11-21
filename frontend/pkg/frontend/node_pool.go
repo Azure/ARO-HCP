@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -33,6 +34,138 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
+
+func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
+	if database.IsResponseError(err, http.StatusNotFound) {
+		logger.Error(err.Error())
+		arm.WriteResourceNotFoundError(writer, resourceID)
+		return
+	}
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
+		return
+	}
+
+	responseBody, err := mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) {
+	ctx := request.Context()
+	logger := LoggerFromContext(ctx)
+
+	versionedInterface, err := VersionFromContext(ctx)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
+	resourceGroupName := request.PathValue(PathSegmentResourceGroupName)
+	resourceName := request.PathValue(PathSegmentResourceName)
+
+	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	pagedResponse := arm.NewPagedResponse()
+
+	nodePoolsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterNodePool)
+	internalNodePoolIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(resourceName).List(ctx, dbListOptionsFromRequest(request))
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	for _, nodePool := range internalNodePoolIterator.Items(ctx) {
+		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.String()] = nodePool
+	}
+	err = internalNodePoolIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// MiddlewareReferer ensures Referer is present.
+	err = pagedResponse.SetNextLink(request.Referer(), internalNodePoolIterator.GetContinuationToken())
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+
+	// Build a Cluster Service query that looks for
+	// the specific IDs returned by the Cosmos query.
+	queryIDs := make([]string, 0, len(nodePoolsByClusterServiceID))
+	for key := range nodePoolsByClusterServiceID {
+		queryIDs = append(queryIDs, "'"+key+"'")
+	}
+	query := fmt.Sprintf("id in (%s)", strings.Join(queryIDs, ", "))
+	logger.Info(fmt.Sprintf("Searching Cluster Service for %q", query))
+
+	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
+	for csNodePool := range csIterator.Items(ctx) {
+		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.HREF()]; ok {
+			value, err := mergeToExternalNodePool(csNodePool, internalNodePool, versionedInterface)
+			if err != nil {
+				logger.Error(err.Error())
+				arm.WriteInternalServerError(writer)
+				return
+			}
+			pagedResponse.AddValue(value)
+		}
+	}
+	err = csIterator.GetError()
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
+		return
+	}
+
+	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		logger.Error(err.Error())
+	}
+}
 
 func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
 	var err error
@@ -281,7 +414,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			return
 		}
 
-		resourceDoc.InternalID, err = ocm.NewInternalID(csNodePool.HREF())
+		resourceDoc.InternalID, err = api.NewInternalID(csNodePool.HREF())
 		if err != nil {
 			logger.Error(err.Error())
 			arm.WriteInternalServerError(writer)
@@ -331,14 +464,20 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resourceDoc, err = transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	if err != nil {
+		logger.Error(err.Error())
+		arm.WriteInternalServerError(writer)
+		return
+	}
+	resultingInternalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterNodePool, database.NodePool](resultingCosmosObj)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
 		return
 	}
 
-	responseBody, err := marshalCSNodePool(csNodePool, resourceDoc, versionedInterface)
+	responseBody, err := mergeToExternalNodePool(csNodePool, resultingInternalObj, versionedInterface)
 	if err != nil {
 		logger.Error(err.Error())
 		arm.WriteInternalServerError(writer)
@@ -352,11 +491,11 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 }
 
 // the necessary conversions for the API version of the request.
-func marshalCSNodePool(csNodePool *arohcpv1alpha1.NodePool, doc *database.ResourceDocument, versionedInterface api.Version) ([]byte, error) {
-	hcpNodePool := ocm.ConvertCStoNodePool(doc.ResourceID, csNodePool)
-	hcpNodePool.SystemData = doc.SystemData
-	hcpNodePool.Tags = maps.Clone(doc.Tags)
-	hcpNodePool.Properties.ProvisioningState = doc.ProvisioningState
+func mergeToExternalNodePool(csNodePool *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool, versionedInterface api.Version) ([]byte, error) {
+	hcpNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, csNodePool)
+	hcpNodePool.SystemData = internalNodePool.SystemData
+	hcpNodePool.Tags = maps.Clone(internalNodePool.Tags)
+	hcpNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 
 	return arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool))
 }

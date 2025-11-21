@@ -2,7 +2,7 @@ param (
     [string]$IssuerName,
 
     [string]$VaultName,
-    
+
     [string]$CertName,
 
     [string]$SubjectName,
@@ -15,14 +15,14 @@ param (
 
     [string]$SecretContentType = 'application/x-pkcs12',
 
-    [switch]$Disabled,
-
     [bool]$Force
 )
 
 try
 {
     Write-Output "`nUTC is: $(Get-Date)"
+
+    $updateCertificate = $Force
 
     $DNSNamesArray = $DnsNames -split '_'
 
@@ -51,7 +51,6 @@ try
             SecretContentType         = $SecretContentType
             ValidityInMonths          = $ValidityInMonths
             IssuerName                = $IssuerName
-            Disabled                  = $Disabled
             SubjectName               = $SubjectName
             DnsNames                  = $DNSNamesArray
             KeyUsage                  = @('DigitalSignature', 'KeyEncipherment')
@@ -60,25 +59,32 @@ try
         $Cert = Get-AzKeyVaultCertificate -VaultName $VaultName -Name $CertName
         If ($Cert)
         {
-            $Policy = $Cert | Get-AzKeyVaultCertificatePolicy | Where-Object SubjectName -EQ $SubjectName
-        }
+            $ExistingPolicy = $Cert | Get-AzKeyVaultCertificatePolicy | Where-Object SubjectName -EQ $SubjectName
 
-        if ($Policy)
-        {
-            Write-Warning -Message "Policy exists      [$($policy.SubjectName)]"
-            if ($Force)
+            # Check if policy parameters have changed
+            if ($ExistingPolicy)
             {
-                Write-Warning -Message "Force Policy [$($policy.SubjectName)] settings"
-                $Policy = New-AzKeyVaultCertificatePolicy @PolicyParams
+                Write-Warning -Message "Policy exists      [$($ExistingPolicy.SubjectName)]"
+
+                $policyChanged = (
+                    $ExistingPolicy.RenewAtPercentageLifetime -ne $RenewAtPercentageLifetime -or
+                    $ExistingPolicy.SecretContentType -ne $SecretContentType -or
+                    $ExistingPolicy.ValidityInMonths -ne $ValidityInMonths -or
+                    $ExistingPolicy.IssuerName -ne $IssuerName -or
+                    (Compare-Object -ReferenceObject $ExistingPolicy.DnsNames -DifferenceObject $DNSNamesArray)
+                )
+
+                if ($policyChanged)
+                {
+                    Write-Warning -Message "Policy parameters changed, certificate will be updated"
+                    $updateCertificate = $true
+                }
             }
         }
-        else
-        {
-            Write-Warning -Message "Creating Policy [$SubjectName]"
-            $Policy = New-AzKeyVaultCertificatePolicy @PolicyParams
-        }
 
-        if ($Cert -and (-not $Force))
+        $Policy = New-AzKeyVaultCertificatePolicy @PolicyParams
+
+        if ($Cert -and (-not $updateCertificate))
         {
             Write-Warning -Message "Certificate exists [$($Cert.Name)]"
         }

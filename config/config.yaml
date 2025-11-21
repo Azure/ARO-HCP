@@ -23,6 +23,8 @@ defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
   #
+  geoShortId: "{{ .ev2.geoShortId }}"
+  environmentName: "{{ .ctx.environment }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
   regionBuildout: false
@@ -97,6 +99,9 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
+    kusto:
+      enabled: false
+      environmentName: "{{ .ctx.environment }}"
     mdsd:
       enabled: true
       image:
@@ -109,7 +114,7 @@ defaults:
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:1d3de0410e7d8b4e016383d110e9bc576cd365b9a21bb80398c87615b4c71e28
+      digest: sha256:d3c7f6cc6a934021395509c337b5bf649579bd0a0db2de3db7e3514fa8859f88 # 20251116.1
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -180,11 +185,15 @@ defaults:
         useSNI: true
         manage: true
   kusto:
-    enabled: false
-    resourceGroup: ""
-    cluster: ""
-    ingestionUrl: ""
-    environmentName: {{ .ctx.environment }}
+    manageInstance: false
+    rg: "hcp-kusto-us"
+    staticKustoName: ""
+    serviceLogsDatabase: "ServiceLogs"
+    hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
+    adminGroups: ""
+    viewerGroups: ""
+    sku: ""
+    tier: ""
   # Hypershift
   hypershift:
     image:
@@ -192,6 +201,9 @@ defaults:
       repository: acm-d/rhtap-hypershift-operator
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
+    # By default we set it to empty as this tag is only required for msft environments. We override
+    # this value in sdp pipelines for msft environments.
+    sharedIngressIPTag: ''
   # Log settings
   logs:
     mdsd:
@@ -241,7 +253,7 @@ defaults:
     operatorImage:
       registry: quay.io
       repository: app-sre/route-monitor-operator
-      digest: sha256:59b939b9e6907d71e09b2bdb7ebbc9c87ab39bfe7d6da1f155bb91fbf762ec5f
+      digest: sha256:5e94ff37bcb8c1ebebce0c7c1f33cef8e7cf163f1b0baf5b50c9b771ca112846
     blackboxExporterImage:
       registry: quay.io
       repository: prometheus/blackbox-exporter
@@ -632,13 +644,13 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:e59d3827a2b2895dd2aad000f8b1f7d47f3697d7f3c14b7ce66f9fc1a8d2a497 # v2.14.1-258
+        digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273 # v2.14.2-285
     mce:
       version: "2.9.2"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:91917c6a0983595ea4a2a68e9e3bb79a275fe35b34643885bd9f1506644340af # v2.9.1-96
+        digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787 # v2.9.2-123
   # Cluster Service
   clustersService:
     image:
@@ -649,8 +661,8 @@ defaults:
     # batch processes
     batchProcessesDryRun: true
     batchProcesses: ""
-    # controls if a debug job is deployed to the cluster.
-    deployDebugJob: false
+    # controls if debug jobs are deployed to the cluster.
+    deployDebugJobs: false
     tracing: # NOTE: Currently only enabled for pers.
       address: ""
       exporter: ""
@@ -772,15 +784,18 @@ clouds:
   dev:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
-      tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kusto:
-        ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
+        staticKustoName: "hcp-dev-us"
+      tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
         enabled: false
       automationDryRun: false
       arobit:
         mdsd:
           enabled: false
+        kusto:
+          enabled: true
+          environmentName: "dev"
       regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}
       global:
         rg: global
@@ -830,7 +845,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:959c5bb3128cb5a9521bc9547f577d2127359726543b2887c03edd4d3febd3c6
+          digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76 # 5f52709b927aa0d8218b46f3a5ead2a8224483b2
       # ACR Pull
       acrPull:
         image:
@@ -844,7 +859,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:2ee499bd05a30355150db156e8ee344638897b8a0be16b054a564585638ee141
+          digest: sha256:a1046d7b1b2042b9b109b9c433521662f9c3280fa1a3a66f82e499ba2e9fc433
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -862,7 +877,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:9b14303b5d975b23d734215e52676c30e198d781ac340c5048078513c36ec793
+          digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c # f833f83
         cert:
           issuer: Self
       # Frontend
@@ -870,11 +885,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
+          digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d # f833f83
       # Backend
       backend:
         image:
-          digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
+          digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7 # f833f83
       # Image Sync
       imageSync:
         ocMirror:
@@ -912,16 +927,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+              sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
           kubeStateMetrics:
             image:
               digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
           prometheusOperator:
             image:
-              sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+              sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
           prometheusSpec:
             image:
-              sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879 # v3.7.1-1
+              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
             shards: 1
       mgmt:
         subscription:
@@ -951,16 +966,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b # v0.86.1-1
+              sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
           kubeStateMetrics:
             image:
               digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
           prometheusOperator:
             image:
-              sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124 # v0.86.1-1
+              sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
           prometheusSpec:
             image:
-              sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879 # v3.7.1-1
+              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
             shards: 1
       # ACRs
       acr:
@@ -999,7 +1014,11 @@ clouds:
         # this is the integrated DEV environment
         defaults:
           kusto:
-            enabled: true
+            manageInstance: true
+            rg: "hcp-kusto-us"
+            sku: "Dev(No SLA)_Standard_D11_v2"
+            tier: "Basic"
+            adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
@@ -1035,8 +1054,6 @@ clouds:
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
-          kusto:
-            enabled: true
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           # Service Key Vault
           serviceKeyVault:
@@ -1090,8 +1107,6 @@ clouds:
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
-          kusto:
-            enabled: true
           regionRG: "{{ .ctx.region }}-shared-resources"
           serviceKeyVault:
             name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
@@ -1223,7 +1238,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:dc4560440d9e21a8461173fc8e9773f0ac1aa5f4f58226f1a0005ff8b6e41597
+              digest: sha256:949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6 # sha256-949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

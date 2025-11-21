@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:91917c6a0983595ea4a2a68e9e3bb79a275fe35b34643885bd9f1506644340af
+      digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:e59d3827a2b2895dd2aad000f8b1f7d47f3697d7f3c14b7ce66f9fc1a8d2a497
+      digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-prow-usw3j
   image:
-    digest: sha256:9b14303b5d975b23d734215e52676c30e198d781ac340c5048078513c36ec793
+    digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -55,6 +55,9 @@ arobit:
       digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
+  kusto:
+    enabled: true
+    environmentName: dev
   mdsd:
     enabled: false
     image:
@@ -65,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:f518568c17e510a22c6ea90eed857b58f2dfbc24ab3246e9ea6de65fbae9fcf1
+    digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -118,10 +121,10 @@ clustersService:
   batchProcesses: ""
   batchProcessesDryRun: true
   denyAssignments: disabled
-  deployDebugJob: false
+  deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:2ee499bd05a30355150db156e8ee344638897b8a0be16b054a564585638ee141
+    digest: sha256:a1046d7b1b2042b9b109b9c433521662f9c3280fa1a3a66f82e499ba2e9fc433
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -178,6 +181,7 @@ e2e:
   regionTest:
     gatePromotion: false
     prowJobName: ""
+environmentName: prow
 ev2:
   assistedId:
     applicationId: ""
@@ -203,7 +207,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:2de63104255678fe9b9156cd055af7270209fa8c23d3f700d0dfbc9033241aeb
+    digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -265,6 +269,7 @@ geneva:
       account: AzureRedHatOpenShiftRP
   principalId: ""
   resourceContributor: ""
+geoShortId: us
 global:
   billing:
     digest: placeholder
@@ -310,6 +315,7 @@ hypershift:
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
+  sharedIngressIPTag: ""
 imageSync:
   environmentName: aro-hcp-image-sync
   ocMirror:
@@ -328,15 +334,19 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:1d3de0410e7d8b4e016383d110e9bc576cd365b9a21bb80398c87615b4c71e28
+    digest: sha256:d3c7f6cc6a934021395509c337b5bf649579bd0a0db2de3db7e3514fa8859f88
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
-  cluster: ""
-  enabled: false
-  environmentName: prow
-  ingestionUrl: https://ingest-hcp-dev-kusto.eastus.kusto.windows.net
-  resourceGroup: ""
+  adminGroups: ""
+  hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
+  manageInstance: false
+  rg: hcp-kusto-us
+  serviceLogsDatabase: ServiceLogs
+  sku: ""
+  staticKustoName: hcp-dev-us
+  tier: ""
+  viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
@@ -373,7 +383,7 @@ maestro:
     name: arohcp-prow-maestro-usw3j
     private: false
   image:
-    digest: sha256:959c5bb3128cb5a9521bc9547f577d2127359726543b2887c03edd4d3febd3c6
+    digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -463,18 +473,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b
+        sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+        sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
   rg: hcp-underlay-prow-usw3j-mgmt-1
@@ -633,7 +643,7 @@ routeMonitorOperator:
     registry: quay.io
     repository: prometheus/blackbox-exporter
   operatorImage:
-    digest: sha256:59b939b9e6907d71e09b2bdb7ebbc9c87ab39bfe7d6da1f155bb91fbf762ec5f
+    digest: sha256:5e94ff37bcb8c1ebebce0c7c1f33cef8e7cf163f1b0baf5b50c9b771ca112846
     registry: quay.io
     repository: app-sre/route-monitor-operator
 secretSyncController:
@@ -715,18 +725,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 32c4a81063d037f943f84dc54ac4391f17f6bd0399fbecee918b2d1746a10d3b
+        sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 0e4dc52261d6daceb57131f92e12bdbd8b98f77fc2aea79ad9d4735de35d4124
+        sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 1b5a88a4bc163bd0a3ea4933c865fe32ed69a62a0b107216d8f60203807ea879
+        sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267
       replicas: 2
       shards: 1
       version: ""

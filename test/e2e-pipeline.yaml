@@ -46,6 +46,8 @@ resourceGroups:
       configRef: region
     - name: KEY_VAULT_DNSSUFFIX
       configRef: keyVaultDNSSuffix
+    - name: PROW_JOB_EXECUTOR
+      value: './prow-job-executor'
     shellIdentity:
       input:
         resourceGroup: global

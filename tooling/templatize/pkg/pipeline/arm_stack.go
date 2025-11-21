@@ -112,7 +112,7 @@ func runArmStackStep(
 		StepName:        step.StepName(),
 	}
 
-	skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
+	_, skip, commit, err := checkCachedOutput[ArmOutput](logger, inputs, options.StepCacheDir)
 	if err != nil {
 		return nil, nil, err
 	}

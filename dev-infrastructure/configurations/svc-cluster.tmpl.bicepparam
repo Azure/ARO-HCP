@@ -138,7 +138,6 @@ param grafanaResourceId = '__grafanaResourceId__'
 param grafanaPrincipalId = '__grafanaPrincipalId__'
 
 // MDSD / Genevabits
-@description('The namespace of the logs')
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
@@ -155,3 +154,11 @@ param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
 param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
+
+param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
+param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
+param geoShortId = '{{ .geoShortId }}'
+param environmentName = '{{ .environmentName }}'
+
+// Override for dev, cause here we share one kusto instance for all environments
+param staticKustoName = '{{ .kusto.staticKustoName }}'

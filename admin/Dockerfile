@@ -17,4 +17,4 @@ WORKDIR /
 COPY --from=builder /app/admin/aro-hcp-admin .
 ARG ARO_HCP_REVISION
 LABEL vcs-ref="${ARO_HCP_REVISION}"
-ENTRYPOINT ["/aro-hcp-admin"]
+ENTRYPOINT ["/aro-hcp-admin", "serve"]

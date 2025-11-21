@@ -40,10 +40,13 @@ type ClusterServiceClientSpec interface {
 	GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
-	PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
+	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
 	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
+
+	// UpdateClusterAutoscaler sends a PATCH request to update cluster autoscaling values in Cluster Service.
+	UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error)
 
 	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
 	DeleteCluster(ctx context.Context, internalID InternalID) error
@@ -153,8 +156,56 @@ func (csc *clusterServiceClient) addProperties(builder *arohcpv1alpha1.ClusterBu
 	return builder.Properties(additionalProperties)
 }
 
+// resolveClusterLinks replaces link objects with full objects that are
+// necessary to fully construct an HCPOpenShiftCluster model.
+func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.Cluster, error) {
+	builder := arohcpv1alpha1.NewCluster().Copy(cluster)
+
+	autoscaler, ok := cluster.GetAutoscaler()
+	if ok && autoscaler.Link() {
+		autoscalerClient := arohcpv1alpha1.NewAutoscalerClient(conn, autoscaler.HREF())
+
+		autoscalerGetResponse, err := autoscalerClient.Get().SendContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		autoscaler, ok = autoscalerGetResponse.GetBody()
+		if !ok {
+			return nil, fmt.Errorf("empty autoscaler response body")
+		}
+
+		builder.Autoscaler(arohcpv1alpha1.NewClusterAutoscaler().Copy(autoscaler))
+	}
+
+	return builder.Build()
+}
+
+// resolveNodePoolLinks replaces link objects with full objects that are
+// necessary to fully construct an HCPOpenShiftClusterNodePool model.
+func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *arohcpv1alpha1.NodePool) (*arohcpv1alpha1.NodePool, error) {
+	builder := arohcpv1alpha1.NewNodePool().Copy(nodePool)
+
+	version, ok := nodePool.GetVersion()
+	if ok && version.Link() {
+		versionClient := arohcpv1alpha1.NewVersionClient(conn, version.HREF())
+
+		versionGetResponse, err := versionClient.Get().SendContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		version, ok = versionGetResponse.GetBody()
+		if !ok {
+			return nil, fmt.Errorf("empty version response body")
+		}
+
+		builder.Version(arohcpv1alpha1.NewVersion().Copy(version))
+	}
+
+	return builder.Build()
+}
+
 func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.Cluster, error) {
-	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
@@ -166,11 +217,11 @@ func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID Inte
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
 func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ClusterStatus, error) {
-	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
@@ -186,7 +237,7 @@ func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 }
 
 func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.InflightCheckList, error) {
-	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
@@ -201,8 +252,11 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	return inflightChecks, nil
 }
 
-func (csc *clusterServiceClient) PostCluster(ctx context.Context, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-	cluster, err := csc.addProperties(builder).Build()
+func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
+	if autoscalerBuilder != nil {
+		clusterBuilder.Autoscaler(autoscalerBuilder)
+	}
+	cluster, err := csc.addProperties(clusterBuilder).Build()
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +268,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, builder *arohc
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
 }
 
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
@@ -222,7 +276,7 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 	if err != nil {
 		return nil, err
 	}
-	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
@@ -234,11 +288,31 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return cluster, nil
+	return resolveClusterLinks(ctx, csc.conn, cluster)
+}
+
+func (csc *clusterServiceClient) UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
+	autoscaler, err := builder.Build()
+	if err != nil {
+		return nil, err
+	}
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
+	if !ok {
+		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
+	}
+	autoscalerUpdateResponse, err := client.Autoscaler().Update().Body(autoscaler).SendContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	autoscaler, ok = autoscalerUpdateResponse.GetBody()
+	if !ok {
+		return nil, fmt.Errorf("empty response body")
+	}
+	return autoscaler, nil
 }
 
 func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
-	client, ok := internalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
@@ -251,11 +325,11 @@ func (csc *clusterServiceClient) ListClusters(searchExpression string) ClusterLi
 	if searchExpression != "" {
 		clustersListRequest.Search(searchExpression)
 	}
-	return &clusterListIterator{request: clustersListRequest}
+	return &clusterListIterator{conn: csc.conn, request: clustersListRequest}
 }
 
 func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePool, error) {
-	client, ok := internalID.GetNodePoolClient(csc.conn)
+	client, ok := GetNodePoolClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
@@ -268,34 +342,11 @@ func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 		return nil, fmt.Errorf("empty response body")
 	}
 
-	// NodePoolGetResponse returns a NodePool with a VersionLink instead
-	// of a Version. Clients are responsible for dereferencing links, so
-	// we will do that now and rebuild the NodePool with a full Version.
-	if nodePool.Version().Link() {
-		versionClient := arohcpv1alpha1.NewVersionClient(csc.conn, nodePool.Version().HREF())
-
-		versionGetResponse, err := versionClient.Get().SendContext(ctx)
-		if err != nil {
-			return nil, err
-		}
-		version, ok := versionGetResponse.GetBody()
-		if !ok {
-			return nil, fmt.Errorf("empty version response body")
-		}
-
-		versionBuilder := arohcpv1alpha1.NewVersion().Copy(version)
-
-		nodePool, err = arohcpv1alpha1.NewNodePool().Copy(nodePool).Version(versionBuilder).Build()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) GetNodePoolStatus(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.NodePoolStatus, error) {
-	client, ok := internalID.GetNodePoolClient(csc.conn)
+	client, ok := GetNodePoolClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
@@ -311,7 +362,7 @@ func (csc *clusterServiceClient) GetNodePoolStatus(ctx context.Context, internal
 }
 
 func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
-	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
@@ -327,11 +378,11 @@ func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
-	client, ok := internalID.GetNodePoolClient(csc.conn)
+	client, ok := GetNodePoolClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
@@ -347,11 +398,11 @@ func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 	if !ok {
 		return nil, fmt.Errorf("empty response body")
 	}
-	return nodePool, nil
+	return resolveNodePoolLinks(ctx, csc.conn, nodePool)
 }
 
 func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID InternalID) error {
-	client, ok := internalID.GetNodePoolClient(csc.conn)
+	client, ok := GetNodePoolClient(internalID, csc.conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
@@ -360,7 +411,7 @@ func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID 
 }
 
 func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
-	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return &nodePoolListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}
@@ -368,11 +419,11 @@ func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, sea
 	if searchExpression != "" {
 		nodePoolsListRequest.Search(searchExpression)
 	}
-	return &nodePoolListIterator{request: nodePoolsListRequest}
+	return &nodePoolListIterator{conn: csc.conn, request: nodePoolsListRequest}
 }
 
 func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID InternalID) (*arohcpv1alpha1.ExternalAuth, error) {
-	client, ok := internalID.GetExternalAuthClient(csc.conn)
+	client, ok := GetExternalAuthClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not an external auth: %s", internalID)
 	}
@@ -388,7 +439,7 @@ func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID
 }
 
 func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterInternalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
-	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
@@ -409,7 +460,7 @@ func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterIn
 }
 
 func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ExternalAuthBuilder) (*arohcpv1alpha1.ExternalAuth, error) {
-	client, ok := internalID.GetExternalAuthClient(csc.conn)
+	client, ok := GetExternalAuthClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not an external auth: %s", internalID)
 	}
@@ -429,7 +480,7 @@ func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, interna
 }
 
 func (csc *clusterServiceClient) DeleteExternalAuth(ctx context.Context, internalID InternalID) error {
-	client, ok := internalID.GetExternalAuthClient(csc.conn)
+	client, ok := GetExternalAuthClient(internalID, csc.conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a external auth: %s", internalID)
 	}
@@ -438,7 +489,7 @@ func (csc *clusterServiceClient) DeleteExternalAuth(ctx context.Context, interna
 }
 
 func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
-	client, ok := clusterInternalID.GetAroHCPClusterClient(csc.conn)
+	client, ok := getAroHCPClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return &externalAuthListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}
@@ -454,7 +505,7 @@ func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID,
 }
 
 func (csc *clusterServiceClient) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error) {
-	client, ok := internalID.GetBreakGlassCredentialClient(csc.conn)
+	client, ok := GetBreakGlassCredentialClient(internalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a break-glass credential: %s", internalID)
 	}
@@ -470,7 +521,7 @@ func (csc *clusterServiceClient) GetBreakGlassCredential(ctx context.Context, in
 }
 
 func (csc *clusterServiceClient) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
-	client, ok := clusterInternalID.GetClusterClient(csc.conn)
+	client, ok := getClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
@@ -490,7 +541,7 @@ func (csc *clusterServiceClient) PostBreakGlassCredential(ctx context.Context, c
 }
 
 func (csc *clusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
-	client, ok := clusterInternalID.GetClusterClient(csc.conn)
+	client, ok := getClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
@@ -499,7 +550,7 @@ func (csc *clusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context
 }
 
 func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) *BreakGlassCredentialListIterator {
-	client, ok := clusterInternalID.GetClusterClient(csc.conn)
+	client, ok := getClusterClient(clusterInternalID, csc.conn)
 	if !ok {
 		return &BreakGlassCredentialListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
 	}

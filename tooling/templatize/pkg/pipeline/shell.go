@@ -261,17 +261,17 @@ func checkSentinel(logger logr.Logger, data any, stepCacheDir string) (bool, fun
 	}, nil
 }
 
-func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string) (*T, func(T) error, error) {
+func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string) (string, *T, func(T) error, error) {
 	if stepCacheDir == "" {
 		logger.V(4).Info("No cache directory provided, omitting step execution cache.")
-		return nil, func(T) error {
+		return "", nil, func(T) error {
 			return nil
 		}, nil
 	}
 
 	encoded, err := json.Marshal(data)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize registration options: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to serialize registration options: %w", err)
 	}
 	hash := sha256.New()
 	hash.Write(encoded)
@@ -286,13 +286,13 @@ func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string)
 
 		var output T
 		if err := json.Unmarshal(content, &output); err != nil {
-			return nil, nil, fmt.Errorf("failed to deserialize output: %w", err)
+			return "", nil, nil, fmt.Errorf("failed to deserialize output: %w", err)
 		}
-		return &output, nil, nil
+		return digest, &output, nil, nil
 	} else {
 		logger.V(4).Info("Did not find any content in cache.", "err", err)
 	}
-	return nil, func(output T) error {
+	return digest, nil, func(output T) error {
 		logger.Info("Committing success for step.")
 		encoded, err := json.Marshal(output)
 		if err != nil {

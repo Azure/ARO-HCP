@@ -32,7 +32,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 )
 
 const (
@@ -52,16 +52,15 @@ func EnsureClusterAdmin(ctx context.Context, kubeconfigPath, subscriptionID, res
 		}
 	}
 
+	// Check for permissions before assignment
+	if err := CheckClusterAdminPermissions(ctx, kubeconfigPath); err == nil {
+		return nil
+	}
+
 	// Get the current user's object ID
 	userObjectID, err := getCurrentUserObjectID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get current user object ID: %w", err)
-	}
-
-	// Check for permissions before assignment
-	err = CheckClusterAdminPermissions(ctx, kubeconfigPath)
-	if err == nil {
-		return nil
 	}
 
 	// Assign the Azure Kubernetes Service RBAC Cluster Admin role to the current user

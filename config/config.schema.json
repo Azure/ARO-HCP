@@ -147,14 +147,14 @@
       "type": "string",
       "minLength": 3,
       "maxLength": 44,
-      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$",
       "description": "Server name must only contain lowercase letters, numbers, and hyphens. The server name must not start or end in a hyphen. Name must be between 3 be 63 characters long but we limited to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
     },
     "keyVaultName": {
       "type": "string",
       "minLength": 3,
       "maxLength": 24,
-      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$",
       "description": "A KV name must be between 3-24 alphanumeric characters. The name must begin with a letter, end with a letter or digit, and not contain consecutive hyphens."
     },
     "operatorConfig": {
@@ -372,7 +372,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 80,
-          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9_]$"
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9_]$"
         },
         "accessMode": {
           "type": "string",
@@ -463,7 +463,7 @@
           "type": "string",
           "minLength": 3,
           "maxLength": 44,
-          "pattern": "^[a-z0-9][a-z0-9_-]*[a-z0-9]$",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$",
           "description": "The name needs to be between 3-63 characters and can contain only letters, numbers, underscores, and hyphens. The name must start and end with a letter or number. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
         "vnetAddressPrefix": {
@@ -788,6 +788,12 @@
     }
   },
   "properties": {
+    "environmentName": {
+      "type": "string"
+    },
+    "geoShortId": {
+      "type": "string"
+    },
     "tenantId": {
       "type": "string"
     },
@@ -918,9 +924,9 @@
     "clustersService": {
       "type": "object",
       "properties": {
-        "deployDebugJob": {
+        "deployDebugJobs": {
           "type": "boolean",
-          "description": "If true, a debug job will be deployed to the cluster. This job will be used to debug the CS service."
+          "description": "If true, debug jobs will be deployed to the cluster. The jobs will be used to debug the CS service."
         },
         "environment": {
           "type": "string",
@@ -1545,26 +1551,64 @@
     "kusto": {
       "type": "object",
       "properties": {
+        "rg": {
+          "type": "string"
+        },
+        "manageInstance": {
+          "type": "boolean"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "string"
+        },
+        "serviceLogsDatabase": {
+          "type": "string"
+        },
+        "hostedControlPlaneLogsDatabase": {
+          "type": "string"
+        },
+        "adminGroups": {
+          "type": "string"
+        },
+        "viewerGroups": {
+          "type": "string"
+        },
+        "staticKustoName": {
+          "type": "string",
+          "description": "Name of the static Kusto cluster to use for dev environments"
+        },
         "resourceGroup": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "cluster": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "ingestionUrl": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "environmentName": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "string"
         },
         "enabled": {
+          "description": "DEPRECATED, for backward compatibility only",
           "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
-        "resourceGroup",
-        "cluster"
+        "manageInstance",
+        "sku",
+        "tier",
+        "serviceLogsDatabase",
+        "hostedControlPlaneLogsDatabase",
+        "adminGroups",
+        "viewerGroups"
       ]
     },
     "mise": {
@@ -1803,6 +1847,14 @@
         },
         "namespace": {
           "type": "string"
+        },
+        "sharedIngressIPTag": {
+          "type": "string",
+          "enum": [
+            "FirstPartyUsage=/aro-hcp-prod-inbound-customerapi",
+            "FirstPartyUsage=/NonProd",
+            ""
+          ]
         }
       },
       "additionalProperties": false,
@@ -1881,6 +1933,22 @@
           "additionalProperties": false,
           "required": [
             "image"
+          ]
+        },
+        "kusto": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "environmentName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "environmentName"
           ]
         },
         "mdsd": {
@@ -2567,6 +2635,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
+    "geoShortId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

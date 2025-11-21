@@ -32,7 +32,6 @@ type expectedError struct {
 func verifyErrorsMatch(t *testing.T, expectedErrors []expectedError, errs field.ErrorList) {
 	if len(expectedErrors) != len(errs) {
 		t.Errorf("expected %d errors, got %d: %v", len(expectedErrors), len(errs), errs)
-		return
 	}
 
 	// Check that each expected error message and field path is found

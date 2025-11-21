@@ -73,7 +73,6 @@ param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
 // MDSD / Genevabits
-@description('The namespace of the logs')
 param logsNamespace = '{{ .logs.mdsd.namespace }}'
 param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
@@ -87,3 +86,12 @@ param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
+
+param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
+param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
+param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
+param geoShortId = '{{ .geoShortId }}'
+param environmentName = '{{ .environmentName }}'
+
+// Override for dev, cause here we share one kusto instance for all environments
+param staticKustoName = '{{ .kusto.staticKustoName }}'
