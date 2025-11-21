@@ -285,7 +285,9 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		return arm.NewResourceNotFoundError(resourceID)
+		// For resource not found errors on deletion, ARM requires
+		writer.WriteHeader(http.StatusNoContent)
+		return nil
 	}
 	if err != nil {
 		return err
