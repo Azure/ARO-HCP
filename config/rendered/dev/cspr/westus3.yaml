@@ -179,7 +179,7 @@ e2e:
   prow:
     globalKeyVaultTokenSecret: prow-token
   regionTest:
-    gatePromotion: true
+    gatePromotion: false
     prowJobName: ""
 environmentName: cspr
 ev2:
