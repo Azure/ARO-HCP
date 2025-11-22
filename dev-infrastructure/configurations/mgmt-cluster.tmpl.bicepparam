@@ -90,8 +90,4 @@ param logAnalyticsWorkspaceId = '__logAnalyticsWorkspaceId__'
 param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
 param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
-param geoShortId = '{{ .geoShortId }}'
-param environmentName = '{{ .environmentName }}'
-
-// Override for dev, cause here we share one kusto instance for all environments
-param staticKustoName = '{{ .kusto.staticKustoName }}'
+param kustoResourceId = '__kustoResourceId__'

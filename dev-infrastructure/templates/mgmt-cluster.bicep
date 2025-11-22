@@ -206,23 +206,15 @@ param pkoNamespace string
 @description('Service account name of the PKO')
 param pkoServiceAccountName string
 
-@description('Geo short ID of the region')
-param geoShortId string
-
-@description('Environment name')
-param environmentName string
-
-@description('Name of the static Kusto cluster to use for dev environments')
-param staticKustoName string
+@description('Kusto resource ID')
+param kustoResourceId string
 
 @description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
 param arobitKustoEnabled bool
+
 @description('Names of the databases to write logs to')
 param serviceLogsDatabase string
 param hostedControlPlaneLogsDatabase string
-
-@description('Name of the Kusto resource group')
-var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
 
 //
 //   M A N A G E D   I D E N T I T I E S
@@ -540,16 +532,17 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 //  K U S T O   I N G E S T    P E R M I S S I O N S
 //
 
-var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
+import * as res from '../modules/resource.bicep'
+var kustoRef = res.kustoRefFromId(kustoResourceId)
 
 module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
   name: 'grantKustoSvcIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: serviceLogsDatabase
-    kustoName: kustoName
+    kustoName: kustoRef.name
   }
-  scope: resourceGroup(kustoResourceGroup)
+  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }
 
 module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
@@ -557,7 +550,7 @@ module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bi
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: hostedControlPlaneLogsDatabase
-    kustoName: kustoName
+    kustoName: kustoRef.name
   }
-  scope: resourceGroup(kustoResourceGroup)
+  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }

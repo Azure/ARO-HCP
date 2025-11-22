@@ -45,6 +45,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .kusto.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-loopkup.bicep
+    parameters: configurations/kusto-loopkup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -192,6 +202,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: logAnalyticsWorkspaceId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer

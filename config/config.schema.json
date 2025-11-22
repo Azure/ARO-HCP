@@ -1578,9 +1578,12 @@
         "viewerGroups": {
           "type": "string"
         },
-        "staticKustoName": {
+        "kustoName": {
           "type": "string",
-          "description": "Name of the static Kusto cluster to use for dev environments"
+          "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "minLength": 4,
+          "maxLength": 22
         },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
@@ -1612,7 +1615,8 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "subscription"
+        "subscription",
+        "kustoName"
       ]
     },
     "mise": {
