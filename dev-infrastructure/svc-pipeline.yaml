@@ -306,6 +306,10 @@ resourceGroups:
         resourceGroup: service
         step: arobit-output
         name: msiClientId
+      kustoDataIngestionUri:
+        resourceGroup: kusto
+        step: output
+        name: kustoDataIngestionUri
     identityFrom:
       resourceGroup: global
       step: output

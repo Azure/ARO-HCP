@@ -200,7 +200,7 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name HostedControlPlaneLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
@@ -212,7 +212,7 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
@@ -225,7 +225,7 @@ data:
         tenant_id __tenantId__
         client_id __msiClientId__
         workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
