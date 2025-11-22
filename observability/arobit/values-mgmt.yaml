@@ -57,6 +57,7 @@ forwarder:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
+    ingestionEndpoint: "__kustoDataIngestionUri__"
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:
