@@ -30,13 +30,14 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 			BaseDocument: BaseDocument{
 				ID: internalObj.ServiceProviderProperties.CosmosUID,
 			},
+			PartitionKey: internalObj.ID.SubscriptionID,
+			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		HCPClusterProperties: HCPClusterProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: internalObj.ID,
-				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
-				// TODO
-				//ActiveOperationID: "",
+				ResourceID:        internalObj.ID,
+				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.ServiceProviderProperties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
 				SystemData:        internalObj.SystemData,
@@ -59,6 +60,7 @@ func InternalToCosmosCluster(internalObj *api.HCPOpenShiftCluster) (*HCPCluster,
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ProvisioningState = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow will eventually be called when we replace the write path and we must always have a value.
@@ -133,6 +135,7 @@ func CosmosToInternalCluster(cosmosObj *HCPCluster) (*api.HCPOpenShiftCluster, e
 	internalObj.ServiceProviderProperties.ProvisioningState = cosmosObj.ProvisioningState
 	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
+	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 
 	// This is not the place for validation, but during such a transition we need to ensure we fail quickly and certainly
 	// This flow happens when reading both old and new data.  The old data should *always* have the internalID set

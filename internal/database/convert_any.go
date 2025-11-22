@@ -94,7 +94,8 @@ func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) 
 	}
 	castCosmosObj, ok := cosmosObj.(*CosmosAPIType)
 	if !ok {
-		return nil, fmt.Errorf("type %T does not implement *InternalAPIType interface", cosmosObj)
+		var o *CosmosAPIType
+		return nil, fmt.Errorf("type %T does not implement *CosmosAPIType interface: %T", cosmosObj, o)
 	}
 
 	return castCosmosObj, nil

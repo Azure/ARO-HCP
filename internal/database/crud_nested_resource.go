@@ -107,3 +107,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx cont
 
 	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
 }
+
+func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
+}
