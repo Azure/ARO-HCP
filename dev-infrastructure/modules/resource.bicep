@@ -99,3 +99,15 @@ func frontdoorProfileRefFromId(frontdoorProfileResourceId string) frontdoorProfi
   resourceGroup: resourceGroupFromResourceId(frontdoorProfileResourceId)
   name: last(split(frontdoorProfileResourceId, '/'))
 }
+
+@export()
+type kustoRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func kustoRefFromId(kustoResourceId string) kustoRef => {
+  resourceGroup: resourceGroupFromResourceId(kustoResourceId)
+  name: last(split(kustoResourceId, '/'))
+}

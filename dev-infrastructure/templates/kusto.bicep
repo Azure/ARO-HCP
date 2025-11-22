@@ -10,9 +10,6 @@ param tier string
 @description('Toggle if instance should be created/managed')
 param manageInstance bool
 
-@description('Environment name')
-param environmentName string
-
 @description('Name of the service logs database.')
 param serviceLogsDatabase string
 
@@ -25,12 +22,13 @@ param adminGroups string
 @description('CSV seperated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
-@description('Geo short ID of the region')
-param geoShortId string
+@description('Name of the Kusto cluster to create')
+param kustoName string
 
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
+    kustoName: kustoName
     dstsGroups: []
     sku: sku
     tier: tier
@@ -38,7 +36,5 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
-    geoShortId: geoShortId
-    environmentName: environmentName
   }
 }

@@ -19,13 +19,8 @@ param adminGroups string
 @description('CSV seperated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
 
-@description('Geo short ID of the region')
-param geoShortId string
-
-@description('Environment name')
-param environmentName string
-
-var kustoName = 'hcp-${environmentName}-${geoShortId}'
+@description('Name of the Kusto cluster to create')
+param kustoName string
 
 var db = {
   serviceLogs: serviceLogsDatabase

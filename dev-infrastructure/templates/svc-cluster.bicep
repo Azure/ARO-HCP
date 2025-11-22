@@ -406,17 +406,8 @@ param arobitKustoEnabled bool
 @description('Name of the database to write logs to')
 param serviceLogsDatabase string
 
-@description('Geo short ID of the region')
-param geoShortId string
-
-@description('Name of the static Kusto cluster to use for dev environments')
-param staticKustoName string
-
-@description('Environment name')
-param environmentName string
-
-@description('Name of the Kusto resource group')
-var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
+@description('Kusto resource ID')
+param kustoResourceId string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -1033,14 +1024,14 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 //  K U S T O   I N G E S T    P E R M I S S I O N S
 //
 
-var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
+var kustoRef = res.kustoRefFromId(kustoResourceId)
 
 module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
   name: 'grantKustoIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: serviceLogsDatabase
-    kustoName: kustoName
+    kustoName: kustoRef.name
   }
-  scope: resourceGroup(kustoResourceGroup)
+  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }

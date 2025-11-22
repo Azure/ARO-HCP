@@ -340,13 +340,13 @@ kubeEvents:
 kusto:
   adminGroups: ""
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
+  kustoName: hcp-dev-us
   manageInstance: false
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: ""
-  staticKustoName: hcp-dev-us
   subscription:
-    displayName: Azure Red Hat OpenShift HCP - Kusto - us
+    displayName: Azure Red Hat OpenShift HCP - cspr - Kusto - us
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
       Microsoft.Kusto:
