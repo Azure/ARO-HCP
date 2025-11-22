@@ -8,8 +8,8 @@ type resourceGroupReference = {
 
 @export()
 func resourceGroupFromResourceId(resourceId string) resourceGroupReference => {
-  subscriptionId: split(resourceId, '/')[2]
-  name: split(resourceId, '/')[4]
+  subscriptionId: resourceId != '' ? split(resourceId, '/')[2] : ''
+  name: resourceId != '' ? split(resourceId, '/')[4] : ''
 }
 
 @export()
@@ -109,5 +109,5 @@ type kustoRef = {
 @export()
 func kustoRefFromId(kustoResourceId string) kustoRef => {
   resourceGroup: resourceGroupFromResourceId(kustoResourceId)
-  name: last(split(kustoResourceId, '/'))
+  name: kustoResourceId != '' ? last(split(kustoResourceId, '/')) : ''
 }

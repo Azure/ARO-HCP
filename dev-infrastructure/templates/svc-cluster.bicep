@@ -1026,7 +1026,7 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 
 var kustoRef = res.kustoRefFromId(kustoResourceId)
 
-module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
+module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKustoIngest'
   params: {
     clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
