@@ -346,7 +346,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
     aksKeyVaultTagValue: aksKeyVaultTagValue
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     pullAcrResourceIds: [ocpAcrResourceId, svcAcrResourceId]
     systemAgentMinCount: systemAgentMinCount
     systemAgentMaxCount: systemAgentMaxCount
