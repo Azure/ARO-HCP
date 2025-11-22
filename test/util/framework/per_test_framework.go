@@ -501,3 +501,11 @@ func (tc *perItOrDescribeTestContext) Location() string {
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
+
+func (tc *perItOrDescribeTestContext) GetSubscriptionID(ctx context.Context) string {
+	return tc.perBinaryInvocationTestContext.subscriptionID
+}
+
+func (tc *perItOrDescribeTestContext) GetAzureCredentialOrDie(ctx context.Context) azcore.TokenCredential {
+	return Must(tc.perBinaryInvocationTestContext.getAzureCredentials())
+}

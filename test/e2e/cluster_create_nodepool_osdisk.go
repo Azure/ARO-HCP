@@ -49,6 +49,12 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
+			By("getting MSIs from pool")
+			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+			Expect(err).NotTo(HaveOccurred())
+			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
 			_, err = framework.CreateBicepTemplateAndWait(ctx,
 				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
@@ -61,6 +67,7 @@ var _ = Describe("Customer", func() {
 					"nodePoolName":          customerNodePoolName,
 					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
 					"nodeReplicas":          customerNodeReplicas,
+					"msiIds":                msiIds,
 				},
 				45*time.Minute,
 			)

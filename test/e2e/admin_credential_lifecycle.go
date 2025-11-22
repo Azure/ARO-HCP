@@ -50,6 +50,12 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
+			By("getting MSIs from pool")
+			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+			Expect(err).NotTo(HaveOccurred())
+			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
 			By("starting cluster-only template deployment asynchronously")
 			deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 
@@ -62,6 +68,9 @@ var _ = Describe("Customer", func() {
 			bicepParameters := map[string]interface{}{
 				"clusterName": map[string]interface{}{
 					"value": clusterName,
+				},
+				"msiIds": map[string]interface{}{
+					"value": msiIds,
 				},
 			}
 

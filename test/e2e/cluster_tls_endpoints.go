@@ -69,7 +69,13 @@ var _ = Describe("Customer", func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("creating a managed identities")
+		By("getting MSIs from pool")
+		msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
+		Expect(err).NotTo(HaveOccurred())
+		msiIds, err := msiPool.GetLeasedMSIs(ctx)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("creating role assignments for pooled MSIs")
 		keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 		Expect(err).NotTo(HaveOccurred())
 
@@ -79,7 +85,7 @@ var _ = Describe("Customer", func() {
 			"managed-identities",
 			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
 			map[string]interface{}{
-				"clusterName":  customerClusterName,
+				"msiIds":       msiIds,
 				"nsgName":      customerNetworkSecurityGroupName,
 				"vnetName":     customerVnetName,
 				"subnetName":   customerVnetSubnetName,
