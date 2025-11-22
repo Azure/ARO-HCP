@@ -60,6 +60,19 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []expectedError{},
 		},
 		{
+			name: "valid nodepool with autoscaling min=0 - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 0,
+					Max: 5,
+				}
+				np.Properties.Replicas = 0
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "valid nodepool with labels - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -259,6 +272,15 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "replicas at maximum limit (200) - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = MaxNodePoolNodes
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "negative replicas - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -267,6 +289,17 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
+			},
+		},
+		{
+			name: "replicas exceeds maximum limit (201) - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = MaxNodePoolNodes + 1
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 200", fieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -285,18 +318,63 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "autoscaling max at maximum limit (200) - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 1,
+					Max: MaxNodePoolNodes,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "autoscaling min too small - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.Replicas = 0
 				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
-					Min: 0,
+					Min: -1,
 					Max: 5,
 				}
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 1", fieldPath: "properties.autoScaling.min"},
+				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
+			},
+		},
+		{
+			// When Min is invalid (too large), Max is valid, we should only get Min error (not Max >= Min error).
+			name: "autoscaling min exceeds limit but max is valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: MaxNodePoolNodes + 1,
+					Max: 100,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
+			},
+		},
+		{
+			// When Min is invalid (too small), Max is valid, we should only get Min error (not Max >= Min error).
+			name: "autoscaling min negative but max is valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: -1,
+					Max: 100,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -312,6 +390,24 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []expectedError{
 				{message: "must be greater than or equal to 5", fieldPath: "properties.autoScaling.max"},
+			},
+		},
+		{
+			// Note: Both Min and Max validate max=200 (though logically redundant) for explicit error messages on both fields.
+			// When Min is invalid, we skip the Min<=Max check to avoid misleading "Max must be >= invalid_min" errors.
+			name: "autoscaling min and max both exceed limit with min > max - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: MaxNodePoolNodes + 2,
+					Max: MaxNodePoolNodes + 1,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
+				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -502,6 +598,30 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "Required value", fieldPath: "trackedResource.location"},
 			},
+		},
+		{
+			name: "replicas exceeds 200 with availability zone set - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 250
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling both min and max exceed 200 with availability zone set - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 300,
+					Max: 1000,
+				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
 		},
 	}
 
@@ -747,6 +867,48 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "scale up to maximum limit - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = MaxNodePoolNodes
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "replicas exceeds maximum limit - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = MaxNodePoolNodes + 1
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 200", fieldPath: "properties.replicas"},
+			},
+		},
+		{
+			name: "autoscaling min and max to maximum limit - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: MaxNodePoolNodes,
+					Max: MaxNodePoolNodes,
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
 			name: "invalid autoscaling on update - update",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -760,6 +922,23 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: createValidNodePool(),
 			expectErrors: []expectedError{
 				{message: "must be greater than or equal to 5", fieldPath: "properties.autoScaling.max"},
+			},
+		},
+		{
+			name: "autoscaling min and max exceeds maximum limit with min > max - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: MaxNodePoolNodes + 2,
+					Max: MaxNodePoolNodes + 1,
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []expectedError{
+				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
+				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -902,6 +1081,60 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 						Effect: api.EffectNoSchedule,
 					},
 				}
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "replicas exceeds 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 250
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 3
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling min exceeds 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "2"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 250,
+					Max: 300,
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "2"
+				return np
+			}(),
+			expectErrors: []expectedError{},
+		},
+		{
+			name: "autoscaling both min and max exceed 200 with availability zone set - valid - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
+				np.Properties.Replicas = 0
+				np.Properties.AutoScaling = &api.NodePoolAutoScaling{
+					Min: 300,
+					Max: 1000,
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.AvailabilityZone = "1"
 				return np
 			}(),
 			expectErrors: []expectedError{},

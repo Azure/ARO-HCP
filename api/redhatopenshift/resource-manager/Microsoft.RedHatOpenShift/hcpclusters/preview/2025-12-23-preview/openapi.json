@@ -2660,13 +2660,13 @@
         "min": {
           "type": "integer",
           "format": "int32",
-          "description": "The minimum number of nodes in the node pool",
+          "description": "The minimum number of nodes in the node pool.\nValidation:\n- Minimum: 0\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
           "minimum": 0
         },
         "max": {
           "type": "integer",
           "format": "int32",
-          "description": "The maximum number of nodes in the node pool",
+          "description": "The maximum number of nodes in the node pool.\nValidation:\n- Minimum: 0 (must be >= min)\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
           "minimum": 0
         }
       }
@@ -2771,7 +2771,8 @@
         "replicas": {
           "type": "integer",
           "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Minimum: 0\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
+          "minimum": 0,
           "x-ms-mutability": [
             "read",
             "update",
@@ -2860,7 +2861,8 @@
         "replicas": {
           "type": "integer",
           "format": "int32",
-          "description": "The number of worker nodes, it cannot be used together with autoscaling",
+          "description": "The number of worker nodes, it cannot be used together with autoscaling.\nValidation:\n- Minimum: 0\n- Maximum: 200 (only when availabilityZone is not specified)\n- No maximum when availabilityZone is specified",
+          "minimum": 0,
           "x-ms-mutability": [
             "read",
             "update",
