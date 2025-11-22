@@ -105,7 +105,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "valid nodepool with custom OS disk size - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = 128
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
 				return np
 			}(),
 			expectErrors: []expectedError{},
@@ -218,7 +218,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "OS disk size too small - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = 0
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
 				return np
 			}(),
 			expectErrors: []expectedError{
@@ -426,7 +426,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np := createValidNodePool()
 				np.Properties.Version.ID = "invalid-version"
 				np.Properties.Platform.VMSize = ""
-				np.Properties.Platform.OSDisk.SizeGiB = 0
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
 				np.Properties.Replicas = -1
 				return np
 			}(),
@@ -696,6 +696,22 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				return np
+			}(),
+			expectErrors: []expectedError{
+				{message: "field is immutable", fieldPath: "properties.platform"},
+			},
+		},
+		{
+			name: "immutable OS disk size - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
 			}(),
 			expectErrors: []expectedError{

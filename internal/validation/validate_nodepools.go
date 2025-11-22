@@ -209,7 +209,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 }
 
 var (
-	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return &oldObj.SizeGiB }
+	toOSDiskProfileSizeGiB                = func(oldObj *api.OSDiskProfile) *int32 { return oldObj.SizeGiB }
 	toOSDiskProfileDiskStorageAccountType = func(oldObj *api.OSDiskProfile) *api.DiskStorageAccountType { return &oldObj.DiskStorageAccountType }
 	toOSDiskProfileEncryptionSetID        = func(oldObj *api.OSDiskProfile) *string { return &oldObj.EncryptionSetID }
 )
@@ -217,8 +217,8 @@ var (
 func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.OSDiskProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), &newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 1)...)
+	//SizeGiB                *int32                 `json:"sizeGiB,omitempty"                validate:"omitempty,min=1"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 1)...)
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)
