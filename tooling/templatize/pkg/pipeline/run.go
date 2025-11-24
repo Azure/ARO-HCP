@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,6 +37,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
@@ -51,6 +53,7 @@ type PipelineRunOptions struct {
 	Concurrency int
 
 	TimingOutputFile string
+	JUnitOutputFile  string
 }
 
 type BaseRunOptions struct {
@@ -116,6 +119,7 @@ type ExecutionState struct {
 
 	Timing  map[graph.Identifier]*ExecutionInfo
 	Details map[graph.Identifier]*ExecutionDetails
+	Logging map[graph.Identifier][]byte
 }
 
 type ExecutionInfo struct {
@@ -191,6 +195,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		Queued:   sets.Set[graph.Identifier]{},
 		Timing:   make(map[graph.Identifier]*ExecutionInfo),
 		Details:  make(map[graph.Identifier]*ExecutionDetails),
+		Logging:  make(map[graph.Identifier][]byte),
 		Outputs:  make(Outputs),
 	}
 
@@ -219,8 +224,64 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			if err != nil {
 				logger.Error(err, "error marshalling timing")
 			}
-			if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+			if err := os.WriteFile(options.TimingOutputFile, encodedTiming, 0644); err != nil {
 				logger.Error(err, "error writing timing")
+			}
+		}()
+	}
+
+	if options.JUnitOutputFile != "" {
+		if err := os.MkdirAll(filepath.Dir(options.JUnitOutputFile), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create jUnit output dir: %w", err)
+		}
+		suiteStart := time.Now()
+		defer func() {
+			suiteEnd := time.Now()
+			state.RLock()
+			timing := state.Timing
+			logging := state.Logging
+			state.RUnlock()
+			suites := &junit.TestSuites{
+				Suites: []*junit.TestSuite{
+					{
+						Name: "step graph",
+					},
+				},
+			}
+			suite := suites.Suites[0]
+			for id, info := range timing {
+				thisLogger := logger.WithValues("id", id)
+				startedAt, err := time.Parse(time.RFC3339, info.StartedAt)
+				if err != nil {
+					thisLogger.Error(err, "error parsing started at")
+					continue
+				}
+				finishedAt, err := time.Parse(time.RFC3339, info.FinishedAt)
+				if err != nil {
+					thisLogger.Error(err, "error parsing finished at")
+					continue
+				}
+
+				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
+				if info.State == "failed" {
+					testCase.FailureOutput = &junit.FailureOutput{Output: string(logging[id])}
+				}
+
+				for _, test := range []*junit.TestCase{testCase} {
+					switch {
+					case test.FailureOutput != nil:
+						suite.NumFailed++
+					case test.SkipMessage != nil:
+						suite.NumSkipped++
+					}
+					suite.NumTests++
+					suite.TestCases = append(suite.TestCases, test)
+				}
+			}
+			suite.Duration = suiteEnd.Sub(suiteStart).Seconds()
+
+			if err := junit.Write(options.JUnitOutputFile, suites); err != nil {
+				logger.Error(err, "error writing jUnit")
 			}
 		}()
 	}
@@ -306,7 +367,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						thisLogger.V(4).Info("Queue channel closed.")
 						return
 					}
-					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
+					originalSink := thisLogger.GetSink()
+					stepLogs := bytes.Buffer{}
+					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(&stepLogs, &slog.HandlerOptions{}))
+					sink := multiSink{sinks: []logr.LogSink{originalSink, stepHandler.GetSink()}}
+					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step).WithSink(&sink)
 					stepLogger.V(4).Info("Executing step.")
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
@@ -330,6 +395,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						}(step, stepLogger)
 					}
 					state.Lock()
+					state.Logging[step] = stepLogs.Bytes()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
 					s := "succeeded"
 					if err != nil {
@@ -566,4 +632,60 @@ func resolveInput(serviceGroup string, input types.Input, outputs Outputs) (any,
 	} else {
 		return nil, fmt.Errorf("variable invalid: resource group %s has no step %s", input.ResourceGroup, input.Step)
 	}
+}
+
+// multiSink implements logr.Sink and sends logs to multiple sinks
+type multiSink struct {
+	sinks []logr.LogSink
+}
+
+var _ logr.LogSink = (*multiSink)(nil)
+
+// Enabled checks if logging is enabled for any sink
+func (m *multiSink) Enabled(level int) bool {
+	for _, s := range m.sinks {
+		if s.Enabled(level) {
+			return true
+		}
+	}
+	return false
+}
+
+// Info logs an info message to all sinks
+func (m *multiSink) Info(level int, msg string, keysAndValues ...interface{}) {
+	for _, s := range m.sinks {
+		s.Info(level, msg, keysAndValues...)
+	}
+}
+
+// Error logs an error message to all sinks
+func (m *multiSink) Error(err error, msg string, keysAndValues ...interface{}) {
+	for _, s := range m.sinks {
+		s.Error(err, msg, keysAndValues...)
+	}
+}
+
+// Init initializes all sinks
+func (m *multiSink) Init(info logr.RuntimeInfo) {
+	for _, s := range m.sinks {
+		s.Init(info)
+	}
+}
+
+// WithValues adds key-value pairs to all sinks
+func (m *multiSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
+	newSinks := make([]logr.LogSink, len(m.sinks))
+	for i, s := range m.sinks {
+		newSinks[i] = s.WithValues(keysAndValues...)
+	}
+	return &multiSink{sinks: newSinks}
+}
+
+// WithName adds a name to all sinks
+func (m *multiSink) WithName(name string) logr.LogSink {
+	newSinks := make([]logr.LogSink, len(m.sinks))
+	for i, s := range m.sinks {
+		newSinks[i] = s.WithName(name)
+	}
+	return &multiSink{sinks: newSinks}
 }
