@@ -68,8 +68,7 @@ var _ = Describe("Customer", func() {
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed-"+deployment.deploymentName, 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-				clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]any{
@@ -80,8 +79,7 @@ var _ = Describe("Customer", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -116,8 +114,7 @@ var _ = Describe("Customer", func() {
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			baseClusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			baseClusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			baseClusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				baseClusterParams,
 				map[string]any{
@@ -151,8 +148,7 @@ var _ = Describe("Customer", func() {
 				testClusterParams := baseClusterParams
 				testClusterParams.ClusterName = nameCase.clusterName
 
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					testClusterParams,
 					45*time.Minute,

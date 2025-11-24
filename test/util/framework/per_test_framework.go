@@ -16,6 +16,8 @@ package framework
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,11 +54,47 @@ type perItOrDescribeTestContext struct {
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	graphClient                   *graphutil.Client
+
+	timingMetadata   specTimingMetadata
+	knownDeployments []deploymentInfo
+}
+
+type specTimingMetadata struct {
+	Identifier []string
+
+	Steps []stepTimingMetadata `json:"steps,omitempty"`
+
+	// deployments holds deployment operation metadata by resource group and deployment name
+	Deployments map[string]map[string][]Operation `json:"deployments,omitempty"`
+}
+
+type stepTimingMetadata struct {
+	Name string `json:"name"`
+	// StartedAt is the time at which the step started, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
+	StartedAt string `json:"startedAt"`
+	// FinishedAt is the time at which the step finished, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
+	FinishedAt string `json:"finishedAt"`
+}
+
+type deploymentInfo struct {
+	resourceGroupName string
+	deploymentName    string
 }
 
 func NewTestContext() *perItOrDescribeTestContext {
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
+		timingMetadata: specTimingMetadata{
+			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
+			// all we know in general is the hierarchy of nodes under which we are currently running. We
+			// need to have some stable identifier for this test context to record metadata in the global,
+			// but we do not want metadata registration to be sensitive to a test author choosing to nest
+			// another `By()` node or whatever, so we can snapshot the hierarchy at test context construction
+			// time to keep a record of the "root" name for registration purposes.
+			Identifier:  ginkgo.CurrentSpecReport().ContainerHierarchyTexts,
+			Steps:       make([]stepTimingMetadata, 0),
+			Deployments: make(map[string]map[string][]Operation),
+		},
 	}
 
 	// this construct allows us to be called before or after the test has started and still properly register cleanup.
@@ -86,10 +124,18 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 
 	// Registered later and thus runs before deleting namespaces.
 	ginkgo.DeferCleanup(tc.collectDebugInfo, AnnotatedLocation("dump debug info"), ginkgo.NodeTimeout(45*time.Minute))
+
+	ginkgo.DeferCleanup(tc.commitTimingMetadata, AnnotatedLocation("dump timing info"), ginkgo.NodeTimeout(45*time.Minute))
 }
 
 // deleteCreatedResources deletes what was created that we know of.
 func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context) {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Delete created resources", startTime, finishTime)
+	}()
+
 	if tc.perBinaryInvocationTestContext.skipCleanup {
 		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
@@ -117,7 +163,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
-	errCleanupResourceGroups := CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
+	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
 	if errCleanupResourceGroups != nil {
 		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
@@ -157,7 +203,7 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 	return false
 }
 
-func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
+func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
 	// deletion takes a while, it's worth it to do this in parallel
 	wg := sync.WaitGroup{}
 	errCh := make(chan error, len(resourceGroupNames))
@@ -168,7 +214,7 @@ func CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			utilruntime.HandleCrashWithContext(ctx)
 
-			if err := cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName); err != nil {
+			if err := tc.cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName); err != nil {
 				errCh <- err
 			}
 		}(ctx)
@@ -236,7 +282,13 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
-func cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+	}()
+
 	errs := []error{}
 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
@@ -258,6 +310,12 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	//	// only collect data if we failed
 	//	return nil
 	//}
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.recordTestStepUnlocked(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
+	}()
 
 	errs := []error{}
 
@@ -500,4 +558,80 @@ func (tc *perItOrDescribeTestContext) Location() string {
 
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
+}
+
+func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []Operation) {
+	if _, exists := tc.timingMetadata.Deployments[resourceGroup]; !exists {
+		tc.timingMetadata.Deployments[resourceGroup] = make(map[string][]Operation)
+	}
+	tc.timingMetadata.Deployments[resourceGroup][deployment] = operations
+}
+
+func (tc *perItOrDescribeTestContext) RecordKnownDeployment(resourceGroup, deployment string) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	tc.knownDeployments = append(tc.knownDeployments, deploymentInfo{
+		resourceGroupName: resourceGroup,
+		deploymentName:    deployment,
+	})
+}
+
+func (tc *perItOrDescribeTestContext) RecordTestStep(name string, startTime, finishTime time.Time) {
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	tc.recordTestStepUnlocked(name, startTime, finishTime)
+}
+
+func (tc *perItOrDescribeTestContext) recordTestStepUnlocked(name string, startTime, finishTime time.Time) {
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, stepTimingMetadata{
+		Name:       name,
+		StartedAt:  startTime.Format(time.RFC3339),
+		FinishedAt: finishTime.Format(time.RFC3339),
+	})
+}
+
+func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) {
+	ginkgo.GinkgoLogr.Info("Commiting timing metadata.")
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	factory, err := tc.getARMResourcesClientFactoryUnlocked(ctx)
+	if err != nil {
+		ginkgo.Fail(fmt.Sprintf("Failed to get ARM resource client factory: %v", err))
+	}
+	operationsClient := factory.NewDeploymentOperationsClient()
+	for _, info := range tc.knownDeployments {
+		resourceGroupName, deploymentName := info.resourceGroupName, info.deploymentName
+		ginkgo.GinkgoLogr.Info("Dumping deployment operations.", "deployment", deploymentName, "resourceGroup", resourceGroupName)
+		operations, err := fetchOperationsFor(ctx, operationsClient, resourceGroupName, deploymentName)
+		if err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to fetch operations for deployment", "deployment", deploymentName, "resourceGroup", resourceGroupName)
+			continue
+		}
+		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
+	}
+
+	encoded, err := yaml.Marshal(tc.timingMetadata)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")
+		return
+	}
+
+	encodedIdentifier, err := yaml.Marshal(tc.timingMetadata.Identifier)
+	if err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing identifier")
+		return
+	}
+	hash := sha256.New()
+	hash.Write(encodedIdentifier)
+	hashBytes := hash.Sum(nil)
+	output := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+	if err := os.WriteFile(output, encoded, 0644); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
+		return
+	}
+
+	ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
 }

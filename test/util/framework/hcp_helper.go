@@ -36,7 +36,7 @@ import (
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
-func GetAdminRESTConfigForHCPCluster(
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
@@ -45,6 +45,12 @@ func GetAdminRESTConfigForHCPCluster(
 ) (*rest.Config, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
+	}()
 
 	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
 		ctx,

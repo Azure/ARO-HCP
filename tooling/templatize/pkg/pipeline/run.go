@@ -224,6 +224,8 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			if err != nil {
 				logger.Error(err, "error marshalling timing")
 			}
+
+			logger.Info("Writing timing report.", "file", options.TimingOutputFile)
 			if err := os.WriteFile(options.TimingOutputFile, encodedTiming, 0644); err != nil {
 				logger.Error(err, "error writing timing")
 			}
@@ -280,6 +282,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			}
 			suite.Duration = suiteEnd.Sub(suiteStart).Seconds()
 
+			logger.Info("Writing jUnit report.", "file", options.JUnitOutputFile)
 			if err := junit.Write(options.JUnitOutputFile, suites); err != nil {
 				logger.Error(err, "error writing jUnit")
 			}
@@ -394,6 +397,11 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							state.Unlock()
 						}(step, stepLogger)
 					}
+					if err != nil {
+						stepLogger.V(4).Error(err, "Step errored.")
+					} else {
+						stepLogger.V(4).Info("Finished step.")
+					}
 					state.Lock()
 					state.Logging[step] = stepLogs.Bytes()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
@@ -404,12 +412,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Timing[step].State = s
 					state.Unlock()
 					if err != nil {
-						stepLogger.V(4).Error(err, "Step errored.")
 						errs <- err
 						consumerCancel()
 						return
 					}
-					stepLogger.V(4).Info("Finished step.")
 					checkForStepsToExecute <- struct{}{}
 				case <-consumerCtx.Done():
 					thisLogger.V(4).Info("Context cancelled.")

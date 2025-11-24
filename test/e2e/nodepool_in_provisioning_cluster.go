@@ -60,8 +60,7 @@ var _ = Describe("Customer", func() {
 			clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
 			By("creating customer resources")
-			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -75,8 +74,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the cluster")
-			err = framework.CreateHCPClusterFromParam(ctx,
-				tc,
+			err = tc.CreateHCPClusterFromParam(ctx,
 				*resourceGroup.Name,
 				clusterParams,
 				0*time.Second, // Don't wait for the deployment to be finished
@@ -105,8 +103,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.OpenshiftVersionId = openshiftNodeVersionId
 			nodePoolParams.Replicas = int32(1)
 
-			err = framework.CreateNodePoolFromParam(ctx,
-				tc,
+			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				customerClusterName,
 				nodePoolParams,

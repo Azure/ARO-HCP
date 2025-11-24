@@ -113,6 +113,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 
 			TimingOutputFile: o.TimingOutputFile,
+			JUnitOutputFile:  o.JUnitOutputFile,
 		},
 	}, nil
 }

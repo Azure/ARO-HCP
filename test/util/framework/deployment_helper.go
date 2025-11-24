@@ -84,9 +84,8 @@ func GetOutputValueBytes(deploymentInfo *armresources.DeploymentExtended, output
 }
 
 // CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
-func CreateBicepTemplateAndWait(
+func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	ctx context.Context,
-	deploymentsClient *armresources.DeploymentsClient,
 	resourceGroupName string,
 	deploymentName string,
 	bicepTemplateJSON []byte,
@@ -95,6 +94,15 @@ func CreateBicepTemplateAndWait(
 ) (*armresources.DeploymentExtended, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy ARM template %s/%s", resourceGroupName, deploymentName), startTime, finishTime)
+	}()
+	tc.RecordKnownDeployment(resourceGroupName, deploymentName)
+
+	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 
 	bicepParameters := map[string]interface{}{}
 	for k, v := range parameters {
@@ -193,9 +201,8 @@ func ListAllOperations(
 	return allOperations, nil
 }
 
-func CreateHCPClusterFromParam(
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 	ctx context.Context,
-	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
 	parameters ClusterParams,
 	timeout time.Duration,
@@ -207,11 +214,17 @@ func CreateHCPClusterFromParam(
 	}
 	clusterName := parameters.ClusterName
 
-	cluster := BuildHCPClusterFromParams(parameters, testContext.Location())
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
+	}()
+
+	cluster := BuildHCPClusterFromParams(parameters, tc.Location())
 
 	if _, err := CreateHCPClusterAndWait(
 		ctx,
-		testContext.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 		resourceGroupName,
 		clusterName,
 		cluster,
@@ -222,9 +235,8 @@ func CreateHCPClusterFromParam(
 	return nil
 }
 
-func CreateNodePoolFromParam(
+func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 	ctx context.Context,
-	testContext *perItOrDescribeTestContext,
 	resourceGroupName string,
 	hcpClusterName string,
 	parameters NodePoolParams,
@@ -233,16 +245,22 @@ func CreateNodePoolFromParam(
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+	}()
+
 	nodePoolName := parameters.NodePoolName
 	if nodePoolName == "" {
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
-	nodePool := BuildNodePoolFromParams(parameters, testContext.Location())
+	nodePool := BuildNodePoolFromParams(parameters, tc.Location())
 
 	if _, err := CreateNodePoolAndWait(
 		ctx,
-		testContext.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+		tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 		resourceGroupName,
 		hcpClusterName,
 		nodePoolName,
