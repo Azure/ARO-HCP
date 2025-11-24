@@ -213,7 +213,6 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	resourceGroup *armresources.ResourceGroup,
 	clusterParams ClusterParams,
 	infraParameters map[string]interface{},
-	msiIds []string,
 	artifactsFS embed.FS,
 ) (ClusterParams, error) {
 	startTime := time.Now()
@@ -222,12 +221,12 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
-	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		*resourceGroup.Name,
-		"customer-infra",
+	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-		infraParameters,
-		45*time.Minute,
+		WithDeploymentName("customer-infra"),
+		WithResourceGroupScope(*resourceGroup.Name),
+		WithParameters(infraParameters),
+		WithTimeout(45*time.Minute),
 	)
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create customer-infra: %w", err)
@@ -237,18 +236,26 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
 
-	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		*resourceGroup.Name,
-		"managed-identities",
+	msiPool, err := GetLeasedMSIs(ctx)
+	if err != nil {
+		return clusterParams, fmt.Errorf("failed to get leased MSIs: %w", err)
+	}
+
+	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-		map[string]interface{}{
-			"msiIds":       msiIds,
-			"nsgName":      clusterParams.NsgName,
-			"vnetName":     clusterParams.VnetName,
-			"subnetName":   clusterParams.SubnetName,
-			"keyVaultName": clusterParams.KeyVaultName,
-		},
-		45*time.Minute,
+		WithSubscriptionScope(),
+		WithDeploymentName("managed-identities"),
+		WithLocation(invocationContext().Location()),
+		WithParameters(map[string]interface{}{
+			"clusterResourceGroupName": *resourceGroup.Name,
+			"msiResourceGroupName":     msiPool.ResourceGroupName,
+			"pooledIdentities":         msiPool.Identities,
+			"nsgName":                  clusterParams.NsgName,
+			"vnetName":                 clusterParams.VnetName,
+			"subnetName":               clusterParams.SubnetName,
+			"keyVaultName":             clusterParams.KeyVaultName,
+		}),
+		WithTimeout(45*time.Minute),
 	)
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)

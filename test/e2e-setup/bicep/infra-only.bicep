@@ -1,8 +1,10 @@
+targetScope = 'resourceGroup'
+
 @description('If set to true, the cluster will not be deleted automatically after few days.')
 param persistTagValue bool = false
 
-@description('Array of MSI resource IDs from leased pool')
-param msiIds array
+@description('MSI pool info: resource group + identities')
+param identities object
 
 module customerInfra 'modules/customer-infra.bicep' = {
   name: 'customerInfra'
@@ -13,8 +15,11 @@ module customerInfra 'modules/customer-infra.bicep' = {
 
 module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'managedIdentities'
+  scope: subscription()
   params: {
-    msiIds: msiIds
+    msiResourceGroupName: identities.resourceGroup
+    clusterResourceGroupName: resourceGroup().name
+    pooledIdentities: identities.identities
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName

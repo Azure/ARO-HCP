@@ -51,9 +51,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting MSIs from pool")
-			msiPool, err := framework.NewMSIPool(ctx, tc.GetSubscriptionID(ctx), tc.GetAzureCredentialOrDie(ctx))
-			Expect(err).NotTo(HaveOccurred())
-			msiIds, err := msiPool.GetLeasedMSIs(ctx)
+			msiPool, err := framework.GetLeasedMSIs(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("starting cluster-only template deployment asynchronously")
@@ -69,8 +67,8 @@ var _ = Describe("Customer", func() {
 				"clusterName": map[string]interface{}{
 					"value": clusterName,
 				},
-				"msiIds": map[string]interface{}{
-					"value": msiIds,
+				"msiIdentities": map[string]interface{}{
+					"value": msiPool,
 				},
 			}
 

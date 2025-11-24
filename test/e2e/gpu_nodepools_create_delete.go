@@ -69,13 +69,18 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "gpu-nodepools-"+sku.display, location)
 				Expect(err).NotTo(HaveOccurred())
 
+				By("getting MSIs from pool")
+				msiPool, err := framework.GetLeasedMSIs(ctx)
+				Expect(err).NotTo(HaveOccurred())
+
 				By("deploying demo template (single-step infra + identities + cluster)")
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"aro-hcp-demo",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
 					map[string]interface{}{
-						"clusterName": customerClusterName,
+						"clusterName":   customerClusterName,
+						"msiIdentities": msiPool,
 					},
 					45*time.Minute,
 				)
