@@ -156,7 +156,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	// Create Kusto client
 	var kustoClient *kusto.Client
-	if o.KustoEndpoint == "" {
+	if o.KustoEndpoint != "" {
 		kustoConnectionStringBuilder := kusto.NewConnectionStringBuilder(o.KustoEndpoint).WithDefaultAzureCredential()
 		client, err := kusto.New(kustoConnectionStringBuilder)
 		if err != nil {
