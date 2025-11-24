@@ -1,4 +1,4 @@
-param clusterLogPrincipalId string
+param clusterLogPrincipalId string = ''
 
 param readAccessPrincipalIds array= []
 
@@ -11,7 +11,7 @@ resource database 'Microsoft.Kusto/clusters/databases@2024-04-13' existing = {
   name: '${kustoName}/${databaseName}'
 }
 
-resource grantIngest 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = {
+resource grantIngest 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = if (clusterLogPrincipalId != '') {
   parent: database
   name: 'grant-${guid(clusterLogPrincipalId, databaseName)}'
   properties: {
