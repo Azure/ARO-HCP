@@ -28,7 +28,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
 
    ```bash
    cd dev-infrastructure/
-   make create-int-mock-identities
+   make create-int-mock-identities assign-role-for-rbac
    ```
 
 1. **Update configuration**

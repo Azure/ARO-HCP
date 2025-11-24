@@ -165,6 +165,16 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
 
+# TODO: this is a workaround to enable the mock FPA to call the Check Access API with a built-in role.
+# The permissions should be reduced to match "dev-first-party-mock" role definition (ARO-17798).
+.PHONY: assign-role-for-rbac
+
+assign-role-for-rbac:
+	APPLICATION_NAME=aro-dev-first-party2 \
+	ROLE_DEFINITION_NAME=Contributor \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/assign-role-for-rbac.sh
+
 .PHONY: create-mock-identities
 
 #
