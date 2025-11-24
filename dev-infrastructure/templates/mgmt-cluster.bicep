@@ -538,7 +538,7 @@ var kustoRef = res.kustoRefFromId(kustoResourceId)
 module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-svc-${uniqueString(resourceGroup().name)}'
   params: {
-    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: serviceLogsDatabase
     kustoName: kustoRef.name
   }
@@ -548,7 +548,7 @@ module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arob
 module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-hcp-${uniqueString(resourceGroup().name)}'
   params: {
-    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: hostedControlPlaneLogsDatabase
     kustoName: kustoRef.name
   }

@@ -1029,7 +1029,7 @@ var kustoRef = res.kustoRefFromId(kustoResourceId)
 module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-${uniqueString(resourceGroup().name)}'
   params: {
-    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
     databaseName: serviceLogsDatabase
     kustoName: kustoRef.name
   }
