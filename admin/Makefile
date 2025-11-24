@@ -57,12 +57,12 @@ clean:
 .PHONY: clean
 
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
-	docker build . --file Dockerfile \
+	cd $(ADMIN_DIR)/.. && \
+	docker build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_IMAGE_TAG=${ADMIN_API_IMAGE_TAG} \
 		--tag ${ADMIN_API_TAGGED_IMAGE}
-	@touch $@
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
