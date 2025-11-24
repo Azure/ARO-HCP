@@ -303,6 +303,8 @@ global:
         poll: true
       Microsoft.Dashboard:
         poll: true
+      Microsoft.Kusto:
+        poll: true
       Microsoft.Network:
         features:
         - name: AllowBringYourOwnPublicIpAddress
@@ -338,21 +340,14 @@ kubeEvents:
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
-  adminGroups: ""
+  adminGroups: 6b6d3adf-8476-4727-9812-20ffdef2b85c
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
-  manageInstance: false
+  kustoName: hcp-dev-us
+  manageInstance: true
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
-  sku: ""
-  staticKustoName: hcp-dev-us
-  subscription:
-    displayName: Azure Red Hat OpenShift HCP - Kusto - us
-    key: ARO Hosted Control Planes (EA Subscription 1)
-    providers:
-      Microsoft.Kusto:
-        poll: true
-    usePlannedQuota: false
-  tier: ""
+  sku: Dev(No SLA)_Standard_D11_v2
+  tier: Basic
   viewerGroups: ""
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
