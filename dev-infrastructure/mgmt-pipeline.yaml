@@ -45,6 +45,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -192,6 +202,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: logAnalyticsWorkspaceId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -342,6 +357,10 @@ resourceGroups:
         resourceGroup: management
         step: arobit-output
         name: msiClientId
+      kustoDataIngestionUri:
+        resourceGroup: kusto
+        step: output
+        name: kustoDataIngestionUri
     identityFrom:
       resourceGroup: global
       step: output

@@ -359,5 +359,6 @@ cleanup: $(TEMPLATIZE)
 								     --dev-environment $(DEPLOY_ENV) \
 								     $(WHAT) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
+									 --ignore=global --ignore=hcp-kusto-us \
 								     --wait=$(CLEANUP_WAIT) \
 								     --verbosity=$(LOG_LEVEL)

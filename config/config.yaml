@@ -59,6 +59,8 @@ defaults:
           features:
           - name: IstioNativeSidecarModePreview
             poll: true
+        'Microsoft.Kusto':
+          poll: true
     rg: global-shared-resources
     billing:
       rg: "placeholder"
@@ -186,21 +188,14 @@ defaults:
         manage: true
   kusto:
     manageInstance: false
-    rg: "hcp-kusto-us"
-    staticKustoName: ""
+    rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
+    kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     serviceLogsDatabase: "ServiceLogs"
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
     viewerGroups: ""
     sku: ""
     tier: ""
-    subscription:
-      usePlannedQuota: false
-      key: "kusto-{{ .ev2.geoShortId }}"
-      displayName: "Azure Red Hat OpenShift HCP - Kusto - {{ .ev2.geoShortId }}"
-      providers:
-        'Microsoft.Kusto':
-          poll: true
   # Hypershift
   hypershift:
     image:
@@ -792,9 +787,12 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
       kusto:
-        staticKustoName: "hcp-dev-us"
-        subscription:
-          key: ARO Hosted Control Planes (EA Subscription 1)
+        kustoName: "hcp-dev-us"
+        manageInstance: true
+        sku: "Dev(No SLA)_Standard_D11_v2"
+        tier: "Basic"
+        adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
+        rg: "hcp-kusto-us"
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
         enabled: false
@@ -1022,12 +1020,6 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
-          kusto:
-            manageInstance: true
-            rg: "hcp-kusto-us"
-            sku: "Dev(No SLA)_Standard_D11_v2"
-            tier: "Basic"
-            adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
