@@ -128,6 +128,7 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("failed to execute shell command: %s %w", string(output), err)
 	}
+	logger.V(4).Info(fmt.Sprintf("Output from shell command: %s\n", string(output)))
 
 	fmt.Fprint(outputWriter, string(output))
 	return commit()
