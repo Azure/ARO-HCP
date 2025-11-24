@@ -581,7 +581,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		}
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 	}

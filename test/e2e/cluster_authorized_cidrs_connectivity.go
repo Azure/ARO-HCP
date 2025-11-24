@@ -190,13 +190,18 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				// Test connectivity using VM run command
 				connectivityTest := fmt.Sprintf("curl -k -s -o /dev/null -w '%%{http_code}' --connect-timeout 10 %s/healthz", apiURL)
-				output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
-				Expect(err).NotTo(HaveOccurred())
 
-				// Should get HTTP response (likely 401 or 200, but not connection refused)
-				httpCode := strings.TrimSpace(output)
-				By(fmt.Sprintf("VM received HTTP status code: %s", httpCode))
-				Expect(httpCode).To(MatchRegexp("^[2-5][0-9][0-9]$"), "Should receive valid HTTP status code from authorized IP")
+				// Wrap in Eventually for robustness - authorized CIDR rules may take time to propagate
+				var httpCode string
+				Eventually(func(g Gomega) {
+					output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+					g.Expect(err).NotTo(HaveOccurred())
+
+					// Should get HTTP response (likely 401 or 200, but not connection refused)
+					httpCode = strings.TrimSpace(output)
+					By(fmt.Sprintf("VM received HTTP status code: %s", httpCode))
+					g.Expect(httpCode).To(MatchRegexp("^[2-5][0-9][0-9]$"), "Should receive valid HTTP status code from authorized IP")
+				}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("testing connectivity from current machine (should be blocked)")
 				// Try to connect from the test runner (which is not in authorized CIDRs)
@@ -227,16 +232,21 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Use base64 encoding to safely transfer kubeconfig
 				kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 				kubectlTest := fmt.Sprintf("echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get nodes 2>&1", kubeconfigB64)
-				output, err = runVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest)
-				By(fmt.Sprintf("kubectl output from authorized VM: %s", output))
 
-				// Should be able to run kubectl commands (even if nodes aren't ready)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(output).To(Or(
-					ContainSubstring("NAME"),         // Success - got nodes
-					ContainSubstring("No resources"), // Success - no nodes yet
-					ContainSubstring("NotReady"),     // Success - nodes not ready
-				), "Should be able to execute kubectl from authorized VM")
+				// Wrap in Eventually for robustness - API access may take time to propagate
+				Eventually(func(g Gomega) {
+					var err error
+					output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest)
+					By(fmt.Sprintf("kubectl output from authorized VM: %s", output))
+
+					// Should be able to run kubectl commands (even if nodes aren't ready)
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(output).To(Or(
+						ContainSubstring("NAME"),         // Success - got nodes
+						ContainSubstring("No resources"), // Success - no nodes yet
+						ContainSubstring("NotReady"),     // Success - nodes not ready
+					), "Should be able to execute kubectl from authorized VM")
+				}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
@@ -266,11 +276,8 @@ var _ = Describe("Authorized CIDRs", func() {
 				_, err = poller.PollUntilDone(ctx, nil)
 				Expect(err).NotTo(HaveOccurred())
 
-				// Wait a bit for the change to propagate
-				time.Sleep(30 * time.Second)
-
 				By("verifying VM is now blocked from API access")
-				output, err = runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+				output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
 				if err != nil || strings.TrimSpace(output) == "000" || strings.TrimSpace(output) == "" {
 					By("Connection correctly blocked after removing VM from authorized CIDRs")
 				} else {
@@ -314,7 +321,12 @@ func runVMCommand(ctx context.Context, tc interface {
 		return "", err
 	}
 
-	result, err := poller.PollUntilDone(ctx, nil)
+	// Create a timeout context to avoid waiting too long on VM command failures
+	// VM commands should complete quickly (within a few minutes at most)
+	pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	result, err := poller.PollUntilDone(pollCtx, nil)
 	if err != nil {
 		return "", err
 	}
