@@ -535,7 +535,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 import * as res from '../modules/resource.bicep'
 var kustoRef = res.kustoRefFromId(kustoResourceId)
 
-module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+module grantKustoSvcIngest '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-svc-${uniqueString(resourceGroup().name)}'
   params: {
     clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
@@ -545,7 +545,7 @@ module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arob
   scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }
 
-module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-hcp-${uniqueString(resourceGroup().name)}'
   params: {
     clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID

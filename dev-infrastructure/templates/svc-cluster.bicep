@@ -1028,10 +1028,11 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 
 var kustoRef = res.kustoRefFromId(kustoResourceId)
 
-module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+module grantKustIngest '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-${uniqueString(resourceGroup().name)}'
   params: {
     clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    readAccessPrincipalIds: [adminApiMI.uamiPrincipalID]
     databaseName: serviceLogsDatabase
     kustoName: kustoRef.name
   }

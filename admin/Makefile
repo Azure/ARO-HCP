@@ -43,9 +43,15 @@ run: $(BINARY)
 
 run-with-sc-integration: $(BINARY)
 	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
+	KUSTO_ENDPOINT=$$(az kusto cluster show -n ${KUSTO_CLUSTER_NAME} -g ${KUSTO_RG} --query uri -o tsv) && \
 	./hack/run-with-port-forward.sh "${CS_PORT_FORWARD_SPEC}" \
 		./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
-			./${BINARY} serve --location ${LOCATION} --clusters-service-url http://localhost:${CS_LOCAL_PORT} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME}
+			./${BINARY} serve \
+				--location ${LOCATION} \
+				--clusters-service-url http://localhost:${CS_LOCAL_PORT} \
+				--cosmos-url $${COSMOS_DB_URL} \
+				--cosmos-name ${COSMOS_DB_NAME} \
+				--kusto-endpoint $${KUSTO_ENDPOINT}
 .PHONY: run-with-sc-integration
 
 clean:

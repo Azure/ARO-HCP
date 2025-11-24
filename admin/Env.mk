@@ -26,3 +26,7 @@ REGION_RG ?= {{ .regionRG }}
 # Admin API details
 ADMIN_API_NAMESPACE ?= {{ .adminApi.k8s.namespace }}
 ADMIN_API_SERVICE_ACCOUNT ?= {{ .adminApi.k8s.serviceAccountName }}
+
+# Kusto details
+KUSTO_CLUSTER_NAME ?= {{ .kusto.kustoName }}
+KUSTO_RG ?= {{ .kusto.rg }}

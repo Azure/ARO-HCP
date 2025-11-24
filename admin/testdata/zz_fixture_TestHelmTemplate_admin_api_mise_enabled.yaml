@@ -71,6 +71,15 @@ spec:
         args:
         - "--location"
         - "westus3"
+        env:
+        - name: CLUSTERS_SERVICE_URL
+          value: "http://clusters-service.clusters-service.svc.cluster.local:8000"
+        - name: COSMOS_URL
+          value: "__cosmosDBDocumentEndpoint__"
+        - name: COSMOS_NAME
+          value: "arohcpdev-rp-usw3"
+        - name: KUSTO_ENDPOINT
+          value: "__kustoEndpoint__"
         ports:
         - containerPort: 8443
           name: http
