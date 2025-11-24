@@ -2,10 +2,8 @@
 
 set -euo pipefail
 
-# Get Kubeconfig
-KUBECONFIG=$(mktemp)
-${HCPCTL} sc breakglass "${SVC_CLUSTER}" --output "${KUBECONFIG}" --no-shell
-
+CLUSTER_NAME=$1
+shift
 # Port forward specification is expected to be in the format of "namespace/service/localPort/remotePort"
 PORT_FORWARD_SPEC="$1"
 shift
@@ -13,6 +11,10 @@ NAMESPACE=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f1)
 SERVICE_NAME=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f2)
 LOCAL_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f3)
 REMOTE_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f4)
+
+# Get Kubeconfig
+KUBECONFIG=$(mktemp)
+${HCPCTL} sc breakglass "${CLUSTER_NAME}" --output "${KUBECONFIG}" --no-shell
 
 # Start port-forward in background
 kubectl port-forward -n "$NAMESPACE" svc/"$SERVICE_NAME" "$LOCAL_PORT":"$REMOTE_PORT" &

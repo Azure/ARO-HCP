@@ -197,7 +197,7 @@ func (opts *Options) Run(ctx context.Context) error {
 	adminMux := http.NewServeMux()
 	adminMux.Handle("GET /helloworld", handlers.HelloWorldHandler())
 
-	rootMux.Handle("/admin", http.StripPrefix("admin", adminMux))
+	rootMux.Handle("/admin/", http.StripPrefix("/admin", adminMux))
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),

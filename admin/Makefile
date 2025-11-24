@@ -42,7 +42,7 @@ run: $(BINARY)
 run-with-sc-integration: $(BINARY)
 	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	KUSTO_ENDPOINT=$$(az kusto cluster show -n ${KUSTO_CLUSTER_NAME} -g ${KUSTO_RG} --query uri -o tsv) && \
-	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${CS_PORT_FORWARD_SPEC}" \
+	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${CS_PORT_FORWARD_SPEC}" \
 		HCPCTL=$(HCPCTL) ./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
 			./${BINARY} serve \
 				--location ${LOCATION} \
@@ -111,7 +111,7 @@ run-hello-world-test: $(CLI_BINARY)
 .PHONY: run-hello-world-test
 
 run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
-	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${ADMIN_API_PORT_FORWARD_SPEC}" \
+	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ISTIO_PORT_FORWARD_SPEC}" \
 		./${CLI_BINARY} hello-world \
 			--ga-auth-cert-kv "${GA_AUTH_CERT_KV}" \
 			--ga-auth-cert-secret "${GA_AUTH_CERT_SECRET}" \
