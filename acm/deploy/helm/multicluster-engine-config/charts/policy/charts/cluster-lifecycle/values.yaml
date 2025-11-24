@@ -7,8 +7,13 @@ global:
   imageRepository: ''
   hubSize: Small
 hubconfig:
-  nodeSelector: null
+  nodeSelector:
+    aro-hcp.azure.com/role: infra
   proxyConfigs: {}
   replicaCount: 2
-  tolerations: []
+  tolerations:
+  - Effect: NoSchedule
+    Key: infra
+    Operator: Equal
+    Value: "true"
 org: open-cluster-management

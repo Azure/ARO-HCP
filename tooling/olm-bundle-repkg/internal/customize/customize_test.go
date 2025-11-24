@@ -215,6 +215,49 @@ func TestParameterizeDeployment(t *testing.T) {
 	}
 }
 
+func TestTolerationsAndNodeSelectorForDeployment(t *testing.T) {
+	deployment := buildDeployment("test-deployment", "registry.io/test-image:abcdef", nil)
+	obj, err := convertToUnstructured(deployment)
+	assert.Nil(t, err)
+	config := &BundleConfig{
+		ImageRegistryParam: "imageRegistry",
+		OperatorTolerations: []v1.Toleration{
+			{
+				Key:      "infra",
+				Value:    "true",
+				Effect:   v1.TaintEffectNoSchedule,
+				Operator: v1.TolerationOpEqual,
+			},
+		},
+		OperatorNodeSelector: map[string]string{
+			"aro-hcp.azure.com/role": "infra",
+		},
+	}
+
+	modifiedObj, params, err := createParameterizeDeployment(config)(obj)
+	assert.Nil(t, err)
+	assert.NotNil(t, params)
+	assert.True(t, func() bool { _, ok := params[config.ImageRegistryParam]; return ok }())
+
+	modifiedDeployment := &appsv1.Deployment{}
+	err = convertFromUnstructured(modifiedObj, modifiedDeployment)
+	assert.Nil(t, err)
+
+	// verify all image references have been modified
+	for _, container := range modifiedDeployment.Spec.Template.Spec.Containers {
+		assert.Equal(t, "{{ .Values.imageRegistry }}/test-image:abcdef", container.Image)
+	}
+
+	assert.True(t, len(modifiedDeployment.Spec.Template.Spec.Tolerations) == 1)
+	assert.Equal(t, "infra", modifiedDeployment.Spec.Template.Spec.Tolerations[0].Key)
+	assert.Equal(t, "true", modifiedDeployment.Spec.Template.Spec.Tolerations[0].Value)
+	assert.Equal(t, v1.TaintEffectNoSchedule, modifiedDeployment.Spec.Template.Spec.Tolerations[0].Effect)
+	assert.Equal(t, v1.TolerationOpEqual, modifiedDeployment.Spec.Template.Spec.Tolerations[0].Operator)
+
+	assert.True(t, len(modifiedDeployment.Spec.Template.Spec.NodeSelector) == 1)
+	assert.Equal(t, "infra", modifiedDeployment.Spec.Template.Spec.NodeSelector["aro-hcp.azure.com/role"])
+}
+
 func TestAnnotationCleaner(t *testing.T) {
 	for _, testCase := range []struct {
 		name        string

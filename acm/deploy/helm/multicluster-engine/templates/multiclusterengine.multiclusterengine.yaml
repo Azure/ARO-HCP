@@ -5,6 +5,8 @@ metadata:
 spec:
   availabilityConfig: High
   imagePullSecret: open-cluster-management-image-pull-credentials
+  nodeSelector:
+    aro-hcp.azure.com/role: infra
   overrides:
     components:
     - enabled: true
@@ -46,5 +48,6 @@ spec:
   targetNamespace: '{{ .Release.Namespace }}'
   tolerations:
   - effect: NoSchedule
-    key: node-role.kubernetes.io/infra
-    operator: Exists
+    key: infra
+    operator: Equal
+    value: "true"

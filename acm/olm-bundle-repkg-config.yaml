@@ -4,6 +4,13 @@ chartDescription: A Helm chart for multicluster-engine
 # Operator deployment identification
 operatorDeploymentNames:
 - multicluster-engine
+operatorNodeSelector:
+  aro-hcp.azure.com/role: infra
+operatorTolerations:
+- effect: NoSchedule
+  key: infra
+  operator: "Equal"
+  value: "true"
 # Image environment variable patterns
 operandImageEnvPrefixes:
 - OPERAND_IMAGE_
