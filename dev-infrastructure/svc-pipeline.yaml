@@ -50,8 +50,8 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
-    template: templates/kusto-loopkup.bicep
-    parameters: configurations/kusto-loopkup.tmpl.bicepparam
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
 - name: service

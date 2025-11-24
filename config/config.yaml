@@ -793,6 +793,10 @@ clouds:
     defaults:
       kusto:
         kustoName: "hcp-dev-us"
+        manageInstance: true
+        sku: "Dev(No SLA)_Standard_D11_v2"
+        tier: "Basic"
+        adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
         rg: "hcp-kusto-us"
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
@@ -1023,11 +1027,6 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
-          kusto:
-            manageInstance: true
-            sku: "Dev(No SLA)_Standard_D11_v2"
-            tier: "Basic"
-            adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:

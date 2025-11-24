@@ -533,7 +533,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 //
 
 import * as res from '../modules/resource.bicep'
-var kustoRef =res.kustoRefFromId(kustoResourceId)
+var kustoRef = res.kustoRefFromId(kustoResourceId)
 
 module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKustoSvcIngest'
