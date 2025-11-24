@@ -1551,9 +1551,6 @@
     "kusto": {
       "type": "object",
       "properties": {
-        "subscription": {
-          "$ref": "#/definitions/subscriptionMetadata"
-        },
         "rg": {
           "type": "string"
         },
@@ -1615,7 +1612,6 @@
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
         "viewerGroups",
-        "subscription",
         "kustoName"
       ]
     },

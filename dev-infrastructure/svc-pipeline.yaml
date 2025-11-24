@@ -46,7 +46,7 @@ resourceGroups:
     outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
-  subscription: '{{ .kusto.subscription.key }}'
+  subscription: '{{ .global.subscription.key }}'
   steps:
   - name: output
     action: ARM
