@@ -1,5 +1,7 @@
-az deployment sub create \
+az stack sub create \
     --name aro-hcp-msi-pool \
-    --location eastus \
-    --template-file test/e2e-setup/bicep/msi-pool.bicep \
-    --parameters poolSize=300 msisPerResourceGroup=13
+    --location uksouth \
+    --template-file test/e2e-setup/bicep/msi-pools.bicep \
+    --parameters poolSize=1 \
+    --deny-settings-mode None \
+    --action-on-unmanage deleteResources

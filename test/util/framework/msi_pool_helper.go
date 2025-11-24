@@ -8,73 +8,90 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 )
 
 const (
 	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
-	MinMSICount               = 13
 	MinLeasedRGCount          = 15
 	LockFileName              = "aro-hcp-msi-pool-counter.lock"
 )
 
-type MSIPool struct {
-	subscriptionID string
-	msiClient      *armmsi.UserAssignedIdentitiesClient
-	leasedRGs      []string
+// well-known MSI role names
+const (
+	ClusterApiAzureMiName        = "cluster-api-azure"
+	ControlPlaneMiName           = "control-plane"
+	CloudControllerManagerMiName = "cloud-controller-manager"
+	IngressMiName                = "ingress"
+	DiskCsiDriverMiName          = "disk-csi-driver"
+	FileCsiDriverMiName          = "file-csi-driver"
+	ImageRegistryMiName          = "image-registry"
+	CloudNetworkConfigMiName     = "cloud-network-config"
+	KmsMiName                    = "kms"
+	DpDiskCsiDriverMiName        = "dp-disk-csi-driver"
+	DpFileCsiDriverMiName        = "dp-file-csi-driver"
+	DpImageRegistryMiName        = "dp-image-registry"
+	ServiceManagedIdentityName   = "service"
+)
+
+// MsiIdentities mirrors the MSI identity layout used in Bicep modules
+// (non-msi-scoped-assignments.bicep / msi-scoped-assignments.bicep).
+// We store the MSI *names* here so they can be passed directly to Bicep params.
+type MsiPool struct {
+	ResourceGroupName string     `json:"resourceGroup"`
+	Identities        Identities `json:"identities"`
 }
 
-func NewMSIPool(ctx context.Context, subscriptionID string, cred azcore.TokenCredential) (*MSIPool, error) {
-	msiClient, err := armmsi.NewUserAssignedIdentitiesClient(subscriptionID, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create MSI client: %w", err)
-	}
-
-	leasedRGs := strings.Split(os.Getenv(LeasedMSIContainersEnvvar), " ")
-
-	if len(leasedRGs) == 0 {
-		return nil, fmt.Errorf("expected at least %d resource groups with precreated MSIs in envvar %s", MinLeasedRGCount, LeasedMSIContainersEnvvar)
-	}
-
-	return &MSIPool{
-		subscriptionID: subscriptionID,
-		msiClient:      msiClient,
-		leasedRGs:      leasedRGs,
-	}, nil
+type Identities struct {
+	ClusterApiAzureMiName        string `json:"clusterApiAzureMiName"`
+	ControlPlaneMiName           string `json:"controlPlaneMiName"`
+	CloudControllerManagerMiName string `json:"cloudControllerManagerMiName"`
+	IngressMiName                string `json:"ingressMiName"`
+	DiskCsiDriverMiName          string `json:"diskCsiDriverMiName"`
+	FileCsiDriverMiName          string `json:"fileCsiDriverMiName"`
+	ImageRegistryMiName          string `json:"imageRegistryMiName"`
+	CloudNetworkConfigMiName     string `json:"cloudNetworkConfigMiName"`
+	KmsMiName                    string `json:"kmsMiName"`
+	DpDiskCsiDriverMiName        string `json:"dpDiskCsiDriverMiName"`
+	DpFileCsiDriverMiName        string `json:"dpFileCsiDriverMiName"`
+	DpImageRegistryMiName        string `json:"dpImageRegistryMiName"`
+	ServiceManagedIdentityName   string `json:"serviceManagedIdentityName"`
 }
 
 // GetLeasedMSIs acquires the next available RG using an atomic file-based counter
-// and returns the MSIs from that resource group.
-func (p *MSIPool) GetLeasedMSIs(ctx context.Context) ([]string, error) {
-	rgIndex, err := p.acquireNextRGIndex()
+// and returns the MSIs from that resource group, mapped by their logical roles.
+func GetLeasedMSIs(ctx context.Context) (MsiPool, error) {
+
+	leasedRGs := strings.Split(os.Getenv(LeasedMSIContainersEnvvar), " ")
+	if len(leasedRGs) == 0 {
+		return MsiPool{}, fmt.Errorf("expected at least %d resource groups with precreated MSIs in envvar %s", MinLeasedRGCount, LeasedMSIContainersEnvvar)
+	}
+
+	rgIndex, err := acquireNextRGIndex(leasedRGs)
 	if err != nil {
-		return nil, err
+		return MsiPool{}, err
 	}
 
-	var msis []string
-	pager := p.msiClient.NewListByResourceGroupPager(p.leasedRGs[rgIndex], nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list MSIs in %s: %w", p.leasedRGs[rgIndex], err)
-		}
-
-		for _, msi := range page.Value {
-			msis = append(msis, *msi.ID)
-		}
-	}
-
-	if len(msis) < MinMSICount {
-		return nil, fmt.Errorf("not enough MSIs found in leased resource group %s, expected %d, got %d", p.leasedRGs[rgIndex], MinMSICount, len(msis))
-	}
-
-	return msis, nil
+	return MsiPool{
+		ResourceGroupName: leasedRGs[rgIndex],
+		Identities: Identities{
+			ClusterApiAzureMiName:        ClusterApiAzureMiName,
+			ControlPlaneMiName:           ControlPlaneMiName,
+			CloudControllerManagerMiName: CloudControllerManagerMiName,
+			IngressMiName:                IngressMiName,
+			DiskCsiDriverMiName:          DiskCsiDriverMiName,
+			FileCsiDriverMiName:          FileCsiDriverMiName,
+			ImageRegistryMiName:          ImageRegistryMiName,
+			CloudNetworkConfigMiName:     CloudNetworkConfigMiName,
+			KmsMiName:                    KmsMiName,
+			DpDiskCsiDriverMiName:        DpDiskCsiDriverMiName,
+			DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
+			DpImageRegistryMiName:        DpImageRegistryMiName,
+			ServiceManagedIdentityName:   ServiceManagedIdentityName,
+		}}, nil
 }
 
-func (p *MSIPool) acquireNextRGIndex() (int, error) {
-	lockFile := filepath.Join(os.TempDir(), LockFileName)
+func acquireNextRGIndex(leasedRGs []string) (int, error) {
+	lockFile := filepath.Join(sharedDir(), LockFileName)
 
 	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
@@ -99,8 +116,8 @@ func (p *MSIPool) acquireNextRGIndex() (int, error) {
 		}
 	}
 
-	if counter >= len(p.leasedRGs) {
-		return 0, fmt.Errorf("all %d MSI resource groups exhausted (lock file: %s)", len(p.leasedRGs), lockFile)
+	if counter >= len(leasedRGs) {
+		return 0, fmt.Errorf("all %d MSI resource groups exhausted (lock file: %s)", len(leasedRGs), lockFile)
 	}
 
 	nextCounter := counter + 1

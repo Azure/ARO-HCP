@@ -3,9 +3,6 @@ targetScope = 'subscription'
 @description('Number of resource groups to create (pool size)')
 param poolSize int = 10
 
-@description('Number of MSIs per resource group')
-param msisPerResourceGroup int = 13
-
 @description('Base name for resource groups')
 param resourceGroupBaseName string = 'e2e-msi-container'
 
@@ -26,16 +23,10 @@ resource resourceGroups 'Microsoft.Resources/resourceGroups@2021-04-01' = [for i
   })
 }]
 
-// Create M MSIs in each resource group
-module msis 'modules/msi-pool-identities.bicep' = [for i in range(0, poolSize): {
+// Create managed identities in each resource group to form the pool
+module msis 'modules/cluster-identities.bicep' = [for i in range(0, poolSize): {
   name: 'msi-deployment-${i}'
   scope: resourceGroups[i]
-  params: {
-    resourceGroupIndex: i
-    msiCount: msisPerResourceGroup
-    location: location
-    baseName: resourceGroupBaseName
-  }
 }]
 
 output resourceGroups array = [for i in range(0, poolSize): {
