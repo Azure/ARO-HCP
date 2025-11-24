@@ -11,8 +11,9 @@ ADMIN_API_HOST ?= "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName 
 ADMIN_API_ENDPOINT_BASE ?= "https://${ADMIN_API_HOST}"
 
 # Portforwarding details
-export SVC_CLUSTER ?= {{ .svc.aks.name }}
+SVC_CLUSTER ?= {{ .svc.aks.name }}
 PORT_FORWARD_LOCAL_PORT ?= 8443
+ISTIO_PORT_FORWARD_SPEC ?= aks-istio-ingress/aks-istio-ingressgateway-external/${PORT_FORWARD_LOCAL_PORT}/443
 
 # CS details
 CS_LOCAL_PORT ?= 8001

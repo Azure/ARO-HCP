@@ -20,9 +20,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -193,18 +191,19 @@ func (opts *Options) Run(ctx context.Context) error {
 	})
 
 	logger.Info("Running server", "port", opts.Port)
-	mux := http.NewServeMux()
-	mux.Handle(MuxPattern(http.MethodGet, "helloworld"), handlers.HelloWorldHandler())
+	rootMux := http.NewServeMux()
+
+	// Submux for /admin
+	adminMux := http.NewServeMux()
+	adminMux.Handle("GET /helloworld", handlers.HelloWorldHandler())
+
+	rootMux.Handle("/admin", http.StripPrefix("admin", adminMux))
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, mux)),
+		Handler: middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux)),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
 	return nil
-}
-
-func MuxPattern(method string, segments ...string) string {
-	return fmt.Sprintf("%s /admin/%s", method, strings.ToLower(path.Join(segments...)))
 }
