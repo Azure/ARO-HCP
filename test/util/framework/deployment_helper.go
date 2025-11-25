@@ -83,77 +83,6 @@ func GetOutputValueBytes(deploymentInfo *armresources.DeploymentExtended, output
 	return bytes, nil
 }
 
-// CreateBicepTemplateAndWait creates a Bicep template deployment in the specified resource group and waits for completion.
-func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
-	ctx context.Context,
-	resourceGroupName string,
-	deploymentName string,
-	bicepTemplateJSON []byte,
-	parameters map[string]interface{},
-	timeout time.Duration,
-) (*armresources.DeploymentExtended, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	startTime := time.Now()
-	defer func() {
-		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy ARM template %s/%s", resourceGroupName, deploymentName), startTime, finishTime)
-	}()
-	tc.RecordKnownDeployment(resourceGroupName, deploymentName)
-
-	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
-
-	bicepParameters := map[string]interface{}{}
-	for k, v := range parameters {
-		bicepParameters[k] = map[string]interface{}{
-			"value": v,
-		}
-	}
-
-	// TODO deads2k: couldn't work out why, but for some reason this works when passed as a map, not when sending json. My guess is newlines.
-	bicepTemplateMap := map[string]interface{}{}
-	if err := json.Unmarshal(bicepTemplateJSON, &bicepTemplateMap); err != nil {
-		panic(err)
-	}
-
-	deploymentProperties := armresources.Deployment{
-		Properties: &armresources.DeploymentProperties{
-			DebugSetting: &armresources.DebugSetting{DetailLevel: to.Ptr("requestContent")},
-			Template:     bicepTemplateMap,
-			Parameters:   bicepParameters,
-			Mode:         to.Ptr(armresources.DeploymentModeIncremental), // or Complete
-		},
-	}
-
-	pollerResp, err := deploymentsClient.BeginCreateOrUpdate(
-		ctx,
-		resourceGroupName,
-		deploymentName,
-		deploymentProperties,
-		nil,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", deploymentName, resourceGroupName, err)
-	}
-	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", deploymentName, resourceGroupName, err)
-	}
-
-	switch m := any(operationResult).(type) {
-	case armresources.DeploymentsClientCreateOrUpdateResponse:
-		// TODO someone may want this return value.  We'll have to work it out then.
-		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
-		return &m.DeploymentExtended, nil
-	default:
-		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
-		return nil, fmt.Errorf("unknown type %T", m)
-	}
-}
-
 // bicepDeploymentScope indicates where a Bicep deployment should be executed.
 type bicepDeploymentScope int
 
@@ -229,9 +158,9 @@ func WithLocation(location string) BicepDeploymentOption {
 	}
 }
 
-// CreateBicepTemplateAndWait_v2 creates a Bicep template deployment using a functional-options
+// CreateBicepTemplateAndWait creates a Bicep template deployment using a functional-options
 // configuration style. It can deploy either to a specific resource group or at subscription scope.
-func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait_v2(
+func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	ctx context.Context,
 	bicepTemplateJSON []byte,
 	opts ...BicepDeploymentOption,

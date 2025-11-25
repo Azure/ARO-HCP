@@ -62,10 +62,10 @@ var _ = Describe("Customer", func() {
 			}
 
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"cluster-deployment",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
-				map[string]interface{}{
+				framework.WithResourceGroupScope(*resourceGroup.Name),
+				framework.WithDeploymentName("cluster-deployment"),
+				framework.WithParameters(map[string]interface{}{
 					"persistTagValue":       false,
 					"clusterName":           customerClusterName,
 					"nodePoolName":          customerNodePoolName,
@@ -73,8 +73,8 @@ var _ = Describe("Customer", func() {
 					"nodeReplicas":          customerNodeReplicas,
 					"identities":            identities,
 					"usePooledIdentities":   usePooled,
-				},
-				45*time.Minute,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

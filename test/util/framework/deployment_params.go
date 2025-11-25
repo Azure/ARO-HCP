@@ -221,7 +221,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
-	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
+	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
 		WithDeploymentName("customer-infra"),
 		WithResourceGroupScope(*resourceGroup.Name),

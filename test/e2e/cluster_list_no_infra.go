@@ -66,16 +66,16 @@ var _ = Describe("Customer", func() {
 				}
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"cluster-only",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
-					map[string]any{
+					framework.WithResourceGroupScope(*resourceGroup.Name),
+					framework.WithDeploymentName("cluster-only"),
+					framework.WithParameters(map[string]any{
 						"clusterName":         clusterName,
 						"persistTagValue":     false,
 						"identities":          identities,
 						"usePooledIdentities": usePooled,
-					},
-					45*time.Minute,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 			}

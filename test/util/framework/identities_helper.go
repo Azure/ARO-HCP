@@ -142,7 +142,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 		parameters["useMsiPool"] = false
 	}
 
-	deploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
+	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		bicepTemplateJSON,
 		WithSubscriptionScope(),
 		WithDeploymentName(cfg.deploymentName),

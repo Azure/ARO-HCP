@@ -82,15 +82,15 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				}
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"aro-hcp-demo",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
-					map[string]interface{}{
+					framework.WithResourceGroupScope(*resourceGroup.Name),
+					framework.WithDeploymentName("aro-hcp-demo"),
+					framework.WithParameters(map[string]interface{}{
 						"clusterName":         customerClusterName,
 						"identities":          identities,
 						"usePooledIdentities": usePooled,
-					},
-					45*time.Minute,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -109,16 +109,16 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				npName := "np-1" // node pools have very restrictive naming rules
 				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"aro-hcp-gpu-nodepool-"+sku.display,
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-					map[string]interface{}{
+					framework.WithResourceGroupScope(*resourceGroup.Name),
+					framework.WithDeploymentName("aro-hcp-gpu-nodepool-"+sku.display),
+					framework.WithParameters(map[string]interface{}{
 						"clusterName":  customerClusterName,
 						"nodePoolName": npName,
 						"replicas":     1,
 						"vmSize":       sku.vmSize,
-					},
-					45*time.Minute,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
