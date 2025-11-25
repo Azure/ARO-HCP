@@ -34,6 +34,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
 	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -191,12 +192,17 @@ func (opts *Options) Run(ctx context.Context) error {
 	})
 
 	logger.Info("Running server", "port", opts.Port)
-	rootMux := http.NewServeMux()
+
+	// Submux for V1 HCP endpoints
+	v1HCPMux := middleware.NewHCPResourceServerMux()
+	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld())
 
 	// Submux for /admin
 	adminMux := http.NewServeMux()
 	adminMux.Handle("GET /helloworld", handlers.HelloWorldHandler())
+	adminMux.Handle("/v1/hcp/", http.StripPrefix("/v1/hcp", v1HCPMux.Handler()))
 
+	rootMux := http.NewServeMux()
 	rootMux.Handle("/admin/", http.StripPrefix("/admin", adminMux))
 
 	s := http.Server{
