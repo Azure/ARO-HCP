@@ -77,9 +77,8 @@ var _ = Describe("Customer", func() {
 					},
 					TestArtifactsFS,
 				)
-				if !deployment.shouldFail {
-					Expect(err).NotTo(HaveOccurred())
-				}
+
+				Expect(err).NotTo(HaveOccurred())
 
 				err = framework.CreateHCPClusterFromParam(ctx,
 					tc,
