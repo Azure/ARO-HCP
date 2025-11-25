@@ -1181,6 +1181,9 @@ clouds:
                   zones: '1'
         # this is the personal DEV environment
         defaults:
+          arobit:
+            kusto:
+              enabled: false
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
@@ -1340,6 +1343,9 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
       prow:
         defaults:
+          arobit:
+            kusto:
+              enabled: false
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
