@@ -400,18 +400,6 @@ param adminApiIngressCertIssuer string
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
-@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
-param arobitKustoEnabled bool
-
-@description('Name of the database to write logs to')
-param serviceLogsDatabase string
-
-@description('Name of the HCP logs database')
-param hostedControlPlaneLogsDatabase string
-
-@description('Kusto resource ID')
-param kustoResourceId string
-
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
   scope: resourceGroup(serviceKeyVaultResourceGroup)
@@ -1023,31 +1011,4 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
   dependsOn: [
     svcNSP
   ]
-}
-
-//
-//  K U S T O   I N G E S T    P E R M I S S I O N S
-//
-
-var kustoRef = res.kustoRefFromId(kustoResourceId)
-
-module grantKustSvcLogs '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-${uniqueString(resourceGroup().name)}'
-  params: {
-    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    readAccessPrincipalIds: [adminApiMI.uamiPrincipalID]
-    databaseName: serviceLogsDatabase
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
-}
-
-module grantKustoHCPLogs '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-${uniqueString(resourceGroup().name)}-admin'
-  params: {
-    readAccessPrincipalIds: [adminApiMI.uamiPrincipalID]
-    databaseName: hostedControlPlaneLogsDatabase
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }
