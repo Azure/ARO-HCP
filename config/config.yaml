@@ -884,7 +884,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:c2c0850dd59171ed71e3c565d499890e56833b0fab6506b23c873bcbff0c6ec1 # 3c3e022
+          digest: sha256:5c4fadbad5ff583e0e0448dd7bfac7bd295b79c05109309ce941fde15d0772f3 # 36d2570
         cert:
           issuer: Self
       # Frontend
