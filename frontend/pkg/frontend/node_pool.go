@@ -98,7 +98,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 		return err
 	}
 	for _, nodePool := range internalNodePoolIterator.Items(ctx) {
-		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.String()] = nodePool
+		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.ID()] = nodePool
 	}
 	err = internalNodePoolIterator.GetError()
 	if err != nil {
@@ -122,7 +122,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csNodePool := range csIterator.Items(ctx) {
-		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.HREF()]; ok {
+		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.ID()]; ok {
 			value, err := mergeToExternalNodePool(csNodePool, internalNodePool, versionedInterface)
 			if err != nil {
 				return err
