@@ -1181,6 +1181,10 @@ clouds:
                   zones: '1'
         # this is the personal DEV environment
         defaults:
+          # Arobit
+          arobit:
+            kusto:
+              enabled: false # tmp disable kusto forwarding until we have a solution for kusto MI issue - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1764025475116329
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
@@ -1340,6 +1344,10 @@ clouds:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
       prow:
         defaults:
+          # Arobit
+          arobit:
+            kusto:
+              enabled: false # tmp disable kusto forwarding until we have a solution for kusto MI issue - https://redhat-external.slack.com/archives/C075PHEFZKQ/p1764025475116329
           # Service Key Vault
           serviceKeyVault:
             assignNSP: false
