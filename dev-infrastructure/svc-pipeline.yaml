@@ -162,11 +162,6 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: grafanaPrincipalId
-    - name: kustoResourceId
-      input:
-        resourceGroup: kusto
-        step: output
-        name: kustoResourceId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer
@@ -183,6 +178,27 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster
+  - name: kusto-ingest-service-logs
+    action: ARM
+    template: templates/kusto-grant-ingest.bicep
+    parameters: configurations/kusto-svc-ingest.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterLogPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: clusterLogPrincipalId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'

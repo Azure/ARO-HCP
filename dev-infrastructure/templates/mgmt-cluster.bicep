@@ -206,16 +206,6 @@ param pkoNamespace string
 @description('Service account name of the PKO')
 param pkoServiceAccountName string
 
-@description('Kusto resource ID')
-param kustoResourceId string
-
-@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
-param arobitKustoEnabled bool
-
-@description('Names of the databases to write logs to')
-param serviceLogsDatabase string
-param hostedControlPlaneLogsDatabase string
-
 //
 //   M A N A G E D   I D E N T I T I E S
 //
@@ -526,31 +516,4 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     serviceType: 'eventgrid'
     groupId: 'topicspace'
   }
-}
-
-//
-//  K U S T O   I N G E S T    P E R M I S S I O N S
-//
-
-import * as res from '../modules/resource.bicep'
-var kustoRef = res.kustoRefFromId(kustoResourceId)
-
-module grantKustoSvcIngest '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-svc-${uniqueString(resourceGroup().name)}'
-  params: {
-    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    databaseName: serviceLogsDatabase
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
-}
-
-module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
-  name: 'grantKusto-hcp-${uniqueString(resourceGroup().name)}'
-  params: {
-    clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    databaseName: hostedControlPlaneLogsDatabase
-    kustoName: kustoRef.name
-  }
-  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
 }

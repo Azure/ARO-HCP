@@ -207,11 +207,6 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: logAnalyticsWorkspaceId
-    - name: kustoResourceId
-      input:
-        resourceGroup: kusto
-        step: output
-        name: kustoResourceId
     dependsOn:
     - resourceGroup: management
       step: cx-oncert-public-kv-issuer
@@ -247,6 +242,22 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
+  - name: kusto-grant-ingest
+    action: ARM
+    template: templates/kusto-grant-ingest.bicep
+    parameters: configurations/kusto-mgmt-ingest.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterLogPrincipalId
+      input:
+        resourceGroup: management
+        step: cluster-output
+        name: clusterLogPrincipalId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
