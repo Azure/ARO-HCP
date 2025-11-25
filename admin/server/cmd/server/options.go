@@ -33,9 +33,9 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 
-	"github.com/Azure/ARO-HCP/admin/api/handlers"
-	"github.com/Azure/ARO-HCP/admin/api/interrupts"
-	"github.com/Azure/ARO-HCP/admin/api/middleware"
+	"github.com/Azure/ARO-HCP/admin/server/handlers"
+	"github.com/Azure/ARO-HCP/admin/server/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
