@@ -1,8 +1,8 @@
 go 1.24.4
 
 use (
-	./admin/server
 	./admin/client
+	./admin/server
 	./backend
 	./frontend
 	./internal
