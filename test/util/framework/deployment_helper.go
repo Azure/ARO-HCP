@@ -200,8 +200,11 @@ func CreateHCPClusterFromParam(
 	parameters ClusterParams,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	clusterName := parameters.ClusterName
 
 	cluster := BuildHCPClusterFromParams(parameters, testContext.Location())

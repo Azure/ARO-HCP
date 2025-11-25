@@ -399,6 +399,8 @@ func BeginCreateHCPCluster(
 	return poller, nil
 }
 
+// CreateHCPClusterAndWait Note that the timeout parameter will only take effect if its value is greater than 0. Otherwise,
+// the function won't wait for the deployment to be ready.
 func CreateHCPClusterAndWait(
 	ctx context.Context,
 	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
@@ -407,28 +409,39 @@ func CreateHCPClusterAndWait(
 	cluster hcpsdk20240610preview.HcpOpenShiftCluster,
 	timeout time.Duration,
 ) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	poller, err := hcpClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, cluster, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed starting cluster creation %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 	}
 
-	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: StandardPollInterval,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+	if timeout > 0*time.Second {
+		operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+			Frequency: StandardPollInterval,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
+		}
+		switch m := any(operationResult).(type) {
+		case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+			return &m.HcpOpenShiftCluster, nil
+		default:
+			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
+			return nil, fmt.Errorf("unknown type %T", m)
+		}
+	} else {
+		_, err := poller.Poll(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed checking for deployment %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+		}
+		return nil, nil
 	}
 
-	switch m := any(operationResult).(type) {
-	case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
-		return &m.HcpOpenShiftCluster, nil
-	default:
-		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
-		return nil, fmt.Errorf("unknown type %T", m)
-	}
 }
 
 func BuildHCPClusterFromParams(
