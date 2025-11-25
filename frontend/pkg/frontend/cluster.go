@@ -86,7 +86,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	}
 	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
-		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.String()] = internalCluster
+		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.ID()] = internalCluster
 	}
 	err = internalClusterIterator.GetError()
 	if err != nil {
@@ -110,7 +110,7 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	csIterator := f.clusterServiceClient.ListClusters(query)
 
 	for csCluster := range csIterator.Items(ctx) {
-		if internalCluster, ok := clustersByClusterServiceID[csCluster.HREF()]; ok {
+		if internalCluster, ok := clustersByClusterServiceID[csCluster.ID()]; ok {
 			resultingExternalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
 			if err != nil {
 				return err

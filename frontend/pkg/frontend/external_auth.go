@@ -96,7 +96,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 		return err
 	}
 	for _, externalAuth := range internalExternalAuthIteraotr.Items(ctx) {
-		externalAuthsByClusterServiceID[externalAuth.ServiceProviderProperties.ClusterServiceID.String()] = externalAuth
+		externalAuthsByClusterServiceID[externalAuth.ServiceProviderProperties.ClusterServiceID.ID()] = externalAuth
 	}
 	err = internalExternalAuthIteraotr.GetError()
 	if err != nil {
@@ -120,7 +120,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 
 	csIterator := f.clusterServiceClient.ListExternalAuths(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csExternalAuth := range csIterator.Items(ctx) {
-		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.HREF()]; ok {
+		if internalExternalAuth, ok := externalAuthsByClusterServiceID[csExternalAuth.ID()]; ok {
 			value, err := mergeToExternalExternalAuth(csExternalAuth, internalExternalAuth, versionedInterface)
 			if err != nil {
 				return err
