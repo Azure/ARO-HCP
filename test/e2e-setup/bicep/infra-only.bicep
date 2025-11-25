@@ -3,7 +3,7 @@ targetScope = 'resourceGroup'
 @description('If set to true, the cluster will not be deleted automatically after few days.')
 param persistTagValue bool = false
 
-@description('MSI pool info: resource group + identities')
+@description('Managed identities to use')
 param identities object
 
 module customerInfra 'modules/customer-infra.bicep' = {
@@ -19,7 +19,7 @@ module managedIdentities 'modules/managed-identities.bicep' = {
   params: {
     msiResourceGroupName: identities.resourceGroup
     clusterResourceGroupName: resourceGroup().name
-    pooledIdentities: identities.identities
+    identities: identities.identities
     vnetName: customerInfra.outputs.vnetName
     subnetName: customerInfra.outputs.vnetSubnetName
     nsgName: customerInfra.outputs.nsgName

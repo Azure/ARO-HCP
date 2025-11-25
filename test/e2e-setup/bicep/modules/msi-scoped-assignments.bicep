@@ -15,60 +15,59 @@ type ManagedIdentities = {
   dpImageRegistryMiName: string
   serviceManagedIdentityName: string
 }
-@description('MSI identities in the pool')
-param msiIdentities ManagedIdentities
+@description('Identities to assign')
+param identities ManagedIdentities
 
-// Existing MSIs in the pool (this module is deployed at the MSI RG scope)
 resource clusterApiAzureMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.clusterApiAzureMiName
+  name: identities.clusterApiAzureMiName
 }
 
 resource controlPlaneMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.controlPlaneMiName
+  name: identities.controlPlaneMiName
 }
 
 resource cloudControllerManagerMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.cloudControllerManagerMiName
+  name: identities.cloudControllerManagerMiName
 }
 
 resource ingressMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.ingressMiName
+  name: identities.ingressMiName
 }
 
 resource diskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.diskCsiDriverMiName
+  name: identities.diskCsiDriverMiName
 }
 
 resource fileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.fileCsiDriverMiName
+  name: identities.fileCsiDriverMiName
 }
 
 resource imageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.imageRegistryMiName
+  name: identities.imageRegistryMiName
 }
 
 resource cloudNetworkConfigMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.cloudNetworkConfigMiName
+  name: identities.cloudNetworkConfigMiName
 }
 
 resource kmsMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.kmsMiName
+  name: identities.kmsMiName
 }
 
 resource dpDiskCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.dpDiskCsiDriverMiName
+  name: identities.dpDiskCsiDriverMiName
 }
 
 resource dpFileCsiDriverMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.dpFileCsiDriverMiName
+  name: identities.dpFileCsiDriverMiName
 }
 
 resource dpImageRegistryMi 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.dpImageRegistryMiName
+  name: identities.dpImageRegistryMiName
 }
 
 resource serviceManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: msiIdentities.serviceManagedIdentityName
+  name: identities.serviceManagedIdentityName
 }
 
 //

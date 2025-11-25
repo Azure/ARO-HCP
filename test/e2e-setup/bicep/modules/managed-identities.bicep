@@ -1,6 +1,6 @@
 targetScope = 'subscription'
 
-@description('MSI pool resource group name')
+@description('Resource group name where identities are located')
 param msiResourceGroupName string
 
 @description('HCP cluster RG name')
@@ -26,7 +26,7 @@ type ManagedIdentities = {
 }
 
 @description('MSI identities in the pool')
-param pooledIdentities ManagedIdentities
+param identities ManagedIdentities
 
 @description('The Network security group name for the HCP cluster resources')
 param nsgName string
@@ -40,19 +40,13 @@ param subnetName string
 @description('The KeyVault name that contains the etcd encryption key')
 param keyVaultName string
 
-// Cluster-scoped identities for environments without an MSI pool available.
-module clusterIdentities 'cluster-identities.bicep' = if (!useMsiPool) {
-  name: 'clusterIdentities'
-  scope: resourceGroup(clusterResourceGroupName)
-}
-
-// Pool-based assignments (identities live in msiResourceGroupName)
+// P O O L E D   M O D E
 module pooledNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (useMsiPool) {
   name: 'pooledNonMsiScopedAssignments'
   scope: resourceGroup(clusterResourceGroupName)
   params: {
-    msiResourceGroupName: msiResourceGroupName
-    msiIdentities: pooledIdentities
+    resourceGroupName: msiResourceGroupName
+    identities: identities
     vnetName: vnetName
     subnetName: subnetName
     nsgName: nsgName
@@ -64,18 +58,24 @@ module pooledMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (useMsiPoo
   name: 'pooledMsiScopedAssignments'
   scope: resourceGroup(msiResourceGroupName)
   params: {
-    msiIdentities: pooledIdentities
+    identities: identities
   }
 }
 
-// Cluster-identities assignments (identities created in clusterResourceGroupName)
+// N O N   P O O L E D   M O D E
+// Create identities in the cluster resource group for environments without an MSI pool available.
+module clusterIdentities 'cluster-identities.bicep' = if (!useMsiPool) {
+  name: 'clusterIdentities'
+  scope: resourceGroup(clusterResourceGroupName)
+}
+
 module clusterNonMsiScopedAssignments 'non-msi-scoped-assignments.bicep' = if (!useMsiPool) {
   name: 'clusterNonMsiScopedAssignments'
   scope: resourceGroup(clusterResourceGroupName)
   params: {
     // In cluster mode, the identities live in the cluster resource group.
-    msiResourceGroupName: clusterResourceGroupName
-    msiIdentities: clusterIdentities.outputs.msiIdentities
+    resourceGroupName: clusterResourceGroupName
+    identities: clusterIdentities.outputs.msiIdentities
     vnetName: vnetName
     subnetName: subnetName
     nsgName: nsgName
@@ -87,7 +87,7 @@ module clusterMsiScopedAssignments 'msi-scoped-assignments.bicep' = if (!useMsiP
   name: 'clusterMsiScopedAssignments'
   scope: resourceGroup(clusterResourceGroupName)
   params: {
-    msiIdentities: clusterIdentities.outputs.msiIdentities
+    identities: clusterIdentities.outputs.msiIdentities
   }
 }
 

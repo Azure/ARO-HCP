@@ -51,6 +51,7 @@ type perItOrDescribeTestContext struct {
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
 	knownAppRegistrationIDs       []string
+	knownLeasedIdentityContainers []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
@@ -151,6 +152,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
+	leasedContainers := tc.knownLeasedIdentityContainers
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
@@ -161,12 +163,16 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), opts)
 	if errCleanupResourceGroups != nil {
-		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete: %w", err)
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
+	}
+
+	if err := tc.ReleaseLeasedIdentities(ctx, leasedContainers); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -265,7 +271,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished collecting debug info")
@@ -734,12 +740,4 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 
 		ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
 	}
-}
-
-func (tc *perItOrDescribeTestContext) GetSubscriptionID(ctx context.Context) string {
-	return tc.perBinaryInvocationTestContext.subscriptionID
-}
-
-func (tc *perItOrDescribeTestContext) GetAzureCredentialOrDie(ctx context.Context) azcore.TokenCredential {
-	return Must(tc.perBinaryInvocationTestContext.getAzureCredentials())
 }

@@ -63,26 +63,32 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				customerClusterName := "gpu-nodepool-cluster-" + rand.String(6)
 
 				tc := framework.NewTestContext()
+				if tc.UsePooledIdentities() {
+					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					Expect(err).NotTo(HaveOccurred())
+				}
 				location := tc.Location()
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "gpu-nodepools-"+sku.display, location)
 				Expect(err).NotTo(HaveOccurred())
 
-				By("getting MSIs from pool")
-				msiPool, err := framework.GetLeasedMSIs(ctx)
+				By("deploying demo template (single-step infra + identities + cluster)")
+
+				identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
 				Expect(err).NotTo(HaveOccurred())
 
-				By("deploying demo template (single-step infra + identities + cluster)")
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"aro-hcp-demo",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
-					map[string]interface{}{
-						"clusterName":   customerClusterName,
-						"msiIdentities": msiPool,
-					},
-					45*time.Minute,
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/demo.json"),
+					framework.WithDeploymentName("aro-hcp-demo"),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]interface{}{
+						"clusterName":         customerClusterName,
+						"identities":          identities,
+						"usePooledIdentities": usePooled,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -101,16 +107,17 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				npName := "np-1" // node pools have very restrictive naming rules
 				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"aro-hcp-gpu-nodepool-"+sku.display,
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-					map[string]interface{}{
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
+					framework.WithDeploymentName("aro-hcp-gpu-nodepool-"+sku.display),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]interface{}{
 						"clusterName":  customerClusterName,
 						"nodePoolName": npName,
 						"replicas":     1,
 						"vmSize":       sku.vmSize,
-					},
-					45*time.Minute,
+					}),
+					framework.WithTimeout(45*time.Minute),
 				)
 				Expect(err).NotTo(HaveOccurred())
 

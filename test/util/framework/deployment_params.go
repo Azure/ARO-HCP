@@ -221,10 +221,11 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
-	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
 		WithDeploymentName("customer-infra"),
-		WithResourceGroupScope(*resourceGroup.Name),
+		WithScope(BicepDeploymentScopeResourceGroup),
+		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(infraParameters),
 		WithTimeout(45*time.Minute),
 	)
@@ -236,27 +237,17 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
 
-	msiPool, err := GetLeasedMSIs(ctx)
-	if err != nil {
-		return clusterParams, fmt.Errorf("failed to get leased MSIs: %w", err)
-	}
-
-	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-		WithSubscriptionScope(),
-		WithDeploymentName("managed-identities"),
-		WithLocation(invocationContext().Location()),
+	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
+		WithClusterResourceGroup(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"clusterResourceGroupName": *resourceGroup.Name,
-			"msiResourceGroupName":     msiPool.ResourceGroupName,
-			"pooledIdentities":         msiPool.Identities,
-			"nsgName":                  clusterParams.NsgName,
-			"vnetName":                 clusterParams.VnetName,
-			"subnetName":               clusterParams.SubnetName,
-			"keyVaultName":             clusterParams.KeyVaultName,
+			"nsgName":      clusterParams.NsgName,
+			"vnetName":     clusterParams.VnetName,
+			"subnetName":   clusterParams.SubnetName,
+			"keyVaultName": clusterParams.KeyVaultName,
 		}),
-		WithTimeout(45*time.Minute),
 	)
+
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
 	}
