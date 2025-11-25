@@ -60,12 +60,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			usePooled := framework.UsePooledIdentities()
-			identities := framework.MsiPool{
+			identities := framework.LeasedIdentityPool{
 				ResourceGroupName: *resourceGroup.Name,
 				Identities:        framework.NewDefaultIdentities(),
 			}
 			if usePooled {
-				identities, err = framework.GetLeasedMSIs(ctx)
+				identities, err = framework.GetLeasedIdentities()
 				Expect(err).NotTo(HaveOccurred())
 			}
 

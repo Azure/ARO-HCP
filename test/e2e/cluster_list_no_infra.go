@@ -56,12 +56,12 @@ var _ = Describe("Customer", func() {
 
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
 
-				identities := framework.MsiPool{
+				identities := framework.LeasedIdentityPool{
 					ResourceGroupName: *resourceGroup.Name,
 					Identities:        framework.NewDefaultIdentities(),
 				}
 				if usePooled {
-					identities, err = framework.GetLeasedMSIs(ctx)
+					identities, err = framework.GetLeasedIdentities()
 					Expect(err).NotTo(HaveOccurred())
 				}
 

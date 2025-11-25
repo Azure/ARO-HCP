@@ -3,7 +3,6 @@ package framework
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,12 +11,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"sigs.k8s.io/yaml"
 )
 
 const (
 	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
-	MinLeasedRGCount          = 15
-	LockFileName              = "aro-hcp-msi-pool-counter.lock"
 )
 
 // well-known MSI role names
@@ -40,7 +38,7 @@ const (
 // MsiIdentities mirrors the MSI identity layout used in Bicep modules
 // (non-msi-scoped-assignments.bicep / msi-scoped-assignments.bicep).
 // We store the MSI *names* here so they can be passed directly to Bicep params.
-type MsiPool struct {
+type LeasedIdentityPool struct {
 	ResourceGroupName string     `json:"resourceGroup"`
 	Identities        Identities `json:"identities"`
 }
@@ -77,76 +75,6 @@ func NewDefaultIdentities() Identities {
 		DpImageRegistryMiName:        DpImageRegistryMiName,
 		ServiceManagedIdentityName:   ServiceManagedIdentityName,
 	}
-}
-
-// GetLeasedMSIs acquires the next available RG using an atomic file-based counter
-// and returns the MSIs from that resource group, mapped by their logical roles.
-func GetLeasedMSIs(ctx context.Context) (MsiPool, error) {
-
-	leasedRGs := strings.Split(os.Getenv(LeasedMSIContainersEnvvar), " ")
-	if len(leasedRGs) == 0 {
-		return MsiPool{}, fmt.Errorf("expected at least %d resource groups with precreated MSIs in envvar %s", MinLeasedRGCount, LeasedMSIContainersEnvvar)
-	}
-
-	rgIndex, err := acquireNextRGIndex(leasedRGs)
-	if err != nil {
-		return MsiPool{}, err
-	}
-
-	return MsiPool{
-		ResourceGroupName: leasedRGs[rgIndex],
-		Identities:        NewDefaultIdentities(),
-	}, nil
-}
-
-func acquireNextRGIndex(leasedRGs []string) (int, error) {
-	lockFile := filepath.Join(sharedDir(), LockFileName)
-
-	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return 0, fmt.Errorf("failed to open lock file %s: %w", lockFile, err)
-	}
-	defer f.Close()
-
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		return 0, fmt.Errorf("failed to acquire lock: %w", err)
-	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return 0, fmt.Errorf("failed to read counter: %w", err)
-	}
-
-	counter := 0
-	if len(data) > 0 {
-		if _, err := fmt.Sscanf(string(data), "%d", &counter); err != nil {
-			return 0, fmt.Errorf("failed to parse counter: %w", err)
-		}
-	}
-
-	if counter >= len(leasedRGs) {
-		return 0, fmt.Errorf("all %d MSI resource groups exhausted (lock file: %s)", len(leasedRGs), lockFile)
-	}
-
-	nextCounter := counter + 1
-	if _, err := f.Seek(0, 0); err != nil {
-		return 0, fmt.Errorf("failed to seek: %w", err)
-	}
-	if _, err := fmt.Fprintf(f, "%02d", nextCounter); err != nil {
-		return 0, fmt.Errorf("failed to write counter: %w", err)
-	}
-
-	return counter, nil
-}
-
-func UsePooledIdentities() bool {
-	pooled := strings.TrimSpace(os.Getenv("POOLED_IDENTITIES"))
-	if pooled == "" {
-		return false
-	}
-	b, _ := strconv.ParseBool(pooled)
-	return b
 }
 
 type managedIdentitiesOptions struct {
@@ -190,7 +118,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	var identities Identities
 
 	if cfg.usePooled {
-		msiPool, err := GetLeasedMSIs(ctx)
+		msiPool, err := GetLeasedIdentities()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get leased MSIs: %w", err)
 		}
@@ -227,4 +155,137 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	}
 
 	return deploymentResult, nil
+}
+
+type leaseState string
+
+const (
+	leaseStateFree leaseState = "free"
+	leaseStateBusy leaseState = "busy"
+)
+
+type leasedIdentityPoolEntry struct {
+	ResourceGroup string     `yaml:"resourceGroup"`
+	State         leaseState `yaml:"state"`
+	LeasedBy      string     `yaml:"leasedBy,omitempty"`
+	LeasedAt      string     `yaml:"leasedAt,omitempty"`
+	ReleasedAt    string     `yaml:"releasedAt,omitempty"`
+}
+
+func (e *leasedIdentityPoolEntry) Lease() error {
+	if e.State == leaseStateBusy {
+		return fmt.Errorf("resource group %s is not free", e.ResourceGroup)
+	}
+	e.State = leaseStateBusy
+	e.LeasedBy = fmt.Sprintf("pid:%d", os.Getpid())
+	e.LeasedAt = time.Now().UTC().Format(time.RFC3339)
+	return nil
+}
+
+func (e *leasedIdentityPoolEntry) Release() error {
+	if e.State == leaseStateFree {
+		return nil
+	}
+	e.State = leaseStateFree
+	e.ReleasedAt = time.Now().UTC().Format(time.RFC3339)
+	return nil
+}
+
+const msiPoolStateFileName = "identities-pool-state.yaml"
+
+func msiPoolStateFilePath() string {
+	return filepath.Join(sharedDir(), msiPoolStateFileName)
+}
+
+func CreateIdentitiesPoolStateFile() error {
+	statePath := msiPoolStateFilePath()
+
+	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	if len(leasedRGs) == 0 {
+		return fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
+	}
+
+	entries := make([]leasedIdentityPoolEntry, 0, len(leasedRGs))
+	for _, rg := range leasedRGs {
+		entries = append(entries, leasedIdentityPoolEntry{
+			ResourceGroup: rg,
+			State:         leaseStateFree,
+		})
+	}
+
+	data, err := yaml.Marshal(entries)
+	if err != nil {
+		return fmt.Errorf("failed to marshal managed identities pool state: %w", err)
+	}
+
+	if err := os.WriteFile(statePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write managed identities pool state file %s: %w", statePath, err)
+	}
+
+	return nil
+}
+
+func GetLeasedIdentities() (LeasedIdentityPool, error) {
+	statePath := msiPoolStateFilePath()
+
+	f, err := os.OpenFile(statePath, os.O_RDWR, 0)
+	if err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to open managed identities pool state file %s: %w", statePath, err)
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to acquire state file lock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to read managed identities pool state file %s: %w", statePath, err)
+	}
+
+	var entries []leasedIdentityPoolEntry
+	if err := yaml.Unmarshal(data, &entries); err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to unmarshal managed identities pool state file %s: %w", statePath, err)
+	}
+
+	var leasedRG string
+	for i := range entries {
+		if err := entries[i].Lease(); err != nil {
+			continue
+		}
+		leasedRG = entries[i].ResourceGroup
+		break
+	}
+
+	if leasedRG == "" {
+		return LeasedIdentityPool{}, fmt.Errorf("all managed identities resource groups exhausted (state file: %s)", statePath)
+	}
+
+	updated, err := yaml.Marshal(entries)
+	if err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to marshal updated managed identities pool state: %w", err)
+	}
+
+	tmpPath := statePath + ".tmp"
+	if err := os.WriteFile(tmpPath, updated, 0644); err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to write updated managed identities pool state temp file %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, statePath); err != nil {
+		return LeasedIdentityPool{}, fmt.Errorf("failed to rename updated managed identities pool state file from %s to %s: %w", tmpPath, statePath, err)
+	}
+
+	return LeasedIdentityPool{
+		ResourceGroupName: leasedRG,
+		Identities:        NewDefaultIdentities(),
+	}, nil
+}
+
+func UsePooledIdentities() bool {
+	pooled := strings.TrimSpace(os.Getenv("POOLED_IDENTITIES"))
+	if pooled == "" {
+		return false
+	}
+	b, _ := strconv.ParseBool(pooled)
+	return b
 }

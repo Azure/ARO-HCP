@@ -72,12 +72,12 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				By("deploying demo template (single-step infra + identities + cluster)")
 
 				usePooled := framework.UsePooledIdentities()
-				identities := framework.MsiPool{
+				identities := framework.LeasedIdentityPool{
 					ResourceGroupName: *resourceGroup.Name,
 					Identities:        framework.NewDefaultIdentities(),
 				}
 				if usePooled {
-					identities, err = framework.GetLeasedMSIs(ctx)
+					identities, err = framework.GetLeasedIdentities()
 					Expect(err).NotTo(HaveOccurred())
 				}
 

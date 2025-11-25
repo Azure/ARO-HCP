@@ -52,12 +52,12 @@ var _ = Describe("Customer", func() {
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
 
 			usePooled := framework.UsePooledIdentities()
-			identities := framework.MsiPool{
+			identities := framework.LeasedIdentityPool{
 				ResourceGroupName: *resourceGroup.Name,
 				Identities:        framework.NewDefaultIdentities(),
 			}
 			if usePooled {
-				identities, err = framework.GetLeasedMSIs(ctx)
+				identities, err = framework.GetLeasedIdentities()
 				Expect(err).NotTo(HaveOccurred())
 			}
 
