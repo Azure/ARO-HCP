@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -487,15 +488,28 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	var output Output
 	var details DetailsProducer
 	var stepRunErr error
+	var runCount = 0
 	if options.Step != "" && step.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		output = nil
 		stepRunErr = nil
 	} else {
-		output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
-			BaseRunOptions:    options.BaseRunOptions,
-			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
-		}, state)
+		for shouldExecuteStep(step, runCount) {
+			runCount++
+			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+				BaseRunOptions:    options.BaseRunOptions,
+				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+			}, state)
+			if shouldRetryError(step, stepRunErr) {
+				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse duration between retries: %w", err)
+				}
+				time.Sleep(duration)
+			} else {
+				break
+			}
+		}
 	}
 	if stepRunErr != nil {
 		return details, stepRunErr
@@ -515,6 +529,26 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	state.Executed.Insert(node)
 	state.Unlock()
 	return details, nil
+}
+
+func shouldExecuteStep(step types.Step, runCount int) bool {
+	// Default, no retries, execute the step
+	if step.AutomatedRetries() == nil && runCount == 0 {
+		return true
+	}
+	return runCount < step.AutomatedRetries().MaximumRetryCount
+}
+
+func shouldRetryError(step types.Step, err error) bool {
+	if step.AutomatedRetries() == nil {
+		return false
+	}
+	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
+		if strings.Contains(err.Error(), retry) {
+			return true
+		}
+	}
+	return false
 }
 
 func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {

@@ -542,3 +542,91 @@ func TestAddInputVars(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldRetryError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		step     types.Step
+		err      error
+		expected bool
+	}{
+		{
+			name: "should retry",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: &types.AutomatedRetry{
+						ErrorContainsAny: []string{"error"},
+					},
+				},
+			},
+			err:      fmt.Errorf("error"),
+			expected: true,
+		},
+		{
+			name: "should not retry",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: &types.AutomatedRetry{
+						ErrorContainsAny: []string{"this is broken"},
+					},
+				},
+			},
+			err:      fmt.Errorf("other error"),
+			expected: false,
+		},
+		{
+			name: "no retries",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: nil,
+				},
+			},
+			err:      fmt.Errorf("other error"),
+			expected: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := shouldRetryError(tc.step, tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestShouldExecuteStep(t *testing.T) {
+	testCases := []struct {
+		name     string
+		step     types.Step
+		runCount int
+		expected bool
+	}{
+		{
+			name: "should execute",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: &types.AutomatedRetry{
+						MaximumRetryCount: 1,
+					},
+				},
+			},
+			runCount: 0,
+			expected: true,
+		},
+		{
+			name: "default, no retries",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: nil,
+				},
+			},
+			runCount: 0,
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := shouldExecuteStep(tc.step, tc.runCount)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
