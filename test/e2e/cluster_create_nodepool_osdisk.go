@@ -49,11 +49,18 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting MSIs from pool")
-			misPool, err := framework.GetLeasedMSIs(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
+
+			usePooled := framework.UsePooledIdentities()
+			identities := framework.MsiPool{
+				ResourceGroupName: *resourceGroup.Name,
+				Identities:        framework.NewDefaultIdentities(),
+			}
+			if usePooled {
+				identities, err = framework.GetLeasedMSIs(ctx)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
 				*resourceGroup.Name,
 				"cluster-deployment",
@@ -64,7 +71,8 @@ var _ = Describe("Customer", func() {
 					"nodePoolName":          customerNodePoolName,
 					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
 					"nodeReplicas":          customerNodeReplicas,
-					"msiIdentities":         misPool,
+					"identities":            identities,
+					"usePooledIdentities":   usePooled,
 				},
 				45*time.Minute,
 			)

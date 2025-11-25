@@ -236,27 +236,17 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
 
-	msiPool, err := GetLeasedMSIs(ctx)
-	if err != nil {
-		return clusterParams, fmt.Errorf("failed to get leased MSIs: %w", err)
-	}
-
-	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
+	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-		WithSubscriptionScope(),
-		WithDeploymentName("managed-identities"),
-		WithLocation(invocationContext().Location()),
+		WithResourceGroupScope(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
-			"clusterResourceGroupName": *resourceGroup.Name,
-			"msiResourceGroupName":     msiPool.ResourceGroupName,
-			"pooledIdentities":         msiPool.Identities,
-			"nsgName":                  clusterParams.NsgName,
-			"vnetName":                 clusterParams.VnetName,
-			"subnetName":               clusterParams.SubnetName,
-			"keyVaultName":             clusterParams.KeyVaultName,
+			"nsgName":      clusterParams.NsgName,
+			"vnetName":     clusterParams.VnetName,
+			"subnetName":   clusterParams.SubnetName,
+			"keyVaultName": clusterParams.KeyVaultName,
 		}),
-		WithTimeout(45*time.Minute),
 	)
+
 	if err != nil {
 		return clusterParams, fmt.Errorf("failed to create managed identities: %w", err)
 	}

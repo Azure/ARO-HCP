@@ -50,10 +50,6 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "admin-credential-lifecycle-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting MSIs from pool")
-			msiPool, err := framework.GetLeasedMSIs(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("starting cluster-only template deployment asynchronously")
 			deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 
@@ -63,12 +59,25 @@ var _ = Describe("Customer", func() {
 			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
 			Expect(err).NotTo(HaveOccurred())
 
+			usePooled := framework.UsePooledIdentities()
+			identities := framework.MsiPool{
+				ResourceGroupName: *resourceGroup.Name,
+				Identities:        framework.NewDefaultIdentities(),
+			}
+			if usePooled {
+				identities, err = framework.GetLeasedMSIs(ctx)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			bicepParameters := map[string]interface{}{
 				"clusterName": map[string]interface{}{
 					"value": clusterName,
 				},
-				"msiIdentities": map[string]interface{}{
-					"value": msiPool,
+				"identities": map[string]interface{}{
+					"value": identities,
+				},
+				"usePooledIdentities": map[string]interface{}{
+					"value": usePooled,
 				},
 			}
 

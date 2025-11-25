@@ -43,6 +43,8 @@ var _ = Describe("Customer", func() {
 			var clusterNames []string
 			const createClustersCount = 2
 
+			usePooled := framework.UsePooledIdentities()
+
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "cluster-listing", tc.Location())
@@ -52,19 +54,26 @@ var _ = Describe("Customer", func() {
 				clusterName := "list-test-cluster-" + rand.String(6)
 				clusterNames = append(clusterNames, clusterName)
 
-				By("getting MSIs from pool")
-				misPool, err := framework.GetLeasedMSIs(ctx)
-				Expect(err).NotTo(HaveOccurred())
-
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
+
+				identities := framework.MsiPool{
+					ResourceGroupName: *resourceGroup.Name,
+					Identities:        framework.NewDefaultIdentities(),
+				}
+				if usePooled {
+					identities, err = framework.GetLeasedMSIs(ctx)
+					Expect(err).NotTo(HaveOccurred())
+				}
+
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"cluster-only",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
 					map[string]any{
-						"clusterName":     clusterName,
-						"persistTagValue": false,
-						"msiIdentities":   misPool,
+						"clusterName":         clusterName,
+						"persistTagValue":     false,
+						"identities":          identities,
+						"usePooledIdentities": usePooled,
 					},
 					45*time.Minute,
 				)

@@ -6,8 +6,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 const (
@@ -57,6 +61,24 @@ type Identities struct {
 	ServiceManagedIdentityName   string `json:"serviceManagedIdentityName"`
 }
 
+func NewDefaultIdentities() Identities {
+	return Identities{
+		ClusterApiAzureMiName:        ClusterApiAzureMiName,
+		ControlPlaneMiName:           ControlPlaneMiName,
+		CloudControllerManagerMiName: CloudControllerManagerMiName,
+		IngressMiName:                IngressMiName,
+		DiskCsiDriverMiName:          DiskCsiDriverMiName,
+		FileCsiDriverMiName:          FileCsiDriverMiName,
+		ImageRegistryMiName:          ImageRegistryMiName,
+		CloudNetworkConfigMiName:     CloudNetworkConfigMiName,
+		KmsMiName:                    KmsMiName,
+		DpDiskCsiDriverMiName:        DpDiskCsiDriverMiName,
+		DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
+		DpImageRegistryMiName:        DpImageRegistryMiName,
+		ServiceManagedIdentityName:   ServiceManagedIdentityName,
+	}
+}
+
 // GetLeasedMSIs acquires the next available RG using an atomic file-based counter
 // and returns the MSIs from that resource group, mapped by their logical roles.
 func GetLeasedMSIs(ctx context.Context) (MsiPool, error) {
@@ -73,21 +95,8 @@ func GetLeasedMSIs(ctx context.Context) (MsiPool, error) {
 
 	return MsiPool{
 		ResourceGroupName: leasedRGs[rgIndex],
-		Identities: Identities{
-			ClusterApiAzureMiName:        ClusterApiAzureMiName,
-			ControlPlaneMiName:           ControlPlaneMiName,
-			CloudControllerManagerMiName: CloudControllerManagerMiName,
-			IngressMiName:                IngressMiName,
-			DiskCsiDriverMiName:          DiskCsiDriverMiName,
-			FileCsiDriverMiName:          FileCsiDriverMiName,
-			ImageRegistryMiName:          ImageRegistryMiName,
-			CloudNetworkConfigMiName:     CloudNetworkConfigMiName,
-			KmsMiName:                    KmsMiName,
-			DpDiskCsiDriverMiName:        DpDiskCsiDriverMiName,
-			DpFileCsiDriverMiName:        DpFileCsiDriverMiName,
-			DpImageRegistryMiName:        DpImageRegistryMiName,
-			ServiceManagedIdentityName:   ServiceManagedIdentityName,
-		}}, nil
+		Identities:        NewDefaultIdentities(),
+	}, nil
 }
 
 func acquireNextRGIndex(leasedRGs []string) (int, error) {
@@ -129,4 +138,93 @@ func acquireNextRGIndex(leasedRGs []string) (int, error) {
 	}
 
 	return counter, nil
+}
+
+func UsePooledIdentities() bool {
+	pooled := strings.TrimSpace(os.Getenv("POOLED_IDENTITIES"))
+	if pooled == "" {
+		return false
+	}
+	b, _ := strconv.ParseBool(pooled)
+	return b
+}
+
+type managedIdentitiesOptions struct {
+	*bicepDeploymentConfig
+	usePooled bool
+}
+
+type ManagedIdentitiesOption func(*managedIdentitiesOptions)
+
+type BicepDeploymentOrManagedIdentitiesOption interface{}
+
+func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
+	ctx context.Context,
+	bicepTemplateJSON []byte,
+	opts ...BicepDeploymentOrManagedIdentitiesOption,
+) (*armresources.DeploymentExtended, error) {
+
+	cfg := &managedIdentitiesOptions{
+		bicepDeploymentConfig: &bicepDeploymentConfig{
+			scope:          BicepDeploymentScopeSubscription,
+			deploymentName: "managed-identities",
+			timeout:        45 * time.Minute,
+			parameters:     map[string]interface{}{},
+		},
+		usePooled: UsePooledIdentities(),
+	}
+
+	for _, opt := range opts {
+		switch o := opt.(type) {
+
+		case BicepDeploymentOption:
+			o(cfg.bicepDeploymentConfig)
+		case ManagedIdentitiesOption:
+			o(cfg)
+		default:
+			panic("unknown option type passed to DeployManagedIdentities()")
+		}
+	}
+
+	var msiRGName string
+	var identities Identities
+
+	if cfg.usePooled {
+		msiPool, err := GetLeasedMSIs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get leased MSIs: %w", err)
+		}
+		msiRGName = msiPool.ResourceGroupName
+		identities = msiPool.Identities
+	} else {
+		msiRGName = cfg.resourceGroup
+		identities = NewDefaultIdentities()
+	}
+
+	parameters := map[string]interface{}{
+		"clusterResourceGroupName": cfg.resourceGroup,
+		"msiResourceGroupName":     msiRGName,
+		"pooledIdentities":         identities,
+		"nsgName":                  cfg.parameters["nsgName"],
+		"vnetName":                 cfg.parameters["vnetName"],
+		"subnetName":               cfg.parameters["subnetName"],
+		"keyVaultName":             cfg.parameters["keyVaultName"],
+	}
+	if !cfg.usePooled {
+		parameters["useMsiPool"] = false
+	}
+
+	deploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
+		bicepTemplateJSON,
+		WithSubscriptionScope(),
+		WithDeploymentName(cfg.deploymentName),
+		WithLocation(invocationContext().Location()),
+		WithParameters(parameters),
+		WithTimeout(cfg.timeout),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create managed identities: %w", err)
+	}
+
+	return deploymentResult, nil
 }

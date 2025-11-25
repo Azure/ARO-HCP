@@ -73,28 +73,18 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting MSIs from pool for first cluster")
-			msiPool, err := framework.GetLeasedMSIs(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("creating role assignments for pooled MSIs")
+			By("creating role assignments for MSIs for first cluster")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait_v2(ctx,
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				framework.WithSubscriptionScope(),
-				framework.WithDeploymentName("managed-identities"),
-				framework.WithLocation(tc.Location()),
+				framework.WithResourceGroupScope(*customerResourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"clusterResourceGroupName": *customerResourceGroup.Name,
-					"msiResourceGroupName":     msiPool.ResourceGroupName,
-					"pooledIdentities":         msiPool.Identities,
-					"nsgName":                  customerNetworkSecurityGroupName,
-					"vnetName":                 customerVnetName,
-					"subnetName":               customerVnetSubnetName,
-					"keyVaultName":             keyVaultName,
+					"nsgName":      customerNetworkSecurityGroupName,
+					"vnetName":     customerVnetName,
+					"subnetName":   customerVnetSubnetName,
+					"keyVaultName": keyVaultName,
 				}),
-				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -141,28 +131,19 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("getting MSIs from pool for second cluster")
-			msiPool, err = framework.GetLeasedMSIs(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("creating a second managed identities")
 			keyVaultName, err = framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err = tc.CreateBicepTemplateAndWait_v2(ctx,
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				framework.WithSubscriptionScope(),
+				framework.WithResourceGroupScope(*customerResourceGroup.Name),
 				framework.WithDeploymentName("managed-identities-2"),
-				framework.WithLocation(tc.Location()),
 				framework.WithParameters(map[string]interface{}{
-					"clusterResourceGroupName": *customerResourceGroup.Name,
-					"msiResourceGroupName":     msiPool.ResourceGroupName,
-					"pooledIdentities":         msiPool.Identities,
-					"nsgName":                  customerNetworkSecurityGroupName2,
-					"vnetName":                 customerVnetName2,
-					"subnetName":               customerVnetSubnetName2,
-					"keyVaultName":             keyVaultName,
+					"nsgName":      customerNetworkSecurityGroupName2,
+					"vnetName":     customerVnetName2,
+					"subnetName":   customerVnetSubnetName2,
+					"keyVaultName": keyVaultName,
 				}),
-				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -208,28 +189,19 @@ var _ = Describe("Customer", func() {
 				45*time.Minute,
 			)
 
-			By("getting MSIs from pool for third cluster")
-			msiPool, err = framework.GetLeasedMSIs(ctx)
-			Expect(err).NotTo(HaveOccurred())
-
 			By("creating a third managed identities")
 			keyVaultName, err = framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
 			managedIdentityDeploymentResult, err = tc.CreateBicepTemplateAndWait_v2(ctx,
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-				framework.WithSubscriptionScope(),
+				framework.WithResourceGroupScope(*customerResourceGroup.Name),
 				framework.WithDeploymentName("managed-identities-3"),
-				framework.WithLocation(tc.Location()),
 				framework.WithParameters(map[string]interface{}{
-					"clusterResourceGroupName": *customerResourceGroup.Name,
-					"msiResourceGroupName":     msiPool.ResourceGroupName,
-					"pooledIdentities":         msiPool.Identities,
-					"nsgName":                  customerNetworkSecurityGroupName3,
-					"vnetName":                 customerVnetName3,
-					"subnetName":               customerVnetSubnetName3,
-					"keyVaultName":             keyVaultName,
+					"nsgName":      customerNetworkSecurityGroupName3,
+					"vnetName":     customerVnetName3,
+					"subnetName":   customerVnetSubnetName3,
+					"keyVaultName": keyVaultName,
 				}),
-				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 
