@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:b0349dd3c1ec3e57727630c9ff9e45e9eb397d7696b67e8ccbd20419e1dcaca0
+      digest: sha256:4abf08622665b695c857a3812407751ed5debded13d4f4551e061fd4e2197264
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:4560f7fca8fed455484091c5011596d7787b0ee950db6401deef15817350ebd7
+      digest: sha256:e1cddae3a17682b9f4711e3718851bc647817a13fc44f5c9e8e2a923a62f1093
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-ntly-ln
   image:
-    digest: sha256:c2c0850dd59171ed71e3c565d499890e56833b0fab6506b23c873bcbff0c6ec1
+    digest: sha256:8d3b5fe7ca3b986b19841adda13c94acad5ba0a9b28bf3127b2b03f209fe8156
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -68,7 +68,7 @@ automationDryRun: false
 azureRegionAvailabilityZoneCount: 3
 backend:
   image:
-    digest: sha256:385675cb59a18e352033941770943dd23267752c411a7cb3c3dedbf8593b7aa9
+    digest: sha256:83d69225b3118d2de694d4b1b1d1f0bd86b7f6fb3c335bbb9c792d688cc6be88
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -207,7 +207,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:fe5cb64d52a16b6943e230749d156493b314afe78c45785b5a9431847592b17f
+    digest: sha256:ff95c2afb0d2800d100fa87b88330820ae32e7be20dcea788c74bb8a746093c5
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
