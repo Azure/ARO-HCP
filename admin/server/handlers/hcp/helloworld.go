@@ -28,6 +28,12 @@ func HCPHelloWorld() http.Handler {
 			http.Error(writer, fmt.Sprintf("failed to get resource ID: %v", err), http.StatusInternalServerError)
 			return
 		}
+		clientPrincipalName, err := middleware.ClientPrincipalNameFromContext(request.Context())
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get client principal name: %v", err), http.StatusInternalServerError)
+			return
+		}
 		fmt.Fprintln(writer, resourceID.String())
+		fmt.Fprintln(writer, clientPrincipalName)
 	})
 }

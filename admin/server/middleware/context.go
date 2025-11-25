@@ -42,6 +42,7 @@ const (
 	contextKeyOriginalUrlPathValue = contextKey("url_path.original_value")
 	contextKeyUrlPathValue         = contextKey("url_path.value")
 	contextKeyHCPResourceID        = contextKey("hcp_resource_id")
+	contextKeyClientPrincipalName  = contextKey("client_principal_name")
 )
 
 func ContextWithOriginalUrlPathValue(ctx context.Context, originalUrlPathValue string) context.Context {
@@ -90,4 +91,16 @@ func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
 		return resourceID, err
 	}
 	return resourceID, nil
+}
+
+func ContextWithClientPrincipalName(ctx context.Context, clientPrincipalName string) context.Context {
+	return context.WithValue(ctx, contextKeyClientPrincipalName, clientPrincipalName)
+}
+
+func ClientPrincipalNameFromContext(ctx context.Context) (string, error) {
+	clientPrincipalName, ok := ctx.Value(contextKeyClientPrincipalName).(string)
+	if !ok {
+		return "", fmt.Errorf("client principal name not found in context")
+	}
+	return clientPrincipalName, nil
 }

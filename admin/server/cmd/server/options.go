@@ -207,7 +207,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
-		Handler: middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux)),
+		Handler: middleware.WithClientPrincipal(middleware.WithLowercaseURLPathValue(middleware.WithLogger(logger, rootMux))),
 	}
 	interrupts.ListenAndServe(&s, 5*time.Second)
 	interrupts.WaitForGracefulShutdown()
