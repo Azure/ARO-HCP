@@ -36,12 +36,14 @@ func TestFormatAKSTable(t *testing.T) {
 				SubscriptionID: "sub-123",
 				ResourceGroup:  "rg-1",
 				Location:       "eastus",
+				ResourceID:     "/subscriptions/sub-123/resourceGroups/rg-1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 			},
 			{
 				Name:           "cluster-2",
 				SubscriptionID: "sub-456",
 				ResourceGroup:  "rg-2",
 				Location:       "westus2",
+				ResourceID:     "/subscriptions/sub-456/resourceGroups/rg-2/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 			},
 		}
 
@@ -66,6 +68,7 @@ func TestFormatAKSYAML(t *testing.T) {
 				SubscriptionID: "sub-123",
 				Subscription:   "Test Subscription",
 				Location:       "eastus",
+				ResourceID:     "/subscriptions/sub-123/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 				State:          "Succeeded",
 				Tags: map[string]string{
 					"environment": "test",
@@ -97,6 +100,7 @@ func TestFormatAKSJSON(t *testing.T) {
 				SubscriptionID: "sub-123",
 				Subscription:   "Test Subscription",
 				Location:       "eastus",
+				ResourceID:     "/subscriptions/sub-123/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 				State:          "Succeeded",
 				Tags: map[string]string{
 					"environment": "test",
@@ -167,6 +171,7 @@ func TestFormatAKSClusters(t *testing.T) {
 			Name:           "test-cluster",
 			ResourceGroup:  "test-rg",
 			SubscriptionID: "sub-123",
+			ResourceID:     "/subscriptions/sub-123/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster",
 			Location:       "eastus",
 		},
 	}

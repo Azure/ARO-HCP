@@ -157,4 +157,5 @@ param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 param arobitKustoEnabled = {{ .arobit.kusto.enabled }}
 param serviceLogsDatabase = '{{ .kusto.serviceLogsDatabase }}'
+param hostedControlPlaneLogsDatabase = '{{ .kusto.hostedControlPlaneLogsDatabase }}'
 param kustoResourceId = '__kustoResourceId__'

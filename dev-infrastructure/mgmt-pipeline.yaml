@@ -85,11 +85,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
-  - name: cs-akv-permissions
+  - name: svc-mgmt-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
-    template: templates/cs-mgmt-akv-permissions.bicep
-    parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
+    template: templates/svc-mgmt-permissions.bicep
+    parameters: configurations/svc-mgmt-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
     - name: clusterServiceMIResourceId
@@ -102,6 +102,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: msiRefresher
+    - name: adminApiMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: adminApi
     dependsOn:
     - resourceGroup: management
       step: infra

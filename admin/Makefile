@@ -35,20 +35,34 @@ $(BINARY): $(ADMIN_API_SOURCES)
 	cd api && go build $(LDFLAGS) -o ../$(BINARY) .
 
 run: $(BINARY)
-	./${BINARY} serve --location ${LOCATION}
+	@COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
+	./${BINARY} serve --location ${LOCATION} --cosmos-url $${COSMOS_DB_URL} --cosmos-name ${COSMOS_DB_NAME}
 .PHONY: run
+
+run-with-sc-integration: $(BINARY)
+	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
+	KUSTO_ENDPOINT=$$(az kusto cluster show -n ${KUSTO_CLUSTER_NAME} -g ${KUSTO_RG} --query uri -o tsv) && \
+	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${CS_PORT_FORWARD_SPEC}" \
+		./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
+			./${BINARY} serve \
+				--location ${LOCATION} \
+				--clusters-service-url http://localhost:${CS_LOCAL_PORT} \
+				--cosmos-url $${COSMOS_DB_URL} \
+				--cosmos-name ${COSMOS_DB_NAME} \
+				--kusto-endpoint $${KUSTO_ENDPOINT}
+.PHONY: run-with-sc-integration
 
 clean:
 	rm -f ${BINARY}
 .PHONY: clean
 
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
-	docker build . --file Dockerfile \
+	cd $(ADMIN_DIR)/.. && \
+	docker build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--build-arg ARO_HCP_REVISION=${ARO_HCP_REVISION} \
 		--build-arg ARO_HCP_IMAGE_TAG=${ADMIN_API_IMAGE_TAG} \
 		--tag ${ADMIN_API_TAGGED_IMAGE}
-	@touch $@
 
 build-and-push: image $(ORAS)
 	az acr login --name ${ARO_HCP_IMAGE_ACR}
@@ -74,6 +88,10 @@ deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
 
+#
+#   C L I
+#
+
 build-cli: $(CLI_BINARY)
 .PHONY: build-cli
 
@@ -81,7 +99,7 @@ $(CLI_BINARY): $(CLI_SOURCES)
 	cd client && go build $(LDFLAGS) -o ../$(CLI_BINARY) .
 
 run-hello-world-test: $(CLI_BINARY)
-	@./${CLI_BINARY} hello-world \
+	./${CLI_BINARY} hello-world \
 		--ga-auth-cert-kv ${GA_AUTH_CERT_KV} \
 		--ga-auth-cert-secret ${GA_AUTH_CERT_SECRET} \
 		--ga-auth-tenant-id ${GA_AUTH_TENANT_ID} \
@@ -93,19 +111,14 @@ run-hello-world-test: $(CLI_BINARY)
 .PHONY: run-hello-world-test
 
 run-hello-world-test-with-port-forward: $(CLI_BINARY) $(HCPCTL)
-	@CLI_BINARY=$(ADMIN_DIR)/$(CLI_BINARY) \
-	GA_AUTH_CERT_KV=$(GA_AUTH_CERT_KV) \
-	GA_AUTH_CERT_SECRET=$(GA_AUTH_CERT_SECRET) \
-	GA_AUTH_TENANT_ID=$(GA_AUTH_TENANT_ID) \
-	GA_AUTH_CLIENT_ID=$(GA_AUTH_CLIENT_ID) \
-	GA_AUTH_SCOPES=$(GA_AUTH_SCOPES) \
-	ADMIN_API_HOST=$(ADMIN_API_HOST) \
-	ADMIN_API_ENDPOINT=https://localhost:$(PORT_FORWARD_LOCAL_PORT) \
-	NAMESPACE=aks-istio-ingress \
-	SERVICE_NAME=aks-istio-ingressgateway-external \
-	LOCAL_PORT=$(PORT_FORWARD_LOCAL_PORT) \
-	REMOTE_PORT=443 \
-	SVC_CLUSTER=$(SVC_CLUSTER) \
-	HCPCTL=$(HCPCTL) \
-	./hack/with-port-forward.sh
-.PHONY: run-hello-world-test-with-port-forward
+	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ISTIO_PORT_FORWARD_SPEC}" \
+		./${CLI_BINARY} hello-world \
+			--ga-auth-cert-kv "${GA_AUTH_CERT_KV}" \
+			--ga-auth-cert-secret "${GA_AUTH_CERT_SECRET}" \
+			--ga-auth-tenant-id "${GA_AUTH_TENANT_ID}" \
+			--ga-auth-client-id "${GA_AUTH_CLIENT_ID}" \
+			--ga-auth-scopes "${GA_AUTH_SCOPES}" \
+			--host "${ADMIN_API_HOST}" \
+			--admin-api-endpoint "https://localhost:$(PORT_FORWARD_LOCAL_PORT)" \
+			--insecure-skip-verify
+.PHONY: run-with-sc-integration

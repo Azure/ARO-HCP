@@ -32,6 +32,7 @@ type AKSCluster struct {
 	SubscriptionID string            `json:"subscriptionid" yaml:"subscriptionid"`
 	Subscription   string            `json:"subscription" yaml:"subscription"` // Subscription display name
 	Location       string            `json:"location" yaml:"location"`
+	ResourceID     string            `json:"resourceid" yaml:"resourceid"`
 	State          string            `json:"state" yaml:"state"`
 	Tags           map[string]string `json:"tags" yaml:"tags"` // Full tag map for flexibility
 }
@@ -155,7 +156,7 @@ func buildKQLQuery(filter *AKSFilter) string {
 	query.WriteString(") on subscriptionId\n")
 
 	// Project the fields we need
-	query.WriteString("| project name, resourceGroup, subscriptionId, subscriptionDisplayName, location, tags, properties")
+	query.WriteString("| project name, resourceGroup, subscriptionId, subscriptionDisplayName, location, tags, properties, id")
 
 	return query.String()
 }
@@ -175,6 +176,7 @@ func (d *AKSDiscovery) parseResourceGraphResults(result armresourcegraph.ClientR
 			SubscriptionID: common.ParseStringField(rowMap, "subscriptionId"),
 			Subscription:   common.ParseStringField(rowMap, "subscriptionDisplayName"),
 			Location:       common.ParseStringField(rowMap, "location"),
+			ResourceID:     common.ParseStringField(rowMap, "id"),
 			Tags:           common.ParseTagsMap(rowMap),
 		}
 

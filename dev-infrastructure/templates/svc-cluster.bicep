@@ -406,6 +406,9 @@ param arobitKustoEnabled bool
 @description('Name of the database to write logs to')
 param serviceLogsDatabase string
 
+@description('Name of the HCP logs database')
+param hostedControlPlaneLogsDatabase string
+
 @description('Kusto resource ID')
 param kustoResourceId string
 
@@ -637,6 +640,7 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
 
 var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
+var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   name: 'rp_cosmos_db'
@@ -647,6 +651,7 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
     zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
     disableLocalAuth: disableLocalAuth
     userAssignedMIs: [frontendMI, backendMI]
+    readOnlyUserAssignedMIs: [adminApiMI]
     private: rpCosmosDbPrivate
   }
 }
@@ -1026,11 +1031,22 @@ module svcKVNSPProfile '../modules/network/nsp-profile.bicep' = if (serviceKeyVa
 
 var kustoRef = res.kustoRefFromId(kustoResourceId)
 
-module grantKustIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+module grantKustSvcLogs '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
   name: 'grantKusto-${uniqueString(resourceGroup().name)}'
   params: {
     clusterLogPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
+    readAccessPrincipalIds: [adminApiMI.uamiPrincipalID]
     databaseName: serviceLogsDatabase
+    kustoName: kustoRef.name
+  }
+  scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)
+}
+
+module grantKustoHCPLogs '../modules/logs/kusto/grant-access.bicep' = if (arobitKustoEnabled && kustoResourceId != '') {
+  name: 'grantKusto-${uniqueString(resourceGroup().name)}-admin'
+  params: {
+    readAccessPrincipalIds: [adminApiMI.uamiPrincipalID]
+    databaseName: hostedControlPlaneLogsDatabase
     kustoName: kustoRef.name
   }
   scope: resourceGroup(kustoRef.resourceGroup.subscriptionId, kustoRef.resourceGroup.name)

@@ -2,9 +2,19 @@
 
 set -euo pipefail
 
+CLUSTER_NAME=$1
+shift
+# Port forward specification is expected to be in the format of "namespace/service/localPort/remotePort"
+PORT_FORWARD_SPEC="$1"
+shift
+NAMESPACE=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f1)
+SERVICE_NAME=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f2)
+LOCAL_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f3)
+REMOTE_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f4)
+
 # Get Kubeconfig
 KUBECONFIG=$(mktemp)
-${HCPCTL} sc breakglass "${SVC_CLUSTER}" --output "${KUBECONFIG}" --no-shell
+${HCPCTL} sc breakglass "${CLUSTER_NAME}" --output "${KUBECONFIG}" --no-shell
 
 # Start port-forward in background
 kubectl port-forward -n "$NAMESPACE" svc/"$SERVICE_NAME" "$LOCAL_PORT":"$REMOTE_PORT" &
@@ -27,14 +37,7 @@ echo "PID: $PORT_FORWARD_PID"
 sleep 2
 
 # Test the connection
-echo "Run Test"
+echo "Running command: $*"
 
-${CLI_BINARY} hello-world \
-		--ga-auth-cert-kv "${GA_AUTH_CERT_KV}" \
-		--ga-auth-cert-secret "${GA_AUTH_CERT_SECRET}" \
-		--ga-auth-tenant-id "${GA_AUTH_TENANT_ID}" \
-		--ga-auth-client-id "${GA_AUTH_CLIENT_ID}" \
-		--ga-auth-scopes "${GA_AUTH_SCOPES}" \
-		--host "${ADMIN_API_HOST}" \
-		--admin-api-endpoint "${ADMIN_API_ENDPOINT}" \
-		--insecure-skip-verify
+# run the rest of the command with $*
+exec "$@"
