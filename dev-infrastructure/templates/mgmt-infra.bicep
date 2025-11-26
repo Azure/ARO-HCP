@@ -51,7 +51,7 @@ param logAnalyticsWorkspaceId string = ''
 
 // Storage Account for HCP Backups
 @minLength(3)
-@maxLength(24)
+// @maxLength(24) Fails on EV2 pipelines, probably because the EV2 placeholder is longer than 24.
 param hcpBackupsStorageAccountName string
 param hcpBackupsStorageAccountContainerName string = 'backups'
 param hcpBackupsStorageAccountZoneRedundantMode string = 'Auto'
