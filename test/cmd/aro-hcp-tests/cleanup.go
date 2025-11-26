@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -57,38 +56,26 @@ func newCleanupResourceGroupsCommand() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	opt := resourcegroups.NewOptions()
-	cmd.Flags().StringArrayVar(&opt.ResourceGroups, "resource-group", opt.ResourceGroups, "Resource group to clean (repeat)")
-	cmd.Flags().BoolVar(&opt.DeleteExpired, "expired", opt.DeleteExpired, "Delete all expired e2e resource groups")
-	cmd.Flags().StringVar(&opt.EvaluationTime, "evaluation-time", opt.EvaluationTime, "Time at which to evaluate resource group expiration (RFC3339,defaults to current time)")
-	cmd.Flags().BoolVar(&opt.DryRun, "dry-run", opt.DryRun, "Print which resource groups would be deleted without deleting")
+	rawOpt := resourcegroups.NewOptions()
+	cmd.Flags().StringArrayVar(&rawOpt.ResourceGroups, "resource-group", rawOpt.ResourceGroups, "Resource group to clean (repeat)")
+	cmd.Flags().BoolVar(&rawOpt.DeleteExpired, "expired", rawOpt.DeleteExpired, "Delete all expired e2e resource groups")
+	cmd.Flags().StringVar(&rawOpt.EvaluationTime, "evaluation-time", rawOpt.EvaluationTime, "Time at which to evaluate resource group expiration (RFC3339,defaults to current time)")
+	cmd.Flags().BoolVar(&rawOpt.DryRun, "dry-run", rawOpt.DryRun, "Print which resource groups would be deleted without deleting")
+	cmd.Flags().StringVar(&rawOpt.CleanupWorkflow, "env-type", string(rawOpt.CleanupWorkflow), "Cleanup workflow (standard or no-rp)")
+	cmd.Flags().DurationVar(&rawOpt.Timeout, "timeout", rawOpt.Timeout, "Timeout for deleting each resource group (e.g. 60m)")
+	cmd.Flags().StringArrayVar(&rawOpt.IncludeLocations, "include-location", rawOpt.IncludeLocations, "Only delete resource groups in these Azure locations (repeatable)")
+	cmd.Flags().StringArrayVar(&rawOpt.ExcludeLocations, "exclude-location", rawOpt.ExcludeLocations, "Do not delete resource groups in these Azure locations (repeatable)")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 		defer cancel()
-		return opt.Run(ctx)
-	}
 
-	return cmd
-}
+		validatedOpt, err := rawOpt.Validate()
+		if err != nil {
+			return err
+		}
 
-// TODO: delete when scripts have been migrated to use the new command
-func newDeleteExpiredResourceGroupsCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "delete-expired-resource-groups",
-		Short:        "Delete expired e2e resource groups",
-		SilenceUsage: true,
-	}
-
-	opt := resourcegroups.NewOptions()
-	opt.DeleteExpired = true
-	cmd.Flags().StringVar(&opt.EvaluationTime, "now", opt.EvaluationTime, "Current time when evaluating expiration (RFC3339)")
-	cmd.Flags().BoolVar(&opt.DryRun, "dry-run", opt.DryRun, "Print which resource groups would be deleted without deleting")
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer cancel()
-		return opt.Run(logr.NewContext(ctx, createLogger(0)))
+		return validatedOpt.Run(ctx)
 	}
 
 	return cmd

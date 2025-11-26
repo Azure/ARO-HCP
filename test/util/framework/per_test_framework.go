@@ -163,7 +163,12 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
-	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), resourceGroupNames)
+	opts := CleanupResourceGroupsOptions{
+		ResourceGroupNames: resourceGroupNames,
+		Timeout:            60 * time.Minute,
+		CleanupWorkflow:    CleanupWorkflowStandard,
+	}
+	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), opts)
 	if errCleanupResourceGroups != nil {
 		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
 	}
@@ -203,20 +208,41 @@ func isIgnorableResourceGroupCleanupError(err error) bool {
 	return false
 }
 
-func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupNames []string) error {
+type CleanupWorkflow string
+
+const (
+	CleanupWorkflowStandard CleanupWorkflow = "standard"
+	CleanupWorkflowNoRP     CleanupWorkflow = "no-rp"
+)
+
+type CleanupResourceGroupsOptions struct {
+	ResourceGroupNames []string
+	Timeout            time.Duration
+	CleanupWorkflow    CleanupWorkflow
+}
+
+func (tc *perItOrDescribeTestContext) CleanupResourceGroups(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, opts CleanupResourceGroupsOptions) error {
 	// deletion takes a while, it's worth it to do this in parallel
 	wg := sync.WaitGroup{}
-	errCh := make(chan error, len(resourceGroupNames))
-	for _, currResourceGroupName := range resourceGroupNames {
+	errCh := make(chan error, len(opts.ResourceGroupNames))
+	for _, currResourceGroupName := range opts.ResourceGroupNames {
 		wg.Add(1)
 		go func(ctx context.Context) {
 			defer wg.Done()
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
 			utilruntime.HandleCrashWithContext(ctx)
 
-			if err := tc.cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName); err != nil {
-				errCh <- err
+			switch opts.CleanupWorkflow {
+			case CleanupWorkflowStandard:
+				if err := tc.cleanupResourceGroup(ctx, hcpClient, resourceGroupsClient, currResourceGroupName, opts.Timeout); err != nil {
+					errCh <- err
+				}
+			case CleanupWorkflowNoRP:
+				if err := tc.cleanupResourceGroupNoRP(ctx, resourceGroupsClient, currResourceGroupName, opts.Timeout); err != nil {
+					errCh <- err
+				}
 			}
+
 		}(ctx)
 	}
 	wg.Wait()
@@ -282,7 +308,7 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
 // 2. delete the resource group and wait for success
-func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string) error {
+func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
@@ -292,12 +318,43 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	errs := []error{}
 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, 60*time.Minute); err != nil {
+	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
-	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, 60*time.Minute); err != nil {
+	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, false, timeout); err != nil {
+		return fmt.Errorf("failed to cleanup resource group: %w", err)
+	}
+
+	return errors.Join(errs...)
+}
+
+// cleanupResourceGroupNoRP performs cleanup when the resource provider is not available
+// This is used to cleanup personal dev e2e test runs, where the infra is already gone so there's no
+// RP to call for HCP deletion.
+// 1. deletes the "*--managed" resource group. Use 'force' flag to speed up VM deletion.
+// 2. deletes the resource group
+func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
+	}()
+
+	errs := []error{}
+
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName+"--managed")
+	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName+"--managed", true, timeout); err != nil {
+		if isIgnorableResourceGroupCleanupError(err) {
+			ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", resourceGroupName+"--managed")
+		} else {
+			return fmt.Errorf("failed to cleanup resource group: %w", err)
+		}
+	}
+
+	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName, false, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
 

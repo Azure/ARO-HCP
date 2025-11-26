@@ -119,12 +119,21 @@ func DeleteResourceGroup(
 	ctx context.Context,
 	resourceGroupsClient *armresources.ResourceGroupsClient,
 	resourceGroupName string,
+	force bool,
 	timeout time.Duration,
 ) error {
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	poller, err := resourceGroupsClient.BeginDelete(ctx, resourceGroupName, nil)
+	var opts *armresources.ResourceGroupsClientBeginDeleteOptions
+	if force {
+		opts = &armresources.ResourceGroupsClientBeginDeleteOptions{
+			ForceDeletionTypes: to.Ptr("Microsoft.Compute/virtualMachines,Microsoft.Compute/virtualMachineScaleSets"),
+		}
+	}
+
+	poller, err := resourceGroupsClient.BeginDelete(ctx, resourceGroupName, opts)
 	if err != nil {
 		return err
 	}
