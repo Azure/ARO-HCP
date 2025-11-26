@@ -109,7 +109,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Options: completed,
 
 			DryRun:                   o.DryRun,
-			NoPersist:                o.Persist,
+			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 
 			TimingOutputFile: o.TimingOutputFile,
