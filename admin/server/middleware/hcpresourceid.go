@@ -17,7 +17,6 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -81,15 +80,14 @@ func withHCPResourceID(next http.Handler) http.Handler {
 			return
 		}
 
-		resourceIDPath := path.Join(
-			"/subscriptions",
-			subscriptionID,
-			"resourceGroups",
-			resourceGroupName,
-			"providers",
-			strings.ToLower(api.ProviderNamespace),
-			strings.ToLower(api.ClusterResourceTypeName),
-			resourceName,
+		resourceIDPath := strings.ToLower(
+			fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/%s/%s/%s",
+				subscriptionID,
+				resourceGroupName,
+				api.ProviderNamespace,
+				api.ClusterResourceTypeName,
+				resourceName,
+			),
 		)
 
 		resourceID, err := azcorearm.ParseResourceID(resourceIDPath)
