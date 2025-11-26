@@ -500,7 +500,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 			}, state)
-			if shouldRetryError(step, stepRunErr) {
+			if shouldRetryError(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse duration between retries: %w", err)
@@ -539,12 +539,13 @@ func shouldExecuteStep(step types.Step, runCount int) bool {
 	return runCount < step.AutomatedRetries().MaximumRetryCount
 }
 
-func shouldRetryError(step types.Step, err error) bool {
+func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
 	if step.AutomatedRetries() == nil || err == nil {
 		return false
 	}
 	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
 		if strings.Contains(err.Error(), retry) {
+			logger.Info("Retrying step", "step", step.StepName(), "error", err.Error())
 			return true
 		}
 	}

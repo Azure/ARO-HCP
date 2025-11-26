@@ -584,10 +584,22 @@ func TestShouldRetryError(t *testing.T) {
 			err:      fmt.Errorf("other error"),
 			expected: false,
 		},
+		{
+			name: "nil error",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: &types.AutomatedRetry{
+						ErrorContainsAny: []string{"this is broken"},
+					},
+				},
+			},
+			err:      nil,
+			expected: false,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := shouldRetryError(tc.step, tc.err)
+			result := shouldRetryError(testr.New(t), tc.step, tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
