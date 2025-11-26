@@ -209,15 +209,19 @@ func PopulateClusterParamsFromManagedIdentitiesDeployment(
 	return params, nil
 }
 
-func CreateClusterCustomerResources(ctx context.Context,
-	deploymentsClient *armresources.DeploymentsClient,
+func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context.Context,
 	resourceGroup *armresources.ResourceGroup,
 	clusterParams ClusterParams,
 	infraParameters map[string]interface{},
 	artifactsFS embed.FS,
 ) (ClusterParams, error) {
-	customerInfraDeploymentResult, err := CreateBicepTemplateAndWait(ctx,
-		deploymentsClient,
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
+	}()
+
+	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		*resourceGroup.Name,
 		"customer-infra",
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
@@ -232,8 +236,7 @@ func CreateClusterCustomerResources(ctx context.Context,
 		return clusterParams, fmt.Errorf("failed to populate cluster params from customer-infra: %w", err)
 	}
 
-	managedIdentityDeploymentResult, err := CreateBicepTemplateAndWait(ctx,
-		deploymentsClient,
+	managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 		*resourceGroup.Name,
 		"managed-identities",
 		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),

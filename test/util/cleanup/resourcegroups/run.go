@@ -95,7 +95,7 @@ func (o Options) Run(ctx context.Context) error {
 
 	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete))
 
-	err := framework.CleanupResourceGroups(ctx,
+	err := tc.CleanupResourceGroups(ctx,
 		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 		resourceGroupsClient,
 		resourceGroupsToDelete)

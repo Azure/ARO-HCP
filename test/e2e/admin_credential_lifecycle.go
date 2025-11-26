@@ -149,7 +149,7 @@ var _ = Describe("Customer", func() {
 			Expect(cluster.HcpOpenShiftCluster.ID).NotTo(BeNil())
 
 			By("getting initial credentials to verify cluster is viable")
-			adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
 				clusterClient,
 				*resourceGroup.Name,
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 			By(fmt.Sprintf("creating %d admin credentials for the ready cluster", credentialCount))
 			for i := 0; i < credentialCount; i++ {
 				By(fmt.Sprintf("requesting admin credential %d", i+1))
-				adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
 					clusterClient,
 					*resourceGroup.Name,
@@ -205,7 +205,7 @@ var _ = Describe("Customer", func() {
 			By("verifying new admin credentials can still be requested after revocation")
 			// After revocation, new admin credential requests should still work
 			// This validates the revocation endpoint doesn't break the cluster
-			newAdminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+			newAdminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
 				clusterClient,
 				*resourceGroup.Name,

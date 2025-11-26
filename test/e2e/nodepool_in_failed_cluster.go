@@ -52,8 +52,7 @@ var _ = Describe("Customer", func() {
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-			clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -112,8 +111,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.VMSize = "Standard_D2s_v3"
 			nodePoolParams.Replicas = int32(1)
 
-			err = framework.CreateNodePoolFromParam(ctx,
-				tc,
+			err = tc.CreateNodePoolFromParam(ctx,
 				*resourceGroup.Name,
 				clusterName,
 				nodePoolParams,
