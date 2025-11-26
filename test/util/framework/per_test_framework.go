@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -330,11 +331,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	return errors.Join(errs...)
 }
 
-// cleanupResourceGroupNoRP performs cleanup when the resource provider is not available
+// cleanupResourceGroupNoRP performs cleanup when the resource provider is not available.
 // This is used to cleanup personal dev e2e test runs, where the infra is already gone so there's no
 // RP to call for HCP deletion.
-// 1. deletes the "*--managed" resource group. Use 'force' flag to speed up VM deletion.
-// 2. deletes the resource group
+//  1. discovers any "managed" resource groups whose ManagedBy references a resource in the parent
+//     resource group and deletes them (using 'force' to speed up VM/VMSS deletion).
+//  2. deletes the parent resource group itself.
 func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -344,12 +346,37 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 	errs := []error{}
 
-	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName+"--managed")
-	if err := DeleteResourceGroup(ctx, resourceGroupsClient, resourceGroupName+"--managed", true, timeout); err != nil {
-		if isIgnorableResourceGroupCleanupError(err) {
-			ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", resourceGroupName+"--managed")
-		} else {
-			return fmt.Errorf("failed to cleanup resource group: %w", err)
+	// Discover managed resource groups by inspecting the ManagedBy field.
+	managedResourceGroups := []string{}
+	pager := resourceGroupsClient.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list resource groups while discovering managed groups: %w", err)
+		}
+		for _, rg := range page.Value {
+			if rg.ManagedBy == nil {
+				continue
+			}
+
+			// Match managed resource groups whose owner is an HCP resource in the parent resource group.
+			if strings.Contains(
+				*rg.ManagedBy,
+				"/resourceGroups/"+resourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/",
+			) {
+				managedResourceGroups = append(managedResourceGroups, *rg.Name)
+			}
+		}
+	}
+
+	for _, managedRG := range managedResourceGroups {
+		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
+		if err := DeleteResourceGroup(ctx, resourceGroupsClient, managedRG, true, timeout); err != nil {
+			if isIgnorableResourceGroupCleanupError(err) {
+				ginkgo.GinkgoLogr.Info("ignoring not found resource group", "resourceGroup", managedRG)
+			} else {
+				return fmt.Errorf("failed to cleanup managed resource group %q: %w", managedRG, err)
+			}
 		}
 	}
 
