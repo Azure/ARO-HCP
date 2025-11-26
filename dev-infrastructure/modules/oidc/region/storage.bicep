@@ -28,78 +28,32 @@ param deploymentScriptLocation string
 
 param allowBlobPublicAccess bool = false
 
-// Storage Account Contributor: Lets you manage storage accounts, including accessing storage account keys which provide full access to storage account data.
-// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage#storage-account-contributor
-var storageAccountContributorRole = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
-
-// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
-// Storage Blob Data Contributor: Grants access to Read, write, and delete Azure Storage containers and blobs
-var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
-
-var scriptToRun = 'storage.sh'
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  location: location
-  name: accountName
-  kind: 'StorageV2'
-  sku: {
-    name: skuName
-  }
-  properties: {
+module storageAccount '../../storage/storage.bicep' = {
+  name: 'oidcStorageAccount'
+  params: {
+    storageAccountName: accountName
+    location: location
+    skuName: skuName
     accessTier: 'Hot'
-    supportsHttpsTrafficOnly: true
     allowBlobPublicAccess: allowBlobPublicAccess
-    minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
     publicNetworkAccess: 'Enabled'
+    configureNetworkAcls: false
+    configureEncryption: false
   }
 }
 
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (principalId != '') {
-  name: guid(storageAccount.id, principalId, storageBlobDataContributorRole)
-  scope: storageAccount
-  properties: {
+module storageRbac './storage-setup.bicep' = {
+  name: 'oidcStorageRbac'
+  params: {
+    accountName: accountName
     principalId: principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
-  }
-}
-
-resource storageAccountContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, deploymentMsiId, storageAccountContributorRole)
-  scope: storageAccount
-  properties: {
-    principalId: reference(deploymentMsiId, '2023-01-31').principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageAccountContributorRole)
-  }
-}
-
-resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: 'deploymentScript'
-  location: deploymentScriptLocation
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${deploymentMsiId}': {}
-    }
-  }
-  properties: {
-    azCliVersion: '2.53.1'
-    scriptContent: loadTextContent(scriptToRun)
-    retentionInterval: 'PT1H'
-    environmentVariables: [
-      {
-        name: 'StorageAccountName'
-        value: accountName
-      }
-    ]
+    deploymentMsiId: deploymentMsiId
+    deploymentScriptLocation: deploymentScriptLocation
   }
   dependsOn: [
     storageAccount
-    storageAccountContributor
   ]
 }
 
-output storageName string = storageAccount.name
+output storageName string = storageAccount.outputs.storageAccountName

@@ -458,6 +458,12 @@ mgmt:
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
+  hcpBackups:
+    storageAccount:
+      name: oadpntlyln1
+      public: false
+      zoneRedundantMode: Auto
+    storageAccountContainerName: backups
   nsp:
     accessMode: Learning
     name: nsp-ln-mgmt-1

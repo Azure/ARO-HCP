@@ -362,6 +362,12 @@ defaults:
           repository: kubernetes/kube-state-metrics
   # MGMT cluster specifics
   mgmt:
+    hcpBackups:
+      storageAccount:
+        name: "oadp{{ .ctx.environment }}{{ .ctx.regionShort }}{{ .ctx.stamp }}" # [globally-unique]
+        zoneRedundantMode: Auto
+        public: false
+      storageAccountContainerName: "backups"
     subscription:
       usePlannedQuota: true
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"

@@ -785,6 +785,43 @@
         "key",
         "displayName"
       ]
+    },
+    "storageAccount": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]{3,24}$"
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "public": {
+          "type": "boolean",
+          "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
+        },
+        "privateLinkLocation": {
+          "type": "string",
+          "description": "The location of the storage account private link. Not every region supports private links so we need to be able to override the default location."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "zoneRedundantMode",
+        "public"
+      ]
+    },
+    "hcpBackups": {
+      "type": "object",
+      "properties": {
+        "storageAccount": {
+          "$ref": "#/definitions/storageAccount"
+        },
+        "storageAccountContainerName":{
+          "type": "string"
+        }
+      }
     }
   },
   "properties": {
@@ -2155,6 +2192,9 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "hcpBackups": {
+          "$ref": "#/definitions/hcpBackups"
+        },
         "nsp": {
           "$ref": "#/definitions/nsp"
         },
@@ -2358,29 +2398,7 @@
       "type": "object",
       "properties": {
         "storageAccount": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            },
-            "public": {
-              "type": "boolean",
-              "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
-            },
-            "privateLinkLocation": {
-              "type": "string",
-              "description": "The location of the storage account private link. Not every region supports private links so we need to be able to override the default location."
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "zoneRedundantMode",
-            "public"
-          ]
+          "ref" : "#/definitions/storageAccount"
         },
         "frontdoor": {
           "type": "object",
