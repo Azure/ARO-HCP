@@ -23,7 +23,7 @@ defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
   #
-  geoShortId: "{{ .ev2.geoShortId }}"
+  azureGeoShortId: "{{ .ev2.geoShortId }}"
   environmentName: "{{ .ctx.environment }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
