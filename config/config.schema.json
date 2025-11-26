@@ -828,7 +828,7 @@
     "environmentName": {
       "type": "string"
     },
-    "geoShortId": {
+    "azureGeoShortId": {
       "type": "string"
     },
     "tenantId": {
@@ -2657,7 +2657,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
-    "geoShortId",
+    "azureGeoShortId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

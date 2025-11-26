@@ -3,7 +3,7 @@
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
-  geoShortId: "{{ .geoShortId }}"
+  geoShortId: "{{ .azureGeoShortId }}"
   clusterType: "mgmt"
   environment: "{{ .arobit.kusto.environmentName }}"
   clusterName: "{{ .mgmt.aks.name }}"
