@@ -540,7 +540,7 @@ func shouldExecuteStep(step types.Step, runCount int) bool {
 }
 
 func shouldRetryError(step types.Step, err error) bool {
-	if step.AutomatedRetries() == nil {
+	if step.AutomatedRetries() == nil || err == nil {
 		return false
 	}
 	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
