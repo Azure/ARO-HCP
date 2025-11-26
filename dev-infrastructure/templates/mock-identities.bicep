@@ -34,6 +34,12 @@ param armHelperCertName string = 'armHelperCert2'
 @description('The DNS of the arm helper mock certificate, used for subject and DNS names.')
 param armHelperCertDns string = 'armhelper.hcp.osadev.cloud'
 
+@description('The name of the first party check access certificate')
+param firstPartyCheckAccessCertName string = 'firstPartyCheckAccessCert'
+
+@description('The DNS of the first party check access certificate, used for subject and DNS names.')
+param firstPartyCheckAccessCertDns string = 'firstpartycheckaccess.hcp.osadev.cloud'
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -81,6 +87,23 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
       subscription().id
       subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
     ]
+  }
+}
+
+//
+// F I R S T   P A R T Y   C H E C K   A C C E S S   A P I   I D E N T I T Y
+//
+module firstPartyCheckAccessIdentity '../modules/keyvault/key-vault-cert.bicep' = {
+  name: 'first-party-identity-check-access'
+  params: {
+    location: location
+    keyVaultManagedIdentityId: globalMSI.id
+    keyVaultName: keyVaultName
+    certName: firstPartyCheckAccessCertName
+    subjectName: 'CN=${firstPartyCheckAccessCertDns}'
+    issuerName: 'Self'
+    dnsNames: [firstPartyCheckAccessCertDns]
+    validityInMonths: 120
   }
 }
 
