@@ -49,7 +49,9 @@ run-with-sc-integration: $(BINARY)
 				--clusters-service-url http://localhost:${CS_LOCAL_PORT} \
 				--cosmos-url $${COSMOS_DB_URL} \
 				--cosmos-name ${COSMOS_DB_NAME} \
-				--kusto-endpoint $${KUSTO_ENDPOINT}
+				--kusto-endpoint $${KUSTO_ENDPOINT} \
+				--fpa-client-id ${FPA_CLIENT_ID}
+#				--fpa-cert-bundle-path /Users/goberlec/dev/aro-hcp-sec/bundles/fpa-bundle
 .PHONY: run-with-sc-integration
 
 clean:

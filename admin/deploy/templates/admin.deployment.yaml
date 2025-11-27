@@ -21,6 +21,8 @@ spec:
       labels:
         app: admin-api
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/fpa-spc: '{{ include (print $.Template.BasePath "/admin.fpa.secretproviderclass.yaml") . | sha256sum }}'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -52,6 +54,10 @@ spec:
           value: "{{ .Values.cosmosDB.name }}"
         - name: KUSTO_ENDPOINT
           value: "{{ .Values.kusto.endpoint }}"
+        - name: FPA_CERT_BUNDLE_PATH
+          value: "/secrets/fpa-cert/bundle"
+        - name: FPA_CLIENT_ID
+          value: "{{ .Values.fpa.clientId }}"
         ports:
         - containerPort: 8443
           name: http
@@ -87,3 +93,14 @@ spec:
             port: 8444
           initialDelaySeconds: 5
           periodSeconds: 10
+        volumeMounts:
+        - name: fpa-cert
+          mountPath: /secrets/fpa-cert
+          readOnly: true
+      volumes:
+      - name: fpa-cert
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: fpa-cert

@@ -43,3 +43,7 @@ cosmosDB:
   name: "{{ .frontend.cosmosDB.name }}"
 kusto:
   endpoint: "__kustoEndpoint__"
+fpa:
+  keyVaultName: "{{ .serviceKeyVault.name }}"
+  certName: "{{ .firstPartyAppCertificate.name }}"
+  clientId: "{{ .firstPartyAppClientId }}"

@@ -18,12 +18,17 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
 )
 
-func HCPHelloWorld(dbClient database.DBClient) http.Handler {
+func HCPHelloWorld(dbClient database.DBClient, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		logger := middleware.LoggerFromContext(request.Context())
+
 		// get the azure resource ID for this HCP
 		resourceID, err := middleware.ResourceIDFromContext(request.Context())
 		if err != nil {
@@ -43,6 +48,33 @@ func HCPHelloWorld(dbClient database.DBClient) http.Handler {
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get HCP: %v", err), http.StatusInternalServerError)
 			return
+		}
+
+		// get the FPA token credentials for the HCP tenant
+		tokenCredential, err := fpaCredentialRetriever.RetrieveCredential(hcp.Identity.TenantID)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get FPA token credential: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// use the token credentials to get all loadbalancers in the managed resource group
+		networkClient, err := armnetwork.NewLoadBalancersClient(resourceID.SubscriptionID, tokenCredential, nil)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get Azure network client: %v", err), http.StatusInternalServerError)
+			return
+		}
+		pager := networkClient.NewListPager(hcp.CustomerProperties.Platform.ManagedResourceGroup, nil)
+		for pager.More() {
+			page, err := pager.NextPage(request.Context())
+			if err != nil {
+				logger.Error("failed to get next page", "error", err)
+				http.Error(writer, fmt.Sprintf("failed to get next page: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			for _, lb := range page.Value {
+				fmt.Fprintln(writer, *lb.Name)
+			}
 		}
 
 		// some output

@@ -31,3 +31,6 @@ ADMIN_API_SERVICE_ACCOUNT ?= {{ .adminApi.k8s.serviceAccountName }}
 # Kusto details
 KUSTO_CLUSTER_NAME ?= {{ .kusto.kustoName }}
 KUSTO_RG ?= {{ .kusto.rg }}
+
+# FPA
+FPA_CLIENT_ID ?= {{ .firstPartyAppClientId }}

@@ -921,6 +921,16 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
   }
 }
 
+module adminApiServiceKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'admin-api-svc-kv-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(serviceKeyVaultResourceGroup)
+  params: {
+    keyVaultName: serviceKeyVaultName
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalId: adminApiMI.uamiPrincipalID
+  }
+}
+
 //
 //   F P A   C E R T I F I C A T E
 //
