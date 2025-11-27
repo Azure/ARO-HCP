@@ -83,8 +83,9 @@ var _ = Describe("Customer", func() {
 			By("creating role assignments for MSIs")
 			keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 			Expect(err).NotTo(HaveOccurred())
-			managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
+			managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+				framework.WithResourceGroupScope(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
 					"nsgName":      customerNetworkSecurityGroupName,
 					"vnetName":     customerVnetName,
