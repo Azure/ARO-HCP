@@ -30,15 +30,17 @@ import (
 type GenericRegistryClient struct {
 	httpClient  *http.Client
 	registryURL string
+	useAuth     bool
 }
 
 // NewGenericRegistryClient creates a new generic registry client
-func NewGenericRegistryClient(registryURL string) *GenericRegistryClient {
+func NewGenericRegistryClient(registryURL string, useAuth bool) *GenericRegistryClient {
 	return &GenericRegistryClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		registryURL: registryURL,
+		useAuth:     useAuth,
 	}
 }
 
@@ -87,6 +89,8 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
+	remoteOpts := GetRemoteOptions(c.useAuth)
+
 	// Enrich tags with digest and timestamp information before filtering
 	var enrichedTags []Tag
 	for _, tag := range allTags {
@@ -96,7 +100,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			continue
 		}
 
-		desc, err := remote.Get(ref)
+		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
 			logger.Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
 			continue
@@ -125,7 +129,7 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			continue
 		}
 
-		desc, err := remote.Get(ref)
+		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
 			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
 			continue

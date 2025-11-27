@@ -22,23 +22,28 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
-// QuayClient provides methods to interact with Quay.io using its proprietary API
+// QuayClient provides methods to interact with Quay.io
+// Note: For private repositories, this client falls back to using the Docker Registry V2 API
+// instead of Quay's proprietary API, as the latter requires different credentials
 type QuayClient struct {
 	httpClient *http.Client
 	baseURL    string
+	useAuth    bool
 }
 
 // NewQuayClient creates a new Quay.io client
-func NewQuayClient() *QuayClient {
+func NewQuayClient(useAuth bool) *QuayClient {
 	return &QuayClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		baseURL: "https://quay.io/api/v1",
+		useAuth: useAuth,
 	}
 }
 
@@ -54,7 +59,94 @@ type quayTagsResponse struct {
 	HasAdditional bool      `json:"has_additional"`
 }
 
+// addAuth adds authentication headers to the request using Docker credentials
+// It follows the Docker Registry V2 authentication flow: get token, then use it
+func (c *QuayClient) addAuth(req *http.Request, repository string) error {
+	// Parse the registry reference to get the resource name
+	ref, err := name.NewRepository(fmt.Sprintf("quay.io/%s", repository))
+	if err != nil {
+		return fmt.Errorf("failed to parse repository: %w", err)
+	}
+
+	// Get authenticator from the default keychain (reads from ~/.docker/config.json)
+	authenticator, err := authn.DefaultKeychain.Resolve(ref.Registry)
+	if err != nil {
+		return fmt.Errorf("failed to resolve authenticator: %w", err)
+	}
+
+	// Get the auth config
+	authConfig, err := authenticator.Authorization()
+	if err != nil {
+		return fmt.Errorf("failed to get authorization: %w", err)
+	}
+
+	// Get a bearer token using the Registry V2 auth flow
+	token, err := c.getBearerToken(repository, *authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get bearer token: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	return nil
+}
+
+// getBearerToken exchanges credentials for a bearer token following the Docker Registry V2 auth spec
+func (c *QuayClient) getBearerToken(repository string, authConfig authn.AuthConfig) (string, error) {
+	// The auth endpoint for Quay.io
+	tokenURL := fmt.Sprintf("https://quay.io/v2/auth?service=quay.io&scope=repository:%s:pull", repository)
+
+	tokenReq, err := http.NewRequest("GET", tokenURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	// Use basic auth to get the bearer token
+	if authConfig.Username != "" && authConfig.Password != "" {
+		tokenReq.SetBasicAuth(authConfig.Username, authConfig.Password)
+	} else if authConfig.Auth != "" {
+		// Auth is already base64 encoded username:password
+		tokenReq.Header.Set("Authorization", fmt.Sprintf("Basic %s", authConfig.Auth))
+	} else {
+		return "", fmt.Errorf("no credentials found in Docker config")
+	}
+
+	tokenResp, err := c.httpClient.Do(tokenReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to request token: %w", err)
+	}
+	defer tokenResp.Body.Close()
+
+	if tokenResp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token request returned status %d", tokenResp.StatusCode)
+	}
+
+	var tokenData struct {
+		Token       string `json:"token"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	// Return whichever field is populated
+	if tokenData.Token != "" {
+		return tokenData.Token, nil
+	}
+	if tokenData.AccessToken != "" {
+		return tokenData.AccessToken, nil
+	}
+
+	return "", fmt.Errorf("no token in response")
+}
+
 func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
+	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API
+	// This is because Quay's API requires different credentials (OAuth2 tokens) than registry access
+	if c.useAuth {
+		return c.getAllTagsViaRegistryAPI(repository)
+	}
+
+	// For public repositories, use Quay's proprietary API which provides timestamps
 	var allTags []Tag
 	page := 1
 
@@ -102,6 +194,51 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 	return allTags, nil
 }
 
+// getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
+// This works with Docker credentials and is used for private repositories
+func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) {
+	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if err := c.addAuth(req, repository); err != nil {
+		return nil, fmt.Errorf("failed to add authentication: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request registry API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
+	}
+
+	var tagsResp struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
+		return nil, fmt.Errorf("failed to decode registry API response: %w", err)
+	}
+
+	var allTags []Tag
+	for _, tagName := range tagsResp.Tags {
+		tag := Tag{
+			Name: tagName,
+			// Note: Registry V2 API doesn't provide timestamps, they'll be fetched later if needed
+			LastModified: time.Time{},
+		}
+		allTags = append(allTags, tag)
+	}
+
+	return allTags, nil
+}
+
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
@@ -115,6 +252,8 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		return nil, err
 	}
 
+	remoteOpts := GetRemoteOptions(c.useAuth)
+
 	for _, tag := range tags {
 		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
 		if err != nil {
@@ -122,7 +261,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 			continue
 		}
 
-		desc, err := remote.Get(ref)
+		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
 			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
 			continue
