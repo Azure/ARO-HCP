@@ -370,7 +370,7 @@ To modify or add jobs:
 
 ### Getting Help
 
-- For Prow infrastructure issues: Contact the OpenShift CI team
+- For Prow infrastructure issues: Contact the OpenShift CI team in [#forum-ocp-testplatform](https://redhat.enterprise.slack.com/archives/CBN38N3MW)
 - For ARO HCP-specific test failures: Review with the ARO HCP development team
 - For job configuration changes: Submit a PR to the openshift/release repository
 
