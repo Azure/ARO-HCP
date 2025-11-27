@@ -7,7 +7,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: 'arobit-forwarder'
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
   annotations:
     azure.workload.identity/client-id: '__msiClientId__'
 ---
@@ -19,7 +19,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
 data:
   fluent-bit.conf: |
     @INCLUDE /forwarder/etc/service.conf
@@ -28,6 +28,7 @@ data:
 
     @INCLUDE /forwarder/etc/filter.conf
     @INCLUDE /forwarder/etc/output-mdsd.conf
+    @INCLUDE /forwarder/etc/output.conf
   service.conf: |
     [SERVICE]
         Flush                     1
@@ -289,7 +290,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
 rules:
 - apiGroups:
   - ""
@@ -309,7 +310,7 @@ metadata:
   name: arobit-forwarder
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
 roleRef:
   kind: ClusterRole
   apiGroup: rbac.authorization.k8s.io
@@ -327,7 +328,7 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
     app: arobit-forwarder
 spec:
   type: ClusterIP
@@ -346,7 +347,7 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
 ---
 # Source: arobit/templates/forwarder-daemonset.yaml
 apiVersion: apps/v1
@@ -356,14 +357,14 @@ metadata:
   namespace: 'arobit'
   labels:
     app.kubernetes.io/name: arobit-forwarder
-    app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: arobit-forwarder
-      app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+      app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -372,7 +373,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: arobit-forwarder
-        app.kubernetes.io/instance: 'helmtest-mdsd-enabled-svc'
+        app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
     spec:

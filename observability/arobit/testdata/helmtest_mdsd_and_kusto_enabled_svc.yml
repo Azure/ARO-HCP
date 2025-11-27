@@ -1,7 +1,9 @@
 values: ../values-svc.yaml
-name: helmtest-mdsd-enabled-svc
+name: helmtest-mdsd-and-kusto-enabled-svc
 namespace: arobit
 testData:
   arobit:
     mdsd:
+      enabled: true
+    kusto:
       enabled: true
