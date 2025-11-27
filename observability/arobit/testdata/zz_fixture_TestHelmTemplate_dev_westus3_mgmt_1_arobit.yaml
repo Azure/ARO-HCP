@@ -340,6 +340,7 @@ metadata:
     app.kubernetes.io/instance: 'dev-westus3-mgmt-1-arobit'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
+    checksum/forwarder-configmap: '75fbd0a8144eb425790c250fb1e63d2926d594090e91aa11083ecdb90385bb42'
 spec:
   selector:
     matchLabels:

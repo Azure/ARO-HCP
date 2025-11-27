@@ -5,6 +5,8 @@ metadata:
     app: maestro-agent
   name: maestro-agent
   namespace: '{{ .Release.Namespace }}'
+  annotations:
+    checksum/metrics-proxy-config: '{{ include (print $.Template.BasePath "/metrics-proxy.configmap.yaml") . | sha256sum }}'
 spec:
   replicas: {{ .Values.replicas }}
   selector:

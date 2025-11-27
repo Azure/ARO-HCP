@@ -5,6 +5,8 @@ metadata:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
   namespace: '{{ .Release.Namespace }}'
+  annotations:
+    checksum/frontend-config: '{{ include (print $.Template.BasePath "/frontend.configmap.yaml") . | sha256sum }}'
 spec:
   progressDeadlineSeconds: 600
   replicas: {{ .Values.deployment.replicas }}
