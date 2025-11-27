@@ -76,8 +76,6 @@ metadata:
     app: aro-hcp-frontend
   name: aro-hcp-frontend
   namespace: 'aro-hcp'
-  annotations:
-    checksum/frontend-config: '73352f59540bfd8b828cda9443ccdc3eb4af33323816927b6d33792b468c0e5d'
 spec:
   progressDeadlineSeconds: 600
   replicas: 2

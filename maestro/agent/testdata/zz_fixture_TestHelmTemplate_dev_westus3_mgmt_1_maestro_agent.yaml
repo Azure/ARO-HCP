@@ -284,8 +284,6 @@ metadata:
     app: maestro-agent
   name: maestro-agent
   namespace: 'maestro'
-  annotations:
-    checksum/metrics-proxy-config: '732a4deca655361dfc30cc8459c50e6b5f1b6814a51bbe828bbdbd13ab81d93f'
 spec:
   replicas: 3
   selector:
