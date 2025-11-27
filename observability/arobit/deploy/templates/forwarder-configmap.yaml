@@ -21,7 +21,8 @@ data:
     {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
     {{- end }}
-{{- else if .Values.forwarder.kusto.enabled }}
+{{- end }}
+{{- if .Values.forwarder.kusto.enabled }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}
   service.conf: |
