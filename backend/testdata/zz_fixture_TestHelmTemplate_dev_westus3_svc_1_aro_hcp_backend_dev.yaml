@@ -82,6 +82,8 @@ metadata:
     app: aro-hcp-backend
   name: aro-hcp-backend
   namespace: 'aro-hcp'
+  annotations:
+    checksum/backend-config: 'ef7afbf82b0160a6e51717add505e718977e6f7ac2eae83200e16879e3a56e6b'
 spec:
   progressDeadlineSeconds: 600
   replicas: 2

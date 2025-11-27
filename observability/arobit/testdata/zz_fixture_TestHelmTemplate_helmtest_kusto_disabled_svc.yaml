@@ -359,6 +359,7 @@ metadata:
     app.kubernetes.io/instance: 'helmtest-kusto-disabled-svc'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
+    checksum/forwarder-configmap: '846aacb1fbcf112e21eaa81050492618ff5de71142846fcfdae59b9c0fc17c76'
 spec:
   selector:
     matchLabels:

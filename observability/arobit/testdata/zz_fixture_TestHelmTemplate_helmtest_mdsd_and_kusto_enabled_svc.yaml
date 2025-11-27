@@ -360,6 +360,7 @@ metadata:
     app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-svc'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
+    checksum/forwarder-configmap: '2615d6881a001f96c60166be0a4e07081198dbff57dcc8045e929eb1f66c6a59'
 spec:
   selector:
     matchLabels:
