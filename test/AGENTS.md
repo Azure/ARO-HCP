@@ -1,11 +1,12 @@
 # Principles of Good E2E Test Case Design
 
-## Bicep template(s) to create cluster
+## Provision HCP cluster
 
-* **Combined vs individual steps:** Individual Bicep modules, each representing a single step, can be integrated into a comprehensive Bicep module representing cluster configuration. This combined module will manage its own dependencies, inputs, and outputs.  
-* **Combined:** General minimal cluster with nodepool (`demo.json`) or without nodepool (`cluster-only.json`). These test cases are suitable when the specific cluster type is not a determining factor.  
-* **Individual:** Consist of required resources `managed-identities.json`, `customer-infra.json` (nsg, vnet, …), `cluster.json` and `nodepool.json`. This approach is effective when cluster definitions require unique or significantly adjusted resources. It is also beneficial for testing specific creation steps or when reusing existing resources.  
-* **Timeout of bicep deployment:** To keep the timeout consistent with other test cases, use 45 minutes.
+* **Cluster creation:** Cluster creation, which leverages methods from the framework module, offers three main approaches for creating and deploying an HCP cluster: `CreateHCPClusterFromParam`, which handles creation and automatically waits for successful deployment; `BeginCreateHCPCluster`, which initiates the process but requires explicit test logic to wait for provisioning completion; and an alternative using `CreateHCPClusterFromParam` with a 0-second timeout, which executes the creation but immediately bypasses the waiting phase for provisioning to finish.  
+* **Cluster Params:** The `NewDefaultClusterParams` method from the framework module should be used to configure the default cluster parameters. Before creating cluster customer resources, the `ClusterName` parameter must be set. Different cluster configurations can be achieved by assigning custom values to the parameters.  
+* **Prepare cluster customer resources:** Creating a cluster requires several resources (like an NSG, VNet, subnet, and managed identities). To create these resources and set the cluster's parameters, use the `CreateClusterCustomerResources` method from the framework module.  
+* **Nodepool creation:** To create a nodepool, utilize the `CreateNodePoolFromParam` method. Beforehand, the default nodepool parameters should be prepared using the `NewDefaultNodePoolParams` method. Both of these methods are located within the `framework` module. Like cluster parameters, custom configurations can be assigned to the nodepool parameter values.  
+* **Timeout of deployment:** To keep the timeout consistent with other test cases, use 45 minutes.
 
 ## Resource naming \- Independence and Isolation
 
@@ -34,7 +35,7 @@
 ## Logging
 
 * **Log message structure:** Ensure log messages are direct, including the actual error message if an error occurs.  
-* **Ginkgo Logger:** For logging, use `ginkgo.GinkgoLogr` to generate info or error entries in the output. This is the preferred logger. Alternatively, you can use the `logger` from the util module `log` or `klog` from the `k8s.io` module.  
+* **Preferred Logger:** For logging, use `ginkgo.GinkgoLogr` to generate info or error entries in the output. This is the preferred logger. Alternatively, you can use the `klog` from the `k8s.io` module. To measure the execution time of a specific method, utilize the `RecordTestStep` function as a `defer` call within that method.  
 * **Ginkgo Writer:** Use `ginkgo.GinkgoWriter` to create a regular message in output.
 
 ## Labels
@@ -49,7 +50,9 @@
   * *Negative*  
 * **ARO HCP environment:** Test cases for one environment.  
   * *IntegrationOnly*  
-  * *StageOnly*
+  * *StageOnly*  
+* **API compatibility:**  
+  * *AroRpApiCompatible*: This label indicates tests that are compatible with both the development environment (directly against ARO HCP RP without ARM) and higher environments (with ARM).
 
 ## File Structure
 
@@ -73,4 +76,5 @@
 
 * **Randomize strings:** To create unique resource names, use the `rand.String(n int)` function from the `k8s.io/apimachinery/pkg/util/rand` library to generate random strings. A length of 6 characters is typically sufficient.  
 * **Descriptive Names:** Use descriptive names for test files, test cases, bicep/arm deployments, and functions.  
-* **Test case description:** Maintain descriptions of specifications and tests as informative and comprehensive complete sentences.
+* **Test case description:** Maintain descriptions of specifications and tests as informative and comprehensive complete sentences.  
+* **Development environment test cases:** Ensure new negative test cases produce the same result in development and higher environments by running them in both. Do not use the label `AroRpApiCompatible` if the test case fails in the development environment.
