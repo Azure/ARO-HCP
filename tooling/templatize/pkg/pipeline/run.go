@@ -127,6 +127,7 @@ type ExecutionInfo struct {
 	QueuedAt   string `json:"queuedAt"`
 	StartedAt  string `json:"startedAt"`
 	FinishedAt string `json:"finishedAt"`
+	RunCount   int    `json:"runCount"`
 	State      string `json:"state"`
 }
 type NodeInfo struct {
@@ -380,7 +381,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					details, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
 					if details != nil {
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
@@ -406,6 +407,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Lock()
 					state.Logging[step] = stepLogs.Bytes()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					state.Timing[step].RunCount = runCount
 					s := "succeeded"
 					if err != nil {
 						s = "failed"
@@ -454,29 +456,29 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	return outputs, nil
 }
 
-func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, error) {
+func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, int, error) {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
 	state.RUnlock()
 	if alreadyDone {
 		logger.V(4).Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	resourceGroup, exists := graphCtx.ResourceGroups[node.ResourceGroup]
 	if !exists {
-		return nil, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
+		return nil, 0, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
 	}
 
 	step, exists := graphCtx.Steps[node.ServiceGroup][node.ResourceGroup][node.Step]
 	if !exists {
-		return nil, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
+		return nil, 0, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
 	}
 
 	subscriptionID, err := options.SubsciptionLookupFunc(ctx, resourceGroup.Subscription)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+		return nil, 0, fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 	}
 	target := &executionTargetImpl{
 		subscriptionName: resourceGroup.Subscription,
@@ -503,7 +505,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 			if shouldRetryError(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
-					return nil, fmt.Errorf("failed to parse duration between retries: %w", err)
+					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
 				}
 				time.Sleep(duration)
 			} else {
@@ -512,7 +514,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 	}
 	if stepRunErr != nil {
-		return details, stepRunErr
+		return details, runCount, stepRunErr
 	}
 
 	state.Lock()
@@ -528,7 +530,7 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
-	return details, nil
+	return details, runCount, nil
 }
 
 func shouldExecuteStep(step types.Step, runCount int) bool {
