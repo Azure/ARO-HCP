@@ -361,8 +361,8 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 			// Match managed resource groups whose owner is an HCP resource in the parent resource group.
 			if strings.Contains(
-				*rg.ManagedBy,
-				"/resourceGroups/"+resourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/",
+				strings.ToLower(*rg.ManagedBy),
+				strings.ToLower("/resourceGroups/"+resourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/"),
 			) {
 				managedResourceGroups = append(managedResourceGroups, *rg.Name)
 			}
