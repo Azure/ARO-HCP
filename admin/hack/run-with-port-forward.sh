@@ -22,13 +22,13 @@ PORT_FORWARD_PID=$!
 
 # Ensure port-forward is killed on exit
 cleanup() {
-	rm "${KUBECONFIG}"
+	rm -rf "${KUBECONFIG}"
 	echo "Stopping port-forward (PID $PORT_FORWARD_PID)..."
 	if kill "$PORT_FORWARD_PID" 2>/dev/null; then
 		wait "$PORT_FORWARD_PID" 2>/dev/null || true
 	fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 echo "Port-forward established: localhost:$LOCAL_PORT -> $SERVICE_NAME.$NAMESPACE:$REMOTE_PORT"
 echo "PID: $PORT_FORWARD_PID"
@@ -39,5 +39,4 @@ sleep 2
 # Test the connection
 echo "Running command: $*"
 
-# run the rest of the command with $*
-exec "$@"
+"$@"

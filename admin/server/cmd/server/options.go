@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -59,6 +60,8 @@ type RawOptions struct {
 	CosmosURL          string
 	CosmosName         string
 	KustoEndpoint      string
+	FpaCertBundlePath  string
+	FpaClientID        string
 }
 
 func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
@@ -69,6 +72,8 @@ func (opts *RawOptions) BindOptions(cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.CosmosURL, "cosmos-url", getEnv("COSMOS_URL", opts.CosmosURL), "URL of the Cosmos DB.")
 	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", getEnv("COSMOS_NAME", opts.CosmosName), "Name of the Cosmos DB.")
 	cmd.Flags().StringVar(&opts.KustoEndpoint, "kusto-endpoint", getEnv("KUSTO_ENDPOINT", opts.KustoEndpoint), "Endpoint of the Kusto cluster.")
+	cmd.Flags().StringVar(&opts.FpaClientID, "fpa-client-id", getEnv("FPA_CLIENT_ID", opts.FpaClientID), "Client ID of the FPA application.")
+	cmd.Flags().StringVar(&opts.FpaCertBundlePath, "fpa-cert-bundle-path", getEnv("FPA_CERT_BUNDLE_PATH", opts.FpaCertBundlePath), "Path to the FPA certificate bundle.")
 	return nil
 }
 
@@ -91,13 +96,14 @@ type ValidatedOptions struct {
 
 // completedOptions is a private wrapper that enforces a call of Complete() before config generation can be invoked.
 type completedOptions struct {
-	Port                  int
-	HealthPort            int
-	Location              string
-	ClustersServiceClient ocm.ClusterServiceClientSpec
-	DbClient              database.DBClient
-	KustoClient           *kusto.Client
-	Logger                *slog.Logger
+	Port                   int
+	HealthPort             int
+	Location               string
+	ClustersServiceClient  ocm.ClusterServiceClientSpec
+	DbClient               database.DBClient
+	KustoClient            *kusto.Client
+	FpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+	Logger                 *slog.Logger
 }
 
 type Options struct {
@@ -171,15 +177,22 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		kustoClient = client
 	}
 
+	// Create FPA TokenCredentials
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(ctx, logger, o.FpaClientID, o.FpaCertBundlePath, azcore.ClientOptions{}, 30*time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
+	}
+
 	return &Options{
 		completedOptions: &completedOptions{
-			Port:                  o.Port,
-			HealthPort:            o.HealthPort,
-			Location:              o.Location,
-			ClustersServiceClient: csClient,
-			DbClient:              dbClient,
-			KustoClient:           kustoClient,
-			Logger:                logger,
+			Port:                   o.Port,
+			HealthPort:             o.HealthPort,
+			Location:               o.Location,
+			ClustersServiceClient:  csClient,
+			DbClient:               dbClient,
+			KustoClient:            kustoClient,
+			FpaCredentialRetriever: fpaCredentialRetriever,
+			Logger:                 logger,
 		},
 	}, nil
 }
@@ -197,7 +210,7 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux()
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient))
+	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient, opts.ClustersServiceClient, opts.FpaCredentialRetriever))
 
 	rootMux := http.NewServeMux()
 	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())

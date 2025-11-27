@@ -371,7 +371,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 9f51a6c1fe15d49194f62d066e5cbecdf1c5ad041b46bed21063c269dde442dc
+        checksum/configmap: 2221a6a0326a35bf704979a3ff4cfcb0fe9a8851c71406c8ac716e01a37e1eaf
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
