@@ -9,7 +9,6 @@ metadata:
     app.kubernetes.io/instance: '{{ .Release.Name }}'
     ## Istio Labels: https://istio.io/docs/ops/deployment/requirements/
     app: arobit-forwarder
-    checksum/forwarder-configmap: '{{ include (print $.Template.BasePath "/forwarder-configmap.yaml") . | sha256sum }}'
 spec:
   selector:
     matchLabels:
