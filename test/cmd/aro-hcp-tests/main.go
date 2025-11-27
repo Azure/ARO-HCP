@@ -102,8 +102,9 @@ func main() {
 	// and AfterAll. "Each" functions must be thread safe.
 	//
 	specs.AddBeforeAll(func() {
-		if framework.UsePooledIdentities() {
-			if err := framework.CreateIdentitiesPoolStateFile(); err != nil {
+		tc := framework.NewTestContext()
+		if tc.UsePooledIdentities() {
+			if err := tc.CreateIdentitiesPoolStateFile(); err != nil {
 				panic(fmt.Sprintf("failed to create managed identities pool state file: %v", err))
 			}
 		}

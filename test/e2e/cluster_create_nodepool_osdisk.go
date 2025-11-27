@@ -51,18 +51,18 @@ var _ = Describe("Customer", func() {
 
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
 
-			usePooled := framework.UsePooledIdentities()
+			usePooled := tc.UsePooledIdentities()
 			identities := framework.LeasedIdentityPool{
 				ResourceGroupName: *resourceGroup.Name,
 				Identities:        framework.NewDefaultIdentities(),
 			}
 			if usePooled {
-				identities, err = framework.GetLeasedIdentities()
+				identities, err = tc.GetLeasedIdentities()
 				Expect(err).NotTo(HaveOccurred())
 			}
 
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json"),
 				framework.WithResourceGroupScope(*resourceGroup.Name),
 				framework.WithDeploymentName("cluster-deployment"),
 				framework.WithParameters(map[string]interface{}{

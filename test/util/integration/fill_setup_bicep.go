@@ -75,7 +75,7 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	deploymentName := "aro-hcp-e2e-setup"
 	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		templateBytes,
+		framework.WithTemplateFromBytes(templateBytes),
 		framework.WithResourceGroupScope(resourceGroupName),
 		framework.WithDeploymentName(deploymentName),
 		framework.WithParameters(parameters),

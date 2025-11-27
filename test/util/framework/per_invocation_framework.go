@@ -45,6 +45,8 @@ type perBinaryInvocationTestContext struct {
 	location                 string
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
+	pooledIdentities         bool
+	leasedIdentityContainers []string
 
 	contextLock      sync.RWMutex
 	subscriptionID   string
@@ -80,6 +82,14 @@ func invocationContext() *perBinaryInvocationTestContext {
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
 		}
+
+		pooled := strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar))
+		if pooled != "" {
+			b, _ := strconv.ParseBool(pooled)
+			invocationContextInstance.pooledIdentities = b
+		}
+		leased := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+		invocationContextInstance.leasedIdentityContainers = leased
 	})
 	return invocationContextInstance
 }
@@ -185,6 +195,14 @@ func (tc *perBinaryInvocationTestContext) getSubscriptionID(ctx context.Context,
 
 func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
+}
+
+func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
+	return tc.pooledIdentities
+}
+
+func (tc *perBinaryInvocationTestContext) LeasedIdentityContainers() []string {
+	return tc.leasedIdentityContainers
 }
 
 func skipCleanup() bool {

@@ -61,14 +61,14 @@ var _ = Describe("Customer", func() {
 			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
 			Expect(err).NotTo(HaveOccurred())
 
-			usePooled := framework.UsePooledIdentities()
+			usePooled := tc.UsePooledIdentities()
 			identities := framework.LeasedIdentityPool{
 				ResourceGroupName: *resourceGroup.Name,
 				Identities:        framework.NewDefaultIdentities(),
 			}
 			if usePooled {
 				var err error
-				identities, err = framework.GetLeasedIdentities()
+				identities, err = tc.GetLeasedIdentities()
 				Expect(err).NotTo(HaveOccurred())
 			}
 

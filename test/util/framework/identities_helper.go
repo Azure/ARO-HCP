@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -15,7 +13,12 @@ import (
 )
 
 const (
+	UsePooledIdentitiesEnvvar = "POOLED_IDENTITIES"
 	LeasedMSIContainersEnvvar = "LEASED_MSI_CONTAINERS"
+)
+
+const (
+	msiPoolStateFileName = "identities-pool-state.yaml"
 )
 
 // well-known MSI role names
@@ -77,6 +80,10 @@ func NewDefaultIdentities() Identities {
 	}
 }
 
+func (tc *perItOrDescribeTestContext) UsePooledIdentities() bool {
+	return tc.perBinaryInvocationTestContext.UsePooledIdentities()
+}
+
 type managedIdentitiesOptions struct {
 	*bicepDeploymentConfig
 	usePooled bool
@@ -88,7 +95,6 @@ type BicepDeploymentOrManagedIdentitiesOption interface{}
 
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
-	bicepTemplateJSON []byte,
 	opts ...BicepDeploymentOrManagedIdentitiesOption,
 ) (*armresources.DeploymentExtended, error) {
 
@@ -99,7 +105,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 			timeout:        45 * time.Minute,
 			parameters:     map[string]interface{}{},
 		},
-		usePooled: UsePooledIdentities(),
+		usePooled: tc.UsePooledIdentities(),
 	}
 
 	for _, opt := range opts {
@@ -118,7 +124,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	var identities Identities
 
 	if cfg.usePooled {
-		msiPool, err := GetLeasedIdentities()
+		msiPool, err := tc.GetLeasedIdentities()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get leased MSIs: %w", err)
 		}
@@ -143,7 +149,7 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	}
 
 	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		bicepTemplateJSON,
+		WithTemplateFromBytes(cfg.template),
 		WithSubscriptionScope(),
 		WithDeploymentName(cfg.deploymentName),
 		WithLocation(invocationContext().Location()),
@@ -157,50 +163,10 @@ func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	return deploymentResult, nil
 }
 
-type leaseState string
+func (tc *perItOrDescribeTestContext) CreateIdentitiesPoolStateFile() error {
+	statePath := tc.msiPoolStateFilePath()
 
-const (
-	leaseStateFree leaseState = "free"
-	leaseStateBusy leaseState = "busy"
-)
-
-type leasedIdentityPoolEntry struct {
-	ResourceGroup string     `yaml:"resourceGroup"`
-	State         leaseState `yaml:"state"`
-	LeasedBy      string     `yaml:"leasedBy,omitempty"`
-	LeasedAt      string     `yaml:"leasedAt,omitempty"`
-	ReleasedAt    string     `yaml:"releasedAt,omitempty"`
-}
-
-func (e *leasedIdentityPoolEntry) Lease() error {
-	if e.State == leaseStateBusy {
-		return fmt.Errorf("resource group %s is not free", e.ResourceGroup)
-	}
-	e.State = leaseStateBusy
-	e.LeasedBy = fmt.Sprintf("pid:%d", os.Getpid())
-	e.LeasedAt = time.Now().UTC().Format(time.RFC3339)
-	return nil
-}
-
-func (e *leasedIdentityPoolEntry) Release() error {
-	if e.State == leaseStateFree {
-		return nil
-	}
-	e.State = leaseStateFree
-	e.ReleasedAt = time.Now().UTC().Format(time.RFC3339)
-	return nil
-}
-
-const msiPoolStateFileName = "identities-pool-state.yaml"
-
-func msiPoolStateFilePath() string {
-	return filepath.Join(sharedDir(), msiPoolStateFileName)
-}
-
-func CreateIdentitiesPoolStateFile() error {
-	statePath := msiPoolStateFilePath()
-
-	leasedRGs := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	leasedRGs := tc.perBinaryInvocationTestContext.LeasedIdentityContainers()
 	if len(leasedRGs) == 0 {
 		return fmt.Errorf("expected envvar %s to not be empty", LeasedMSIContainersEnvvar)
 	}
@@ -225,8 +191,8 @@ func CreateIdentitiesPoolStateFile() error {
 	return nil
 }
 
-func GetLeasedIdentities() (LeasedIdentityPool, error) {
-	statePath := msiPoolStateFilePath()
+func (tc *perItOrDescribeTestContext) GetLeasedIdentities() (LeasedIdentityPool, error) {
+	statePath := tc.msiPoolStateFilePath()
 
 	f, err := os.OpenFile(statePath, os.O_RDWR, 0)
 	if err != nil {
@@ -281,11 +247,40 @@ func GetLeasedIdentities() (LeasedIdentityPool, error) {
 	}, nil
 }
 
-func UsePooledIdentities() bool {
-	pooled := strings.TrimSpace(os.Getenv("POOLED_IDENTITIES"))
-	if pooled == "" {
-		return false
+func (tc *perItOrDescribeTestContext) msiPoolStateFilePath() string {
+	return filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, msiPoolStateFileName)
+}
+
+type leaseState string
+
+const (
+	leaseStateFree leaseState = "free"
+	leaseStateBusy leaseState = "busy"
+)
+
+type leasedIdentityPoolEntry struct {
+	ResourceGroup string     `yaml:"resourceGroup"`
+	State         leaseState `yaml:"state"`
+	LeasedBy      string     `yaml:"leasedBy,omitempty"`
+	LeasedAt      string     `yaml:"leasedAt,omitempty"`
+	ReleasedAt    string     `yaml:"releasedAt,omitempty"`
+}
+
+func (e *leasedIdentityPoolEntry) Lease() error {
+	if e.State == leaseStateBusy {
+		return fmt.Errorf("resource group %s is not free", e.ResourceGroup)
 	}
-	b, _ := strconv.ParseBool(pooled)
-	return b
+	e.State = leaseStateBusy
+	e.LeasedBy = fmt.Sprintf("pid:%d", os.Getpid())
+	e.LeasedAt = time.Now().UTC().Format(time.RFC3339)
+	return nil
+}
+
+func (e *leasedIdentityPoolEntry) Release() error {
+	if e.State == leaseStateFree {
+		return nil
+	}
+	e.State = leaseStateFree
+	e.ReleasedAt = time.Now().UTC().Format(time.RFC3339)
+	return nil
 }

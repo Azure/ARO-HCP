@@ -222,7 +222,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}()
 
 	customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/customer-infra.json"),
 		WithDeploymentName("customer-infra"),
 		WithResourceGroupScope(*resourceGroup.Name),
 		WithParameters(infraParameters),
@@ -237,7 +237,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}
 
 	managedIdentityDeploymentResult, err := tc.DeployManagedIdentities(ctx,
-		Must(artifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
+		WithTemplateFromFS(artifactsFS, "test-artifacts/generated-test-artifacts/modules/managed-identities.json"),
 		WithResourceGroupScope(*resourceGroup.Name),
 		WithParameters(map[string]interface{}{
 			"nsgName":      clusterParams.NsgName,

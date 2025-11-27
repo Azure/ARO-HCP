@@ -43,7 +43,7 @@ var _ = Describe("Customer", func() {
 			var clusterNames []string
 			const createClustersCount = 2
 
-			usePooled := framework.UsePooledIdentities()
+			usePooled := tc.UsePooledIdentities()
 
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
@@ -61,12 +61,12 @@ var _ = Describe("Customer", func() {
 					Identities:        framework.NewDefaultIdentities(),
 				}
 				if usePooled {
-					identities, err = framework.GetLeasedIdentities()
+					identities, err = tc.GetLeasedIdentities()
 					Expect(err).NotTo(HaveOccurred())
 				}
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-only.json"),
 					framework.WithResourceGroupScope(*resourceGroup.Name),
 					framework.WithDeploymentName("cluster-only"),
 					framework.WithParameters(map[string]any{

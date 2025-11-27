@@ -71,18 +71,18 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 
 				By("deploying demo template (single-step infra + identities + cluster)")
 
-				usePooled := framework.UsePooledIdentities()
+				usePooled := tc.UsePooledIdentities()
 				identities := framework.LeasedIdentityPool{
 					ResourceGroupName: *resourceGroup.Name,
 					Identities:        framework.NewDefaultIdentities(),
 				}
 				if usePooled {
-					identities, err = framework.GetLeasedIdentities()
+					identities, err = tc.GetLeasedIdentities()
 					Expect(err).NotTo(HaveOccurred())
 				}
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/demo.json"),
 					framework.WithResourceGroupScope(*resourceGroup.Name),
 					framework.WithDeploymentName("aro-hcp-demo"),
 					framework.WithParameters(map[string]interface{}{
@@ -109,7 +109,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				npName := "np-1" // node pools have very restrictive naming rules
 				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/nodepool.json"),
 					framework.WithResourceGroupScope(*resourceGroup.Name),
 					framework.WithDeploymentName("aro-hcp-gpu-nodepool-"+sku.display),
 					framework.WithParameters(map[string]interface{}{
