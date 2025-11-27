@@ -199,6 +199,16 @@ resourceGroups:
         resourceGroup: service
         step: cluster-output
         name: adminApiPrincipalId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto
+      step: output
+    - resourceGroup: service
+      step: cluster-output
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'

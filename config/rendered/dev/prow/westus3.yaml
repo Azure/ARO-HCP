@@ -56,7 +56,7 @@ arobit:
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
   kusto:
-    enabled: false
+    enabled: true
     environmentName: dev
   mdsd:
     enabled: false

@@ -258,6 +258,16 @@ resourceGroups:
         resourceGroup: kusto
         step: output
         name: kustoResourceId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto
+      step: output
+    - resourceGroup: management
+      step: cluster-output
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
