@@ -1,0 +1,13 @@
+apiVersion: oadp.openshift.io/v1alpha1
+kind: CloudStorage
+metadata:
+  name: azure-backup-storage
+  namespace: openshift-adp
+spec:
+  name: backups
+  provider: azure
+  creationSecret:
+    name: cloud-credentials-azure
+    key: cloud
+  config:
+    storageAccount: {{ .Values.storageAccount }}

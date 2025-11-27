@@ -1,0 +1,47 @@
+apiVersion: oadp.openshift.io/v1alpha1
+kind: DataProtectionApplication
+metadata:
+  name: azure-hypershift-dpa
+  namespace: openshift-adp
+spec:
+  configuration:
+    velero:
+      podConfig:
+        labels:
+          azure.workload.identity/use: "true"
+      defaultPlugins:
+      - azure
+      - csi
+      customPlugins:
+      - name: hypershift-oadp-plugin
+        image: '{{ .Values.imageRegistry }}/redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main@{{ .Values.hypershiftPluginDigest }}'
+      featureFlags:
+      - EnableCSI
+    nodeAgent:
+      enable: true
+      uploaderType: kopia
+      podConfig:
+        labels:
+          azure.workload.identity/use: "true"
+  backupLocations:
+  - velero:
+      provider: azure
+      default: true
+      objectStorage:
+        bucket: {{ .Values.bucket }}
+        prefix: velero
+      config:
+        resourceGroup: {{ .Values.resourceGroup }}
+        storageAccount: {{ .Values.storageAccount }}
+        subscriptionId: {{ .Values.subscriptionId }}
+      credential:
+        name: cloud-credentials-azure
+        key: cloud
+  snapshotLocations:
+  - velero:
+      provider: azure
+      config:
+        subscriptionId: {{ .Values.subscriptionId }}
+      credential:
+        name: cloud-credentials-azure
+        key: cloud

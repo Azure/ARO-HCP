@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -388,4 +389,138 @@ func TestExtractEnvVarAffix(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestCustomizeManifests_WithOverrides(t *testing.T) {
+	objects := []unstructured.Unstructured{
+		{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ServiceAccount",
+				"metadata": map[string]interface{}{
+					"name":      "test-sa",
+					"namespace": "default",
+				},
+			},
+		},
+		{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name":      "test-deployment",
+					"namespace": "default",
+				},
+				"spec": map[string]interface{}{
+					"template": map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"app": "test",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	config := &BundleConfig{
+		ChartName:               "test-chart",
+		ChartDescription:        "Test Chart",
+		OperatorDeploymentNames: []string{"test-deployment"},
+		ManifestOverrides: []ManifestOverride{
+			{
+				Selector: Selector{
+					Kind: "ServiceAccount",
+					Name: "test-sa",
+				},
+				Operations: []Operation{
+					{
+						Op:   "add",
+						Path: "metadata.annotations",
+						Value: map[string]interface{}{
+							"test-annotation": "test-value",
+						},
+					},
+				},
+			},
+			{
+				Selector: Selector{
+					Kind: "Deployment",
+					Name: "test-deployment",
+				},
+				Operations: []Operation{
+					{
+						Op:    "add",
+						Path:  "spec.template.metadata.labels",
+						Merge: true,
+						Value: map[string]interface{}{
+							"override-label": "override-value",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result, _, err := CustomizeManifests(objects, config)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	var sa *unstructured.Unstructured
+	var deploy *unstructured.Unstructured
+	for i := range result {
+		if result[i].GetKind() == "ServiceAccount" {
+			sa = &result[i]
+		} else if result[i].GetKind() == "Deployment" {
+			deploy = &result[i]
+		}
+	}
+
+	require.NotNil(t, sa)
+	require.NotNil(t, deploy)
+
+	assert.Equal(t, "{{ .Release.Namespace }}", sa.GetNamespace())
+	assert.Equal(t, "{{ .Release.Namespace }}", deploy.GetNamespace())
+
+	saAnnotations, err := GetNestedField(*sa, "metadata.annotations")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"test-annotation": "test-value"}, saAnnotations)
+
+	deployLabels, err := GetNestedField(*deploy, "spec.template.metadata.labels")
+	require.NoError(t, err)
+	expectedLabels := map[string]interface{}{
+		"app":            "test",
+		"override-label": "override-value",
+	}
+	assert.Equal(t, expectedLabels, deployLabels)
+}
+
+func TestCustomizeManifests_WithoutOverrides(t *testing.T) {
+	objects := []unstructured.Unstructured{
+		{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ServiceAccount",
+				"metadata": map[string]interface{}{
+					"name":      "test-sa",
+					"namespace": "default",
+				},
+			},
+		},
+	}
+
+	config := &BundleConfig{
+		ChartName:               "test-chart",
+		ChartDescription:        "Test Chart",
+		OperatorDeploymentNames: []string{"test-deployment"},
+		// No ManifestOverrides
+	}
+
+	result, _, err := CustomizeManifests(objects, config)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+
+	// Verify namespace was still templated
+	assert.Equal(t, "{{ .Release.Namespace }}", result[0].GetNamespace())
 }
