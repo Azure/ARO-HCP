@@ -21,7 +21,7 @@ LDFLAGS = -ldflags "\
 	-X github.com/Azure/ARO-HCP/admin/pkg/version.buildDate=${BUILD_DATE}"
 
 # Source files
-ADMIN_API_SOURCES = $(shell find server -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
+ADMIN_API_SOURCES = $(shell find server ../internal -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 CLI_SOURCES = $(shell find client -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 
 # Default target
@@ -57,6 +57,7 @@ clean:
 .PHONY: clean
 
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
+	rm $(BINARY)
 	cd $(ADMIN_DIR)/.. && \
 	docker build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
@@ -87,6 +88,11 @@ record-override: $(YQ) $(ORAS)
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
+
+port-forward: $(HCPCTL)
+	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}/admin-api/8443/8443" \
+		sleep 42d
+.PHONY: port-forward
 
 #
 #   C L I

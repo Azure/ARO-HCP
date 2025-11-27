@@ -13,7 +13,7 @@ LOCAL_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f3)
 REMOTE_PORT=$(echo "$PORT_FORWARD_SPEC" | cut -d'/' -f4)
 
 # Get Kubeconfig
-KUBECONFIG=$(mktemp)
+export KUBECONFIG=$(mktemp)
 ${HCPCTL} sc breakglass "${CLUSTER_NAME}" --output "${KUBECONFIG}" --no-shell
 
 # Start port-forward in background

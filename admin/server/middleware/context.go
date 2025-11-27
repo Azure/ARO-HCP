@@ -43,6 +43,7 @@ const (
 	contextKeyUrlPathValue         = contextKey("url_path.value")
 	contextKeyHCPResourceID        = contextKey("hcp_resource_id")
 	contextKeyClientPrincipalName  = contextKey("client_principal_name")
+	contextKeyLogger               = contextKey("logger")
 )
 
 func ContextWithOriginalUrlPathValue(ctx context.Context, originalUrlPathValue string) context.Context {

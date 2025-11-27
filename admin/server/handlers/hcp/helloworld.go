@@ -19,21 +19,35 @@ import (
 	"net/http"
 
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-func HCPHelloWorld() http.Handler {
+func HCPHelloWorld(dbClient database.DBClient) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		// get the azure resource ID for this HCP
 		resourceID, err := middleware.ResourceIDFromContext(request.Context())
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get resource ID: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// get client princiapal name attached to the request
 		clientPrincipalName, err := middleware.ClientPrincipalNameFromContext(request.Context())
 		if err != nil {
 			http.Error(writer, fmt.Sprintf("failed to get client principal name: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// load the HCP from the cosmos DB
+		hcp, err := dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get HCP: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// some output
 		fmt.Fprintln(writer, resourceID.String())
 		fmt.Fprintln(writer, clientPrincipalName)
+		fmt.Fprintln(writer, hcp)
 	})
 }

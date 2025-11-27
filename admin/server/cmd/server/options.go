@@ -17,13 +17,13 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	"github.com/Azure/ARO-HCP/admin/server/interrupts"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
+	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -50,6 +51,7 @@ func DefaultOptions() *RawOptions {
 
 // RawOptions holds input values.
 type RawOptions struct {
+	LogVerbosity       int
 	Port               int
 	HealthPort         int
 	Location           string
@@ -92,9 +94,10 @@ type completedOptions struct {
 	Port                  int
 	HealthPort            int
 	Location              string
-	ClustersServiceClient *ocm.ClusterServiceClientSpec
-	DbClient              *database.DBClient
+	ClustersServiceClient ocm.ClusterServiceClientSpec
+	DbClient              database.DBClient
 	KustoClient           *kusto.Client
+	Logger                *slog.Logger
 }
 
 type Options struct {
@@ -123,6 +126,8 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 }
 
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	logger := logging.New(o.LogVerbosity)
+
 	// Create CS client
 	csConnection, err := sdk.NewUnauthenticatedConnectionBuilder().
 		URL(o.ClustersServiceURL).
@@ -171,19 +176,16 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Port:                  o.Port,
 			HealthPort:            o.HealthPort,
 			Location:              o.Location,
-			ClustersServiceClient: &csClient,
-			DbClient:              &dbClient,
+			ClustersServiceClient: csClient,
+			DbClient:              dbClient,
 			KustoClient:           kustoClient,
+			Logger:                logger,
 		},
 	}, nil
 }
 
 func (opts *Options) Run(ctx context.Context) error {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create logger: %w", err)
-	}
-
+	logger := opts.Logger
 	logger.Info("Reporting health.", "port", opts.HealthPort)
 	health := NewHealthOnPort(logger, opts.HealthPort)
 	health.ServeReady(func() bool {
@@ -195,15 +197,11 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	// Submux for V1 HCP endpoints
 	v1HCPMux := middleware.NewHCPResourceServerMux()
-	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld())
-
-	// Submux for /admin
-	adminMux := http.NewServeMux()
-	adminMux.Handle("GET /helloworld", handlers.HelloWorldHandler())
-	adminMux.Handle("/v1/hcp/", http.StripPrefix("/v1/hcp", v1HCPMux.Handler()))
+	v1HCPMux.Handle("GET", "/helloworld", hcp.HCPHelloWorld(opts.DbClient))
 
 	rootMux := http.NewServeMux()
-	rootMux.Handle("/admin/", http.StripPrefix("/admin", adminMux))
+	rootMux.Handle("/admin/helloworld", handlers.HelloWorldHandler())
+	rootMux.Handle("/admin/v1/hcp/", http.StripPrefix("/admin/v1/hcp", v1HCPMux.Handler()))
 
 	s := http.Server{
 		Addr:    net.JoinHostPort("", strconv.Itoa(opts.Port)),
