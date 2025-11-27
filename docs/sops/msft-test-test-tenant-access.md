@@ -1,10 +1,10 @@
-# Access to MSFT Test Test Tenant
+# Access to Test Test Azure Red Hat OpenShift Tenant
 
-This document provides instructions for requesting and obtaining access to the **MSFT Test Test** tenant, which is used for ARO HCP E2E testing in Stage and Production environments.
+This document provides instructions for requesting and obtaining access to the **Test Test Azure Red Hat OpenShift** tenant, which is used for ARO HCP E2E testing in Stage and Production environments.
 
 ## Overview
 
-The **MSFT Test Test** tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`) is a Microsoft-managed Azure Active Directory tenant used exclusively for E2E testing of the ARO HCP service. This tenant hosts the following subscriptions:
+The **Test Test Azure Red Hat OpenShift** tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`) is a Microsoft-managed Azure Active Directory tenant used exclusively for E2E testing of the ARO HCP service. This tenant hosts the following subscriptions:
 
 - **ARO HCP E2E - Staging** (Subscription ID: `99399281-00a2-4b39-bb3d-b2645bbbdb93`)
 - **ARO HCP E2E** (Subscription ID: `403d9de9-132b-4974-94a5-5b78bdfa191e`)
@@ -30,7 +30,7 @@ You need access to this tenant if you are:
 
 ### 1. Request Access via Email Invitation
 
-Access to the MSFT Test Test tenant is granted through **email invitation**.
+Access to the Test Test Azure Red Hat OpenShift tenant is granted through **email invitation**.
 
 **To request access:**
 
@@ -108,7 +108,7 @@ Once approved, verify your access:
 
 ## CI/CD Service Principal Configuration
 
-**✅ Status**: Service principals and credentials for the MSFT Test Test tenant have **already been configured** for ARO HCP CI/CD.
+**✅ Status**: Service principals and credentials for the Test Test Azure Red Hat OpenShift tenant have **already been configured** for ARO HCP CI/CD.
 
 ### Key Mechanism: Cluster Profiles
 
@@ -128,80 +128,92 @@ ARO HCP uses **OpenShift CI Cluster Profiles** to manage multi-tenant authentica
 | **STAGE** | `aro-hcp-stg` | ARO HCP E2E - Staging<br>`99399281-00a2-4b39-bb3d-b2645bbbdb93` | `selfservice/hcm-aro/aro-hcp-stg` | `cluster-secrets-aro-hcp-stg` |
 | **PROD** | `aro-hcp-prod` | ARO HCP E2E<br>`403d9de9-132b-4974-94a5-5b78bdfa191e` | `selfservice/hcm-aro/aro-hcp-prod` | `cluster-secrets-aro-hcp-prod` |
 
-**STAGE and PROD** use the **MSFT Test Test tenant** (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`).
+**STAGE and PROD** use the **Test Test Azure Red Hat OpenShift tenant** (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`).
 
-### Current Setup
+### Scripts Overview
 
-The ARO HCP project uses service principals to authenticate OpenShift CI (Prow) jobs with the MSFT Test Test tenant. The service principals were created using the setup script at [`dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh`](../../dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh), and the credentials were stored in OpenShift CI Vault.
+Scripts are located in [`dev-infrastructure/openshift-ci/`](../../dev-infrastructure/openshift-ci/):
 
-**What was configured:**
-- Service principal created in the MSFT Test Test tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`)
-- Credentials (Client ID, Client Secret, Tenant ID, Subscription ID/Name) stored in OpenShift CI Vault
-- Cluster profiles configured to reference environment-specific secrets
-- Secret Sync Controller configured to sync Vault secrets to Kubernetes
+| Script | Purpose |
+|--------|---------|
+| `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
+| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-msft` Vault secrets |
+| `switch-vault-tenant.sh` | Switch active secrets between MSFT and RH tenant |
 
-**Where to find the configuration:**
+For detailed usage, see [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md).
 
-1. **Setup Documentation**: 
-   - File: [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md)
-   - Complete documentation for the MSFT Test Test tenant setup process
+### Vault Secret Structure
 
-2. **Setup Script**: 
-   - File: [`dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh`](../../dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh)
-   - Creates the Azure AD app registration with proper roles and permissions
-   - Assigns `Contributor` and `Role Based Access Control Administrator` roles to both subscriptions
-   - Grants required Graph API permissions
-   - **Only needed for initial setup** - the app registration already exists
-
-3. **Credential Recycling Script**: 
-   - File: [`dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh`](../../dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh)
-   - Used to rotate credentials when needed
-
-4. **Cluster Profiles Configuration**:
-   - Repository: [openshift/release](https://github.com/openshift/release)
-   - File: [`ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml)
-   - Defines `aro-hcp-int`, `aro-hcp-stg`, and `aro-hcp-prod` profiles with their corresponding Kubernetes secrets
-
-5. **Prow Job Definitions**:
-   - Repository: [openshift/release](https://github.com/openshift/release)
-   - File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
-   - Specifies `cluster_profile: aro-hcp-stg` or `cluster_profile: aro-hcp-prod` for each test job
-   - **Note**: Tenant ID and subscription details are NO LONGER hardcoded in job definitions—they are injected via cluster profiles
-
-6. **Credential Storage** (Vault secrets used by Prow jobs):
-   - **STAGE**: `selfservice/hcm-aro/aro-hcp-stg` (credentials + stage subscription details)
-   - **PROD**: `selfservice/hcm-aro/aro-hcp-prod` (credentials + prod subscription details)
-   - Access: Requires OpenShift CI Vault permissions
-
-### Verifying Cluster Profile Configuration
-
-To verify that a cluster profile is correctly configured:
-
-**1. Check Vault secret exists and has all required fields:**
-```bash
-vault kv get -format=json kv/selfservice/hcm-aro/aro-hcp-stg | jq '.data.data | keys'
-# Should include: client-id, client-secret, tenant, subscription-id, 
-# subscription-name, secretsync/target-name, secretsync/target-namespace
+```
+selfservice/hcm-aro/
+├── aro-hcp-stg           # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-stg-msft      # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+├── aro-hcp-stg-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
+├── aro-hcp-prod          # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-prod-msft     # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+└── aro-hcp-prod-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
 ```
 
-**2. Verify secretsync metadata is correct:**
+### Rollback to Red Hat Tenant
+
+
 ```bash
-vault kv get kv/selfservice/hcm-aro/aro-hcp-stg
-# Check that:
-# - secretsync/target-name matches the Kubernetes secret name
-# - secretsync/target-namespace is "ci"
+cd dev-infrastructure/openshift-ci/
+
+# Check current tenant status
+./switch-vault-tenant.sh --status
+
+# Rollback BOTH environments to Red Hat tenant
+./switch-vault-tenant.sh --to rh-tenant
+
+# Or rollback only specific environment
+./switch-vault-tenant.sh --to rh-tenant --env stg
+./switch-vault-tenant.sh --to rh-tenant --env prod
 ```
 
-**3. Check cluster profile configuration**:
-- File: [`openshift/release` repo → `ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml)
-- **Default behavior**: If no `secret:` field is specified, the cluster profile uses `cluster-secrets-{profile-name}` (e.g., `cluster-secrets-aro-hcp-stg`)
+**What this does:**
+- Copies credentials from `aro-hcp-{env}-rh-tenant` → `aro-hcp-{env}`
+- Preserves the `secretsync` fields in the active secret
+- Changes propagate to Prow jobs in **5-10 minutes**
 
-**4. Test with a Prow job** (the definitive test):
-- Create a test PR in the Azure/ARO-HCP repo
-- Run `/test stage-e2e-parallel` or `/test prod-e2e-parallel`
-- Monitor the job at https://prow.ci.openshift.org
-- Check the `azure-login` step in the job logs—it should successfully authenticate with Azure
-- If authentication fails, check the job logs for error messages like "invalid client secret" or "subscription not found"
+**When to rollback:**
+- E2E tests consistently fail with authentication errors
+- Azure subscription quota issues in MSFT tenant
+- MSFT tenant access is revoked or expired
+
+**After rollback:**
+- Verify with `./switch-vault-tenant.sh --status`
+- Test by running `/test stage-e2e-parallel` in Azure/ARO-HCP repo
+
+### Switching to MSFT Tenant
+
+```bash
+cd dev-infrastructure/openshift-ci/
+
+# Switch BOTH environments to MSFT tenant
+./switch-vault-tenant.sh --to msft
+
+# Or switch only specific environment
+./switch-vault-tenant.sh --to msft --env stg
+./switch-vault-tenant.sh --to msft --env prod
+```
+
+### Current Configuration
+
+**Credential Storage** (Vault secrets used by Prow jobs):
+- **STAGE**: `selfservice/hcm-aro/aro-hcp-stg`
+- **PROD**: `selfservice/hcm-aro/aro-hcp-prod`
+- Access: Requires OpenShift CI Vault permissions
+
+**Cluster Profiles Configuration**:
+- Repository: [openshift/release](https://github.com/openshift/release)
+- File: [`ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml)
+- Defines `aro-hcp-int`, `aro-hcp-stg`, and `aro-hcp-prod` profiles
+
+**Prow Job Definitions**:
+- Repository: [openshift/release](https://github.com/openshift/release)
+- File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
+- Specifies `cluster_profile: aro-hcp-stg` or `cluster_profile: aro-hcp-prod` for each test job
 
 ### Credential Expiration and Rotation
 
@@ -209,147 +221,27 @@ vault kv get kv/selfservice/hcm-aro/aro-hcp-stg
 > 
 > The OpenShift CI service principal credential must be rotated before this date to prevent CI/CD pipeline failures.
 
-**Credential Rotation Workflow:**
-
-When credentials need to be rotated (before expiration), you must update the secrets used by Prow jobs:
-- `selfservice/hcm-aro/aro-hcp-stg` (STAGE environment)
-- `selfservice/hcm-aro/aro-hcp-prod` (PROD environment)
-
-**Step 1: Reset Azure AD Credentials**
+**Credential Rotation:**
 
 ```bash
-# Get the App Registration Client ID from Vault first
-export VAULT_ADDR="https://vault.ci.openshift.org"
-vault login --method=oidc
-APP_CLIENT_ID=$(vault kv get -field=client-id kv/selfservice/hcm-aro/aro-hcp-stg)
+cd dev-infrastructure/openshift-ci/
 
-# Reset credentials (requires Azure AD admin permissions)
-az ad app credential reset \
-  --id "$APP_CLIENT_ID" \
-  --append \
-  --display-name "OpenShift CI $(date +%Y-%m-%d)"
+# Rotate credentials (keeps old credentials as backup)
+./recycle-openshift-release-bot-creds.sh
+
+# Rotate and delete old credentials
+./recycle-openshift-release-bot-creds.sh --delete-old
+
+# Apply rotated credentials to active secrets (if MSFT tenant is active)
+./switch-vault-tenant.sh --to msft
 ```
 
-Save the output! You'll need:
-- `appId`: The application client ID
-- `password`: The new client secret
-- `tenant`: 93b21e64-4824-439a-b893-46c9b2a51082
-
-**Step 2: Update Vault Secrets**
-
-```bash
-export VAULT_ADDR="https://vault.ci.openshift.org"
-vault login --method=oidc
-
-# Get existing Client ID and Tenant ID from Vault
-CLIENT_ID=$(vault kv get -field=client-id kv/selfservice/hcm-aro/aro-hcp-stg)
-TENANT_ID=$(vault kv get -field=tenant kv/selfservice/hcm-aro/aro-hcp-stg)
-
-echo "Enter the new client secret from Step 1:"
-read -s NEW_CLIENT_SECRET
-
-# Update STAGE
-vault kv patch kv/selfservice/hcm-aro/aro-hcp-stg \
-  client-id="$CLIENT_ID" \
-  client-secret="$NEW_CLIENT_SECRET" \
-  tenant="$TENANT_ID"
-
-# Update PROD
-vault kv patch kv/selfservice/hcm-aro/aro-hcp-prod \
-  client-id="$CLIENT_ID" \
-  client-secret="$NEW_CLIENT_SECRET" \
-  tenant="$TENANT_ID"
-
-# Clear the secret from memory
-unset NEW_CLIENT_SECRET
-```
-
-#### Step 3: Wait and Test
-
-- **Wait 5-10 minutes** for Secret Sync Controller to propagate changes to Kubernetes secrets
-- **Test**: Create a PR in Azure/ARO-HCP and run `/test stage-e2e-parallel`
-- **Verify**: Check that the test successfully authenticates with Azure
+This updates the `*-msft` secrets, then `switch-vault-tenant.sh` copies them to the active secrets.
 
 > **⚠️ Important**: 
 > - You must have Azure AD admin permissions to reset app credentials
 > - If you don't have these permissions, contact the Service Lifecycle team
-> - The secrets `aro-hcp-stg` and `aro-hcp-prod` are the ones actually used by CI/CD
 > - **Audit Trail**: Document all credential rotations in a team ticket (date, who, reason)
-
-### Migrating to New Tenant / Updating Environment Secrets
-
-The Prow jobs for STAGE and PROD use these Vault secrets:
-- **STAGE**: `selfservice/hcm-aro/aro-hcp-stg`
-- **PROD**: `selfservice/hcm-aro/aro-hcp-prod`
-
-These secrets must contain credentials from the MSFT Test Test tenant plus environment-specific subscription details.
-
-To update the secrets:
-
-> **⚠️ Security Note**: Use `read -s` to input secrets securely without exposing them in shell history.
-
-```bash
-export VAULT_ADDR="https://vault.ci.openshift.org"
-vault login --method=oidc
-
-# Get existing credentials from Vault (or use known values)
-# The Client ID and Tenant ID can be retrieved from existing secrets
-CLIENT_ID=$(vault kv get -field=client-id kv/selfservice/hcm-aro/aro-hcp-stg 2>/dev/null || echo "")
-TENANT_ID="93b21e64-4824-439a-b893-46c9b2a51082"
-
-# If CLIENT_ID is empty, prompt for it
-if [ -z "$CLIENT_ID" ]; then
-    echo "Enter the Azure AD App Client ID:"
-    read CLIENT_ID
-fi
-
-# Securely input the client secret (won't appear in shell history)
-echo "Enter the client secret:"
-read -s CLIENT_SECRET
-echo ""
-
-# Update STAGE
-vault kv patch kv/selfservice/hcm-aro/aro-hcp-stg \
-    client-id="$CLIENT_ID" \
-    client-secret="$CLIENT_SECRET" \
-    tenant="$TENANT_ID" \
-    subscription-id="99399281-00a2-4b39-bb3d-b2645bbbdb93" \
-    subscription-name="ARO HCP E2E - Staging" \
-    secretsync/target-name="cluster-secrets-aro-hcp-stg" \
-    secretsync/target-namespace="ci"
-
-# Update PROD
-vault kv patch kv/selfservice/hcm-aro/aro-hcp-prod \
-    client-id="$CLIENT_ID" \
-    client-secret="$CLIENT_SECRET" \
-    tenant="$TENANT_ID" \
-    subscription-id="403d9de9-132b-4974-94a5-5b78bdfa191e" \
-    subscription-name="ARO HCP E2E" \
-    secretsync/target-name="cluster-secrets-aro-hcp-prod" \
-    secretsync/target-namespace="ci"
-
-# Clear secrets from memory
-unset CLIENT_SECRET
-```
-
-**Key fields required in environment Vault secrets:**
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| `client-id` | Azure AD App Registration Client ID | (retrieve from Vault) |
-| `client-secret` | Azure AD App Registration Client Secret | (secret value - never log or commit) |
-| `tenant` | Azure Tenant ID | `93b21e64-4824-439a-b893-46c9b2a51082` |
-| `subscription-id` | Azure Subscription ID for the environment | `99399281-...` (STAGE) |
-| `subscription-name` | Azure Subscription display name | `ARO HCP E2E - Staging` |
-| `secretsync/target-name` | K8s secret name (default: `cluster-secrets-{profile-name}`) | `cluster-secrets-aro-hcp-stg` |
-| `secretsync/target-namespace` | K8s namespace | `ci` |
-
-> **Important Notes**:
-> - Use `vault kv patch` to preserve other existing fields in the secrets
-> - Wait 5-10 minutes after updating for Secret Sync Controller to propagate changes
-> - The K8s secret name follows the default pattern: `cluster-secrets-{profile-name}` (e.g., `cluster-secrets-aro-hcp-stg`)
-> - **Security**: Always use `read -s` for secret input to avoid shell history exposure
-> - **Audit Trail**: Document all secret updates in a team ticket (date, who, reason, environments affected)
 
 
 ## Common Tasks
@@ -390,9 +282,25 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 
 **Note**: Other 5 production regions (switzerlandnorth, canadacentral, australiaeast, westeurope, eastus2) do not have E2E tests configured yet, so vCPU quotas were not requested.
 
-#### Boskos Quota Slices
+#### Boskos Quota Slices (Concurrency Limits)
 
-> **TODO**: Configure Boskos quota slices to limit concurrent CI jobs in the MSFT Test Test tenant subscriptions.
+Boskos leases control how many E2E tests can run concurrently. Each test must acquire leases before running.
+
+**Configuration files:**
+- Lease definitions: [`openshift/release` → `core-services/prow/02_config/_boskos.yaml`](https://github.com/openshift/release/blob/master/core-services/prow/02_config/_boskos.yaml)
+- Generator script: [`openshift/release` → `core-services/prow/02_config/generate-boskos.py`](https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py)
+
+| Lease Type | Max Count | Purpose |
+|------------|-----------|---------|
+| `aro-hcp-stg-quota-slice` | 1 | Only 1 STAGE test at a time |
+| `aro-hcp-prod-quota-slice` | 1 | Only 1 PROD test at a time |
+| `aro-hcp-int-quota-slice` | 1 | Only 1 INT test at a time |
+| `aro-hcp-test-tenant-quota-slice` | 10 | Up to 10 tests using MSFT Test tenant |
+
+**How it works:**
+- Each E2E test needs **two leases**: environment-specific (e.g., `aro-hcp-stg-quota-slice`) + tenant-wide (`aro-hcp-test-tenant-quota-slice`)
+- STAGE and PROD can run simultaneously (different environment leases)
+- Two STAGE tests cannot run simultaneously (only 1 `aro-hcp-stg-quota-slice` available)
 
 #### How to Request Additional Quotas
 
@@ -406,7 +314,7 @@ If you need to request quota increases for new regions or resources:
 
 ### Entra ID Directory Object Limits
 
-High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. Microsoft has rejected requests to disable Entra ID Soft Deletion.
+High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. 
 
 > **TODO**: Consider reusing Managed Service Identities (MSI) where possible to reduce the number of directory objects created.
 
