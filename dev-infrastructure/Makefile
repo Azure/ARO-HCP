@@ -138,10 +138,18 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/mock-identities.bicep $(PROMPT_TO_CONFIRM) \
 		--parameters configurations/mock-identities.bicepparam
+
 	APPLICATION_NAME=aro-dev-first-party2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=firstPartyCert2 \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
+
+	APPLICATION_NAME=aro-dev-first-party-check-access \
+	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	CERTIFICATE_NAME=firstPartyCheckAccessCert \
+	ROLE_DEFINITION_NAME=Contributor \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
@@ -164,6 +172,7 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
+
 
 .PHONY: create-mock-identities
 
