@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:b0349dd3c1ec3e57727630c9ff9e45e9eb397d7696b67e8ccbd20419e1dcaca0
+      digest: sha256:e0636863d48f89e17933fcfd7a80f21f9f217b9b320c7fa6a9f121dcac4e9f2b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:4560f7fca8fed455484091c5011596d7787b0ee950db6401deef15817350ebd7
+      digest: sha256:4486a5d83d497241afe39d888c65d07e35f1377b5d772af1101c9359214b1620
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
-    digest: sha256:c2c0850dd59171ed71e3c565d499890e56833b0fab6506b23c873bcbff0c6ec1
+    digest: sha256:ce8035386368cf99717fed25a9046cd832f27645163442eb19f69af2d4e7713a
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:385675cb59a18e352033941770943dd23267752c411a7cb3c3dedbf8593b7aa9
+    digest: sha256:cfa9d3075d830f22e6970a8f0bd9c5b3706a3e4b7c217f0cd0db1998903e982b
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -208,7 +208,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:fe5cb64d52a16b6943e230749d156493b314afe78c45785b5a9431847592b17f
+    digest: sha256:ea2b27abd12facc139496d81d2f20940061a29b6a0be2db36e2f9ffc491fd7dc
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -313,7 +313,7 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:ea75b7f767e62c9e4142823eef42b784b8081cbbcd938661d3ee4f01301943f8
+    digest: sha256:838795c23edf143ea7c003010bd7e249743758aa8e24ba445d44599675586186
     registry: quay.io
     repository: acm-d/rhtap-hypershift-operator
   namespace: hypershift
