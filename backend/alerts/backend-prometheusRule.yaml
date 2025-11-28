@@ -25,13 +25,3 @@ spec:
         description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High Error Rate on Backend Operations'
-    - alert: BackendHealthAvailability
-      expr: |
-        (((120 - sum_over_time(backend_health[1h])) * 30) >= 300)
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
-        runbook_url: 'TBD'
-        summary: 'High unavailability on the Backend'
