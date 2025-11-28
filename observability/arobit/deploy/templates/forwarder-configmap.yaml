@@ -207,7 +207,7 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.hostedControlPlaneLogsDatabase }}
         Table_Name containerLogs
@@ -220,7 +220,7 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name frontendLogs
@@ -233,7 +233,7 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name backendLogs
@@ -246,7 +246,7 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name containerLogs
@@ -259,7 +259,7 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name kubernetesEvents
