@@ -95,6 +95,7 @@ type completedOptions struct {
 	ClustersServiceClient *ocm.ClusterServiceClientSpec
 	DbClient              *database.DBClient
 	KustoClient           *kusto.Client
+	SessionService        SessionService
 }
 
 type Options struct {
@@ -166,6 +167,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		kustoClient = client
 	}
 
+	// Connect to session service
+	var sessionService *SessionService
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                  o.Port,
@@ -174,6 +178,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			ClustersServiceClient: &csClient,
 			DbClient:              &dbClient,
 			KustoClient:           kustoClient,
+			SessionService:        sessionService,
 		},
 	}, nil
 }
@@ -199,6 +204,12 @@ func (opts *Options) Run(ctx context.Context) error {
 
 	// Submux for /admin
 	adminMux := http.NewServeMux()
+
+	// Session endpoints
+	adminMux.Handle("POST /hcp/{resourceId}/session",
+		handlers.StartSessionHandler(logger, opts.DbClient, opts.ClustersServiceClient, opts.SessionService))
+	adminMux.Handle("GET /hcp/session/{sessionID}",
+		handlers.GetSessionHandler(logger, opts.SessionService))
 	adminMux.Handle("GET /helloworld", handlers.HelloWorldHandler())
 	adminMux.Handle("/v1/hcp/", http.StripPrefix("/v1/hcp", v1HCPMux.Handler()))
 
