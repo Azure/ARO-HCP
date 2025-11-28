@@ -273,6 +273,16 @@ generate-kiota:
 	$(MAKE) fmt
 .PHONY: generate-kiota
 
+#
+# One-Step Personal Dev Environment
+#
+ifeq ($(DEPLOY_ENV),pers)
+personal-dev-env: entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
+else
+personal-dev-env:
+	$(error personal-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+endif
+.PHONY: personal-dev-env
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
