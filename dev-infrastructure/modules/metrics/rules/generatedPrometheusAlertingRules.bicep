@@ -458,32 +458,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         for: 'PT5M'
         severity: 4
       }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'FrontendHealthAvailability'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'FrontendHealthAvailability/{{ $labels.cluster }}'
-          description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
-          runbook_url: 'TBD'
-          summary: 'High unavailability on the Frontend'
-          title: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
-        }
-        expression: '(((120 - sum_over_time(frontend_health[1h])) * 30) >= 300)'
-        for: 'PT5M'
-        severity: 4
-      }
     ]
     scopes: [
       azureMonitoring
@@ -520,32 +494,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           title: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         }
         expression: '(sum(rate(backend_failed_operations_total[1h]))) / (sum(rate(backend_operations_total[1h]))) > 0.05'
-        for: 'PT5M'
-        severity: 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'BackendHealthAvailability'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'BackendHealthAvailability/{{ $labels.cluster }}'
-          description: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
-          runbook_url: 'TBD'
-          summary: 'High unavailability on the Backend'
-          title: 'The Backend has been unavailable for more than 5 minutes in the last hour.'
-        }
-        expression: '(((120 - sum_over_time(backend_health[1h])) * 30) >= 300)'
         for: 'PT5M'
         severity: 4
       }
