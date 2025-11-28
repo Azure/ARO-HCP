@@ -43,8 +43,6 @@ var _ = Describe("Customer", func() {
 			var clusterNames []string
 			const createClustersCount = 2
 
-			usePooled := tc.UsePooledIdentities()
-
 			for range createClustersCount {
 				By("creating resource group for cluster listing test")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "cluster-listing", tc.Location())
@@ -56,14 +54,8 @@ var _ = Describe("Customer", func() {
 
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
 
-				identities := framework.LeasedIdentityPool{
-					ResourceGroupName: *resourceGroup.Name,
-					Identities:        framework.NewDefaultIdentities(),
-				}
-				if usePooled {
-					identities, err = tc.GetLeasedIdentities()
-					Expect(err).NotTo(HaveOccurred())
-				}
+				identities, usePooledForCluster, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				Expect(err).NotTo(HaveOccurred())
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-only.json"),
@@ -73,7 +65,7 @@ var _ = Describe("Customer", func() {
 						"clusterName":         clusterName,
 						"persistTagValue":     false,
 						"identities":          identities,
-						"usePooledIdentities": usePooled,
+						"usePooledIdentities": usePooledForCluster,
 					}),
 					framework.WithTimeout(45*time.Minute),
 				)

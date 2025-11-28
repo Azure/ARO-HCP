@@ -84,6 +84,33 @@ func (tc *perItOrDescribeTestContext) UsePooledIdentities() bool {
 	return tc.perBinaryInvocationTestContext.UsePooledIdentities()
 }
 
+// ResolveIdentitiesForTemplate returns the identities object and the
+// usePooledIdentities flag for parent Bicep templates which accept
+// "identities" and "usePooledIdentities" parameters. This includes both
+// templates invoked via CreateBicepTemplateAndWait and tests that call the ARM
+// deployments client directly (e.g. BeginCreateOrUpdate) but still pass these
+// two parameters into the template.
+// In pooled mode it leases the next available identity container; otherwise it
+// uses the provided resource group and well-known identity names.
+func (tc *perItOrDescribeTestContext) ResolveIdentitiesForTemplate(resourceGroupName string) (LeasedIdentityPool, bool, error) {
+	usePooled := tc.UsePooledIdentities()
+	identities := LeasedIdentityPool{
+		ResourceGroupName: resourceGroupName,
+		Identities:        NewDefaultIdentities(),
+	}
+
+	if !usePooled {
+		return identities, false, nil
+	}
+
+	leased, err := tc.GetLeasedIdentities()
+	if err != nil {
+		return LeasedIdentityPool{}, false, err
+	}
+
+	return leased, true, nil
+}
+
 type managedIdentitiesOptions struct {
 	*bicepDeploymentConfig
 	usePooled bool
@@ -93,6 +120,16 @@ type ManagedIdentitiesOption func(*managedIdentitiesOptions)
 
 type BicepDeploymentOrManagedIdentitiesOption interface{}
 
+// DeployManagedIdentities runs the managed-identities.bicep module as a
+// subscription-scoped deployment. It is used in tests which either:
+//  1. Deploy managed-identities.json directly as a standalone deployment, or
+//  2. Call CreateClusterCustomerResources, which orchestrates customer-infra
+//     and then invokes this helper to configure managed identities.
+//
+// Parent Bicep templates (e.g. demo.json, cluster-only.json, etc.) that already
+// wire the managed-identities module internally should not call this helper
+// directly; instead they should use ResolveIdentitiesForTemplate to obtain the
+// identities object and usePooledIdentities flag for their parameters.
 func (tc *perItOrDescribeTestContext) DeployManagedIdentities(
 	ctx context.Context,
 	opts ...BicepDeploymentOrManagedIdentitiesOption,
@@ -263,7 +300,7 @@ type leasedIdentityPoolEntry struct {
 	State         leaseState `yaml:"state"`
 	LeasedBy      string     `yaml:"leasedBy,omitempty"`
 	LeasedAt      string     `yaml:"leasedAt,omitempty"`
-	ReleasedAt    string     `yaml:"releasedAt,omitempty"`
+	ReleasedAt    string     `yaml:"releasedAt,omitempty"` // not implemented
 }
 
 func (e *leasedIdentityPoolEntry) Lease() error {

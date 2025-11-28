@@ -71,15 +71,8 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 
 				By("deploying demo template (single-step infra + identities + cluster)")
 
-				usePooled := tc.UsePooledIdentities()
-				identities := framework.LeasedIdentityPool{
-					ResourceGroupName: *resourceGroup.Name,
-					Identities:        framework.NewDefaultIdentities(),
-				}
-				if usePooled {
-					identities, err = tc.GetLeasedIdentities()
-					Expect(err).NotTo(HaveOccurred())
-				}
+				identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+				Expect(err).NotTo(HaveOccurred())
 
 				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/demo.json"),

@@ -59,15 +59,8 @@ var _ = Describe("Customer", func() {
 			err = json.Unmarshal(templateBytes, &bicepTemplateMap)
 			Expect(err).NotTo(HaveOccurred())
 
-			usePooled := tc.UsePooledIdentities()
-			identities := framework.LeasedIdentityPool{
-				ResourceGroupName: *resourceGroup.Name,
-				Identities:        framework.NewDefaultIdentities(),
-			}
-			if usePooled {
-				identities, err = tc.GetLeasedIdentities()
-				Expect(err).NotTo(HaveOccurred())
-			}
+			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			Expect(err).NotTo(HaveOccurred())
 
 			bicepParameters := map[string]interface{}{
 				"clusterName": map[string]interface{}{
