@@ -35,4 +35,3 @@ spec:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
-

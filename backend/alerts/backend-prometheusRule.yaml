@@ -25,4 +25,3 @@ spec:
         description: 'The Backend operation error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High Error Rate on Backend Operations'
-

@@ -48,4 +48,3 @@ tests:
   - eval_time: 10m # At this point, the condition has held for 10 minutes
     alertname: FrontendClusterServiceErrorRate
     exp_alerts: []
-
