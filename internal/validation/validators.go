@@ -394,3 +394,19 @@ func KubeQualifiedName(_ context.Context, _ operation.Operation, fldPath *field.
 
 	return nil
 }
+
+// MaximumIfNoAZ validates that a value doesn't exceed max ONLY when availabilityZone is empty.
+// When availabilityZone is set, no maximum limit is enforced.
+func MaximumIfNoAZ[T constraints.Integer](ctx context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T, max T, availabilityZone string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+
+	// If availability zone is set, no max limit applies
+	if availabilityZone != "" {
+		return nil
+	}
+
+	// If availability zone is NOT set, enforce the max limit using the existing Maximum validator
+	return Maximum(ctx, op, fldPath, value, oldValue, max)
+}
