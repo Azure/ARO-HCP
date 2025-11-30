@@ -200,7 +200,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name HostedControlPlaneLogs
         Table_Name containerLogs
@@ -212,7 +212,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name containerLogs
@@ -225,7 +225,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
@@ -364,6 +364,8 @@ spec:
         app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-mgmt'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/configmap: 45e6b4e6d3c490f2ac374d7959567c4fa596c3427099600b8ff3c65972ac0d16
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

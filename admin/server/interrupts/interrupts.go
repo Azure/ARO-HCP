@@ -25,15 +25,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-logr/logr"
+	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 )
 
 // only one instance of the manager ever exists
 var single *manager
-var logger logr.Logger
+
+// logger is a dedicated logger for the interrupts package, separate from the application logger
+// we want this logger to be in place even before main starts running
+var logger *slog.Logger
 
 func init() {
-	logger = logr.FromSlogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}))
+	// Initialize a basic logger for interrupts package only
+	logger = logging.New(0)
 
 	m := sync.Mutex{}
 	single = &manager{
@@ -170,7 +174,7 @@ func ListenAndServe(server ListenAndServer, gracePeriod time.Duration) {
 		defer single.wg.Done()
 		err := server.ListenAndServe()
 		if err != nil {
-			logger.Error(server.ListenAndServe(), "Server exited.")
+			logger.Error("Server exited.", "error", err)
 		} else {
 			logger.Info("Server exited.")
 		}
@@ -189,7 +193,7 @@ func ListenAndServeTLS(server *http.Server, certFile, keyFile string, gracePerio
 		defer single.wg.Done()
 		err := server.ListenAndServeTLS(certFile, keyFile)
 		if err != nil {
-			logger.Error(server.ListenAndServe(), "Server exited.")
+			logger.Error("Server exited.", "error", err)
 		} else {
 			logger.Info("Server exited.")
 		}
@@ -209,7 +213,7 @@ func shutdown(server Shutdownable, gracePeriod time.Duration) func() {
 		logger.Info("Server shutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), gracePeriod)
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error(err, "Error shutting down server...")
+			logger.Error("Error shutting down server...", "error", err)
 		}
 		cancel()
 	}
@@ -229,7 +233,7 @@ func Tick(work func(), interval func() time.Duration) {
 			nextInterval := interval()
 			nextTick := before.Add(nextInterval)
 			sleep := time.Until(nextTick)
-			logger.V(int(slog.LevelDebug)).Info("Resolved next tick interval.",
+			logger.Debug("Resolved next tick interval.",
 				"before", before,
 				"interval", nextInterval,
 				"sleep", sleep,

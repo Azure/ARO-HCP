@@ -19,8 +19,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-logr/logr"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -63,13 +61,6 @@ func NewHCPResourceServerMux() *HCPResourceServerMux {
 
 func withHCPResourceID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger, err := logr.FromContext(r.Context())
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to create logger: %v", err), http.StatusInternalServerError)
-			return
-		}
-		logger.Info("withHCPResourceID", "path", r.URL.Path)
-
 		subscriptionID := r.PathValue(pathSegmentSubscriptionID)
 		resourceGroupName := r.PathValue(pathSegmentResourceGroupName)
 		resourceName := r.PathValue(pathSegmentResourceName)

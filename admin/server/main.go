@@ -16,37 +16,26 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"runtime/debug"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/admin/server/cmd/server"
-	"github.com/Azure/ARO-HCP/admin/server/interrupts"
+	"github.com/Azure/ARO-HCP/admin/server/pkg/logging"
 )
 
 func main() {
-	logger := createLogger(0)
+	// Create the application logger
+	logger := logging.New(0)
 	logger.Info(fmt.Sprintf("aro-hcp-admin (%s) starting...", version()))
-
-	var logVerbosity int
-	// Create a root context with the logger and signal handling
-	ctx := interrupts.Context()
 
 	cmd := &cobra.Command{
 		Use:           "aro-hcp-admin",
 		Short:         "Operate on ARO release artifacts.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			ctx = logr.NewContext(ctx, createLogger(logVerbosity))
-			cmd.SetContext(ctx)
-		},
 	}
-
-	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 
 	commands := []func() (*cobra.Command, error){
 		server.NewCommand,
@@ -54,24 +43,16 @@ func main() {
 	for _, newCmd := range commands {
 		c, err := newCmd()
 		if err != nil {
-			logger.Error(err, "Failed to create subcommand.")
+			logger.Error("Failed to create subcommand.", "error", err)
 			os.Exit(1)
 		}
 		cmd.AddCommand(c)
 	}
 
 	if err := cmd.Execute(); err != nil {
-		logger.Error(err, "Command failed.")
+		logger.Error("Command failed.", "error", err)
 		os.Exit(1)
 	}
-}
-
-func createLogger(verbosity int) logr.Logger {
-	handlerOptions := slog.HandlerOptions{
-		Level: slog.Level(verbosity * -1),
-	}
-	handler := slog.NewJSONHandler(os.Stdout, &handlerOptions)
-	return logr.FromSlogHandler(handler)
 }
 
 func version() string {
