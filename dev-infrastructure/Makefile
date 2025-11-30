@@ -87,6 +87,8 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 	FIRST_PARTY_ROLE_NAME=int-first-party && \
 	FIRST_PARTY_CERT_NAME=intFirstPartyCert && \
 	FIRST_PARTY_CERT_DNS=intfirstparty.hcp.osadev.cloud && \
+	FIRST_PARTY_CHECK_ACCESS_CERT_NAME=intFirstPartyCheckAccessCert && \
+	FIRST_PARTY_CHECK_ACCESS_CERT_DNS=intfirstpartycheckaccess.hcp.osadev.cloud && \
 	MSI_MOCK_CERT_NAME=intMsiMockCert && \
 	MSI_MOCK_CERT_DNS=intmsimock.hcp.osadev.cloud && \
 	ARM_HELPER_CERT_NAME=intArmHelperCert && \
@@ -101,6 +103,8 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} \
 		firstPartyCertName=$${FIRST_PARTY_CERT_NAME} \
 		firstPartyCertDns=$${FIRST_PARTY_CERT_DNS} \
+		firstPartyCheckAccessCertName=$${FIRST_PARTY_CHECK_ACCESS_CERT_NAME} \
+		firstPartyCheckAccessCertDns=$${FIRST_PARTY_CHECK_ACCESS_CERT_DNS} \
 		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
 		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
 		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
@@ -128,6 +132,13 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
+
+	APPLICATION_NAME=aro-int-first-party-check-access \
+	KEY_VAULT_NAME=aro-hcp-int-kv \
+	CERTIFICATE_NAME=intFirstPartyCheckAccessCert \
+	ROLE_DEFINITION_NAME=Contributor \
+	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
+	./scripts/create-sp-for-rbac.sh
 
 .PHONY: create-mock-identities
 
