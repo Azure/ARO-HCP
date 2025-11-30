@@ -108,6 +108,29 @@ func (o *RawUpdateOptions) Validate(ctx context.Context) (*ValidatedUpdateOption
 
 // Complete creates all necessary clients and resources for execution and returns a ready-to-execute Updater
 func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater, error) {
+	// Collect unique Key Vault configurations from all images
+	// Use a map to deduplicate (same vault+secret combination)
+	kvConfigs := make(map[string]clients.KeyVaultConfig)
+	for _, imageConfig := range v.Config.Images {
+		if imageConfig.Source.KeyVault != nil &&
+			imageConfig.Source.KeyVault.URL != "" &&
+			imageConfig.Source.KeyVault.SecretName != "" {
+			key := imageConfig.Source.KeyVault.URL + "|" + imageConfig.Source.KeyVault.SecretName
+			kvConfigs[key] = clients.KeyVaultConfig{
+				VaultURL:   imageConfig.Source.KeyVault.URL,
+				SecretName: imageConfig.Source.KeyVault.SecretName,
+			}
+		}
+	}
+
+	// Fetch all unique pull secrets from Key Vault
+	for _, kvConfig := range kvConfigs {
+		if err := clients.FetchAndMergeKeyVaultPullSecret(ctx, kvConfig); err != nil {
+			return nil, fmt.Errorf("failed to fetch pull secret %s from Key Vault %s: %w",
+				kvConfig.SecretName, kvConfig.VaultURL, err)
+		}
+	}
+
 	// Determine authentication requirements per registry
 	registryAuthRequired := make(map[string]bool)
 	for _, imageConfig := range v.Config.Images {
