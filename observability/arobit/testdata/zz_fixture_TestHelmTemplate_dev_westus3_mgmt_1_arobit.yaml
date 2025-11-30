@@ -153,6 +153,7 @@ data:
         Annotations         Off
         K8S-Logging.Exclude On
         Buffer_Size         64k
+
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router

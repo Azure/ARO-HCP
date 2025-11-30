@@ -153,19 +153,26 @@ data:
 
 {{- if .Values.forwarder.mdsd.enabled }}
     [FILTER]
-        Name          nest
-        Match         kubernetes.*
-        Operation     lift
-        Nested_under  kubernetes
-    
-    [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
         Match           kubernetes.var.log.containers.*
-        Rule            namespace_name ^ocm-.* ocm.logs false
-        Rule            namespace_name ^(?!ocm-).* other.logs false
-        Emitter_Name    re_emitted_namespace_router
-{{- else }}
+        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
+        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
+        Emitter_Name    re_emitted_namespace_router_mdsd
+
+    [FILTER]
+        Name          nest
+        Match         mdsd-ocm.logs
+        Operation     lift
+        Nested_under  kubernetes
+
+    [FILTER]
+        Name          nest
+        Match         mdsd-other.logs
+        Operation     lift
+        Nested_under  kubernetes
+{{- end }}
+
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
@@ -173,7 +180,6 @@ data:
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
         Emitter_Name    re_emitted_namespace_router
-{{- end}}
 
     [FILTER]
         # Other logs are keept, because want to send them to mdsd as well
