@@ -38,7 +38,7 @@ param keyVaultName string
 param etcdEncryptionKeyName string
 
 @description('List of authorized IP ranges for API server access')
-param authorizedCidrs array = []
+param authorizedCidrs array?
 
 //
 // E X I S T I N G   R E S O U R C E S
