@@ -214,6 +214,16 @@ func createParameterizeDeployment(config *BundleConfig) Customizer {
 				deployment.Spec.Template.Spec.Containers[c].Image = parameterizedImage
 				maps.Copy(allParams, params)
 			}
+
+			// Add tolerations and node selectors if specified in config
+			if len(config.OperatorNodeSelector) != 0 {
+				deployment.Spec.Template.Spec.NodeSelector = config.OperatorNodeSelector
+			}
+
+			if len(config.OperatorTolerations) != 0 {
+				deployment.Spec.Template.Spec.Tolerations = config.OperatorTolerations
+			}
+
 			modifiedObj, err := convertToUnstructured(deployment)
 			return modifiedObj, allParams, err
 		}
