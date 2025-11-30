@@ -15,12 +15,8 @@ package e2e
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,13 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"golang.org/x/crypto/ssh"
-
-	"k8s.io/client-go/rest"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -63,7 +53,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("generating SSH key pair for VM")
-				sshPublicKey, _, err := generateSSHKeyPair()
+				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating customer infrastructure")
@@ -194,7 +184,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Wrap in Eventually for robustness - authorized CIDR rules may take time to propagate
 				var httpCode string
 				Eventually(func(g Gomega) {
-					output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					// Should get HTTP response (likely 401 or 200, but not connection refused)
@@ -208,10 +198,6 @@ var _ = Describe("Authorized CIDRs", func() {
 				err = testAPIConnectivity(apiURL, 5*time.Second)
 				if err != nil {
 					By(fmt.Sprintf("Connection from unauthorized IP correctly blocked: %v", err))
-				} else {
-					// If we can connect, it means the test runner's IP might be in the cluster's network
-					// This is expected in some scenarios, so we just log it
-					By("Warning: Connection from test runner succeeded - this may indicate the runner is in the authorized network")
 				}
 
 				By("verifying VM can access cluster API with credentials")
@@ -225,7 +211,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Create kubeconfig and copy to VM
-				kubeconfig, err := generateKubeconfig(adminRESTConfig)
+				kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Test kubectl command from VM
@@ -236,7 +222,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Wrap in Eventually for robustness - API access may take time to propagate
 				Eventually(func(g Gomega) {
 					var err error
-					output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest)
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest)
 					By(fmt.Sprintf("kubectl output from authorized VM: %s", output))
 
 					// Should be able to run kubectl commands (even if nodes aren't ready)
@@ -277,7 +263,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying VM is now blocked from API access")
-				output, err := runVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
 				if err != nil || strings.TrimSpace(output) == "000" || strings.TrimSpace(output) == "" {
 					By("Connection correctly blocked after removing VM from authorized CIDRs")
 				} else {
@@ -288,82 +274,6 @@ var _ = Describe("Authorized CIDRs", func() {
 		)
 	})
 })
-
-// Helper to run command on VM
-func runVMCommand(ctx context.Context, tc interface {
-	SubscriptionID(ctx context.Context) (string, error)
-	AzureCredential() (azcore.TokenCredential, error)
-}, resourceGroup, vmName, command string) (string, error) {
-	subscriptionID, err := tc.SubscriptionID(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	azCreds, err := tc.AzureCredential()
-	if err != nil {
-		return "", err
-	}
-
-	computeClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, azCreds, nil)
-	if err != nil {
-		return "", err
-	}
-
-	runCommandInput := armcompute.RunCommandInput{
-		CommandID: to.Ptr("RunShellScript"),
-		Script: []*string{
-			to.Ptr(command),
-		},
-	}
-
-	poller, err := computeClient.BeginRunCommand(ctx, resourceGroup, vmName, runCommandInput, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// Create a timeout context to avoid waiting too long on VM command failures
-	// VM commands should complete quickly (within a few minutes at most)
-	pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-
-	result, err := poller.PollUntilDone(pollCtx, nil)
-	if err != nil {
-		return "", err
-	}
-
-	if len(result.Value) > 0 && result.Value[0].Message != nil {
-		// Azure Run Command returns output in format:
-		// "Enable succeeded: \n[stdout]\n<actual output>\n[stderr]\n<errors>"
-		// We need to extract just the stdout content
-		message := *result.Value[0].Message
-
-		// Find the stdout section
-		stdoutStart := strings.Index(message, "[stdout]\n")
-		if stdoutStart == -1 {
-			// If no stdout marker, return the whole message
-			return message, nil
-		}
-
-		// Skip past the "[stdout]\n" marker
-		stdoutStart += len("[stdout]\n")
-
-		// Find where stderr starts (if present)
-		stderrStart := strings.Index(message[stdoutStart:], "\n[stderr]")
-
-		var output string
-		if stderrStart == -1 {
-			// No stderr marker, take everything after stdout
-			output = message[stdoutStart:]
-		} else {
-			// Take only the stdout section
-			output = message[stdoutStart : stdoutStart+stderrStart]
-		}
-
-		return strings.TrimSpace(output), nil
-	}
-
-	return "", nil
-}
 
 // Helper to test API connectivity with timeout
 func testAPIConnectivity(apiURL string, timeout time.Duration) error {
@@ -390,89 +300,4 @@ func testAPIConnectivity(apiURL string, timeout time.Duration) error {
 	defer resp.Body.Close()
 
 	return nil
-}
-
-// Helper to generate SSH key pair
-func generateSSHKeyPair() (publicKey string, privateKey string, err error) {
-	// Generate RSA key pair
-	privateKeyData, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return "", "", err
-	}
-
-	// Encode private key to PEM format
-	privateKeyPEM := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKeyData),
-	}
-	privateKeyStr := string(pem.EncodeToMemory(privateKeyPEM))
-
-	// Generate public key in SSH format
-	pub, err := ssh.NewPublicKey(&privateKeyData.PublicKey)
-	if err != nil {
-		return "", "", err
-	}
-	publicKeyStr := string(ssh.MarshalAuthorizedKey(pub))
-
-	return publicKeyStr, privateKeyStr, nil
-}
-
-// Helper to generate kubeconfig
-func generateKubeconfig(restConfig *rest.Config) (string, error) {
-	var kubeconfig string
-
-	// In development environments, CAData is cleared and Insecure is set to true
-	// We need to handle this case by adding insecure-skip-tls-verify
-	if len(restConfig.CAData) == 0 || restConfig.Insecure {
-		kubeconfig = fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: %s
-    insecure-skip-tls-verify: true
-  name: cluster
-contexts:
-- context:
-    cluster: cluster
-    user: admin
-  name: admin@cluster
-current-context: admin@cluster
-users:
-- name: admin
-  user:
-    client-certificate-data: %s
-    client-key-data: %s
-`,
-			restConfig.Host,
-			base64.StdEncoding.EncodeToString(restConfig.CertData),
-			base64.StdEncoding.EncodeToString(restConfig.KeyData),
-		)
-	} else {
-		kubeconfig = fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: %s
-    certificate-authority-data: %s
-  name: cluster
-contexts:
-- context:
-    cluster: cluster
-    user: admin
-  name: admin@cluster
-current-context: admin@cluster
-users:
-- name: admin
-  user:
-    client-certificate-data: %s
-    client-key-data: %s
-`,
-			restConfig.Host,
-			base64.StdEncoding.EncodeToString(restConfig.CAData),
-			base64.StdEncoding.EncodeToString(restConfig.CertData),
-			base64.StdEncoding.EncodeToString(restConfig.KeyData),
-		)
-	}
-
-	return kubeconfig, nil
 }
