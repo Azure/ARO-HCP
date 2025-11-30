@@ -192,7 +192,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name frontendLogs
@@ -205,7 +205,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name backendLogs
@@ -217,7 +217,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name containerLogs
@@ -230,7 +230,7 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
         Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
@@ -369,6 +369,8 @@ spec:
         app.kubernetes.io/instance: 'dev-westus3-svc-1-arobit'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/configmap: 9f51a6c1fe15d49194f62d066e5cbecdf1c5ad041b46bed21063c269dde442dc
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

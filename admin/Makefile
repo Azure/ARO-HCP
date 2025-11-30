@@ -57,7 +57,7 @@ clean:
 .PHONY: clean
 
 image: Dockerfile $(ADMIN_API_SOURCES) Makefile
-	rm $(BINARY)
+	@rm -f $(BINARY)
 	cd $(ADMIN_DIR)/.. && \
 	docker build . --file admin/Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
