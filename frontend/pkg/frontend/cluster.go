@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
@@ -196,6 +197,11 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
+	subscription, err := f.dbClient.GetSubscriptionDoc(ctx, resourceID.SubscriptionID)
+	if err != nil {
+		return err
+	}
+
 	switch request.Method {
 	case http.MethodPut:
 		// expected
@@ -245,6 +251,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	newExternalCluster.Normalize(newInternalCluster)
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
+	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return err
 	}
