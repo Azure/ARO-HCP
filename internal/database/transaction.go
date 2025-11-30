@@ -10,13 +10,19 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
 
 type DBTransaction interface {
+	// AddStep adds a transaction function to the list to perform
+	AddStep(CosmosDBTransactionStep)
+
 	// GetPartitionKey returns the transaction's partition key.
 	GetPartitionKey() azcosmos.PartitionKey
 
@@ -26,10 +32,6 @@ type DBTransaction interface {
 
 	// DeleteDoc adds a delete request to the transaction.
 	DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions)
-
-	// CreateResourceDoc adds a create request to the transaction
-	// and returns the tentative item ID.
-	CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
@@ -55,6 +57,13 @@ type DBTransactionResult interface {
 	// the document was requested with DBTransaction.ReadDoc.
 	GetResourceDoc(itemID string) (*ResourceDocument, error)
 
+	// GetItem returns the internal API representation forthe cosmosUID.
+	// That is consistent with other returns from our database layer.
+	// The Item is only available if the transaction was
+	// executed with the EnableContentResponseOnWrite option set, or
+	// the document was requested with DBTransaction.ReadDoc.
+	GetItem(cosmosUID string) (any, error)
+
 	// GetOperationDoc returns the OperationDocument for itemID.
 	// The OperationDocument is only available if the transaction was
 	// executed with the EnableContentResponseOnWrite option set, or
@@ -73,12 +82,12 @@ var ErrWrongPartition = errors.New("wrong partition key for transaction")
 
 var _ DBTransaction = &cosmosDBTransaction{}
 
-type cosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
+type CosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
 
 type cosmosDBTransaction struct {
 	pk        azcosmos.PartitionKey
 	client    *azcosmos.ContainerClient
-	steps     []cosmosDBTransactionStep
+	steps     []CosmosDBTransactionStep
 	onSuccess []DBTransactionCallback
 }
 
@@ -104,33 +113,8 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 	})
 }
 
-func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
-	// prevent data corruption
-	if len(doc.InternalID.String()) == 0 {
-		panic("Developer Error: InternalID is required")
-	}
-
-	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
-
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		var data []byte
-		var err error
-
-		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = resourceDocumentMarshal(typedDoc, doc, documentFilter)
-		} else {
-			err = ErrWrongPartition
-		}
-
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.ResourceID, err)
-		}
-
-		b.CreateItem(data, o)
-		return typedDoc.ID, nil
-	})
-
-	return typedDoc.ID
+func (t *cosmosDBTransaction) AddStep(stepFn CosmosDBTransactionStep) {
+	t.steps = append(t.steps, stepFn)
 }
 
 func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions) {
@@ -256,8 +240,46 @@ func getCosmosDBTransactionResultDoc[T DocumentProperties](r *cosmosDBTransactio
 	return innerDoc, nil
 }
 
+func getCastResult[InternalAPIType, CosmosAPIType any](r *cosmosDBTransactionResult, cosmosUID string) (*InternalAPIType, error) {
+	data, ok := r.items[cosmosUID]
+	if !ok {
+		return nil, ErrItemNotFound
+	}
+
+	var cosmosObj CosmosAPIType
+	if err := json.Unmarshal(data, &cosmosObj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item '%s': %w", cosmosUID, err)
+	}
+
+	return CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
+}
+
 func (r *cosmosDBTransactionResult) GetResourceDoc(itemID string) (*ResourceDocument, error) {
 	return getCosmosDBTransactionResultDoc[ResourceDocument](r, itemID)
+}
+
+func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
+	data, ok := r.items[cosmosUID]
+	if !ok {
+		return nil, ErrItemNotFound
+	}
+
+	var typedDoc TypedDocument
+	err := json.Unmarshal(data, &typedDoc)
+	if err != nil {
+		return nil, err
+	}
+
+	switch strings.ToLower(typedDoc.ResourceType) {
+	case strings.ToLower(api.ProviderNamespace + "/" + api.ClusterResourceTypeName):
+		return getCastResult[api.HCPOpenShiftCluster, HCPCluster](r, cosmosUID)
+	case strings.ToLower(api.ProviderNamespace + "/" + api.NodePoolResourceTypeName):
+		return getCastResult[api.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
+	case strings.ToLower(api.ProviderNamespace + "/" + api.ExternalAuthResourceTypeName):
+		return getCastResult[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](r, cosmosUID)
+	default:
+		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
+	}
 }
 
 func (r *cosmosDBTransactionResult) GetOperationDoc(itemID string) (*OperationDocument, error) {

@@ -38,6 +38,8 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 	}
 
 	dest.ServiceProviderProperties.ProvisioningState = src.ServiceProviderProperties.ProvisioningState
+	dest.ServiceProviderProperties.ClusterServiceID = src.ServiceProviderProperties.ClusterServiceID
+	dest.ServiceProviderProperties.CosmosUID = src.ServiceProviderProperties.CosmosUID
 	dest.ServiceProviderProperties.Console = src.ServiceProviderProperties.Console
 	dest.ServiceProviderProperties.DNS.BaseDomain = src.ServiceProviderProperties.DNS.BaseDomain
 	dest.ServiceProviderProperties.API.URL = src.ServiceProviderProperties.API.URL
