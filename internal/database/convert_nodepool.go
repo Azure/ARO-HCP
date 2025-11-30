@@ -30,6 +30,8 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			BaseDocument: BaseDocument{
 				ID: internalObj.ServiceProviderProperties.CosmosUID,
 			},
+			PartitionKey: internalObj.ID.SubscriptionID,
+			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
 			ResourceDocument: ResourceDocument{

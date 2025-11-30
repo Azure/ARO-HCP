@@ -9,14 +9,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"reflect"
 
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
 
 type DBTransaction interface {
+	// AddStep adds a transaction function to the list to perform
+	AddStep(CosmosDBTransactionStep)
+
 	// GetPartitionKey returns the transaction's partition key.
 	GetPartitionKey() azcosmos.PartitionKey
 
@@ -26,10 +33,6 @@ type DBTransaction interface {
 
 	// DeleteDoc adds a delete request to the transaction.
 	DeleteDoc(itemID string, o *azcosmos.TransactionalBatchItemOptions)
-
-	// CreateResourceDoc adds a create request to the transaction
-	// and returns the tentative item ID.
-	CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string
 
 	// PatchResourceDoc adds a set of patch operations to the transaction.
 	PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions)
@@ -73,12 +76,12 @@ var ErrWrongPartition = errors.New("wrong partition key for transaction")
 
 var _ DBTransaction = &cosmosDBTransaction{}
 
-type cosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
+type CosmosDBTransactionStep func(b *azcosmos.TransactionalBatch) (string, error)
 
 type cosmosDBTransaction struct {
 	pk        azcosmos.PartitionKey
 	client    *azcosmos.ContainerClient
-	steps     []cosmosDBTransactionStep
+	steps     []CosmosDBTransactionStep
 	onSuccess []DBTransactionCallback
 }
 
@@ -104,33 +107,8 @@ func (t *cosmosDBTransaction) DeleteDoc(itemID string, o *azcosmos.Transactional
 	})
 }
 
-func (t *cosmosDBTransaction) CreateResourceDoc(doc *ResourceDocument, documentFilter ResourceDocumentStateFilter, o *azcosmos.TransactionalBatchItemOptions) string {
-	// prevent data corruption
-	if len(doc.InternalID.String()) == 0 {
-		panic("Developer Error: InternalID is required")
-	}
-
-	typedDoc := newTypedDocument(doc.ResourceID.SubscriptionID, doc.ResourceID.ResourceType)
-
-	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
-		var data []byte
-		var err error
-
-		if reflect.DeepEqual(t.pk, typedDoc.getPartitionKey()) {
-			data, err = resourceDocumentMarshal(typedDoc, doc, documentFilter)
-		} else {
-			err = ErrWrongPartition
-		}
-
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", doc.ResourceID, err)
-		}
-
-		b.CreateItem(data, o)
-		return typedDoc.ID, nil
-	})
-
-	return typedDoc.ID
+func (t *cosmosDBTransaction) AddStep(stepFn CosmosDBTransactionStep) {
+	t.steps = append(t.steps, stepFn)
 }
 
 func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocumentPatchOperations, o *azcosmos.TransactionalBatchItemOptions) {
@@ -143,6 +121,16 @@ func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocume
 func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string {
 	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, OperationResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
+
+	var err error
+	doc.OperationID, err = azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", doc.ExternalID.SubscriptionID,
+		"providers", api.ProviderNamespace,
+		"locations", arm.GetAzureLocation(),
+		api.OperationStatusResourceTypeName, typedDoc.ID))
+	if err != nil {
+		panic(fmt.Sprintf("developer error: %v", err))
+	}
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
