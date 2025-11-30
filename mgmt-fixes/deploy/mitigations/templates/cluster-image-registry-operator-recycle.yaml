@@ -6,7 +6,7 @@ metadata:
   labels:
     app: cluster-image-registry-operator-recycle
 spec:
-  suspend: true
+  suspend: false
   schedule: "*/10 * * * *" # Every 10 minutes
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -29,13 +29,21 @@ spec:
             - |
               set -euo pipefail
 
-              echo "Searching for pods with label name=cluster-image-registry-operator..."
+              # This is a temporary workaround for a specific issue affecting only version 4.19.7.
+              TARGET_VERSION="4.19.7"
+
+              echo "Searching for pods with label name=cluster-image-registry-operator (version ${TARGET_VERSION})..."
 
               kubectl get pods --all-namespaces -l name=cluster-image-registry-operator \
-                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' |
-              while read -r namespace pod; do
-                echo "Deleting pod: $pod in namespace: $namespace"
-                kubectl delete pod -n "$namespace" "$pod"
+                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.containers[0].env[?(@.name=="RELEASE_VERSION")].value}{"\n"}{end}' |
+              while read -r namespace pod version; do
+                if [ "$version" = "$TARGET_VERSION" ]; then
+                  echo "Deleting pod: $pod in namespace: $namespace (release version: $version)"
+                  kubectl delete pod -n "$namespace" "$pod"
+                else
+                  # Display the version value that was extracted
+                  echo "Skipping pod: $pod in namespace: $namespace (release version: ${version:-<not set>})"
+                fi
               done
 
               echo "Done."
