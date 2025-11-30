@@ -54,6 +54,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
 
 	serviceUnavailableRetryAfterInterval string = "60" // seconds
 )
@@ -159,6 +161,17 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	default:
 		return "", conversionError[string](prefixPolicyRP)
 	}
+}
+
+func convertAuthorizedCidrs(clusterAPI *arohcpv1alpha1.ClusterAPI) []string {
+	cidrAccess := clusterAPI.CIDRBlockAccess()
+	if cidrAccess.Empty() {
+		return nil
+	}
+	if cidr := cidrAccess.Allow(); cidr != nil {
+		return cidr.Values()
+	}
+	return nil
 }
 
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
@@ -337,6 +350,17 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
+func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) *arohcpv1alpha1.CIDRBlockAccessBuilder {
+	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
+	if len(in.AuthorizedCIDRs) > 0 {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
+	} else {
+		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+	}
+	return arohcpv1alpha1.NewCIDRBlockAccess().Allow(cidrBlockAllowAccess)
+}
+
 // ConvertCStoHCPOpenShiftCluster converts a CS Cluster object into an HCPOpenShiftCluster object.
 func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *arohcpv1alpha1.Cluster) (*api.HCPOpenShiftCluster, error) {
 	// A word about ProvisioningState:
@@ -391,7 +415,8 @@ func ConvertCStoHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, cluster *a
 			},
 
 			API: api.CustomerAPIProfile{
-				Visibility: apiVisibility,
+				Visibility:      apiVisibility,
+				AuthorizedCIDRs: convertAuthorizedCidrs(cluster.API()),
 			},
 			Platform: api.CustomerPlatformProfile{
 				ManagedResourceGroup:   cluster.Azure().ManagedResourceGroupName(),
@@ -542,6 +567,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 	}
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
 	// These attributes cannot be updated after cluster creation.
 	if !updating {
@@ -555,6 +581,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 		if err != nil {
 			return nil, err
 		}
+		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
+		if err != nil {
+			return nil, err
+		}
+		clusterAPIBuilder.Listening(apiListening)
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
@@ -568,14 +599,13 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, requestHeader http.Header,
 
 	clusterBuilder.Autoscaler(clusterAutoscalerBuilder)
 
+	clusterBuilder.API(clusterAPIBuilder.
+		CIDRBlockAccess(convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)))
+
 	return clusterBuilder, nil
 }
 
 func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
-	apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
-	if err != nil {
-		return nil, err
-	}
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -607,8 +637,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			ServiceCIDR(hcpCluster.CustomerProperties.Network.ServiceCIDR).
 			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
-		API(arohcpv1alpha1.NewClusterAPI().
-			Listening(apiListening)).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
