@@ -4,13 +4,13 @@ set -euo pipefail
 # Script to switch aro-hcp-stg and aro-hcp-prod Vault secrets between tenants
 #
 # Usage:
-#   ./switch-vault-tenant.sh --to msft       # Switch to Test Test Azure Red Hat OpenShift tenant
-#   ./switch-vault-tenant.sh --to rh-tenant  # Switch back to Red Hat tenant (rollback)
-#   ./switch-vault-tenant.sh --status        # Show current tenant status
+#   ./switch-vault-tenant.sh --to test-tenant  # Switch to Test Test Azure Red Hat OpenShift tenant
+#   ./switch-vault-tenant.sh --to legacy       # Switch back to legacy tenant (rollback)
+#   ./switch-vault-tenant.sh --status          # Show current tenant status
 #
 # This script copies credentials from source secrets to the active secrets:
-#   - msft:      aro-hcp-{env}-msft     → aro-hcp-{env}
-#   - rh-tenant: aro-hcp-{env}-rh-tenant → aro-hcp-{env}
+#   - test-tenant: aro-hcp-{env}-test-tenant → aro-hcp-{env}
+#   - legacy:      aro-hcp-{env}-legacy      → aro-hcp-{env}
 
 VAULT_URL="https://vault.ci.openshift.org"
 VAULT_BASE_PATH="selfservice/hcm-aro"
@@ -24,8 +24,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --to)
             TARGET="$2"
-            if [[ "$TARGET" != "msft" && "$TARGET" != "rh-tenant" ]]; then
-                echo "Error: --to must be 'msft' or 'rh-tenant'"
+            if [[ "$TARGET" != "test-tenant" && "$TARGET" != "legacy" ]]; then
+                echo "Error: --to must be 'test-tenant' or 'legacy'"
                 exit 1
             fi
             shift 2
@@ -43,19 +43,19 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 --to <msft|rh-tenant> [--env stg|prod]"
+            echo "Usage: $0 --to <test-tenant|legacy> [--env stg|prod]"
             echo "       $0 --status"
             echo ""
             echo "Options:"
-            echo "  --to TARGET   Switch to specified tenant (msft or rh-tenant)"
+            echo "  --to TARGET   Switch to specified tenant (test-tenant or legacy)"
             echo "  --status      Show current tenant status"
             echo "  --env ENV     Only switch specific environment (stg or prod)"
             echo ""
             echo "Examples:"
-            echo "  $0 --to msft           # Switch both envs to MSFT tenant"
-            echo "  $0 --to rh-tenant      # Rollback both envs to Red Hat tenant"
-            echo "  $0 --to msft --env stg # Switch only STAGE to MSFT tenant"
-            echo "  $0 --status            # Check current tenant for each env"
+            echo "  $0 --to test-tenant           # Switch both envs to Test Test tenant"
+            echo "  $0 --to legacy                # Rollback both envs to legacy tenant"
+            echo "  $0 --to test-tenant --env stg # Switch only STAGE to Test Test tenant"
+            echo "  $0 --status                   # Check current tenant for each env"
             exit 0
             ;;
         *)
@@ -66,7 +66,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${SHOW_STATUS}" == "false" && -z "${TARGET}" ]]; then
-    echo "Error: Must specify --to <msft|rh-tenant> or --status"
+    echo "Error: Must specify --to <test-tenant|legacy> or --status"
     echo "Run '$0 --help' for usage"
     exit 1
 fi
@@ -104,7 +104,7 @@ show_status() {
         if [[ "${tenant_id}" == "93b21e64-4824-439a-b893-46c9b2a51082" ]]; then
             tenant_name="Test Test Azure Red Hat OpenShift"
         elif [[ "${tenant_id}" != "unknown" ]]; then
-            tenant_name="Red Hat"
+            tenant_name="Legacy"
         fi
         
         printf "%-6s | %-40s | %s (%s)\n" "${env}" "${tenant_id}" "${subscription_name}" "${tenant_name}"
@@ -177,12 +177,12 @@ if [[ "${SHOW_STATUS}" == "true" ]]; then
 fi
 
 # Determine source suffix based on target
-if [[ "${TARGET}" == "msft" ]]; then
-    SOURCE_SUFFIX="msft"
+if [[ "${TARGET}" == "test-tenant" ]]; then
+    SOURCE_SUFFIX="test-tenant"
     TARGET_NAME="Test Test Azure Red Hat OpenShift tenant"
 else
-    SOURCE_SUFFIX="rh-tenant"
-    TARGET_NAME="Red Hat tenant (rollback)"
+    SOURCE_SUFFIX="legacy"
+    TARGET_NAME="Legacy tenant (rollback)"
 fi
 
 # Determine which environments to switch
@@ -222,13 +222,13 @@ echo ""
 echo "To verify the current status:"
 echo "  $0 --status"
 echo ""
-if [[ "${TARGET}" == "msft" ]]; then
+if [[ "${TARGET}" == "test-tenant" ]]; then
     echo "To test:"
     echo "  /test stage-e2e-parallel (in Azure/ARO-HCP repo)"
     echo ""
     echo "To rollback if needed:"
-    echo "  $0 --to rh-tenant"
+    echo "  $0 --to legacy"
 else
-    echo "Rollback complete. Original Red Hat tenant credentials are now active."
+    echo "Rollback complete. Legacy tenant credentials are now active."
 fi
 

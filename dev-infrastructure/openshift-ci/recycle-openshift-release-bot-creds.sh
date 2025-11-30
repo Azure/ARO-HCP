@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Script to recycle (rotate) credentials for the Test Test Azure Red Hat OpenShift tenant
-# Updates aro-hcp-stg-msft and aro-hcp-prod-msft Vault secrets
+# Updates aro-hcp-stg-test-tenant and aro-hcp-prod-test-tenant Vault secrets
 #
 # Usage:
 #   ./recycle-openshift-release-bot-creds.sh              # Rotate and update both stg and prod
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
             echo "                If not specified, updates both stg and prod"
             echo ""
             echo "This script rotates credentials for the Test Test Azure Red Hat OpenShift tenant."
-            echo "It updates aro-hcp-{env}-msft Vault secrets."
+            echo "It updates aro-hcp-{env}-test-tenant Vault secrets."
             exit 0
             ;;
         *)
@@ -82,7 +82,7 @@ update_vault_secret() {
         subscription_name="${PROD_SUBSCRIPTION_NAME}"
     fi
     
-    local vault_path="kv/selfservice/hcm-aro/aro-hcp-${env}-msft"
+    local vault_path="kv/selfservice/hcm-aro/aro-hcp-${env}-test-tenant"
     
     echo "Updating Vault secret: ${vault_path}"
     echo "  Subscription: ${subscription_name}"
@@ -187,15 +187,15 @@ unset CLIENT_SECRET
 header "Credential Rotation Complete"
 echo ""
 if [[ -n "${TARGET_ENV}" ]]; then
-    echo "Updated secret: kv/selfservice/hcm-aro/aro-hcp-${TARGET_ENV}-msft"
+    echo "Updated secret: kv/selfservice/hcm-aro/aro-hcp-${TARGET_ENV}-test-tenant"
     echo ""
     echo "To apply to active secrets, run:"
-    echo "  ./switch-vault-tenant.sh --to msft --env ${TARGET_ENV}"
+    echo "  ./switch-vault-tenant.sh --to test-tenant --env ${TARGET_ENV}"
 else
     echo "Updated secrets:"
-    echo "  - kv/selfservice/hcm-aro/aro-hcp-stg-msft"
-    echo "  - kv/selfservice/hcm-aro/aro-hcp-prod-msft"
+    echo "  - kv/selfservice/hcm-aro/aro-hcp-stg-test-tenant"
+    echo "  - kv/selfservice/hcm-aro/aro-hcp-prod-test-tenant"
     echo ""
     echo "To apply to active secrets, run:"
-    echo "  ./switch-vault-tenant.sh --to msft"
+    echo "  ./switch-vault-tenant.sh --to test-tenant"
 fi

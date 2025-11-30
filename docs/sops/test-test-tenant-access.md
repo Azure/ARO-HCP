@@ -137,8 +137,8 @@ Scripts are located in [`dev-infrastructure/openshift-ci/`](../../dev-infrastruc
 | Script | Purpose |
 |--------|---------|
 | `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
-| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-msft` Vault secrets |
-| `switch-vault-tenant.sh` | Switch active secrets between MSFT and RH tenant |
+| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-test-tenant` Vault secrets |
+| `switch-vault-tenant.sh` | Switch active secrets between Test Test tenant and legacy tenant |
 
 For detailed usage, see [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md).
 
@@ -146,15 +146,15 @@ For detailed usage, see [`dev-infrastructure/openshift-ci/README.md`](../../dev-
 
 ```
 selfservice/hcm-aro/
-├── aro-hcp-stg           # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-stg-msft      # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-├── aro-hcp-stg-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
-├── aro-hcp-prod          # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-prod-msft     # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-└── aro-hcp-prod-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
+├── aro-hcp-stg              # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-stg-test-tenant  # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+├── aro-hcp-stg-legacy       # Original legacy tenant credentials (backup, no secretsync)
+├── aro-hcp-prod             # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-prod-test-tenant # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+└── aro-hcp-prod-legacy      # Original legacy tenant credentials (backup, no secretsync)
 ```
 
-### Rollback to Red Hat Tenant
+### Rollback to Legacy Tenant
 
 
 ```bash
@@ -163,39 +163,39 @@ cd dev-infrastructure/openshift-ci/
 # Check current tenant status
 ./switch-vault-tenant.sh --status
 
-# Rollback BOTH environments to Red Hat tenant
-./switch-vault-tenant.sh --to rh-tenant
+# Rollback BOTH environments to legacy tenant
+./switch-vault-tenant.sh --to legacy
 
 # Or rollback only specific environment
-./switch-vault-tenant.sh --to rh-tenant --env stg
-./switch-vault-tenant.sh --to rh-tenant --env prod
+./switch-vault-tenant.sh --to legacy --env stg
+./switch-vault-tenant.sh --to legacy --env prod
 ```
 
 **What this does:**
-- Copies credentials from `aro-hcp-{env}-rh-tenant` → `aro-hcp-{env}`
+- Copies credentials from `aro-hcp-{env}-legacy` → `aro-hcp-{env}`
 - Preserves the `secretsync` fields in the active secret
 - Changes propagate to Prow jobs in **5-10 minutes**
 
 **When to rollback:**
 - E2E tests consistently fail with authentication errors
-- Azure subscription quota issues in MSFT tenant
-- MSFT tenant access is revoked or expired
+- Azure subscription quota issues in Test Test tenant
+- Test Test tenant access is revoked or expired
 
 **After rollback:**
 - Verify with `./switch-vault-tenant.sh --status`
 - Test by running `/test stage-e2e-parallel` in Azure/ARO-HCP repo
 
-### Switching to MSFT Tenant
+### Switching to Test Test Tenant
 
 ```bash
 cd dev-infrastructure/openshift-ci/
 
-# Switch BOTH environments to MSFT tenant
-./switch-vault-tenant.sh --to msft
+# Switch BOTH environments to Test Test tenant
+./switch-vault-tenant.sh --to test-tenant
 
 # Or switch only specific environment
-./switch-vault-tenant.sh --to msft --env stg
-./switch-vault-tenant.sh --to msft --env prod
+./switch-vault-tenant.sh --to test-tenant --env stg
+./switch-vault-tenant.sh --to test-tenant --env prod
 ```
 
 ### Current Configuration
@@ -232,15 +232,14 @@ cd dev-infrastructure/openshift-ci/
 # Rotate and delete old credentials
 ./recycle-openshift-release-bot-creds.sh --delete-old
 
-# Apply rotated credentials to active secrets (if MSFT tenant is active)
-./switch-vault-tenant.sh --to msft
+# Apply rotated credentials to active secrets (if Test Test tenant is active)
+./switch-vault-tenant.sh --to test-tenant
 ```
 
-This updates the `*-msft` secrets, then `switch-vault-tenant.sh` copies them to the active secrets.
+This updates the `*-test-tenant` secrets, then `switch-vault-tenant.sh` copies them to the active secrets.
 
 > **⚠️ Important**: 
 > - You must have Azure AD admin permissions to reset app credentials
-> - If you don't have these permissions, contact the Service Lifecycle team
 > - **Audit Trail**: Document all credential rotations in a team ticket (date, who, reason)
 
 
@@ -253,11 +252,21 @@ This updates the `*-msft` secrets, then `switch-vault-tenant.sh` copies them to 
 The following quotas have been requested and approved for ARO HCP E2E testing:
 
 **STAGE Environment (uksouth):**
-| Quota Type | Current Allocation | Justification |
-|------------|-------------------|---------------|
-| Public IP Addresses | 300 | Support 15 parallel tests × 2 IPs per test |
-| Total Regional vCPUs | 300 | Support 12 parallel nodepools × 16 vCPUs per nodepool |
-| Standard DSv3 Family vCPUs | 300 | Node pool VMs use Standard_D8s_v3 (8 cores each) |
+| Quota Type | Current Allocation |
+|------------|-------------------|
+| Public IPv4 Addresses - Standard | 300 |
+| Standard DSv3 Family vCPUs | 300 |
+| Standard Dplsv6 Family vCPUs | 100 (pending) |
+
+**ARM64 VM Quota (Dplsv6 Family):**
+
+The ARM64 node pool test (`arm64_nodepool.go`) uses `Standard_D2pls_v6` VMs. This requires the **Standard Dplsv6 Family vCPUs** quota.
+
+| Region | Current Quota | Requested |
+|--------|---------------|-----------|
+| uksouth | 10 | 100 |
+| brazilsouth | 10 | 100 |
+| centralindia | 10 | 100 |
 
 **PRODUCTION Environment (8 Regions):**
 
@@ -274,11 +283,11 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 | eastus2 | 300 |
 
 *vCPU Quotas (Active E2E Test Regions):*
-| Region | DSv3 vCPUs |
-|--------|------------|
-| uksouth | 300 |
-| brazilsouth | 300(pending) |
-| centralindia | 300 |
+| Region | DSv3 vCPUs | Dplsv6 vCPUs (ARM64) |
+|--------|------------|---------------------|
+| uksouth | 300 | 100 (pending) |
+| brazilsouth | 300 | 100 (pending) |
+| centralindia | 300 | 100 (pending) |
 
 **Note**: Other 5 production regions (switzerlandnorth, canadacentral, australiaeast, westeurope, eastus2) do not have E2E tests configured yet, so vCPU quotas were not requested.
 
@@ -292,15 +301,16 @@ Boskos leases control how many E2E tests can run concurrently. Each test must ac
 
 | Lease Type | Max Count | Purpose |
 |------------|-----------|---------|
-| `aro-hcp-stg-quota-slice` | 1 | Only 1 STAGE test at a time |
-| `aro-hcp-prod-quota-slice` | 1 | Only 1 PROD test at a time |
+| `aro-hcp-stg-quota-slice` | 3 | Up to 3 STAGE tests simultaneously |
+| `aro-hcp-prod-quota-slice` | 3 | Up to 3 PROD tests simultaneously |
 | `aro-hcp-int-quota-slice` | 1 | Only 1 INT test at a time |
 | `aro-hcp-test-tenant-quota-slice` | 10 | Up to 10 tests using MSFT Test tenant |
 
 **How it works:**
 - Each E2E test needs **two leases**: environment-specific (e.g., `aro-hcp-stg-quota-slice`) + tenant-wide (`aro-hcp-test-tenant-quota-slice`)
 - STAGE and PROD can run simultaneously (different environment leases)
-- Two STAGE tests cannot run simultaneously (only 1 `aro-hcp-stg-quota-slice` available)
+- Up to 3 STAGE tests can run simultaneously (3 `aro-hcp-stg-quota-slice` available)
+- Up to 3 PROD tests can run simultaneously (3 `aro-hcp-prod-quota-slice` available)
 
 #### How to Request Additional Quotas
 

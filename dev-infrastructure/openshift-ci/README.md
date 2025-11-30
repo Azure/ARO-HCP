@@ -7,19 +7,19 @@ This directory contains scripts to manage Azure AD credentials for ARO HCP E2E t
 | Script | Purpose |
 |--------|---------|
 | `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
-| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-msft` Vault secrets |
-| `switch-vault-tenant.sh` | Switch active secrets between MSFT and RH tenant |
+| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-test-tenant` Vault secrets |
+| `switch-vault-tenant.sh` | Switch active secrets between Test Test tenant and legacy tenant |
 
 ## Vault Secret Structure
 
 ```
 selfservice/hcm-aro/
-├── aro-hcp-stg           # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-stg-msft      # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-├── aro-hcp-stg-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
-├── aro-hcp-prod          # Active secret (used by Prow jobs, with secretsync)
-├── aro-hcp-prod-msft     # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
-└── aro-hcp-prod-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
+├── aro-hcp-stg              # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-stg-test-tenant  # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+├── aro-hcp-stg-legacy       # Original legacy tenant credentials (backup, no secretsync)
+├── aro-hcp-prod             # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-prod-test-tenant # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+└── aro-hcp-prod-legacy      # Original legacy tenant credentials (backup, no secretsync)
 ```
 
 ## Prerequisites
@@ -36,8 +36,8 @@ selfservice/hcm-aro/
 # Create Azure AD app, assign roles, grant permissions, and store credentials
 ./create-openshift-release-bot-msft-test.sh
 
-# Switch to MSFT tenant
-./switch-vault-tenant.sh --to msft
+# Switch to Test Test tenant
+./switch-vault-tenant.sh --to test-tenant
 ```
 
 ## Switching Tenants
@@ -47,14 +47,14 @@ selfservice/hcm-aro/
 ./switch-vault-tenant.sh --status
 
 # Switch to Test Test Azure Red Hat OpenShift tenant
-./switch-vault-tenant.sh --to msft
+./switch-vault-tenant.sh --to test-tenant
 
-# Rollback to Red Hat tenant
-./switch-vault-tenant.sh --to rh-tenant
+# Rollback to legacy tenant
+./switch-vault-tenant.sh --to legacy
 
 # Switch only specific environment
-./switch-vault-tenant.sh --to msft --env stg
-./switch-vault-tenant.sh --to msft --env prod
+./switch-vault-tenant.sh --to test-tenant --env stg
+./switch-vault-tenant.sh --to test-tenant --env prod
 ```
 
 ## Credential Rotation
@@ -72,7 +72,7 @@ When credentials are expiring or need to be rotated:
 ./recycle-openshift-release-bot-creds.sh --env stg
 
 # Apply rotated credentials to active secrets
-./switch-vault-tenant.sh --to msft
+./switch-vault-tenant.sh --to test-tenant
 ```
 
 ## Verification
@@ -84,19 +84,19 @@ When credentials are expiring or need to be rotated:
 
 ## Troubleshooting
 
-### Rollback to Red Hat Tenant
+### Rollback to Legacy Tenant
 
-If issues occur with MSFT tenant:
+If issues occur with Test Test tenant:
 
 ```bash
-./switch-vault-tenant.sh --to rh-tenant
+./switch-vault-tenant.sh --to legacy
 ```
 
 ### Check Prow Job Logs
 
-Look for `Acquired 1 lease(s) for aro-hcp-test-tenant-quota-slice` in the build logs to confirm MSFT tenant is being used.
+Look for `Acquired 1 lease(s) for aro-hcp-test-tenant-quota-slice` in the build logs to confirm Test Test tenant is being used.
 
 ## Documentation
 
 For detailed documentation, see:
-- [Test Test Azure Red Hat OpenShift Tenant Access SOP](../../docs/sops/msft-test-test-tenant-access.md)
+- [Test Test Azure Red Hat OpenShift Tenant Access SOP](../../docs/sops/test-test-tenant-access.md)
