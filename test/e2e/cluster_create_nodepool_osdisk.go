@@ -50,18 +50,24 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the infrastructure, cluster and node pool from a single bicep template")
+
+			identities, usePooled, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			Expect(err).NotTo(HaveOccurred())
+
 			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"cluster-deployment",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
-				map[string]interface{}{
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json"),
+				framework.WithResourceGroupScope(*resourceGroup.Name),
+				framework.WithDeploymentName("cluster-deployment"),
+				framework.WithParameters(map[string]interface{}{
 					"persistTagValue":       false,
 					"clusterName":           customerClusterName,
 					"nodePoolName":          customerNodePoolName,
 					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
 					"nodeReplicas":          customerNodeReplicas,
-				},
-				45*time.Minute,
+					"identities":            identities,
+					"usePooledIdentities":   usePooled,
+				}),
+				framework.WithTimeout(45*time.Minute),
 			)
 			Expect(err).NotTo(HaveOccurred())
 

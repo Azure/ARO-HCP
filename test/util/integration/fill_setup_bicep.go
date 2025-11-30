@@ -74,13 +74,12 @@ func FallbackCreateClusterWithBicep(ctx context.Context, bicepJSONFileName strin
 	// 5. Deploy the ARM template using the Azure SDK
 	deploymentName := "aro-hcp-e2e-setup"
 	deploymentsClient := tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient()
-	deploymentResult, err := tc.CreateBicepTemplateAndWait(
-		ctx,
-		resourceGroupName,
-		deploymentName,
-		templateBytes,
-		parameters,
-		45*time.Minute,
+	deploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
+		framework.WithTemplateFromBytes(templateBytes),
+		framework.WithResourceGroupScope(resourceGroupName),
+		framework.WithDeploymentName(deploymentName),
+		framework.WithParameters(parameters),
+		framework.WithTimeout(45*time.Minute),
 	)
 	if err != nil {
 		return setup, fmt.Errorf("failed to deploy ARM template: %w", err)
