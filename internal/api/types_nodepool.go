@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -71,7 +73,7 @@ type NodePoolPlatformProfile struct {
 // OSDiskProfile represents a OS Disk configuration.
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
-	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
+	SizeGiB                *int32                 `json:"sizeGiB,omitempty"                validate:"omitempty,min=1"`
 	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
 	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
 }
@@ -101,7 +103,7 @@ func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID) *HC
 			},
 			Platform: NodePoolPlatformProfile{
 				OSDisk: OSDiskProfile{
-					SizeGiB:                64,
+					SizeGiB:                ptr.To[int32](64),
 					DiskStorageAccountType: DiskStorageAccountTypePremium_LRS,
 				},
 			},
