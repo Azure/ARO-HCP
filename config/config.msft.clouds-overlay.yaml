@@ -220,7 +220,7 @@ clouds:
           clustersService:
             deployDebugJobs: true
             image:
-              digest: sha256:a1046d7b1b2042b9b109b9c433521662f9c3280fa1a3a66f82e499ba2e9fc433
+              digest: sha256:ce22a392a836a3f415f11fe07e18d171ec5455608be905d2b460b67f6beedf1d
           # ACR Pull
           acrPull:
             image:
