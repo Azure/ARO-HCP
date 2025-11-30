@@ -1,10 +1,10 @@
-# Access to MSFT Test Test Tenant
+# Access to Test Test Azure Red Hat OpenShift Tenant
 
-This document provides instructions for requesting and obtaining access to the **MSFT Test Test** tenant, which is used for ARO HCP E2E testing in Stage and Production environments.
+This document provides instructions for requesting and obtaining access to the **Test Test Azure Red Hat OpenShift** tenant, which is used for ARO HCP E2E testing in Stage and Production environments.
 
 ## Overview
 
-The **MSFT Test Test** tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`) is a Microsoft-managed Azure Active Directory tenant used exclusively for E2E testing of the ARO HCP service. This tenant hosts the following subscriptions:
+The **Test Test Azure Red Hat OpenShift** tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`) is a Microsoft-managed Azure Active Directory tenant used exclusively for E2E testing of the ARO HCP service. This tenant hosts the following subscriptions:
 
 - **ARO HCP E2E - Staging** (Subscription ID: `99399281-00a2-4b39-bb3d-b2645bbbdb93`)
 - **ARO HCP E2E** (Subscription ID: `403d9de9-132b-4974-94a5-5b78bdfa191e`)
@@ -30,7 +30,7 @@ You need access to this tenant if you are:
 
 ### 1. Request Access via Email Invitation
 
-Access to the MSFT Test Test tenant is granted through **email invitation**.
+Access to the Test Test Azure Red Hat OpenShift tenant is granted through **email invitation**.
 
 **To request access:**
 
@@ -108,59 +108,140 @@ Once approved, verify your access:
 
 ## CI/CD Service Principal Configuration
 
-**✅ Status**: Service principals and credentials for the MSFT Test Test tenant have **already been configured** for ARO HCP CI/CD.
+**✅ Status**: Service principals and credentials for the Test Test Azure Red Hat OpenShift tenant have **already been configured** for ARO HCP CI/CD.
 
-### Current Setup
+### Key Mechanism: Cluster Profiles
 
-The ARO HCP project uses service principals to authenticate OpenShift CI (Prow) jobs with the MSFT Test Test tenant. The service principals were created using the setup script at [`dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh`](../../dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh), and the credentials were stored in OpenShift CI Vault.
+ARO HCP uses **OpenShift CI Cluster Profiles** to manage multi-tenant authentication. Each environment (INT, STAGE, PROD) uses a different cluster profile, which automatically injects the correct Azure credentials into test jobs.
 
-**What was configured:**
-- Service principals created in the MSFT Test Test tenant (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`)
-- Credentials (Client ID, Client Secret, Tenant ID) stored in OpenShift CI Vault
-- Prow step configuration updated to consume credentials from Vault
+**How it works:**
+1. **Cluster Profiles** define environment-specific configurations
+2. Each profile references a **Kubernetes secret** containing Azure credentials
+3. **Secret Sync Controller** syncs credentials from Vault to Kubernetes secrets
+4. **ci-operator** mounts these secrets into test pods automatically
 
-**Where to find the configuration:**
+### Environment to Credential Mapping
 
-1. **Setup Documentation**: 
-   - File: [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md)
-   - Complete documentation for the MSFT Test Test tenant setup process
+| Environment | Cluster Profile | Azure Subscription | Vault Secret Path | K8s Secret Name |
+|-------------|----------------|-------------------|-------------------|-----------------|
+| **INT** | `aro-hcp-int` | MSIT INT | `selfservice/hcm-aro/aro-hcp-int` | `cluster-secrets-aro-hcp-int` |
+| **STAGE** | `aro-hcp-stg` | ARO HCP E2E - Staging<br>`99399281-00a2-4b39-bb3d-b2645bbbdb93` | `selfservice/hcm-aro/aro-hcp-stg` | `cluster-secrets-aro-hcp-stg` |
+| **PROD** | `aro-hcp-prod` | ARO HCP E2E<br>`403d9de9-132b-4974-94a5-5b78bdfa191e` | `selfservice/hcm-aro/aro-hcp-prod` | `cluster-secrets-aro-hcp-prod` |
 
-2. **Setup Script**: 
-   - File: [`dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh`](../../dev-infrastructure/openshift-ci/create-openshift-release-bot-msft-test.sh)
-   - Creates app registration, grants roles/permissions, uploads credentials to Vault
+**STAGE and PROD** use the **Test Test Azure Red Hat OpenShift tenant** (Tenant ID: `93b21e64-4824-439a-b893-46c9b2a51082`).
 
-3. **Credential Recycling Script**: 
-   - File: [`dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh`](../../dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh)
-   - Used to rotate credentials when needed
+### Scripts Overview
 
-4. **Prow Step Configuration**: 
-   - Repository: [openshift/release](https://github.com/openshift/release)
-   - File: [`ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/provision/azure-login/aro-hcp-provision-azure-login-ref.yaml)
-   - Defines which tenant credentials to use based on the `TENANT_ID` environment variable
+Scripts are located in [`dev-infrastructure/openshift-ci/`](../../dev-infrastructure/openshift-ci/):
 
-5. **Prow Job Definitions**:
-   - Repository: [openshift/release](https://github.com/openshift/release)
-   - File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
-   - Sets `TENANT_ID: 93b21e64-4824-439a-b893-46c9b2a51082` for Stage and Prod jobs
+| Script | Purpose |
+|--------|---------|
+| `create-openshift-release-bot-msft-test.sh` | Create Azure AD app + roles + permissions (calls `recycle-openshift-release-bot-creds.sh`) |
+| `recycle-openshift-release-bot-creds.sh` | Rotate credentials and update `*-msft` Vault secrets |
+| `switch-vault-tenant.sh` | Switch active secrets between MSFT and RH tenant |
 
-6. **Credential Storage**:
-   - Location: OpenShift CI Vault at `selfservice/hcm-aro/hcp-msft-test-credentials`
-   - Secret name: `hcp-msft-test-test-credentials`
-   - Access: Requires OpenShift CI admin permissions
+For detailed usage, see [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md).
 
-### Future Improvement: OIDC Federation
+### Vault Secret Structure
 
-> **TODO**: Investigate OIDC federation between the MSFT Test Test tenant and OpenShift CI clusters to enable Managed Service Identity (MSI) authentication.
+```
+selfservice/hcm-aro/
+├── aro-hcp-stg           # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-stg-msft      # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+├── aro-hcp-stg-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
+├── aro-hcp-prod          # Active secret (used by Prow jobs, with secretsync)
+├── aro-hcp-prod-msft     # Test Test Azure Red Hat OpenShift tenant credentials (backup, no secretsync)
+└── aro-hcp-prod-rh-tenant # Original Red Hat tenant credentials (backup, no secretsync)
+```
 
-### Credential Expiration
+### Rollback to Red Hat Tenant
+
+
+```bash
+cd dev-infrastructure/openshift-ci/
+
+# Check current tenant status
+./switch-vault-tenant.sh --status
+
+# Rollback BOTH environments to Red Hat tenant
+./switch-vault-tenant.sh --to rh-tenant
+
+# Or rollback only specific environment
+./switch-vault-tenant.sh --to rh-tenant --env stg
+./switch-vault-tenant.sh --to rh-tenant --env prod
+```
+
+**What this does:**
+- Copies credentials from `aro-hcp-{env}-rh-tenant` → `aro-hcp-{env}`
+- Preserves the `secretsync` fields in the active secret
+- Changes propagate to Prow jobs in **5-10 minutes**
+
+**When to rollback:**
+- E2E tests consistently fail with authentication errors
+- Azure subscription quota issues in MSFT tenant
+- MSFT tenant access is revoked or expired
+
+**After rollback:**
+- Verify with `./switch-vault-tenant.sh --status`
+- Test by running `/test stage-e2e-parallel` in Azure/ARO-HCP repo
+
+### Switching to MSFT Tenant
+
+```bash
+cd dev-infrastructure/openshift-ci/
+
+# Switch BOTH environments to MSFT tenant
+./switch-vault-tenant.sh --to msft
+
+# Or switch only specific environment
+./switch-vault-tenant.sh --to msft --env stg
+./switch-vault-tenant.sh --to msft --env prod
+```
+
+### Current Configuration
+
+**Credential Storage** (Vault secrets used by Prow jobs):
+- **STAGE**: `selfservice/hcm-aro/aro-hcp-stg`
+- **PROD**: `selfservice/hcm-aro/aro-hcp-prod`
+- Access: Requires OpenShift CI Vault permissions
+
+**Cluster Profiles Configuration**:
+- Repository: [openshift/release](https://github.com/openshift/release)
+- File: [`ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml)
+- Defines `aro-hcp-int`, `aro-hcp-stg`, and `aro-hcp-prod` profiles
+
+**Prow Job Definitions**:
+- Repository: [openshift/release](https://github.com/openshift/release)
+- File: [`ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml`](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml)
+- Specifies `cluster_profile: aro-hcp-stg` or `cluster_profile: aro-hcp-prod` for each test job
+
+### Credential Expiration and Rotation
 
 > **⚠️ IMPORTANT: Service Principal Credential Expires on September 30, 2026**
 > 
 > The OpenShift CI service principal credential must be rotated before this date to prevent CI/CD pipeline failures.
-> 
-> **To rotate credentials:**
-> - See instructions: [`dev-infrastructure/openshift-ci/README.md`](../../dev-infrastructure/openshift-ci/README.md)
-> - Run script: [`dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh`](../../dev-infrastructure/openshift-ci/recycle-openshift-release-bot-creds.sh)
+
+**Credential Rotation:**
+
+```bash
+cd dev-infrastructure/openshift-ci/
+
+# Rotate credentials (keeps old credentials as backup)
+./recycle-openshift-release-bot-creds.sh
+
+# Rotate and delete old credentials
+./recycle-openshift-release-bot-creds.sh --delete-old
+
+# Apply rotated credentials to active secrets (if MSFT tenant is active)
+./switch-vault-tenant.sh --to msft
+```
+
+This updates the `*-msft` secrets, then `switch-vault-tenant.sh` copies them to the active secrets.
+
+> **⚠️ Important**: 
+> - You must have Azure AD admin permissions to reset app credentials
+> - If you don't have these permissions, contact the Service Lifecycle team
+> - **Audit Trail**: Document all credential rotations in a team ticket (date, who, reason)
 
 
 ## Common Tasks
@@ -201,9 +282,25 @@ The following quotas have been requested and approved for ARO HCP E2E testing:
 
 **Note**: Other 5 production regions (switzerlandnorth, canadacentral, australiaeast, westeurope, eastus2) do not have E2E tests configured yet, so vCPU quotas were not requested.
 
-#### Boskos Quota Slices
+#### Boskos Quota Slices (Concurrency Limits)
 
-> **TODO**: Configure Boskos quota slices to limit concurrent CI jobs in the MSFT Test Test tenant subscriptions.
+Boskos leases control how many E2E tests can run concurrently. Each test must acquire leases before running.
+
+**Configuration files:**
+- Lease definitions: [`openshift/release` → `core-services/prow/02_config/_boskos.yaml`](https://github.com/openshift/release/blob/master/core-services/prow/02_config/_boskos.yaml)
+- Generator script: [`openshift/release` → `core-services/prow/02_config/generate-boskos.py`](https://github.com/openshift/release/blob/master/core-services/prow/02_config/generate-boskos.py)
+
+| Lease Type | Max Count | Purpose |
+|------------|-----------|---------|
+| `aro-hcp-stg-quota-slice` | 1 | Only 1 STAGE test at a time |
+| `aro-hcp-prod-quota-slice` | 1 | Only 1 PROD test at a time |
+| `aro-hcp-int-quota-slice` | 1 | Only 1 INT test at a time |
+| `aro-hcp-test-tenant-quota-slice` | 10 | Up to 10 tests using MSFT Test tenant |
+
+**How it works:**
+- Each E2E test needs **two leases**: environment-specific (e.g., `aro-hcp-stg-quota-slice`) + tenant-wide (`aro-hcp-test-tenant-quota-slice`)
+- STAGE and PROD can run simultaneously (different environment leases)
+- Two STAGE tests cannot run simultaneously (only 1 `aro-hcp-stg-quota-slice` available)
 
 #### How to Request Additional Quotas
 
@@ -217,7 +314,7 @@ If you need to request quota increases for new regions or resources:
 
 ### Entra ID Directory Object Limits
 
-High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. Microsoft has rejected requests to disable Entra ID Soft Deletion.
+High-volume E2E testing can hit the Entra ID directory object limit (500,000) due to soft-deleted objects counting towards the quota. 
 
 > **TODO**: Consider reusing Managed Service Identities (MSI) where possible to reduce the number of directory objects created.
 
@@ -271,7 +368,9 @@ To manually trigger cleanup (e.g., after large test runs):
 
 - [Environments Overview](../environments.md) - Understand the different ARO HCP environments
 - [MSIT INT Credential Setup](./msit-int-credential-setup.md) - Similar process for INT environment
-- [OpenShift CI Configuration](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP) - How CI jobs use these credentials (openshift/release repo)
+- [OpenShift CI Configuration](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP) - Prow job definitions for ARO HCP
+- [Cluster Profiles Documentation](https://docs.ci.openshift.org/docs/architecture/step-registry/#cluster-profiles) - Official OpenShift CI cluster profiles guide
+- [OpenShift CI Secret Management](https://docs.ci.openshift.org/docs/how-tos/adding-a-new-secret-to-ci/) - How to add/update secrets in OpenShift CI
 
 ## Support Contacts
 
