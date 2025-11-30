@@ -36,3 +36,11 @@ rebase-and-materialize: render
 	git fetch https://github.com/Azure/ARO-HCP.git main
 	git rebase FETCH_HEAD
 .PHONY: rebase-and-materialize
+
+bump-msft-stg:
+	../hack/msft-env-promotion.sh stg ./config.msft.clouds-overlay.yaml
+.PHONY: bump-msft-stg
+
+bump-msft-prod:
+	../hack/msft-env-promotion.sh prod ./config.msft.clouds-overlay.yaml
+.PHONY: bump-msft-prod
