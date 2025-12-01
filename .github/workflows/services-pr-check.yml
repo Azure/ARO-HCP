@@ -32,6 +32,7 @@ on:
     - 'image-sync/**/'
     - 'tooling/templatize/**'
     - 'config/*'
+    - 'observability/*'
     types:
     - opened
     - synchronize
@@ -68,6 +69,10 @@ jobs:
     - name: 'Install helm diff'
       run: |
         helm plugin install https://github.com/databus23/helm-diff
+    - name: 'Test helm charts'
+      #This will test both svc and mgmt, since there is no way to split these.
+      run: |
+        make test-helm-fixtures
     - name: 'Dry Run Cluster Service'
       run: |
         make cluster-service.dry_run

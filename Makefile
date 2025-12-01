@@ -264,6 +264,10 @@ update-helm-fixtures:
 	$(MAKE) -C tooling/helmtest update
 .PHONY: update-helm-fixtures
 
+test-helm-fixtures:
+	$(MAKE) -C tooling/helmtest test
+.PHONY: test-helmcharts
+
 #
 # Generated SDKs
 #
