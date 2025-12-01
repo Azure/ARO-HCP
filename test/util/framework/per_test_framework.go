@@ -62,6 +62,8 @@ type perItOrDescribeTestContext struct {
 
 type specTimingMetadata struct {
 	Identifier []string `json:"identifier"`
+	StartedAt  string   `json:"startedAt"`
+	FinishedAt string   `json:"finishedAt"`
 
 	Steps []stepTimingMetadata `json:"steps,omitempty"`
 
@@ -98,6 +100,7 @@ func NewTestContext() *perItOrDescribeTestContext {
 			// hierarchy prefix and the leaf node. Multiple tests nested in By() under one It() will run
 			// afoul of this approach, but that looks to never happen based on convention.
 			Identifier:  append(ginkgo.CurrentSpecReport().ContainerHierarchyTexts, ginkgo.CurrentSpecReport().LeafNodeText),
+			StartedAt:   time.Now().Format(time.RFC3339),
 			Steps:       make([]stepTimingMetadata, 0),
 			Deployments: make(map[string]map[string][]Operation),
 		},
@@ -702,6 +705,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
 	}
 
+	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")
