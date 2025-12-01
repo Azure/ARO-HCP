@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func operationNotificationFn(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
+func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
 	return func(result database.DBTransactionResult) {
 		// If ARM passed a notification URI, acknowledge it.
 		if len(notificationURI) > 0 {

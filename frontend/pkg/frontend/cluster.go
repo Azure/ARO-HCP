@@ -285,7 +285,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	clusterCreateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 	clusterCreateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
 	operationCosmosID := transaction.CreateOperationDoc(clusterCreateOperation, nil)
-	transaction.OnSuccess(operationNotificationFn(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
+	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/vaidation of operation documents, this can be done ahead of time.

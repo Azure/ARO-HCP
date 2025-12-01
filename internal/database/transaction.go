@@ -131,15 +131,11 @@ func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azco
 	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, OperationResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
 
-	var err error
-	doc.OperationID, err = azcorearm.ParseResourceID(path.Join("/",
+	doc.OperationID = api.Must(azcorearm.ParseResourceID(path.Join("/",
 		"subscriptions", doc.ExternalID.SubscriptionID,
 		"providers", api.ProviderNamespace,
 		"locations", arm.GetAzureLocation(),
-		api.OperationStatusResourceTypeName, typedDoc.ID))
-	if err != nil {
-		panic(fmt.Sprintf("developer error: %v", err))
-	}
+		api.OperationStatusResourceTypeName, typedDoc.ID)))
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
