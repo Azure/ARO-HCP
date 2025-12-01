@@ -74,7 +74,7 @@ func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:              artifactDir(),
-			sharedDir:                sharedDir(),
+			sharedDir:                SharedDir(),
 			subscriptionName:         subscriptionName(),
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
@@ -220,10 +220,10 @@ func leasedIdentityContainers() []string {
 	return leased
 }
 
-// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
+// SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
 // We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
 // here to cleanup and debug testing resources.
-func sharedDir() string {
+func SharedDir() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("SHARED_DIR")
 }

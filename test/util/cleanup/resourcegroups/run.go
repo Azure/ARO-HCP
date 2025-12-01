@@ -17,7 +17,6 @@ package resourcegroups
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 
@@ -59,21 +58,11 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 
 		resourceGroupsToDelete = filterResourceGroupsByLocation(resourceGroupsToDelete, resourceGroupLocations,
-			o.includeLocations, o.excludeLocations, logger)
+			o.IncludeLocations, o.ExcludeLocations, logger)
 
 	} else if o.DeleteExpired {
-		// If no resource groups provided, use deleteExpired logic
-		// to dynamically list expired resource groups
-		now, err := time.Parse(time.RFC3339, o.EvaluationTime)
-		if err != nil {
-			return fmt.Errorf("failed to parse --evaluation-time value: %w", err)
-		}
 
-		expiredResourceGroups, err := framework.ListAllExpiredResourceGroups(
-			ctx,
-			resourceGroupsClient,
-			now,
-		)
+		expiredResourceGroups, err := framework.ListAllExpiredResourceGroups(ctx, resourceGroupsClient, o.EvaluationTime)
 		if err != nil {
 			return fmt.Errorf("failed to list expired resource groups: %w", err)
 		}
@@ -88,7 +77,7 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 
 		resourceGroupsToDelete = filterResourceGroupsByLocation(resourceGroupsToDelete, resourceGroupLocations,
-			o.includeLocations, o.excludeLocations, logger)
+			o.IncludeLocations, o.ExcludeLocations, logger)
 	}
 
 	if len(resourceGroupsToDelete) == 0 {
@@ -103,13 +92,14 @@ func (o *Options) Run(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete), "env-type", o.cleanupWorkflow,
-		"timeout", o.Timeout, "include-locations", o.includeLocations, "exclude-locations", o.excludeLocations)
+	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete), "mode", o.CleanupWorkflow,
+		"timeout", o.Timeout, "include-locations", o.IncludeLocations, "exclude-locations", o.ExcludeLocations,
+		"is-development", o.IsDevelopment)
 
 	opts := framework.CleanupResourceGroupsOptions{
 		ResourceGroupNames: resourceGroupsToDelete,
 		Timeout:            o.Timeout,
-		CleanupWorkflow:    o.cleanupWorkflow,
+		CleanupWorkflow:    o.CleanupWorkflow,
 	}
 
 	err := tc.CleanupResourceGroups(ctx,
