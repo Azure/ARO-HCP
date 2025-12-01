@@ -110,7 +110,7 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
     # Assign Role Based Access Control Administrator role with conditions
     echo "  Assigning Role Based Access Control Administrator role with conditions..."
     az role assignment create \
-        --assignee "${APP_ID}" \
+        --assignee "38335e22-716a-4a21-bf20-15ab141823f0" \
         --role "Role Based Access Control Administrator" \
         --scope "/subscriptions/${SUBSCRIPTION_ID}" \
         --condition "${UAA_CONDITION}" \

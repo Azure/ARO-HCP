@@ -196,8 +196,8 @@ grant-e2e-access:
 
 	az role assignment create \
 		--role "Role Based Access Control Administrator" \
-		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
-		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--assignee "3331e670-0804-48e8-a086-6241671ddc93" \
+		--scope "/subscriptions/974ebd46-8ad3-41e3-afef-7ef25fd5c371" \
 		--only-show-errors
 
 	az role assignment create \
