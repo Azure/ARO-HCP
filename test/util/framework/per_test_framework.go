@@ -61,7 +61,7 @@ type perItOrDescribeTestContext struct {
 }
 
 type specTimingMetadata struct {
-	Identifier []string
+	Identifier []string `json:"identifier"`
 
 	Steps []stepTimingMetadata `json:"steps,omitempty"`
 
@@ -92,7 +92,12 @@ func NewTestContext() *perItOrDescribeTestContext {
 			// but we do not want metadata registration to be sensitive to a test author choosing to nest
 			// another `By()` node or whatever, so we can snapshot the hierarchy at test context construction
 			// time to keep a record of the "root" name for registration purposes.
-			Identifier:  ginkgo.CurrentSpecReport().ContainerHierarchyTexts,
+			//
+			// n.b. ContainerHierarchyTexts contains Describe() and Context() but does not contain It(),
+			// and the LeadNodeText has It() but not By(), so the full identifier must contain both the
+			// hierarchy prefix and the leaf node. Multiple tests nested in By() under one It() will run
+			// afoul of this approach, but that looks to never happen based on convention.
+			Identifier:  append(ginkgo.CurrentSpecReport().ContainerHierarchyTexts, ginkgo.CurrentSpecReport().LeafNodeText),
 			Steps:       make([]stepTimingMetadata, 0),
 			Deployments: make(map[string]map[string][]Operation),
 		},
