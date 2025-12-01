@@ -97,6 +97,7 @@ type completedOptions struct {
 	ClustersServiceClient ocm.ClusterServiceClientSpec
 	DbClient              database.DBClient
 	KustoClient           *kusto.Client
+	SessionService        SessionService
 	Logger                *slog.Logger
 }
 
@@ -170,6 +171,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		}
 		kustoClient = client
 	}
+
+	// Connect to session service
+	var sessionService *SessionService
 
 	return &Options{
 		completedOptions: &completedOptions{
