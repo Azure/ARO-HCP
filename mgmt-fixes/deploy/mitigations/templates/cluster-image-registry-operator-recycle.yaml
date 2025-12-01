@@ -31,12 +31,20 @@ spec:
 
               # This is a temporary workaround for a specific issue affecting only version 4.19.7.
               TARGET_VERSION="4.19.7"
+              MAX_DELETIONS=5
+              DELETED_COUNT=0
 
               echo "Searching for pods with label name=cluster-image-registry-operator (version ${TARGET_VERSION})..."
 
               kubectl get pods --all-namespaces -l name=cluster-image-registry-operator \
                 -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.containers[0].env[?(@.name=="RELEASE_VERSION")].value}{" "}{.metadata.creationTimestamp}{"\n"}{end}' |
+              sort -k4 |
               while read -r namespace pod version timestamp; do
+                # Check if we've hit the deletion limit
+                if [ $DELETED_COUNT -ge $MAX_DELETIONS ]; then
+                  break
+                fi
+
                 # Calculate age
                 pod_created=$(date -d "$timestamp" +%s 2>/dev/null || echo 0)
                 current_time=$(date +%s)
@@ -44,7 +52,9 @@ spec:
 
                 if [ "$version" = "$TARGET_VERSION" ] && [ $age_minutes -gt 30 ]; then
                   echo "Deleting pod: $pod in namespace: $namespace (release version: $version, age: ${age_minutes}m)"
-                  if ! kubectl delete pod -n "$namespace" "$pod" --ignore-not-found; then
+                  if kubectl delete pod -n "$namespace" "$pod" --ignore-not-found; then
+                    ((DELETED_COUNT++))
+                  else
                     echo "Warning: Failed to delete pod $pod in namespace $namespace"
                   fi
                 else
@@ -53,7 +63,7 @@ spec:
                 fi
               done
 
-              echo "Done."
+              echo "Done. Deleted $DELETED_COUNT pod(s)."
             resources:
               requests:
                 memory: "64Mi"
