@@ -225,7 +225,7 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	errs := field.ErrorList{}
 
 	//SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 1)...)
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), 64)...)
 
 	//DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskStorageAccountType"), &newObj.DiskStorageAccountType, safe.Field(oldObj, toOSDiskProfileDiskStorageAccountType), api.ValidDiskStorageAccountTypes)...)

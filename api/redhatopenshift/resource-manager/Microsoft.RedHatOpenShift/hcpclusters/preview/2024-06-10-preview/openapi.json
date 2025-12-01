@@ -3049,7 +3049,7 @@
         "sizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GiB",
+          "description": "The OS disk size in GiB (minValue updated to 64 in 2025-12-23-preview)",
           "default": 64,
           "minimum": 1,
           "x-ms-mutability": [
