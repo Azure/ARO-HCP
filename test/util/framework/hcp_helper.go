@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/sync/errgroup"
 
 	v1 "k8s.io/api/rbac/v1"
@@ -35,6 +37,29 @@ import (
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
+
+// checkOperationResult ensures the result model returned by a runtime.Poller
+// matches the resource model returned from a GET request.
+func checkOperationResult(expectModel, resultModel any) error {
+	diff := cmp.Diff(expectModel, resultModel,
+		// Add per-model fields that should be ignored in the comparison. For example
+		// read-only values that change on their own, or are computed asynchronously
+		// and may not be immediately available in the operation result response.
+		//
+		// Note: I'm anticipating adding "Identity.UserAssignedIdentities" here once
+		// the RP takes over fetching client and principal IDs from the Managed Identity
+		// service. That would be a concrete example of asynchronously computed fields.
+		cmpopts.IgnoreFields(hcpsdk20240610preview.HcpOpenShiftCluster{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20240610preview.NodePool{}, "SystemData"),
+		cmpopts.IgnoreFields(hcpsdk20240610preview.ExternalAuth{}, "SystemData"),
+	)
+
+	if len(diff) > 0 {
+		return fmt.Errorf("operation result model did not match expected model for type %T:\n%s", resultModel, diff)
+	}
+
+	return nil
+}
 
 func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	ctx context.Context,
@@ -140,27 +165,40 @@ func UpdateHCPCluster(
 	hcpClusterName string,
 	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
-) (hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse, error) {
+) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
 	if err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, err
+		return nil, err
 	}
 
 	operationResult, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
+		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
 	}
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
-		return m, nil
+		// Verify the operationResult content matches the current cluster model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
+		expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
+		if err != nil {
+			return nil, err
+		}
+		return &m.HcpOpenShiftCluster, nil
 	default:
-		return hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse{}, fmt.Errorf("unknown type %T", m)
+		return nil, fmt.Errorf("unknown type %T", m)
 	}
 }
 
@@ -294,8 +332,19 @@ func CreateOrUpdateExternalAuthAndWait(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse:
-		// TODO someone may want this return value.  We'll have to work it out then.
-		//fmt.Printf("#### got back: %v\n", spew.Sdump(m))
+		// Verify the operationResult content matches the current external auth model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
+		expect, err := GetExternalAuth(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.ExternalAuth, &m.ExternalAuth)
+		if err != nil {
+			return nil, err
+		}
 		return &m.ExternalAuth, nil
 	default:
 		fmt.Printf("#### unknown type %T: content=%v", m, spew.Sdump(m))
@@ -435,6 +484,19 @@ func CreateHCPClusterAndWait(
 		}
 		switch m := any(operationResult).(type) {
 		case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
+			// Verify the operationResult content matches the current cluster model.
+			// When an asynchronous operation completes successfully, the RP's result
+			// endpoint for the operation is supposed to respond as though the operation
+			// were completed synchronously. In production, ARM would call this endpoint
+			// automatically. In this context, the poller calls it automatically.
+			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
+			if err != nil {
+				return nil, err
+			}
+			err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
+			if err != nil {
+				return nil, err
+			}
 			return &m.HcpOpenShiftCluster, nil
 		default:
 			fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
@@ -526,6 +588,19 @@ func CreateNodePoolAndWait(
 	}
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
+		// Verify the operationResult content matches the current node pool model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
+		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+		if err != nil {
+			return nil, err
+		}
+		err = checkOperationResult(&expect.NodePool, &m.NodePool)
+		if err != nil {
+			return nil, err
+		}
 		return &m.NodePool, nil
 	default:
 		fmt.Printf("unknown type %T: content=%v", m, spew.Sdump(m))
