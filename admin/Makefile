@@ -42,14 +42,18 @@ run: $(BINARY)
 run-with-sc-integration: $(BINARY)
 	COSMOS_DB_URL=$$(az cosmosdb show -n ${COSMOS_DB_NAME} -g ${REGION_RG} --query documentEndpoint -o tsv) && \
 	KUSTO_ENDPOINT=$$(az kusto cluster show -n ${KUSTO_CLUSTER_NAME} -g ${KUSTO_RG} --query uri -o tsv) && \
+	CRT_BUNDLE=$$(mktemp).crt && \
 	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${CS_PORT_FORWARD_SPEC}" \
 		./hack/run-as-mi.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}" "${ADMIN_API_SERVICE_ACCOUNT}" \
-			./${BINARY} serve \
-				--location ${LOCATION} \
-				--clusters-service-url http://localhost:${CS_LOCAL_PORT} \
-				--cosmos-url $${COSMOS_DB_URL} \
-				--cosmos-name ${COSMOS_DB_NAME} \
-				--kusto-endpoint $${KUSTO_ENDPOINT}
+			./hack/run-with-cert-bundle.sh "${FPA_KEY_VAULT_NAME}" "${FPA_CERT_NAME}" "$${CRT_BUNDLE}" \
+				./${BINARY} serve \
+					--location ${LOCATION} \
+					--clusters-service-url http://localhost:${CS_LOCAL_PORT} \
+					--cosmos-url $${COSMOS_DB_URL} \
+					--cosmos-name ${COSMOS_DB_NAME} \
+					--kusto-endpoint $${KUSTO_ENDPOINT} \
+					--fpa-client-id ${FPA_CLIENT_ID} \
+					--fpa-cert-bundle-path $${CRT_BUNDLE}
 .PHONY: run-with-sc-integration
 
 clean:
@@ -93,6 +97,10 @@ port-forward: $(HCPCTL)
 	HCPCTL=$(HCPCTL) ./hack/run-with-port-forward.sh "${SVC_CLUSTER}" "${ADMIN_API_NAMESPACE}/admin-api/8443/8443" \
 		sleep 42d
 .PHONY: port-forward
+
+allow-istio-ingress-from-current-ip:
+	./hack/allow-istio-ingress-from-current-ip.sh "${SVC_RG}"
+.PHONY: allow-istio-ingress-from-current-ip
 
 #
 #   C L I

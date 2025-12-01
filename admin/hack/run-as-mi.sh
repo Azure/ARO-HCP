@@ -10,7 +10,14 @@ SA_NAME=$1
 shift
 
 KUBECONFIG=$(mktemp)
-hcpctl sc breakglass "${CLUSTER_NAME}" --output "${KUBECONFIG}" --no-shell
+
+cleanup() {
+  echo "Cleanup kubeconfig dir ${KUBECONFIG} ..."
+	rm -rf "${KUBECONFIG}"
+}
+trap cleanup EXIT INT TERM
+
+${HCPCTL} sc breakglass "${CLUSTER_NAME}" --output "${KUBECONFIG}" --no-shell
 
 AZURE_TENANT_ID=$(az account show -o json | jq .homeTenantId -r)
 AZURE_CLIENT_ID=$(kubectl get sa -n aro-hcp-admin-api admin-api -o yaml | yq '.metadata.annotations."azure.workload.identity/client-id"' -r)
@@ -20,5 +27,4 @@ export AZURE_CONFIG_DIR="${HOME}/.azure-profile-admin-api"
 rm -rf "${AZURE_CONFIG_DIR}"
 az login --federated-token "${SA_TOKEN}" --service-principal -u "${AZURE_CLIENT_ID}" -t "${AZURE_TENANT_ID}"
 
-# run the rest of the command with $*
-exec "$@"
+"$@"

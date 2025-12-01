@@ -15,14 +15,27 @@
 package hcp
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/fpa"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
-func HCPHelloWorld(dbClient database.DBClient) http.Handler {
+//
+//   T H I S   I S   O N L Y   A   D E M O   E N D P O I N T
+//
+//   it shows various clients in use. we will remove this once we have
+//   docs and other endpoints in place that can show how to use the clients
+//   in tandem.
+//
+
+func HCPHelloWorld(dbClient database.DBClient, csClient ocm.ClusterServiceClientSpec, fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// get the azure resource ID for this HCP
 		resourceID, err := middleware.ResourceIDFromContext(request.Context())
@@ -45,9 +58,55 @@ func HCPHelloWorld(dbClient database.DBClient) http.Handler {
 			return
 		}
 
+		// get CS cluster data - once the sync from CS to cosmos is in place, we should not need this anymore
+		csCluster, err := csClient.GetCluster(request.Context(), hcp.ServiceProviderProperties.ClusterServiceID)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get CS cluster data: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// get first party application token credentials for the HCP
+		tokenCredential, err := fpaCredentialRetriever.RetrieveCredential(csCluster.Azure().TenantID())
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to get FPA token credentials: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// fetch all loadbalancers from the managedresource group using azuresdk
+		lbClient, err := armnetwork.NewLoadBalancersClient(csCluster.Azure().SubscriptionID(), tokenCredential, nil)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to create load balancer client: %v", err), http.StatusInternalServerError)
+			return
+		}
+		pager := lbClient.NewListPager(csCluster.Azure().ManagedResourceGroupName(), nil)
+		var loadBalancers []string
+		for pager.More() {
+			page, err := pager.NextPage(request.Context())
+			if err != nil {
+				http.Error(writer, fmt.Sprintf("failed to list load balancers: %v", err), http.StatusInternalServerError)
+				return
+			}
+			for _, lb := range page.Value {
+				if lb.Name != nil {
+					loadBalancers = append(loadBalancers, *lb.Name)
+				}
+			}
+		}
+
 		// some output
-		fmt.Fprintln(writer, resourceID.String())
-		fmt.Fprintln(writer, clientPrincipalName)
-		fmt.Fprintln(writer, hcp)
+		output := map[string]any{
+			"resourceID":           resourceID.String(),
+			"internalClusterID":    hcp.ServiceProviderProperties.ClusterServiceID,
+			"clientPrincipalName":  clientPrincipalName,
+			"hcp":                  hcp,
+			"tenantID":             csCluster.Azure().TenantID(),
+			"managedResourceGroup": csCluster.Azure().ManagedResourceGroupName(),
+			"loadBalancers":        loadBalancers,
+		}
+		err = json.NewEncoder(writer).Encode(output)
+		if err != nil {
+			http.Error(writer, fmt.Sprintf("failed to encode output: %v", err), http.StatusInternalServerError)
+			return
+		}
 	})
 }
