@@ -353,6 +353,7 @@ func (f *Frontend) readInternalClusterFromClusterService(ctx context.Context, ol
 
 	mergedOldClusterServiceCluster.SystemData = oldInternalCluster.SystemData
 	mergedOldClusterServiceCluster.ServiceProviderProperties.ProvisioningState = oldInternalCluster.ServiceProviderProperties.ProvisioningState
+	mergedOldClusterServiceCluster.ServiceProviderProperties.ActiveOperationID = oldInternalCluster.ServiceProviderProperties.ActiveOperationID
 	mergedOldClusterServiceCluster.ServiceProviderProperties.ClusterServiceID = oldInternalCluster.ServiceProviderProperties.ClusterServiceID
 	mergedOldClusterServiceCluster.ServiceProviderProperties.CosmosUID = oldInternalCluster.ServiceProviderProperties.CosmosUID
 	if mergedOldClusterServiceCluster.Identity == nil {
@@ -460,11 +461,16 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	newInternalCluster := &api.HCPOpenShiftCluster{}
 	newExternalCluster.Normalize(newInternalCluster)
-	// not all fields are contained on the external type, so we need to set the internal-only fields
+	// ServiceProviderProperties contains two types of information
+	// 1. values that a user cannot change because the external type does not expose the information.
+	//    We must overwrite those values with the oldInternalCluster values so the values don't change, because the user's input will always be empty.
+	// 2. values that a user cannot change due to validation requirements, but the user *can* specify the values.
+	//    We are overwriting these values that we consider to be status values.
+	//    We do this because if a user has read a value, then modified it, then replaces it, we don't want to produce
+	//    validation errors on status fields that the user isn't trying to modify.
+
 	newInternalCluster.SystemData = systemData
-	newInternalCluster.ServiceProviderProperties.ProvisioningState = oldInternalCluster.ServiceProviderProperties.ProvisioningState
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = oldInternalCluster.ServiceProviderProperties.ClusterServiceID
-	newInternalCluster.ServiceProviderProperties.CosmosUID = oldInternalCluster.ServiceProviderProperties.CosmosUID
+	newInternalCluster.ServiceProviderProperties = oldInternalCluster.ServiceProviderProperties
 	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
 	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
 	// TODO we probably update validation to require this field is cleared.
