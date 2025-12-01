@@ -398,6 +398,45 @@ func (m *MockDBTransactionResult) EXPECT() *MockDBTransactionResultMockRecorder 
 	return m.recorder
 }
 
+// GetItem mocks base method.
+func (m *MockDBTransactionResult) GetItem(cosmosUID string) (any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetItem", cosmosUID)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetItem indicates an expected call of GetItem.
+func (mr *MockDBTransactionResultMockRecorder) GetItem(cosmosUID any) *MockDBTransactionResultGetItemCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetItem", reflect.TypeOf((*MockDBTransactionResult)(nil).GetItem), cosmosUID)
+	return &MockDBTransactionResultGetItemCall{Call: call}
+}
+
+// MockDBTransactionResultGetItemCall wrap *gomock.Call
+type MockDBTransactionResultGetItemCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockDBTransactionResultGetItemCall) Return(arg0 any, arg1 error) *MockDBTransactionResultGetItemCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockDBTransactionResultGetItemCall) Do(f func(string) (any, error)) *MockDBTransactionResultGetItemCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockDBTransactionResultGetItemCall) DoAndReturn(f func(string) (any, error)) *MockDBTransactionResultGetItemCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetOperationDoc mocks base method.
 func (m *MockDBTransactionResult) GetOperationDoc(itemID string) (*database.OperationDocument, error) {
 	m.ctrl.T.Helper()

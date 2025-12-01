@@ -1,4 +1,3 @@
-InvalidRequestContent: properties.dns.baseDomain: Forbidden: field is immutable
 InvalidRequestContent: properties.dns.baseDomainPrefix: Forbidden: field is immutable
 InvalidRequestContent: properties.platform: Forbidden: field is immutable
 InvalidRequestContent: properties.platform.networkSecurityGroupId: Forbidden: field is immutable
