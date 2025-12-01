@@ -50,8 +50,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a customer-infra")
-				customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"customer-infra",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
@@ -72,8 +71,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(ok).To(BeTrue())
 				etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
 				Expect(err).NotTo(HaveOccurred())
-				managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"managed-identities",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
@@ -122,8 +120,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr("192.168.1.0/24"),
 				}
 
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -173,8 +170,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating a customer-infra")
-				customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"customer-infra",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
@@ -195,8 +191,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(ok).To(BeTrue())
 				etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
 				Expect(err).NotTo(HaveOccurred())
-				managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"managed-identities",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
@@ -242,8 +237,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				clusterParams.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
 				clusterParams.AuthorizedCIDRs = []*string{}
 
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,

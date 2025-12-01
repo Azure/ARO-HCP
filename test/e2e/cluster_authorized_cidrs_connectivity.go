@@ -57,8 +57,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating customer infrastructure")
-				customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"customer-infra",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
@@ -74,8 +73,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
-				vmDeployment, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				vmDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"test-vm",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/test-vm.json")),
@@ -101,8 +99,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(ok).To(BeTrue())
 				etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
 				Expect(err).NotTo(HaveOccurred())
-				managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"managed-identities",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
@@ -150,8 +147,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
 
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -201,7 +197,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				}
 
 				By("verifying VM can access cluster API with credentials")
-				adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
