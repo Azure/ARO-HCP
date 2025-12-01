@@ -274,7 +274,10 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
 	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
-	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
+	cosmosUID, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
+	if err != nil {
+		return err
+	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
@@ -305,7 +308,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		patchOperations.SetTags(newInternalCluster.Tags)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -315,7 +318,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingCosmosCluster, err := transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosUID)
 	if err != nil {
 		return err
 	}
@@ -454,7 +457,6 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-
 	if err := api.ApplyRequestBody(request, body, newExternalCluster); err != nil {
 		return err
 	}

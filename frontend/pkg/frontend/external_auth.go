@@ -185,32 +185,40 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+
+	internalOldAuth, err := externalAuthCosmosClient.Get(ctx, resourceID.Name)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		return err
 	}
 
-	var updating = (resourceDoc != nil)
+	var updating = (internalOldAuth != nil)
 	var operationRequest database.OperationRequest
 
-	var versionedCurrentExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
-	var versionedRequestExternalAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var externalOldAuth api.VersionedHCPOpenShiftClusterExternalAuth
+	var externalNewAuth api.VersionedHCPOpenShiftClusterExternalAuth
 	var successStatusCode int
 
 	if updating {
-		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, resourceDoc.InternalID)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
-			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
-		}
+		{ // scope to ensure this temporary values don't escape
+			oldClusterServiceAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, internalOldAuth.ServiceProviderProperties.ClusterServiceID)
+			if err != nil {
+				logger.Error(fmt.Sprintf("failed to fetch CS external auth for %s: %v", resourceID, err))
+				return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
+			}
 
-		hcpExternalAuth, err := ocm.ConvertCStoExternalAuth(resourceID, csExternalAuth)
-		if err != nil {
-			return err
-		}
+			mergedOldAuth, err := ocm.ConvertCStoExternalAuth(resourceID, oldClusterServiceAuth)
+			if err != nil {
+				return err
+			}
+			mergedOldAuth.SystemData = internalOldAuth.SystemData
+			mergedOldAuth.Properties.ProvisioningState = internalOldAuth.Properties.ProvisioningState
+			mergedOldAuth.ServiceProviderProperties.CosmosUID = internalOldAuth.ServiceProviderProperties.CosmosUID
+			mergedOldAuth.ServiceProviderProperties.ClusterServiceID = internalOldAuth.ServiceProviderProperties.ClusterServiceID
 
-		hcpExternalAuth.SystemData = resourceDoc.SystemData
-		hcpExternalAuth.Properties.ProvisioningState = resourceDoc.ProvisioningState
+			// internalOldAuth gets overwritten (for now), by the content from cluster-service which is authoritative for now.
+			internalOldAuth = mergedOldAuth
+		}
 
 		operationRequest = database.OperationRequestUpdate
 
@@ -220,24 +228,31 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			// Initialize versionedRequestExternalAuth to include both
 			// non-zero default values and current read-only values.
 
-			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
+			externalOldAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(internalOldAuth)
+			externalNewAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(nil)
 
 			// read-only values are an internal concern since they're the source, so we convert.
 			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
 			newTemporaryInternal := &api.HCPOpenShiftClusterExternalAuth{}
-			versionedRequestExternalAuth.Normalize(newTemporaryInternal)
-			conversion.CopyReadOnlyExternalAuthValues(newTemporaryInternal, hcpExternalAuth)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(newTemporaryInternal)
+			externalNewAuth.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyExternalAuthValues(newTemporaryInternal, internalOldAuth)
+			externalNewAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(newTemporaryInternal)
 
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
-			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			externalOldAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(internalOldAuth)
+			externalNewAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(internalOldAuth)
 			successStatusCode = http.StatusAccepted
 		default:
 			return fmt.Errorf("unsupported method %s", request.Method)
 		}
+
+		// CheckForProvisioningStateConflict does not log conflict errors
+		// but does log unexpected errors like database failures.
+		if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, internalOldAuth.ID, internalOldAuth.Properties.ProvisioningState); err != nil {
+			return err
+		}
+
 	} else {
 		operationRequest = database.OperationRequestCreate
 
@@ -247,52 +262,40 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 			// If the request body specifies these fields, validation should
 			// accept them as long as they match (case-insensitively) values
 			// from the request path.
-			hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+			defaultInternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
 
-			versionedCurrentExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
-			versionedRequestExternalAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(hcpExternalAuth)
+			externalOldAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(defaultInternalAuth)
+			externalNewAuth = versionedInterface.NewHCPOpenShiftClusterExternalAuth(defaultInternalAuth)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			return arm.NewResourceNotFoundError(resourceID)
 		default:
 			return fmt.Errorf("unsupported method %s", request.Method)
 		}
-
-		resourceDoc = database.NewResourceDocument(resourceID)
 	}
 
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-
-	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc); err != nil {
+	if err := api.ApplyRequestBody(request, body, externalNewAuth); err != nil {
 		return err
 	}
 
-	if err := api.ApplyRequestBody(request, body, versionedRequestExternalAuth); err != nil {
-		return err
-	}
-
-	newInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-	versionedRequestExternalAuth.Normalize(newInternalAuth)
+	internalNewAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+	externalNewAuth.Normalize(internalNewAuth)
 
 	var validationErrs field.ErrorList
 	if updating {
-		oldInternalAuth := &api.HCPOpenShiftClusterExternalAuth{}
-		versionedCurrentExternalAuth.Normalize(oldInternalAuth)
-		validationErrs = validation.ValidateExternalAuthUpdate(ctx, newInternalAuth, oldInternalAuth)
+		oldInternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
+		externalOldAuth.Normalize(oldInternalAuth)
+		validationErrs = validation.ValidateExternalAuthUpdate(ctx, internalNewAuth, oldInternalAuth)
 
 	} else {
-		validationErrs = validation.ValidateExternalAuthCreate(ctx, newInternalAuth)
+		validationErrs = validation.ValidateExternalAuthCreate(ctx, internalNewAuth)
 
 	}
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return err
 	}
 
-	hcpExternalAuth := api.NewDefaultHCPOpenShiftClusterExternalAuth(resourceID)
-	versionedRequestExternalAuth.Normalize(hcpExternalAuth)
-
-	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, hcpExternalAuth, updating)
+	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, internalNewAuth, updating)
 	if err != nil {
 		return err
 	}
@@ -301,23 +304,23 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, resourceDoc.InternalID, csExternalAuthBuilder)
+		csExternalAuth, err = f.clusterServiceClient.UpdateExternalAuth(ctx, internalNewAuth.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
 		if err != nil {
 			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+		cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 		if err != nil {
 			return err
 		}
 
-		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, clusterDoc.InternalID, csExternalAuthBuilder)
+		csExternalAuth, err = f.clusterServiceClient.PostExternalAuth(ctx, cluster.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
 		if err != nil {
 			return err
 		}
 
-		resourceDoc.InternalID, err = api.NewInternalID(csExternalAuth.HREF())
+		internalNewAuth.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csExternalAuth.HREF())
 		if err != nil {
 			return err
 		}
@@ -325,13 +328,19 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, internalNewAuth.ID, internalNewAuth.ServiceProviderProperties.ClusterServiceID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
+	cosmosUID := ""
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterExternalAuthState, nil)
+		cosmosUID, err = externalAuthCosmosClient.AddCreateToTransaction(ctx, transaction, internalNewAuth, nil)
+		if err != nil {
+			return err
+		}
+	} else {
+		cosmosUID = internalOldAuth.ServiceProviderProperties.CosmosUID
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -344,7 +353,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		patchOperations.SetSystemData(systemData)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
@@ -354,7 +363,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(cosmosUID)
 	if err != nil {
 		return err
 	}
