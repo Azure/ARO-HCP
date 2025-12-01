@@ -77,14 +77,21 @@ spec:
               echo "Searching for pods with label name=cluster-image-registry-operator (version ${TARGET_VERSION})..."
 
               kubectl get pods --all-namespaces -l name=cluster-image-registry-operator \
-                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.containers[0].env[?(@.name=="RELEASE_VERSION")].value}{"\n"}{end}' |
-              while read -r namespace pod version; do
-                if [ "$version" = "$TARGET_VERSION" ]; then
-                  echo "Deleting pod: $pod in namespace: $namespace (release version: $version)"
-                  kubectl delete pod -n "$namespace" "$pod"
+                -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.spec.containers[0].env[?(@.name=="RELEASE_VERSION")].value}{" "}{.metadata.creationTimestamp}{"\n"}{end}' |
+              while read -r namespace pod version timestamp; do
+                # Calculate age
+                pod_created=$(date -d "$timestamp" +%s 2>/dev/null || echo 0)
+                current_time=$(date +%s)
+                age_minutes=$(((current_time - pod_created) / 60))
+
+                if [ "$version" = "$TARGET_VERSION" ] && [ $age_minutes -gt 30 ]; then
+                  echo "Deleting pod: $pod in namespace: $namespace (release version: $version, age: ${age_minutes}m)"
+                  if ! kubectl delete pod -n "$namespace" "$pod" --ignore-not-found; then
+                    echo "Warning: Failed to delete pod $pod in namespace $namespace"
+                  fi
                 else
                   # Display the version value that was extracted
-                  echo "Skipping pod: $pod in namespace: $namespace (release version: ${version:-<not set>})"
+                  echo "Skipping pod: $pod in namespace: $namespace (release version: ${version:-<not set>}, age: ${age_minutes}m)"
                 fi
               done
 
