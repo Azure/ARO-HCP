@@ -231,11 +231,11 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			name: "OS disk size too small - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](63)
 				return np
 			}(),
 			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 1", fieldPath: "properties.platform.osDisk.sizeGiB"},
+				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 			},
 		},
 		{
@@ -529,7 +529,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []expectedError{
 				{message: "Malformed version", fieldPath: "properties.version.id"},
 				{message: "Required value", fieldPath: "properties.platform.vmSize"},
-				{message: "must be greater than or equal to 1", fieldPath: "properties.platform.osDisk.sizeGiB"},
+				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
 				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
 			},
 		},
@@ -826,12 +826,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			name: "immutable OS disk size - update",
 			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](0)
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
 				return np
 			}(),
 			expectErrors: []expectedError{
