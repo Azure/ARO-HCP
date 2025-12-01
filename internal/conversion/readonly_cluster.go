@@ -37,11 +37,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 		copyReadOnlyManagedServiceIdentityValues(dest.Identity, src.Identity)
 	}
 
-	dest.ServiceProviderProperties.ProvisioningState = src.ServiceProviderProperties.ProvisioningState
-	dest.ServiceProviderProperties.Console = src.ServiceProviderProperties.Console
-	dest.ServiceProviderProperties.DNS.BaseDomain = src.ServiceProviderProperties.DNS.BaseDomain
-	dest.ServiceProviderProperties.API.URL = src.ServiceProviderProperties.API.URL
-	dest.ServiceProviderProperties.Platform.IssuerURL = src.ServiceProviderProperties.Platform.IssuerURL
+	dest.ServiceProviderProperties = src.ServiceProviderProperties
 }
 
 func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {

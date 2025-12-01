@@ -226,8 +226,6 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
-	operationRequest := database.OperationRequestCreate
-
 	// Initialize top-level resource fields from the request path.
 	// If the request body specifies these fields, validation should
 	// accept them as long as they match (case-insensitively) values
@@ -244,10 +242,23 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		TrackedResource: arm.NewTrackedResource(resourceID),
 	}
 	newExternalCluster.Normalize(newInternalCluster)
+
+	// set fields that were not included during the conversion, because the user does not provide them or because the
+	// data is determined live on read.
+	newInternalCluster.SystemData = systemData
+	// Clear the user-assigned identities map since that is reconstructed from Cluster Service data.
+	// TODO we'd like to have the instance complete when we go to validate it.  Right now validation fails if we clear this.
+	// TODO we probably update validation to require this field is cleared.
+	//newInternalCluster.Identity.UserAssignedIdentities = nil
+
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return err
 	}
+
+	// Now that validation is done we clear the user-assigned identities map since that is reconstructed from Cluster Service data
+	// TODO this is bad, see above TODOs. We want to validate what we store.
+	newInternalCluster.Identity.UserAssignedIdentities = nil
 
 	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
 	if err != nil {
@@ -267,48 +278,23 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, newInternalCluster.ID, newInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
-	operationID := transaction.CreateOperationDoc(operationDoc, nil)
+	// TODO extract to straight instance creation and then validation.
+	clusterCreateOperation := database.NewOperationDocument(database.OperationRequestCreate, newInternalCluster.ID, newInternalCluster.ServiceProviderProperties.ClusterServiceID, correlationData)
+	clusterCreateOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
+	clusterCreateOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
+	clusterCreateOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
+	operationCosmosID := transaction.CreateOperationDoc(clusterCreateOperation, nil)
+	transaction.OnSuccess(operationNotificationFn(writer, request, clusterCreateOperation.NotificationURI, clusterCreateOperation.OperationID))
 
-	f.ExposeOperation(writer, request, operationID, transaction)
+	// set fields that were not known until the operation doc instance was created.
+	// TODO once we we have separate creation/vaidation of operation documents, this can be done ahead of time.
+	newInternalCluster.ServiceProviderProperties.ActiveOperationID = operationCosmosID
+	newInternalCluster.ServiceProviderProperties.ProvisioningState = clusterCreateOperation.Status
 
-	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
-	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
 	cosmosUID, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
 	if err != nil {
 		return err
 	}
-
-	var patchOperations database.ResourceDocumentPatchOperations
-
-	patchOperations.SetActiveOperationID(&operationID)
-	patchOperations.SetProvisioningState(operationDoc.Status)
-
-	// TODO some of this becomes extraneous once we build the cosmosCluster from the internalCluster
-	// Record the latest system data values form ARM, if present.
-	if systemData != nil {
-		patchOperations.SetSystemData(systemData)
-	}
-
-	// Record managed identity type an any system-assigned identifiers.
-	// Omit the user-assigned identities map since that is reconstructed
-	// from Cluster Service data.
-	patchOperations.SetIdentity(&arm.ManagedServiceIdentity{
-		PrincipalID: newInternalCluster.Identity.PrincipalID,
-		TenantID:    newInternalCluster.Identity.TenantID,
-		Type:        newInternalCluster.Identity.Type,
-	})
-
-	// Here the difference between a nil map and an empty map is significant.
-	// If the Tags map is nil, that means it was omitted from the request body,
-	// so we leave any existing tags alone. If the Tags map is non-nil, even if
-	// empty, that means it was specified in the request body and should fully
-	// replace any existing tags.
-	if newInternalCluster.Tags != nil {
-		patchOperations.SetTags(newInternalCluster.Tags)
-	}
-
-	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,

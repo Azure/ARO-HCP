@@ -63,6 +63,7 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"       visibility:"read"`
 	CosmosUID         string                         `json:"cosmosUID,omitempty"`
 	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
 	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"                 visibility:"read"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`

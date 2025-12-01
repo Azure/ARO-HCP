@@ -9,9 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"reflect"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type DBTransactionCallback func(DBTransactionResult)
@@ -117,6 +122,16 @@ func (t *cosmosDBTransaction) PatchResourceDoc(itemID string, ops ResourceDocume
 func (t *cosmosDBTransaction) CreateOperationDoc(doc *OperationDocument, o *azcosmos.TransactionalBatchItemOptions) string {
 	typedDoc := newTypedDocument(doc.ExternalID.SubscriptionID, OperationResourceType)
 	typedDoc.TimeToLive = operationTimeToLive
+
+	var err error
+	doc.OperationID, err = azcorearm.ParseResourceID(path.Join("/",
+		"subscriptions", doc.ExternalID.SubscriptionID,
+		"providers", api.ProviderNamespace,
+		"locations", arm.GetAzureLocation(),
+		api.OperationStatusResourceTypeName, typedDoc.ID))
+	if err != nil {
+		panic(fmt.Sprintf("developer error: %v", err))
+	}
 
 	t.steps = append(t.steps, func(b *azcosmos.TransactionalBatch) (string, error) {
 		var data []byte
