@@ -60,7 +60,7 @@ type DBTransactionResult interface {
 	// the document was requested with DBTransaction.ReadDoc.
 	GetResourceDoc(itemID string) (*ResourceDocument, error)
 
-	// GetItem returns the internal API representation forthe cosmosUID.
+	// GetItem returns the internal API representation for the cosmosUID.
 	// That is consistent with other returns from our database layer.
 	// The Item is only available if the transaction was
 	// executed with the EnableContentResponseOnWrite option set, or
