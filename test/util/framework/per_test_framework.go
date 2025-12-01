@@ -263,7 +263,11 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
-	for _, resourceGroupName := range tc.knownResourceGroups {
+	resourceGroups := append(
+		append([]string(nil), tc.knownResourceGroups...),
+		tc.knownLeasedIdentityContainers...,
+	)
+	for _, resourceGroupName := range resourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
