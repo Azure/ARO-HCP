@@ -44,6 +44,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -168,6 +178,37 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: cluster
+  - name: kusto-ingest-service-logs
+    action: ARM
+    template: templates/kusto-grant-ingest.bicep
+    parameters: configurations/kusto-svc-ingest.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterLogPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: clusterLogPrincipalId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
+    - name: adminApiPrincipalId
+      input:
+        resourceGroup: service
+        step: cluster-output
+        name: adminApiPrincipalId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto
+      step: output
+    - resourceGroup: service
+      step: cluster-output
   - name: prometheus
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
@@ -291,6 +332,10 @@ resourceGroups:
         resourceGroup: service
         step: arobit-output
         name: msiClientId
+      kustoDataIngestionUri:
+        resourceGroup: kusto
+        step: output
+        name: kustoDataIngestionUri
     identityFrom:
       resourceGroup: global
       step: output

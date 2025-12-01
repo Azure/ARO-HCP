@@ -15,21 +15,69 @@
 package resourcegroups
 
 import (
+	"fmt"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-type Options struct {
-	ResourceGroups []string
-	DeleteExpired  bool
-	EvaluationTime string
-	DryRun         bool
+type RawOptions struct {
+	ResourceGroups   []string
+	DeleteExpired    bool
+	EvaluationTime   string
+	DryRun           bool
+	CleanupWorkflow  string
+	Timeout          time.Duration
+	IncludeLocations []string
+	ExcludeLocations []string
 }
 
-func NewOptions() Options {
-	return Options{
-		ResourceGroups: []string{},
-		DeleteExpired:  true,
-		EvaluationTime: time.Now().Format(time.RFC3339),
-		DryRun:         false,
+type validatedOptions struct {
+	*RawOptions
+	includeLocations sets.Set[string]
+	excludeLocations sets.Set[string]
+	cleanupWorkflow  framework.CleanupWorkflow
+}
+
+type Options struct {
+	*validatedOptions
+}
+
+func NewOptions() *RawOptions {
+	return &RawOptions{
+		ResourceGroups:   []string{},
+		DeleteExpired:    true,
+		EvaluationTime:   time.Now().Format(time.RFC3339),
+		DryRun:           false,
+		CleanupWorkflow:  string(framework.CleanupWorkflowStandard),
+		Timeout:          60 * time.Minute,
+		IncludeLocations: []string{},
+		ExcludeLocations: []string{},
 	}
+}
+
+func (o *RawOptions) Validate() (*Options, error) {
+
+	includeLocations := sets.New(o.IncludeLocations...)
+	excludeLocations := sets.New(o.ExcludeLocations...)
+	if includeLocations.Len() > 0 && excludeLocations.Len() > 0 {
+		return nil, fmt.Errorf("include-location and exclude-location flags are mutually exclusive")
+	}
+
+	var mode framework.CleanupWorkflow
+	if o.CleanupWorkflow != string(framework.CleanupWorkflowStandard) && o.CleanupWorkflow != string(framework.CleanupWorkflowNoRP) {
+		return nil, fmt.Errorf("invalid cleanup workflow: %s", o.CleanupWorkflow)
+	} else {
+		mode = framework.CleanupWorkflow(o.CleanupWorkflow)
+	}
+	return &Options{
+		validatedOptions: &validatedOptions{
+			RawOptions:       o,
+			includeLocations: includeLocations,
+			excludeLocations: excludeLocations,
+			cleanupWorkflow:  mode,
+		},
+	}, nil
 }

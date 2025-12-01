@@ -30,10 +30,101 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
+// checkForProvisioningStateConflict returns a "409 Conflict" error response if the
+// provisioning state of the resource is non-terminal, or any of its parent resources
+// within the same provider namespace are in a "Provisioning" or "Deleting" state.
+// TODO we will collapse onto this function entirely once we complete the migration.  Creating a separate method now to avoid having to have a big bang
+func checkForProvisioningStateConflict(
+	ctx context.Context,
+	cosmosClient database.DBClient,
+	operationRequest database.OperationRequest,
+	resourceID *azcorearm.ResourceID,
+	provisioningState arm.ProvisioningState,
+) *arm.CloudError {
+
+	logger := LoggerFromContext(ctx)
+
+	switch operationRequest {
+	case database.OperationRequestCreate:
+		// Resource must already exist for there to be a conflict.
+	case database.OperationRequestDelete:
+		if provisioningState == arm.ProvisioningStateDeleting {
+			return arm.NewConflictError(
+				resourceID,
+				"Resource is already deleting")
+		}
+	case database.OperationRequestUpdate:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !provisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				resourceID,
+				"Cannot update resource while resource is %s",
+				strings.ToLower(string(provisioningState)))
+		}
+	case database.OperationRequestRequestCredential:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !provisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				resourceID,
+				"Cannot request credential while resource is %s",
+				strings.ToLower(string(provisioningState)))
+		}
+	case database.OperationRequestRevokeCredentials:
+		// Defer to Cluster Service for ProvisioningStateFailed since
+		// it is ambiguous about whether the resource is functional.
+		if !provisioningState.IsTerminal() {
+			return arm.NewConflictError(
+				resourceID,
+				"Cannot revoke credentials while resource is %s",
+				strings.ToLower(string(provisioningState)))
+		}
+	}
+
+	parent := resourceID.Parent
+
+	// ResourceType casing is preserved for parents in the same namespace.
+	// TODO if I understand this correctly, this is ONLY the Cluster itself, in which case these calls could change.
+	for parent.ResourceType.Namespace == resourceID.ResourceType.Namespace {
+		_, parentDoc, err := cosmosClient.GetResourceDoc(ctx, parent)
+		if err != nil {
+			logger.Error(err.Error())
+			return arm.NewInternalServerError()
+		}
+
+		// XXX There is still a small opportunity for nested resource requests to get
+		//     through while the parent resource is in provisioning state "Accepted",
+		//     which precedes "Provisioning". The problem is "Accepted" also precedes
+		//     "Updating", which should NOT be blocked.
+		//
+		//     Cluster Service will catch and correctly reject such requests, so I'm
+		//     leaving this gap open until Cluster Service is out of the picture and
+		//     the RP has more direct control over resource provisioning.
+		if parentDoc.ProvisioningState == arm.ProvisioningStateProvisioning {
+			return arm.NewConflictError(
+				resourceID,
+				"Cannot %s resource while parent resource is provisioning",
+				strings.ToLower(string(operationRequest)))
+		}
+
+		if parentDoc.ProvisioningState == arm.ProvisioningStateDeleting {
+			return arm.NewConflictError(
+				resourceID,
+				"Cannot %s resource while parent resource is deleting",
+				strings.ToLower(string(operationRequest)))
+		}
+
+		parent = parent.Parent
+	}
+
+	return nil
+}
+
 // CheckForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
-func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) *arm.CloudError {
+func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) error {
 	logger := LoggerFromContext(ctx)
 
 	switch operationRequest {
@@ -112,7 +203,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	return nil
 }
 
-func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) *arm.CloudError {
+func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) error {
 	logger := LoggerFromContext(ctx)
 
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
@@ -250,7 +341,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
-func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, *arm.CloudError) {
+func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
 	logger := LoggerFromContext(ctx)
 
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
@@ -276,80 +367,4 @@ func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID
 	}
 
 	return externalCluster, nil
-}
-
-func (f *Frontend) MarshalResource(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) ([]byte, *arm.CloudError) {
-	var responseBody []byte
-
-	logger := LoggerFromContext(ctx)
-
-	if strings.EqualFold(resourceID.ResourceType.String(), api.VersionResourceType.String()) {
-		versionName := resourceID.Name
-		version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-		responseBody, err = marshalCSVersion(resourceID, version, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-		return responseBody, nil
-	}
-
-	_, doc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
-	if err != nil {
-		logger.Error(err.Error())
-		if database.IsResponseError(err, http.StatusNotFound) {
-			return nil, arm.NewResourceNotFoundError(resourceID)
-		} else {
-			return nil, arm.NewInternalServerError()
-		}
-	}
-
-	switch doc.InternalID.Kind() {
-	case arohcpv1alpha1.NodePoolKind:
-		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, doc.InternalID)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-		internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterNodePool, database.NodePool](doc)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-		responseBody, err = mergeToExternalNodePool(csNodePool, internalObj, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	case arohcpv1alpha1.ExternalAuthKind:
-		csExternalAuth, err := f.clusterServiceClient.GetExternalAuth(ctx, doc.InternalID)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-		internalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth](doc)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-		responseBody, err = mergeToExternalExternalAuth(csExternalAuth, internalObj, versionedInterface)
-		if err != nil {
-			logger.Error(err.Error())
-			return nil, arm.NewInternalServerError()
-		}
-
-	default:
-		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", doc.InternalID))
-		return nil, arm.NewInternalServerError()
-	}
-
-	return responseBody, nil
 }

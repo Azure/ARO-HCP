@@ -45,6 +45,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: management
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
@@ -75,11 +85,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: rpRegistration
-  - name: cs-akv-permissions
+  - name: svc-mgmt-permissions
     action: ARM
     omitFromServiceGroupCompletion: true
-    template: templates/cs-mgmt-akv-permissions.bicep
-    parameters: configurations/cs-mgmt-akv-permissions.tmpl.bicepparam
+    template: templates/svc-mgmt-permissions.bicep
+    parameters: configurations/svc-mgmt-permissions.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
     - name: clusterServiceMIResourceId
@@ -92,6 +102,11 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: msiRefresher
+    - name: adminApiMIResourceId
+      input:
+        resourceGroup: service
+        step: output
+        name: adminApi
     dependsOn:
     - resourceGroup: management
       step: infra
@@ -227,6 +242,32 @@ resourceGroups:
       step: output
     - resourceGroup: management
       step: cluster
+  - name: kusto-grant-ingest
+    action: ARM
+    template: templates/kusto-grant-ingest.bicep
+    parameters: configurations/kusto-mgmt-ingest.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: clusterLogPrincipalId
+      input:
+        resourceGroup: management
+        step: cluster-output
+        name: clusterLogPrincipalId
+    - name: kustoResourceId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
+    automatedRetry:
+      errorContainsAny:
+      - "AAD principal was not found"
+      maximumRetryCount: 7
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: kusto
+      step: output
+    - resourceGroup: management
+      step: cluster-output
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -342,6 +383,10 @@ resourceGroups:
         resourceGroup: management
         step: arobit-output
         name: msiClientId
+      kustoDataIngestionUri:
+        resourceGroup: kusto
+        step: output
+        name: kustoDataIngestionUri
     identityFrom:
       resourceGroup: global
       step: output

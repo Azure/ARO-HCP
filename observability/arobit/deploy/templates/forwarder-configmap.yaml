@@ -1,5 +1,3 @@
-{{- $kustoRegion := get ( .Files.Get "kusto-regions.yaml" | fromYaml ) .Values.forwarder.geoShortId -}}
-{{- $ingestionEndoint := nospace ( cat "https://ingest-hcp-" .Values.forwarder.environment "-" .Values.forwarder.geoShortId "." $kustoRegion ".kusto.windows.net" ) -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -23,7 +21,8 @@ data:
     {{- if .Values.forwarder.clusterType | eq "mgmt" }}
     @INCLUDE /forwarder/etc/output-mdsd-ocm.conf
     {{- end }}
-{{- else if .Values.forwarder.kusto.enabled }}
+{{- end }}
+{{- if .Values.forwarder.kusto.enabled }}
     @INCLUDE /forwarder/etc/output.conf
 {{- end }}
   service.conf: |
@@ -154,19 +153,26 @@ data:
 
 {{- if .Values.forwarder.mdsd.enabled }}
     [FILTER]
-        Name          nest
-        Match         kubernetes.*
-        Operation     lift
-        Nested_under  kubernetes
-    
-    [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
         Match           kubernetes.var.log.containers.*
-        Rule            namespace_name ^ocm-.* ocm.logs false
-        Rule            namespace_name ^(?!ocm-).* other.logs false
-        Emitter_Name    re_emitted_namespace_router
-{{- else }}
+        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
+        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
+        Emitter_Name    re_emitted_namespace_router_mdsd
+
+    [FILTER]
+        Name          nest
+        Match         mdsd-ocm.logs
+        Operation     lift
+        Nested_under  kubernetes
+
+    [FILTER]
+        Name          nest
+        Match         mdsd-other.logs
+        Operation     lift
+        Nested_under  kubernetes
+{{- end }}
+
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
@@ -174,7 +180,6 @@ data:
         Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
         Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
         Emitter_Name    re_emitted_namespace_router
-{{- end}}
 
     [FILTER]
         # Other logs are keept, because want to send them to mdsd as well
@@ -208,8 +213,8 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ $ingestionEndoint }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.hostedControlPlaneLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
@@ -221,8 +226,8 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ $ingestionEndoint }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
@@ -234,8 +239,8 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ $ingestionEndoint }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
@@ -247,8 +252,8 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ $ingestionEndoint }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
@@ -260,8 +265,8 @@ data:
         auth_type workload_identity
         tenant_id {{ .Values.forwarder.tenantId }}
         client_id {{ .Values.forwarder.msiClientId }}
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint {{ $ingestionEndoint }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping

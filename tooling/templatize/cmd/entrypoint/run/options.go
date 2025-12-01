@@ -36,6 +36,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	}
 
 	cmd.Flags().StringVar(&opts.TimingOutputFile, "timing-output", opts.TimingOutputFile, "Path to the file where timing outputs will be written.")
+	cmd.Flags().StringVar(&opts.JUnitOutputFile, "junit-output", opts.JUnitOutputFile, "If provided, jUnit outputs for pipeline steps will be written to this file.")
 
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
@@ -52,6 +53,7 @@ type RawOptions struct {
 	DeploymentTimeoutSeconds int
 
 	TimingOutputFile string
+	JUnitOutputFile  string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -74,6 +76,7 @@ type completedOptions struct {
 	DeploymentTimeoutSeconds int
 
 	TimingOutputFile string
+	JUnitOutputFile  string
 }
 
 type Options struct {
@@ -106,10 +109,11 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			Options: completed,
 
 			DryRun:                   o.DryRun,
-			NoPersist:                o.Persist,
+			NoPersist:                !o.Persist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
 
 			TimingOutputFile: o.TimingOutputFile,
+			JUnitOutputFile:  o.JUnitOutputFile,
 		},
 	}, nil
 }
@@ -130,6 +134,7 @@ func (o *Options) Run(ctx context.Context) error {
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
+		JUnitOutputFile:       o.JUnitOutputFile,
 	}
 
 	if o.Entrypoint != nil {

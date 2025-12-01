@@ -119,6 +119,10 @@ func (id InternalID) MarshalText() ([]byte, error) {
 
 // UnmarshalText allows an InternalID to be used as an encoding.TextUnmarshaler.
 func (id *InternalID) UnmarshalText(text []byte) error {
+	if len(text) == 0 {
+		return nil
+	}
+
 	id.path = strings.ToLower(string(text))
 	return id.validate()
 }

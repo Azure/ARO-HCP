@@ -18,9 +18,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	"github.com/Azure/ARO-Tools/pkg/types"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/bicep"
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/junit"
 )
 
 var DefaultDeploymentTimeoutSeconds = 30 * 6
@@ -51,6 +54,7 @@ type PipelineRunOptions struct {
 	Concurrency int
 
 	TimingOutputFile string
+	JUnitOutputFile  string
 }
 
 type BaseRunOptions struct {
@@ -116,12 +120,14 @@ type ExecutionState struct {
 
 	Timing  map[graph.Identifier]*ExecutionInfo
 	Details map[graph.Identifier]*ExecutionDetails
+	Logging map[graph.Identifier][]byte
 }
 
 type ExecutionInfo struct {
 	QueuedAt   string `json:"queuedAt"`
 	StartedAt  string `json:"startedAt"`
 	FinishedAt string `json:"finishedAt"`
+	RunCount   int    `json:"runCount"`
 	State      string `json:"state"`
 }
 type NodeInfo struct {
@@ -191,6 +197,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 		Queued:   sets.Set[graph.Identifier]{},
 		Timing:   make(map[graph.Identifier]*ExecutionInfo),
 		Details:  make(map[graph.Identifier]*ExecutionDetails),
+		Logging:  make(map[graph.Identifier][]byte),
 		Outputs:  make(Outputs),
 	}
 
@@ -219,8 +226,67 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			if err != nil {
 				logger.Error(err, "error marshalling timing")
 			}
-			if os.WriteFile(options.TimingOutputFile, encodedTiming, 0644) != nil {
+
+			logger.Info("Writing timing report.", "file", options.TimingOutputFile)
+			if err := os.WriteFile(options.TimingOutputFile, encodedTiming, 0644); err != nil {
 				logger.Error(err, "error writing timing")
+			}
+		}()
+	}
+
+	if options.JUnitOutputFile != "" {
+		if err := os.MkdirAll(filepath.Dir(options.JUnitOutputFile), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create jUnit output dir: %w", err)
+		}
+		suiteStart := time.Now()
+		defer func() {
+			suiteEnd := time.Now()
+			state.RLock()
+			timing := state.Timing
+			logging := state.Logging
+			state.RUnlock()
+			suites := &junit.TestSuites{
+				Suites: []*junit.TestSuite{
+					{
+						Name: "step graph",
+					},
+				},
+			}
+			suite := suites.Suites[0]
+			for id, info := range timing {
+				thisLogger := logger.WithValues("id", id)
+				startedAt, err := time.Parse(time.RFC3339, info.StartedAt)
+				if err != nil {
+					thisLogger.Error(err, "error parsing started at")
+					continue
+				}
+				finishedAt, err := time.Parse(time.RFC3339, info.FinishedAt)
+				if err != nil {
+					thisLogger.Error(err, "error parsing finished at")
+					continue
+				}
+
+				testCase := &junit.TestCase{Name: fmt.Sprintf("Run pipeline step %s", id.String()), Duration: finishedAt.Sub(startedAt).Seconds()}
+				if info.State == "failed" {
+					testCase.FailureOutput = &junit.FailureOutput{Output: string(logging[id])}
+				}
+
+				for _, test := range []*junit.TestCase{testCase} {
+					switch {
+					case test.FailureOutput != nil:
+						suite.NumFailed++
+					case test.SkipMessage != nil:
+						suite.NumSkipped++
+					}
+					suite.NumTests++
+					suite.TestCases = append(suite.TestCases, test)
+				}
+			}
+			suite.Duration = suiteEnd.Sub(suiteStart).Seconds()
+
+			logger.Info("Writing jUnit report.", "file", options.JUnitOutputFile)
+			if err := junit.Write(options.JUnitOutputFile, suites); err != nil {
+				logger.Error(err, "error writing jUnit")
 			}
 		}()
 	}
@@ -306,12 +372,16 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 						thisLogger.V(4).Info("Queue channel closed.")
 						return
 					}
-					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
+					originalSink := thisLogger.GetSink()
+					stepLogs := bytes.Buffer{}
+					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(&stepLogs, &slog.HandlerOptions{}))
+					sink := multiSink{sinks: []logr.LogSink{originalSink, stepHandler.GetSink()}}
+					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step).WithSink(&sink)
 					stepLogger.V(4).Info("Executing step.")
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
 					state.Unlock()
-					details, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
+					details, runCount, err := executeNode(stepLogger, executor, executionGraph, step, consumerCtx, options, state)
 					if details != nil {
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
@@ -329,8 +399,15 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 							state.Unlock()
 						}(step, stepLogger)
 					}
+					if err != nil {
+						stepLogger.V(4).Error(err, "Step errored.")
+					} else {
+						stepLogger.V(4).Info("Finished step.")
+					}
 					state.Lock()
+					state.Logging[step] = stepLogs.Bytes()
 					state.Timing[step].FinishedAt = time.Now().Format(time.RFC3339)
+					state.Timing[step].RunCount = runCount
 					s := "succeeded"
 					if err != nil {
 						s = "failed"
@@ -338,12 +415,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					state.Timing[step].State = s
 					state.Unlock()
 					if err != nil {
-						stepLogger.V(4).Error(err, "Step errored.")
 						errs <- err
 						consumerCancel()
 						return
 					}
-					stepLogger.V(4).Info("Finished step.")
 					checkForStepsToExecute <- struct{}{}
 				case <-consumerCtx.Done():
 					thisLogger.V(4).Info("Context cancelled.")
@@ -381,29 +456,29 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	return outputs, nil
 }
 
-func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, error) {
+func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, int, error) {
 	state.RLock()
 	alreadyDone := state.Executed.Has(node)
 	state.RUnlock()
 	if alreadyDone {
 		logger.V(4).Info("Skipping execution, as it has already happened.")
 		// our graph may converge, where many children need one parent - no need to re-execute then
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	resourceGroup, exists := graphCtx.ResourceGroups[node.ResourceGroup]
 	if !exists {
-		return nil, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
+		return nil, 0, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
 	}
 
 	step, exists := graphCtx.Steps[node.ServiceGroup][node.ResourceGroup][node.Step]
 	if !exists {
-		return nil, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
+		return nil, 0, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
 	}
 
 	subscriptionID, err := options.SubsciptionLookupFunc(ctx, resourceGroup.Subscription)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+		return nil, 0, fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 	}
 	target := &executionTargetImpl{
 		subscriptionName: resourceGroup.Subscription,
@@ -415,18 +490,31 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	var output Output
 	var details DetailsProducer
 	var stepRunErr error
+	var runCount = 0
 	if options.Step != "" && step.StepName() != options.Step {
 		// skip steps that don't match the specified step name
 		output = nil
 		stepRunErr = nil
 	} else {
-		output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
-			BaseRunOptions:    options.BaseRunOptions,
-			PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
-		}, state)
+		for shouldExecuteStep(step, runCount) {
+			runCount++
+			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
+				BaseRunOptions:    options.BaseRunOptions,
+				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
+			}, state)
+			if shouldRetryError(logger, step, stepRunErr) {
+				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
+				}
+				time.Sleep(duration)
+			} else {
+				break
+			}
+		}
 	}
 	if stepRunErr != nil {
-		return details, stepRunErr
+		return details, runCount, stepRunErr
 	}
 
 	state.Lock()
@@ -442,7 +530,28 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
-	return details, nil
+	return details, runCount, nil
+}
+
+func shouldExecuteStep(step types.Step, runCount int) bool {
+	// Default, no retries, execute the step
+	if step.AutomatedRetries() == nil && runCount == 0 {
+		return true
+	}
+	return runCount < step.AutomatedRetries().MaximumRetryCount
+}
+
+func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
+	if step.AutomatedRetries() == nil || err == nil {
+		return false
+	}
+	for _, retry := range step.AutomatedRetries().ErrorContainsAny {
+		if strings.Contains(err.Error(), retry) {
+			logger.Info("Retrying step", "step", step.StepName(), "error", err.Error())
+			return true
+		}
+	}
+	return false
 }
 
 func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
@@ -566,4 +675,60 @@ func resolveInput(serviceGroup string, input types.Input, outputs Outputs) (any,
 	} else {
 		return nil, fmt.Errorf("variable invalid: resource group %s has no step %s", input.ResourceGroup, input.Step)
 	}
+}
+
+// multiSink implements logr.Sink and sends logs to multiple sinks
+type multiSink struct {
+	sinks []logr.LogSink
+}
+
+var _ logr.LogSink = (*multiSink)(nil)
+
+// Enabled checks if logging is enabled for any sink
+func (m *multiSink) Enabled(level int) bool {
+	for _, s := range m.sinks {
+		if s.Enabled(level) {
+			return true
+		}
+	}
+	return false
+}
+
+// Info logs an info message to all sinks
+func (m *multiSink) Info(level int, msg string, keysAndValues ...interface{}) {
+	for _, s := range m.sinks {
+		s.Info(level, msg, keysAndValues...)
+	}
+}
+
+// Error logs an error message to all sinks
+func (m *multiSink) Error(err error, msg string, keysAndValues ...interface{}) {
+	for _, s := range m.sinks {
+		s.Error(err, msg, keysAndValues...)
+	}
+}
+
+// Init initializes all sinks
+func (m *multiSink) Init(info logr.RuntimeInfo) {
+	for _, s := range m.sinks {
+		s.Init(info)
+	}
+}
+
+// WithValues adds key-value pairs to all sinks
+func (m *multiSink) WithValues(keysAndValues ...interface{}) logr.LogSink {
+	newSinks := make([]logr.LogSink, len(m.sinks))
+	for i, s := range m.sinks {
+		newSinks[i] = s.WithValues(keysAndValues...)
+	}
+	return &multiSink{sinks: newSinks}
+}
+
+// WithName adds a name to all sinks
+func (m *multiSink) WithName(name string) logr.LogSink {
+	newSinks := make([]logr.LogSink, len(m.sinks))
+	for i, s := range m.sinks {
+		newSinks[i] = s.WithName(name)
+	}
+	return &multiSink{sinks: newSinks}
 }

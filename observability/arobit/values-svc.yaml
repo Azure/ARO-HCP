@@ -3,7 +3,7 @@
 # imagePullSecrets:
 #   - linuxgeneva-microsoft
 forwarder:
-  geoShortId: "{{ .geoShortId }}"
+  geoShortId: "{{ .azureGeoShortId }}"
   clusterType: "svc"
   environment: "{{ .arobit.kusto.environmentName }}"
   clusterName: "{{ .svc.aks.name }}"
@@ -57,6 +57,7 @@ forwarder:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
+    ingestionEndpoint: "__kustoDataIngestionUri__"
   msiClientId: "__msiClientId__"
   tenantId: "__tenantId__"
   secretProvider:

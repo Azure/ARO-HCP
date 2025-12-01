@@ -45,6 +45,9 @@ const (
 var ErrAmbiguousResult = errors.New("ambiguous result")
 
 func IsResponseError(err error, statusCode int) bool {
+	if err == nil {
+		return false
+	}
 	var responseError *azcore.ResponseError
 	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
 }

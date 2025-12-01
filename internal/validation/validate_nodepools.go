@@ -26,6 +26,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+const (
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
+	MaxNodePoolNodes = 200
+)
+
 func ValidateNodePoolCreate(ctx context.Context, newObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
 	op := operation.Operation{Type: operation.Create}
 	return validateNodePool(ctx, op, newObj, nil)
@@ -93,8 +98,10 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
 	errs = append(errs, validateNodePoolPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toNodePoolPropertiesPlatform))...)
 
-	//Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,excluded_with=AutoScaling"`
+	//Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,max_if_no_az=200,excluded_with=AutoScaling"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
+	// Validate max=200 only when availabilityZone is unset. When availabilityZone is set, no maximum limit applies.
+	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), MaxNodePoolNodes, newObj.Platform.AvailabilityZone)...)
 	if newObj.AutoScaling != nil {
 		errs = append(errs, EQ(ctx, op, fldPath.Child("replicas"), &newObj.Replicas, safe.Field(oldObj, toNodePoolPropertiesReplicas), 0)...)
 	}
@@ -103,7 +110,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("autoRepair"), &newObj.AutoRepair, safe.Field(oldObj, toNodePoolPropertiesAutoRepair))...)
 
 	//AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"             visibility:"read create update"`
-	errs = append(errs, validateNodePoolAutoScaling(ctx, op, fldPath.Child("autoScaling"), newObj.AutoScaling, safe.Field(oldObj, toNodePoolPropertiesAutoScaling))...)
+	errs = append(errs, validateNodePoolAutoScaling(ctx, op, fldPath.Child("autoScaling"), newObj.AutoScaling, safe.Field(oldObj, toNodePoolPropertiesAutoScaling), newObj.Platform.AvailabilityZone)...)
 
 	//Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
 	errs = append(errs, validate.EachMapKey(ctx, op, fldPath.Child("labels"),
@@ -234,18 +241,24 @@ var (
 	toNodePoolAutoScalingMax = func(oldObj *api.NodePoolAutoScaling) *int32 { return &oldObj.Max }
 )
 
-func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolAutoScaling) field.ErrorList {
+func validateNodePoolAutoScaling(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolAutoScaling, availabilityZone string) field.ErrorList {
 	if newObj == nil {
 		return nil
 	}
 
 	errs := field.ErrorList{}
 
-	//Min int32 `json:"min,omitempty" validate:"min=1"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 1)...)
+	//Min int32 `json:"min,omitempty" validate:"min=0,max_if_no_az=200"`
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), 0)...)
+	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("min"), &newObj.Min, safe.Field(oldObj, toNodePoolAutoScalingMin), MaxNodePoolNodes, availabilityZone)...)
 
-	//Max int32 `json:"max,omitempty" validate:"gtefield=Min"`
-	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("max"), &newObj.Max, safe.Field(oldObj, toNodePoolAutoScalingMax), newObj.Min)...)
+	//Max int32 `json:"max,omitempty" validate:"gtefield=Min,max_if_no_az=200"`
+	errs = append(errs, MaximumIfNoAZ(ctx, op, fldPath.Child("max"), &newObj.Max, safe.Field(oldObj, toNodePoolAutoScalingMax), MaxNodePoolNodes, availabilityZone)...)
+
+	// Validate max >= min only if previous validations passed (i.e., min and max are both valid)
+	if len(errs) == 0 {
+		errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("max"), &newObj.Max, safe.Field(oldObj, toNodePoolAutoScalingMax), newObj.Min)...)
+	}
 
 	return errs
 }

@@ -1,7 +1,0 @@
-values: ../values-mgmt.yaml
-name: helmtest-mdsd-enabled-mgmt
-namespace: arobit
-testData:
-  arobit:
-    mdsd:
-      enabled: true

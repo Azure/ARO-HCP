@@ -53,8 +53,7 @@ var _ = Describe("Customer", func() {
 				clusterNames = append(clusterNames, clusterName)
 
 				By("creating cluster without node pool using cluster-only template: " + clusterName)
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"cluster-only",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),

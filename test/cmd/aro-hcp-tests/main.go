@@ -167,8 +167,6 @@ func main() {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 	root.AddCommand(newCleanupCommand())
-	// TODO: delete when scripts have been migrated to use the new command
-	root.AddCommand(newDeleteExpiredResourceGroupsCommand())
 
 	if err := func() error {
 		return root.Execute()

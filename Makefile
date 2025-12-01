@@ -273,6 +273,16 @@ generate-kiota:
 	$(MAKE) fmt
 .PHONY: generate-kiota
 
+#
+# One-Step Personal Dev Environment
+#
+ifeq ($(DEPLOY_ENV),pers)
+personal-dev-env: entrypoint/Region infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing
+else
+personal-dev-env:
+	$(error personal-dev-env: DEPLOY_ENV must be set to "pers", not "$(DEPLOY_ENV)")
+endif
+.PHONY: personal-dev-env
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 entrypoints = $(shell $(YQ) '.entrypoints[] | .identifier | sub("Microsoft.Azure.ARO.HCP.", "")' topology.yaml )
@@ -295,6 +305,7 @@ LOG_LEVEL ?= 3
 DRY_RUN ?= "false"
 PERSIST ?= "false"
 TIMING_OUTPUT ?= timing/steps.yaml
+ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 
 local-run: $(TEMPLATIZE)
 	$(TEMPLATIZE) entrypoint run --config-file "${CONFIG_FILE}" \
@@ -305,7 +316,8 @@ local-run: $(TEMPLATIZE)
 	                                 $(WHAT) $(EXTRA_ARGS) \
 	                                 --dry-run=$(DRY_RUN) \
 	                                 --verbosity=$(LOG_LEVEL) \
-	                                 --timing-output=$(TIMING_OUTPUT)
+	                                 --timing-output=$(TIMING_OUTPUT) \
+	                                 --junit-output=$(ENTRYPOINT_JUNIT_OUTPUT)
 
 
 ifeq ($(wildcard $(YQ)),$(YQ))
@@ -357,5 +369,6 @@ cleanup: $(TEMPLATIZE)
 								     --dev-environment $(DEPLOY_ENV) \
 								     $(WHAT) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
+									 --ignore=global --ignore=hcp-kusto-us \
 								     --wait=$(CLEANUP_WAIT) \
 								     --verbosity=$(LOG_LEVEL)

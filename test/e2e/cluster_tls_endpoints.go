@@ -54,8 +54,7 @@ var _ = Describe("Customer", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("creating a customer-infra")
-		customerInfraDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+		customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 			*resourceGroup.Name,
 			"customer-infra",
 			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
@@ -73,8 +72,7 @@ var _ = Describe("Customer", func() {
 		keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
 		Expect(err).NotTo(HaveOccurred())
 
-		managedIdentityDeploymentResult, err := framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+		managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
 			*resourceGroup.Name,
 			"managed-identities",
 			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
@@ -97,8 +95,7 @@ var _ = Describe("Customer", func() {
 		etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
 		Expect(err).NotTo(HaveOccurred())
 		managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
-		_, err = framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+		_, err = tc.CreateBicepTemplateAndWait(ctx,
 			*resourceGroup.Name,
 			"hcp-cluster",
 			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
@@ -137,8 +134,7 @@ var _ = Describe("Customer", func() {
 		), "expect certificate to be issued by Microsoft")
 
 		By("creating the node pool")
-		_, err = framework.CreateBicepTemplateAndWait(ctx,
-			tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+		_, err = tc.CreateBicepTemplateAndWait(ctx,
 			*resourceGroup.Name,
 			"node-pool",
 			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),

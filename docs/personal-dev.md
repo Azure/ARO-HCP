@@ -44,7 +44,7 @@ All other tools should be transparently installed by the `make` targets that req
 The creation process can take up to 20 minutes.
 
    ```bash
-   make entrypoint/Region
+   make personal-dev-env
    ```
 
 This command creates a personal DEV environment with a unique name that is derived from your username and deploys all required infrastructure components.

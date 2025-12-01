@@ -206,23 +206,8 @@ param pkoNamespace string
 @description('Service account name of the PKO')
 param pkoServiceAccountName string
 
-@description('Geo short ID of the region')
-param geoShortId string
-
-@description('Environment name')
-param environmentName string
-
-@description('Name of the static Kusto cluster to use for dev environments')
-param staticKustoName string
-
-@description('Flag to indicate if arobit is enabled, used to check if permissions should be granted')
-param arobitKustoEnabled bool
-@description('Names of the databases to write logs to')
-param serviceLogsDatabase string
-param hostedControlPlaneLogsDatabase string
-
-@description('Name of the Kusto resource group')
-var kustoResourceGroup = 'hcp-kusto-${geoShortId}'
+@description('The name of the Azure Storage account to create for HCP Backups')
+param hcpBackupsStorageAccountName string
 
 //
 //   M A N A G E D   I D E N T I T I E S
@@ -248,6 +233,16 @@ var workloadIdentities = items({
     uamiName: 'prometheus'
     namespace: 'prometheus'
     serviceAccountName: 'prometheus'
+  }
+  velero_wi: {
+    uamiName: 'velero'
+    namespace: 'openshift-adp'
+    serviceAccountName: 'velero'
+  }
+  oadp_wi: {
+    uamiName: 'openshift-adp-controller-manager'
+    namespace: 'openshift-adp'
+    serviceAccountName: 'openshift-adp-controller-manager'
   }
 })
 
@@ -537,27 +532,17 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 }
 
 //
-//  K U S T O   I N G E S T    P E R M I S S I O N S
+// O A D P  B A C K U P S
 //
 
-var kustoName = staticKustoName != '' ? staticKustoName : 'hcp-${environmentName}-${geoShortId}'
-
-module grantKustoSvcIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
-  name: 'grantKustoSvcIngest'
+module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
+  name: 'hcp-backups-rbac'
   params: {
-    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    databaseName: serviceLogsDatabase
-    kustoName: kustoName
+    storageAccountName: hcpBackupsStorageAccountName
+    veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
+    oadpControllerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      'openshift-adp-controller-manager'
+    ).uamiPrincipalID
   }
-  scope: resourceGroup(kustoResourceGroup)
-}
-
-module grantKustoHostedControlPlaneIngest '../modules/logs/kusto/grant-ingest.bicep' = if (arobitKustoEnabled) {
-  name: 'grantKustoHostedControlPlaneIngest'
-  params: {
-    clusterLogManagedIdentityId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, logsMSI).uamiPrincipalID
-    databaseName: hostedControlPlaneLogsDatabase
-    kustoName: kustoName
-  }
-  scope: resourceGroup(kustoResourceGroup)
 }

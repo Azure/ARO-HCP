@@ -25,6 +25,8 @@ spec:
         app.kubernetes.io/instance: '{{ .Release.Name }}'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/configmap: {{ include (print $.Template.BasePath "/forwarder-configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: '{{ .Values.forwarder.serviceAccountName }}'
       shareProcessNamespace: true

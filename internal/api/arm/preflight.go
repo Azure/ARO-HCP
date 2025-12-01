@@ -34,7 +34,7 @@ type DeploymentPreflight struct {
 // UnmarshalDeploymentPreflight unmarshals JSON-encoded data and returns
 // either a DeploymentPreflight instance or an appropriate CloudError with
 // a 200 OK HTTP status code.
-func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, *CloudError) {
+func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, error) {
 	deploymentPreflight := &DeploymentPreflight{}
 	err := json.Unmarshal(data, deploymentPreflight)
 	if err != nil {

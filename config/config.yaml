@@ -23,7 +23,7 @@ defaults:
   #
   # All defaults in this section need to be environment and region agnostic.
   #
-  geoShortId: "{{ .ev2.geoShortId }}"
+  azureGeoShortId: "{{ .ev2.geoShortId }}"
   environmentName: "{{ .ctx.environment }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
@@ -59,6 +59,8 @@ defaults:
           features:
           - name: IstioNativeSidecarModePreview
             poll: true
+        'Microsoft.Kusto':
+          poll: true
     rg: global-shared-resources
     billing:
       rg: "placeholder"
@@ -98,7 +100,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
-        digest: sha256:3ce905dcdeac0df2814da366e404589b8fa7a44e22856c19117b3923679fbd57
+        digest: sha256:52f8ae477198b02739555ffdb745132ac670536193e8763269d38a6c4dd81d7a # v4.1.1
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -107,14 +109,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:e8b231c7812daee1db57016fbccab419355ff40da960c6107dbd31dc729cebd3
+        digest: sha256:d088afef6e2614448c46e528de818b314fd52e42e9eb4eaa5cc1ceb70d86a204 # 1.37.3-20251121-1
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:d3c7f6cc6a934021395509c337b5bf649579bd0a0db2de3db7e3514fa8859f88 # 20251116.1
+      digest: sha256:df4c50016208a6c3f4aaaa1d2254e64772447699e644704bf5d026d1e4eb6ed8 # 20251123.1
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -186,8 +188,8 @@ defaults:
         manage: true
   kusto:
     manageInstance: false
-    rg: "hcp-kusto-us"
-    staticKustoName: ""
+    rg: "hcp-kusto-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
+    kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     serviceLogsDatabase: "ServiceLogs"
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
     adminGroups: ""
@@ -360,6 +362,12 @@ defaults:
           repository: kubernetes/kube-state-metrics
   # MGMT cluster specifics
   mgmt:
+    hcpBackups:
+      storageAccount:
+        name: "oadp{{ .ctx.environment }}{{ .ctx.regionShort }}{{ .ctx.stamp }}" # [globally-unique]
+        zoneRedundantMode: Auto
+        public: false
+      storageAccountContainerName: "backups"
     subscription:
       usePlannedQuota: true
       key: "hcp-{{ .ctx.environment }}-mgmt-{{ .ctx.region }}-{{ .ctx.stamp }}"
@@ -628,15 +636,15 @@ defaults:
     imagePackage:
       registry: quay.io
       repository: package-operator/package-operator-package
-      digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e
+      digest: sha256:a5cf16020748f9bcbadbbb9bf4885b66697cd2c7adf4d948341f0e3addde54ee # v1.18.4
     imageManager:
       registry: quay.io
       repository: package-operator/package-operator-manager
-      digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638
+      digest: sha256:796f49540b84ee3b43cab51007e8ea9c6045e47e7ec4155da77fc7754d97de70 # v1.18.4
     remotePhaseManager:
       registry: quay.io
       repository: package-operator/remote-phase-manager
-      digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71
+      digest: sha256:685c49a148b19ca0acdd758d33dc4e85e52c20056c1e00167eb8edce52845d6d # v1.18.4
   # ACM
   acm:
     operator:
@@ -644,13 +652,13 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:348e1b3f7d56988c2c5018a6e8941707b30cce1d6e891f68c9b64e3d03957273 # v2.14.2-285
+        digest: sha256:4486a5d83d497241afe39d888c65d07e35f1377b5d772af1101c9359214b1620 # v2.14.2-295
     mce:
       version: "2.9.2"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:c1d3501847f61d880ecb5cac8604824fb3e69b27f22fa4d48d2a1d038e636787 # v2.9.2-123
+        digest: sha256:e0636863d48f89e17933fcfd7a80f21f9f217b9b320c7fa6a9f121dcac4e9f2b # v2.9.2-136
   # Cluster Service
   clustersService:
     image:
@@ -785,7 +793,12 @@ clouds:
     # this configuration serves as a template for for all RH DEV subscription deployments
     defaults:
       kusto:
-        staticKustoName: "hcp-dev-us"
+        kustoName: "hcp-dev-us"
+        manageInstance: true
+        sku: "Dev(No SLA)_Standard_D11_v2"
+        tier: "Basic"
+        adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
+        rg: "hcp-kusto-us"
       tenantId: "64dc69e4-d083-49fc-9569-ebece1dd1408"
       kubeEvents:
         enabled: false
@@ -845,7 +858,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:d715a7d31a57d47ed9a730e2b1d8df5586d4ee3acdeb4d45848179a6c9ffae76 # 5f52709b927aa0d8218b46f3a5ead2a8224483b2
+          digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36 # e8412ccd0826304e3f5bc0faa3069373c8ac7142
       # ACR Pull
       acrPull:
         image:
@@ -859,7 +872,7 @@ clouds:
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:a1046d7b1b2042b9b109b9c433521662f9c3280fa1a3a66f82e499ba2e9fc433
+          digest: sha256:f538c2f925614d0f331b06ddae90d210e4e47e728a87baa9eeac53f97feb423c
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -877,7 +890,7 @@ clouds:
       # Admin API
       adminApi:
         image:
-          digest: sha256:6ce81ef079dc6de6511a6ded2644b4abf756266a38c69265b66d886f205f7e2c # f833f83
+          digest: sha256:ce8035386368cf99717fed25a9046cd832f27645163442eb19f69af2d4e7713a # c9874f6
         cert:
           issuer: Self
       # Frontend
@@ -885,11 +898,11 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:8afb9690f523bcb9c7029fc9f2eef824445bcc9ec1234d2cb1c2fcb0e0208e5d # f833f83
+          digest: sha256:ea2b27abd12facc139496d81d2f20940061a29b6a0be2db36e2f9ffc491fd7dc # c9874f6
       # Backend
       backend:
         image:
-          digest: sha256:13b16599a6f6c1cc697f459da35f74c3b3ec528d299162bb3ff8a55cb58ff2d7 # f833f83
+          digest: sha256:cfa9d3075d830f22e6970a8f0bd9c5b3706a3e4b7c217f0cd0db1998903e982b # c9874f6
       # Image Sync
       imageSync:
         ocMirror:
@@ -927,16 +940,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
+              sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f # v0.85.0
           kubeStateMetrics:
             image:
-              digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+              digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           prometheusOperator:
             image:
-              sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
+              sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1
           prometheusSpec:
             image:
-              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+              sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
             shards: 1
       mgmt:
         subscription:
@@ -966,16 +979,16 @@ clouds:
         prometheus:
           prometheusConfigReloader:
             image:
-              sha: 61b79bfdfe5e2a3fe904962e2b4f46ff2db2c288ce263e88b49c6c7bae6f7060 # v0.86.2-1
+              sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f # v0.85.0
           kubeStateMetrics:
             image:
-              digest: sha256:b4c92d5b8cf498bbcd6293fc137b0d208e75b452b26a626b50d0599b034d9637 # v2.15.0-7
+              digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0
           prometheusOperator:
             image:
-              sha: 3b201634b8f80039eef9d610820e43ee5c8cf73fec495350b26ebe34214f8123 # v0.84.0-3
+              sha: 5c3fd99a70fb43aa5ea4672ccaf04c68ac60d7adb7e205d2bf75d1b46395455c # v0.87.0-1
           prometheusSpec:
             image:
-              sha: 37d18d90b91f03e8c0fae81e7f2bdff06e35f2ed5482cd2fa28c9d681f048267 # v3.7.3-1
+              sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923 # v3.4.1
             shards: 1
       # ACRs
       acr:
@@ -1013,12 +1026,6 @@ clouds:
       dev:
         # this is the integrated DEV environment
         defaults:
-          kusto:
-            manageInstance: true
-            rg: "hcp-kusto-us"
-            sku: "Dev(No SLA)_Standard_D11_v2"
-            tier: "Basic"
-            adminGroups: "6b6d3adf-8476-4727-9812-20ffdef2b85c"
           regionRG: hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}
           logs:
             loganalytics:
@@ -1238,7 +1245,7 @@ clouds:
             image:
               registry: quay.io
               repository: acm-d/rhtap-hypershift-operator
-              digest: sha256:949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6 # sha256-949f82ae8cafb3e5d81b8701fdd837befa3f500dc65b02b3e29ed9b52d42b1c6
+              digest: sha256:838795c23edf143ea7c003010bd7e249743758aa8e24ba445d44599675586186 # sha256-838795c23edf143ea7c003010bd7e249743758aa8e24ba445d44599675586186
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"

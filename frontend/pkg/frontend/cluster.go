@@ -32,50 +32,42 @@ import (
 // GetHCPCluster implements the GET single resource API contract for HCP Clusters
 // * 200 If the resource exists
 // * 404 If the resource does not exist
-func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) GetHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
-	resultingExternalCluster, cloudError := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
+	resultingExternalCluster, err := f.GetExternalClusterFromStorage(ctx, resourceID, versionedInterface)
+	if err != nil {
+		return err
 	}
 	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+
+	return nil
 }
 
-func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
@@ -90,26 +82,20 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 
 	internalClusterIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	clustersByClusterServiceID := make(map[string]*api.HCPOpenShiftCluster)
 	for _, internalCluster := range internalClusterIterator.Items(ctx) {
-		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.String()] = internalCluster
+		clustersByClusterServiceID[internalCluster.ServiceProviderProperties.ClusterServiceID.ID()] = internalCluster
 	}
 	err = internalClusterIterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalClusterIterator.GetContinuationToken())
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Build a Cluster Service query that looks for
@@ -124,18 +110,14 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 	csIterator := f.clusterServiceClient.ListClusters(query)
 
 	for csCluster := range csIterator.Items(ctx) {
-		if internalCluster, ok := clustersByClusterServiceID[csCluster.HREF()]; ok {
+		if internalCluster, ok := clustersByClusterServiceID[csCluster.ID()]; ok {
 			resultingExternalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
 			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
+				return err
 			}
 			jsonBytes, err := arm.MarshalJSON(resultingExternalCluster)
 			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
+				return err
 			}
 			pagedResponse.AddValue(jsonBytes)
 		}
@@ -144,18 +126,18 @@ func (f *Frontend) ArmResourceListClusters(writer http.ResponseWriter, request *
 
 	// Check for iteration error.
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, nil, writer.Header())
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+
+	return nil
 }
 
-func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -171,33 +153,27 @@ func (f *Frontend) CreateOrUpdateHCPCluster(writer http.ResponseWriter, request 
 	// that represents an existing resource to be updated.
 
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	updating := resourceDoc != nil
 
 	if updating {
-		f.updateHCPCluster(writer, request, resourceItemID, resourceDoc)
-		return
+		return f.updateHCPCluster(writer, request, resourceItemID, resourceDoc)
 	}
 
-	f.createHCPCluster(writer, request)
+	return f.createHCPCluster(writer, request)
 }
 
-func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -217,52 +193,37 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	switch request.Method {
 	case http.MethodPut:
 		// expected
 	case http.MethodPatch:
-		// PATCH requests never create a new resource.
-		logger.Error("Resource not found")
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
+		return arm.NewResourceNotFoundError(resourceID)
 	default:
-		logger.Error("unexpected method: " + request.Method)
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
+		return fmt.Errorf("unsupported method %s", request.Method)
 
 	}
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	operationRequest := database.OperationRequestCreate
@@ -274,11 +235,8 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	newExternalCluster := versionedInterface.NewHCPOpenShiftCluster(api.NewDefaultHCPOpenShiftCluster(resourceID))
 	successStatusCode := http.StatusCreated
 
-	cloudError := api.ApplyRequestBody(request, body, newExternalCluster)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
+	if err := api.ApplyRequestBody(request, body, newExternalCluster); err != nil {
+		return err
 	}
 
 	// this sets many default values, which are then sometimes overridden by Normalize
@@ -287,34 +245,23 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	newExternalCluster.Normalize(newInternalCluster)
 	validationErrs := validation.ValidateClusterCreate(ctx, newInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
+	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
+		return err
 	}
 
 	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, false)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
 	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, nil)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 	}
 
 	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(resultingClusterServiceCluster.HREF())
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
@@ -327,7 +274,10 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	newCosmosCluster := database.NewResourceDocument(newInternalCluster.ID)
 	newCosmosCluster.InternalID = newInternalCluster.ServiceProviderProperties.ClusterServiceID
-	resourceItemID := transaction.CreateResourceDoc(newCosmosCluster, database.FilterHCPClusterState, nil)
+	cosmosUID, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).AddCreateToTransaction(ctx, transaction, newInternalCluster, nil)
+	if err != nil {
+		return err
+	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
 
@@ -358,51 +308,42 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		patchOperations.SetTags(newInternalCluster.Tags)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingCosmosCluster, err := transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosUID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resultingExternalCluster, err := mergeToExternalCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBytes)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
-func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, cosmosID string, oldCosmosCluster *database.ResourceDocument) {
+func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Request, cosmosID string, oldCosmosCluster *database.ResourceDocument) error {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -422,37 +363,27 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	operationRequest := database.OperationRequestUpdate
@@ -463,15 +394,12 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, oldCosmosCluster.InternalID)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to fetch CS cluster for %s: %v", resourceID, err))
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 	}
 
 	internalOldCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID, oldClusterServiceCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Do not set the TrackedResource.Tags field here. We need
@@ -519,25 +447,18 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		newExternalCluster = versionedInterface.NewHCPOpenShiftCluster(internalOldCluster)
 		successStatusCode = http.StatusAccepted
 	default:
-		logger.Error("unexpected method: " + request.Method)
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
+		return fmt.Errorf("unsupported method %s", request.Method)
 	}
 
 	// CheckForProvisioningStateConflict does not log conflict errors
 	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, oldCosmosCluster)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
+	if err := f.CheckForProvisioningStateConflict(ctx, operationRequest, oldCosmosCluster); err != nil {
+		return err
 	}
 
 	// TODO we appear to lack a test, but this seems to take an original, apply the patch and unmarshal the result, meaning the above patch step is just incorrect.
-	cloudError = api.ApplyRequestBody(request, body, newExternalCluster)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
+	if err := api.ApplyRequestBody(request, body, newExternalCluster); err != nil {
+		return err
 	}
 
 	newInternalCluster := &api.HCPOpenShiftCluster{}
@@ -546,28 +467,19 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 	oldInternalCluster := &api.HCPOpenShiftCluster{}
 	oldExternalCluster.Normalize(oldInternalCluster)
 	validationErrs := validation.ValidateClusterUpdate(ctx, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
+	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
+		return err
 	}
 
 	newClusterServiceClusterBuilder, err := ocm.BuildCSCluster(resourceID, request.Header, newInternalCluster, true)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	logger.Info(fmt.Sprintf("updating resource %s", resourceID))
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldCosmosCluster.InternalID, newClusterServiceClusterBuilder)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
@@ -611,40 +523,31 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Read back the resource document so the response body is accurate.
 	resultingCosmosCluster, err := transactionResult.GetResourceDoc(cosmosID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resultingInternalCluster, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftCluster, database.HCPCluster](resultingCosmosCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resultingExternalCluster, err := mergeToExternalCluster(resultingClusterServiceCluster, resultingInternalCluster, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	responseBytes, err := arm.MarshalJSON(resultingExternalCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBytes)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }

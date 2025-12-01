@@ -35,13 +35,3 @@ spec:
         description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'TBD'
         summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
-    - alert: FrontendHealthAvailability
-      expr: |
-        (((120 - sum_over_time(frontend_health[1h])) * 30) >= 300)
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        description: 'The Frontend has been unavailable for more than 5 minutes in the last hour.'
-        runbook_url: 'TBD'
-        summary: 'High unavailability on the Frontend'

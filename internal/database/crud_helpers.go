@@ -20,11 +20,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, completeResourceID *azcorearm.ResourceID) (*InternalAPIType, error) {
@@ -144,4 +148,40 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	} else {
 		return newQueryResourcesIterator[InternalAPIType, CosmosAPIType](pager), nil
 	}
+}
+
+func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
+	if !ok {
+		return "", fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
+	}
+	cosmosData := cosmosPersistable.GetCosmosData()
+
+	// prevent data corruption
+	if len(cosmosData.ClusterServiceID.String()) == 0 {
+		return "", fmt.Errorf("developer error: ClusterServiceID is required")
+	}
+
+	newCosmosUID := uuid.New()
+	cosmosPersistable.SetCosmosDocumentData(newCosmosUID)
+
+	cosmosObj, err := InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert internal object to Cosmos object: %w", err)
+	}
+
+	transaction.AddStep(
+		func(b *azcosmos.TransactionalBatch) (string, error) {
+			data, err := json.Marshal(cosmosObj)
+
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ID, err)
+			}
+
+			b.CreateItem(data, opts)
+			return newCosmosUID.String(), nil
+		},
+	)
+
+	return newCosmosUID.String(), nil
 }

@@ -154,17 +154,31 @@ data:
         K8S-Logging.Exclude On
         Buffer_Size         64k
     [FILTER]
+        Name            rewrite_tag
+        Alias           filter.namespace_router
+        Match           kubernetes.var.log.containers.*
+        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
+        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
+        Emitter_Name    re_emitted_namespace_router_mdsd
+
+    [FILTER]
         Name          nest
-        Match         kubernetes.*
+        Match         mdsd-ocm.logs
         Operation     lift
         Nested_under  kubernetes
-    
+
+    [FILTER]
+        Name          nest
+        Match         mdsd-other.logs
+        Operation     lift
+        Nested_under  kubernetes
+
     [FILTER]
         Name            rewrite_tag
         Alias           filter.namespace_router
         Match           kubernetes.var.log.containers.*
-        Rule            namespace_name ^ocm-.* ocm.logs false
-        Rule            namespace_name ^(?!ocm-).* other.logs false
+        Rule            $kubernetes['namespace_name'] ^ocm-.* ocm.logs false
+        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* other.logs false
         Emitter_Name    re_emitted_namespace_router
 
     [FILTER]
@@ -198,8 +212,8 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
@@ -211,8 +225,8 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
@@ -223,8 +237,8 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
@@ -236,8 +250,8 @@ data:
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
-        workload_identity_token_file /var/run/secrets/azure/wi/token/azure-identity-token
-        Ingestion_Endpoint https://ingest-hcp-dev-us.eastus2.kusto.windows.net
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
@@ -375,6 +389,8 @@ spec:
         app.kubernetes.io/instance: 'helmtest-kusto-disabled-svc'
         app: arobit-forwarder
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/configmap: 17c47e822ba9823a79d615b8a3d64d2da79a396eba335d96f93918cb5b465a72
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

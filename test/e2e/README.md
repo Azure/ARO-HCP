@@ -26,9 +26,6 @@ See [`test/e2e/complete_cluster_create.go`](complete_cluster_create.go) for a re
 
 > **Note:** Creating per-test cluster test cases is the **main focus** of this test suite. Whenever possible, prefer writing per-test cluster test cases over per-run cluster test cases. Priority may change in future.
 
-**Minimal example:**
-TODO: Minimal version
-
 #### Running per-run test cases with per-test cluster in OpenShift CI
 
 There is a [`aro-hcp-tests-run-aro-hcp-tests` step](https://steps.ci.openshift.org/reference/aro-hcp-tests-run-aro-hcp-tests)
@@ -101,9 +98,6 @@ For more details on the setup file and fallback logic, see the [Setup File](#set
 > - Test case files should be named with the `_test.go` suffix. For example, see [`test/e2e/cluster_list_test.go`](cluster_list_test.go) for a reference.
 > - When using `FALLBACK_TO_BICEP`, you must run the `bicep-build` Makefile rule before running the E2E Test Suite to ensure the Bicep file is properly built and available.
 > - If `FALLBACK_TO_BICEP` is set, the `SETUP_FILEPATH` variable must either be unset or set to a non-existent `e2e-setup.json` file. This ensures the test suite will trigger the fallback logic and use the Bicep file for setup.
-
-**Minimal example:**
-TODO: Minimal version
 
 #### Build Tag (per-run only)
 To distinguish E2E test suite from unit tests, initial ginkgo file *e2e_test.go* has a build tag **E2Etests**. The build tag has to be explicitly set when running (or building) the E2E test suite.
@@ -195,7 +189,7 @@ Be sure to review these guidelines before creating or updating ARO HCP E2E test 
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".
 
-Wondering which labels to use and where to write your test? See the section on [Labels](#labels) and [Files Structure](#files-structure). Optionally refer to this [document](https://docs.google.com/document/d/1v7Xe-BVactmt79Fa5GKxd-r2Q9QuYoOpCIL-m46wp7M/edit?usp=sharing).
+Wondering which labels to use? See the section on [Labels](#labels).
 
 [Ginkgo documentation](https://onsi.github.io/ginkgo/)
 
@@ -245,21 +239,11 @@ API usage and compatibility:
 - `ARO-HCP-RP-API-Compatible`: test cases that don't use ARM API (eg. ARM
   templates) to communicate with ARO HCP RP, so that it can run against either
   ARO HCP RP or ARM endpoint (it can run in dev env. as well as in prod).
+    - If your test case does not have this label use `make -C ../.. record-nonlocal-e2e`, (rule in root directory Makefile) to register test case.
 
 Positivity labels:
 
 - `Positive`/`Negative`: indicates positive/negative test scenarios
-
-### Files structure
-Test code is organized by grouping test cases into specs within files.
-
-Basic test cases for HTTP methods of clusters and nodepools are separated into individual files, like 'cluster_get_test', 'nodepool_create_test' or 'nodepool_update_test'.
-
-Features requiring higher visibility or a large number of test cases have their own dedicated file, e.g. 'cluster_upgrade_test' or 'nodepool_upgrade_test'.
-
-Validation test cases go into the 'validation_test' file.
-
-Admin test cases have files with the prefix 'adminapi' followed by the name of specific group of actions or tool, such as 'adminapi_breakglass_kubeconfig_test'.
 
 ### Assertions
 

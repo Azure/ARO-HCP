@@ -28,6 +28,7 @@ import (
 type ResourceCRUD[InternalAPIType any] interface {
 	Get(ctx context.Context, resourceID string) (*InternalAPIType, error)
 	List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error)
+	AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error)
 }
 
 type topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
@@ -97,4 +98,8 @@ func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx co
 	}
 
 	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)
+}
+
+func (d *topLevelCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	return addCreateToTransaction[InternalAPIType, CosmosAPIType](ctx, transaction, newObj, opts)
 }

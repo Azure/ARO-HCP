@@ -35,64 +35,50 @@ import (
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
-	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	internalObj, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteResourceNotFoundError(writer, resourceID)
-		return
+		return arm.NewResourceNotFoundError(resourceID)
 	}
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, nil))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID, nil)
 	}
 
 	responseBody, err := mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBody)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
-func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	subscriptionID := request.PathValue(PathSegmentSubscriptionID)
@@ -101,9 +87,7 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	internalCluster, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).Get(ctx, resourceName)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	pagedResponse := arm.NewPagedResponse()
@@ -111,26 +95,20 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 	nodePoolsByClusterServiceID := make(map[string]*api.HCPOpenShiftClusterNodePool)
 	internalNodePoolIterator, err := f.dbClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(resourceName).List(ctx, dbListOptionsFromRequest(request))
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	for _, nodePool := range internalNodePoolIterator.Items(ctx) {
-		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.String()] = nodePool
+		nodePoolsByClusterServiceID[nodePool.ServiceProviderProperties.ClusterServiceID.ID()] = nodePool
 	}
 	err = internalNodePoolIterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// MiddlewareReferer ensures Referer is present.
 	err = pagedResponse.SetNextLink(request.Referer(), internalNodePoolIterator.GetContinuationToken())
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Build a Cluster Service query that looks for
@@ -144,30 +122,27 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 
 	csIterator := f.clusterServiceClient.ListNodePools(internalCluster.ServiceProviderProperties.ClusterServiceID, query)
 	for csNodePool := range csIterator.Items(ctx) {
-		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.HREF()]; ok {
+		if internalNodePool, ok := nodePoolsByClusterServiceID[csNodePool.ID()]; ok {
 			value, err := mergeToExternalNodePool(csNodePool, internalNodePool, versionedInterface)
 			if err != nil {
-				logger.Error(err.Error())
-				arm.WriteInternalServerError(writer)
-				return
+				return err
 			}
 			pagedResponse.AddValue(value)
 		}
 	}
 	err = csIterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, nil, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, nil, writer.Header())
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
-func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) {
+func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *http.Request) error {
 	var err error
 
 	// This handles both PUT and PATCH requests. PATCH requests will
@@ -187,71 +162,66 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 
 	versionedInterface, err := VersionFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	resourceID, err := ResourceIDFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	body, err := BodyFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	systemData, err := SystemDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	pk := database.NewPartitionKey(resourceID.SubscriptionID)
 
-	resourceItemID, resourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID)
+	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
+	internalOldNodePool, err := nodePoolCosmosClient.Get(ctx, resourceID.Name)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
-	var updating = (resourceDoc != nil)
+	var updating = (internalOldNodePool != nil)
 	var operationRequest database.OperationRequest
 
-	var versionedCurrentNodePool api.VersionedHCPOpenShiftClusterNodePool
-	var versionedRequestNodePool api.VersionedHCPOpenShiftClusterNodePool
+	var externalOldNodePool api.VersionedHCPOpenShiftClusterNodePool
+	var externalNewNodePool api.VersionedHCPOpenShiftClusterNodePool
 	var successStatusCode int
 
 	if updating {
-		csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, resourceDoc.InternalID)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+		{ // scope to ensure temporary variables don't escape
+			csNodePool, err := f.clusterServiceClient.GetNodePool(ctx, internalOldNodePool.ServiceProviderProperties.ClusterServiceID)
+			if err != nil {
+				logger.Error(fmt.Sprintf("failed to fetch CS node pool for %s: %v", resourceID, err))
+				return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
+			}
+
+			mergedOldNodePool := ocm.ConvertCStoNodePool(resourceID, csNodePool)
+
+			// Do not set the TrackedResource.Tags field here. We need
+			// the Tags map to remain nil so we can see if the request
+			// body included a new set of resource tags.
+
+			mergedOldNodePool.SystemData = internalOldNodePool.SystemData
+			mergedOldNodePool.Properties.ProvisioningState = internalOldNodePool.Properties.ProvisioningState
+			mergedOldNodePool.ServiceProviderProperties.CosmosUID = internalOldNodePool.ServiceProviderProperties.CosmosUID
+			mergedOldNodePool.ServiceProviderProperties.ClusterServiceID = internalOldNodePool.ServiceProviderProperties.ClusterServiceID
+
+			// internalOldNodePool gets overwritten (for now), by the content from cluster-service which is authoritative for now.
+			internalOldNodePool = mergedOldNodePool
 		}
-
-		hcpNodePool := ocm.ConvertCStoNodePool(resourceID, csNodePool)
-
-		// Do not set the TrackedResource.Tags field here. We need
-		// the Tags map to remain nil so we can see if the request
-		// body included a new set of resource tags.
-
-		hcpNodePool.SystemData = resourceDoc.SystemData
-		hcpNodePool.Properties.ProvisioningState = resourceDoc.ProvisioningState
 
 		operationRequest = database.OperationRequestUpdate
 
@@ -266,25 +236,33 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			// values that are determined downstream of this phase of
 			// request processing. To ensure idempotency, add these
 			// values to the target struct for the incoming request.
-			reqNodePool.Properties.Version.ID = hcpNodePool.Properties.Version.ID
-			reqNodePool.Properties.Platform.SubnetID = hcpNodePool.Properties.Platform.SubnetID
+			reqNodePool.Properties.Version.ID = internalOldNodePool.Properties.Version.ID
+			reqNodePool.Properties.Platform.SubnetID = internalOldNodePool.Properties.Platform.SubnetID
 
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
+			externalOldNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(internalOldNodePool)
+			externalNewNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(reqNodePool)
 
 			// read-only values are an internal concern since they're the source, so we convert.
 			// this could be faster done purely externally, but this allows a single set of rules for copying read only fields.
 			newTemporaryInternal := &api.HCPOpenShiftClusterNodePool{}
-			versionedRequestNodePool.Normalize(newTemporaryInternal)
-			conversion.CopyReadOnlyNodePoolValues(newTemporaryInternal, hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(newTemporaryInternal)
+			externalNewNodePool.Normalize(newTemporaryInternal)
+			conversion.CopyReadOnlyNodePoolValues(newTemporaryInternal, internalOldNodePool)
+			externalNewNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(newTemporaryInternal)
 
 			successStatusCode = http.StatusOK
 		case http.MethodPatch:
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			externalOldNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(internalOldNodePool)
+			externalNewNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(internalOldNodePool)
 			successStatusCode = http.StatusAccepted
 		}
+
+		// CheckForProvisioningStateConflict does not log conflict errors
+		// but does log unexpected errors like database failures.
+
+		if err := checkForProvisioningStateConflict(ctx, f.dbClient, operationRequest, internalOldNodePool.ID, internalOldNodePool.Properties.ProvisioningState); err != nil {
+			return err
+		}
+
 	} else {
 		operationRequest = database.OperationRequestCreate
 
@@ -296,69 +274,44 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 			// from the request path.
 			hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
 
-			versionedCurrentNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
-			versionedRequestNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			externalOldNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
+			externalNewNodePool = versionedInterface.NewHCPOpenShiftClusterNodePool(hcpNodePool)
 			successStatusCode = http.StatusCreated
 		case http.MethodPatch:
 			// PATCH requests never create a new resource.
-			logger.Error("Resource not found")
-			arm.WriteResourceNotFoundError(writer, resourceID)
-			return
+			return arm.NewResourceNotFoundError(resourceID)
 		}
-
-		resourceDoc = database.NewResourceDocument(resourceID)
 	}
 
-	// CheckForProvisioningStateConflict does not log conflict errors
-	// but does log unexpected errors like database failures.
-	cloudError := f.CheckForProvisioningStateConflict(ctx, operationRequest, resourceDoc)
-	if cloudError != nil {
-		arm.WriteCloudError(writer, cloudError)
-		return
+	if err := api.ApplyRequestBody(request, body, externalNewNodePool); err != nil {
+		return err
 	}
 
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
 
-	_, clusterResourceDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+	cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 	if err != nil {
-		logger.Error(err.Error())
-		if database.IsResponseError(err, http.StatusNotFound) {
-			arm.WriteResourceNotFoundError(writer, resourceID.Parent)
-		} else {
-			arm.WriteInternalServerError(writer)
-		}
-		return
+		return err
 	}
 
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, clusterResourceDoc.InternalID)
+	csCluster, err := f.clusterServiceClient.GetCluster(ctx, cluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID.Parent, writer.Header()))
-		return
+		return ocm.CSErrorToCloudError(err, resourceID.Parent, writer.Header())
 	}
 
 	hcpCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(resourceID.Parent, csCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
-	}
-
-	cloudError = api.ApplyRequestBody(request, body, versionedRequestNodePool)
-	if cloudError != nil {
-		logger.Error(cloudError.Error())
-		arm.WriteCloudError(writer, cloudError)
-		return
+		return err
 	}
 
 	newInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-	versionedRequestNodePool.Normalize(newInternalNodePool)
+	externalNewNodePool.Normalize(newInternalNodePool)
 
 	var validationErrs field.ErrorList
 	if updating {
 		oldInternalNodePool := &api.HCPOpenShiftClusterNodePool{}
-		versionedCurrentNodePool.Normalize(oldInternalNodePool)
+		externalOldNodePool.Normalize(oldInternalNodePool)
 		validationErrs = validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
 		// in addition to static validation, we have validation based on the state of the hcp cluster
 		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
@@ -369,68 +322,56 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
 
 	}
-	newValidationErr := arm.CloudErrorFromFieldErrors(validationErrs)
-
-	// prefer new validation.  Have a fallback for old validation.
-	if newValidationErr != nil {
-		logger.Error(newValidationErr.Error())
-		arm.WriteCloudError(writer, newValidationErr)
-		return
+	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
+		return err
 	}
 
-	hcpNodePool := api.NewDefaultHCPOpenShiftClusterNodePool(resourceID)
-	versionedRequestNodePool.Normalize(hcpNodePool)
-
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, hcpNodePool, updating)
+	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, updating)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	var csNodePool *arohcpv1alpha1.NodePool
 
 	if updating {
 		logger.Info(fmt.Sprintf("updating resource %s", resourceID))
-		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, resourceDoc.InternalID, csNodePoolBuilder)
+		csNodePool, err = f.clusterServiceClient.UpdateNodePool(ctx, internalOldNodePool.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 		}
 	} else {
 		logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-		_, clusterDoc, err := f.dbClient.GetResourceDoc(ctx, resourceID.Parent)
+		cluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Parent.Name)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
+			return err
 		}
 
-		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, clusterDoc.InternalID, csNodePoolBuilder)
+		csNodePool, err = f.clusterServiceClient.PostNodePool(ctx, cluster.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteCloudError(writer, ocm.CSErrorToCloudError(err, resourceID, writer.Header()))
-			return
+			return ocm.CSErrorToCloudError(err, resourceID, writer.Header())
 		}
 
-		resourceDoc.InternalID, err = api.NewInternalID(csNodePool.HREF())
+		newInternalNodePool.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csNodePool.HREF())
 		if err != nil {
-			logger.Error(err.Error())
-			arm.WriteInternalServerError(writer)
-			return
+			return err
 		}
 	}
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
+	operationDoc := database.NewOperationDocument(operationRequest, newInternalNodePool.ID, newInternalNodePool.ServiceProviderProperties.ClusterServiceID, correlationData)
 	operationID := transaction.CreateOperationDoc(operationDoc, nil)
 
 	f.ExposeOperation(writer, request, operationID, transaction)
 
+	cosmosUID := ""
 	if !updating {
-		resourceItemID = transaction.CreateResourceDoc(resourceDoc, database.FilterNodePoolState, nil)
+		cosmosUID, err = nodePoolCosmosClient.AddCreateToTransaction(ctx, transaction, newInternalNodePool, nil)
+		if err != nil {
+			return err
+		}
+	} else {
+		cosmosUID = internalOldNodePool.ServiceProviderProperties.CosmosUID
 	}
 
 	var patchOperations database.ResourceDocumentPatchOperations
@@ -448,46 +389,39 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 	// so we leave any existing tags alone. If the Tags map is non-nil, even if
 	// empty, that means it was specified in the request body and should fully
 	// replace any existing tags.
-	if hcpNodePool.Tags != nil {
-		patchOperations.SetTags(hcpNodePool.Tags)
+	if newInternalNodePool.Tags != nil {
+		patchOperations.SetTags(newInternalNodePool.Tags)
 	}
 
-	transaction.PatchResourceDoc(resourceItemID, patchOperations, nil)
+	transaction.PatchResourceDoc(cosmosUID, patchOperations, nil)
 
 	transactionResult, err := transaction.Execute(ctx, &azcosmos.TransactionalBatchOptions{
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	// Read back the resource document so the response body is accurate.
-	resultingCosmosObj, err := transactionResult.GetResourceDoc(resourceItemID)
+	resultingCosmosObj, err := transactionResult.GetResourceDoc(cosmosUID)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 	resultingInternalObj, err := database.ResourceDocumentToInternalAPI[api.HCPOpenShiftClusterNodePool, database.NodePool](resultingCosmosObj)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	responseBody, err := mergeToExternalNodePool(csNodePool, resultingInternalObj, versionedInterface)
 	if err != nil {
-		logger.Error(err.Error())
-		arm.WriteInternalServerError(writer)
-		return
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, successStatusCode, responseBody)
 	if err != nil {
-		logger.Error(err.Error())
+		return err
 	}
+	return nil
 }
 
 // the necessary conversions for the API version of the request.

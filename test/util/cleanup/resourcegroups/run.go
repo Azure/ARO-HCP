@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
 
-func (o Options) Run(ctx context.Context) error {
+func (o *Options) Run(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	tc := framework.NewTestContext()
@@ -35,10 +35,9 @@ func (o Options) Run(ctx context.Context) error {
 	var resourceGroupsToDelete []string
 
 	// If resource groups are explicitly provided, filter to existing ones
-	// deletions occur in 3 tiers (afterSuite -> tracked resource group deletion -> expired resource group deletion)
-	// we might receive a resource group that was already deleted
 	if len(o.ResourceGroups) > 0 {
 		existingResourceGroups := sets.New[string]()
+		resourceGroupLocations := map[string]string{}
 		resourceGroupsPager := resourceGroupsClient.NewListPager(nil)
 		for resourceGroupsPager.More() {
 			page, err := resourceGroupsPager.NextPage(ctx)
@@ -47,6 +46,7 @@ func (o Options) Run(ctx context.Context) error {
 			}
 			for _, rg := range page.Value {
 				existingResourceGroups.Insert(*rg.Name)
+				resourceGroupLocations[*rg.Name] = *rg.Location
 			}
 		}
 
@@ -57,6 +57,9 @@ func (o Options) Run(ctx context.Context) error {
 		for _, rg := range resourceGroupsNotFound {
 			logger.Info("Resource group does not exist, skipping", "name", rg)
 		}
+
+		resourceGroupsToDelete = filterResourceGroupsByLocation(resourceGroupsToDelete, resourceGroupLocations,
+			o.includeLocations, o.excludeLocations, logger)
 
 	} else if o.DeleteExpired {
 		// If no resource groups provided, use deleteExpired logic
@@ -76,9 +79,16 @@ func (o Options) Run(ctx context.Context) error {
 		}
 
 		resourceGroupsToDelete = make([]string, 0, len(expiredResourceGroups))
+		resourceGroupLocations := map[string]string{}
 		for _, resourceGroup := range expiredResourceGroups {
+
+			location := *resourceGroup.Location
+			resourceGroupLocations[*resourceGroup.Name] = location
 			resourceGroupsToDelete = append(resourceGroupsToDelete, *resourceGroup.Name)
 		}
+
+		resourceGroupsToDelete = filterResourceGroupsByLocation(resourceGroupsToDelete, resourceGroupLocations,
+			o.includeLocations, o.excludeLocations, logger)
 	}
 
 	if len(resourceGroupsToDelete) == 0 {
@@ -93,12 +103,18 @@ func (o Options) Run(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete))
+	logger.Info("Starting resource group deletion", "count", len(resourceGroupsToDelete), "env-type", o.cleanupWorkflow,
+		"timeout", o.Timeout, "include-locations", o.includeLocations, "exclude-locations", o.excludeLocations)
 
-	err := framework.CleanupResourceGroups(ctx,
+	opts := framework.CleanupResourceGroupsOptions{
+		ResourceGroupNames: resourceGroupsToDelete,
+		Timeout:            o.Timeout,
+		CleanupWorkflow:    o.cleanupWorkflow,
+	}
+
+	err := tc.CleanupResourceGroups(ctx,
 		tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-		resourceGroupsClient,
-		resourceGroupsToDelete)
+		resourceGroupsClient, opts)
 	if err != nil {
 		logger.Error(err, "Failed to delete some resource groups", "count", len(resourceGroupsToDelete))
 		return err
@@ -106,4 +122,38 @@ func (o Options) Run(ctx context.Context) error {
 
 	logger.Info("All resource groups successfully deleted", "count", len(resourceGroupsToDelete))
 	return nil
+}
+
+// filterResourceGroupsByLocation filters a list of resource group names according to include/exclude
+// location sets, and logs any skipped resource groups.
+func filterResourceGroupsByLocation(
+	resourceGroups []string,
+	resourceGroupLocations map[string]string,
+	includeLocations, excludeLocations sets.Set[string],
+	logger logr.Logger,
+) []string {
+	if includeLocations.Len() == 0 && excludeLocations.Len() == 0 {
+		return resourceGroups
+	}
+
+	filtered := make([]string, 0, len(resourceGroups))
+	for _, rg := range resourceGroups {
+		location := resourceGroupLocations[rg]
+
+		if includeLocations.Len() > 0 {
+			if !includeLocations.Has(location) {
+				logger.V(1).Info("Skipping resource group due to include-location filter", "name", rg, "location", location)
+				continue
+			}
+		} else if excludeLocations.Len() > 0 {
+			if excludeLocations.Has(location) {
+				logger.V(1).Info("Skipping resource group due to exclude-location filter", "name", rg, "location", location)
+				continue
+			}
+		}
+
+		filtered = append(filtered, rg)
+	}
+
+	return filtered
 }

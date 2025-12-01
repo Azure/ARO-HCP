@@ -59,8 +59,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{
@@ -71,8 +70,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -80,7 +78,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("getting credentials")
-				adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -131,8 +129,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = framework.CreateClusterCustomerResources(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{
@@ -143,8 +140,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("creating the HCP cluster")
-				err = framework.CreateHCPClusterFromParam(ctx,
-					tc,
+				err = tc.CreateHCPClusterFromParam(ctx,
 					*resourceGroup.Name,
 					clusterParams,
 					45*time.Minute,
@@ -152,7 +148,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("getting credentials")
-				adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,

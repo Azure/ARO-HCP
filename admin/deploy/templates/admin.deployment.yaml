@@ -43,6 +43,15 @@ spec:
         args:
         - "--location"
         - "{{ .Values.location }}"
+        env:
+        - name: CLUSTERS_SERVICE_URL
+          value: "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000"
+        - name: COSMOS_URL
+          value: "{{ .Values.cosmosDB.url }}"
+        - name: COSMOS_NAME
+          value: "{{ .Values.cosmosDB.name }}"
+        - name: KUSTO_ENDPOINT
+          value: "{{ .Values.kusto.endpoint }}"
         ports:
         - containerPort: 8443
           name: http

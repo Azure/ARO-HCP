@@ -785,13 +785,50 @@
         "key",
         "displayName"
       ]
+    },
+    "storageAccount": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]{3,24}$"
+        },
+        "zoneRedundantMode": {
+          "$ref": "#/definitions/zoneRedundantMode"
+        },
+        "public": {
+          "type": "boolean",
+          "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
+        },
+        "privateLinkLocation": {
+          "type": "string",
+          "description": "The location of the storage account private link. Not every region supports private links so we need to be able to override the default location."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "zoneRedundantMode",
+        "public"
+      ]
+    },
+    "hcpBackups": {
+      "type": "object",
+      "properties": {
+        "storageAccount": {
+          "$ref": "#/definitions/storageAccount"
+        },
+        "storageAccountContainerName":{
+          "type": "string"
+        }
+      }
     }
   },
   "properties": {
     "environmentName": {
       "type": "string"
     },
-    "geoShortId": {
+    "azureGeoShortId": {
       "type": "string"
     },
     "tenantId": {
@@ -1575,9 +1612,12 @@
         "viewerGroups": {
           "type": "string"
         },
-        "staticKustoName": {
+        "kustoName": {
           "type": "string",
-          "description": "Name of the static Kusto cluster to use for dev environments"
+          "description": "Name of the kusto cluster. Must begin with a letter and contain between 4 and 22 lowercase alphanumeric characters.",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "minLength": 4,
+          "maxLength": 22
         },
         "resourceGroup": {
           "description": "DEPRECATED, for backward compatibility only",
@@ -1608,7 +1648,8 @@
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
         "adminGroups",
-        "viewerGroups"
+        "viewerGroups",
+        "kustoName"
       ]
     },
     "mise": {
@@ -2151,6 +2192,9 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "hcpBackups": {
+          "$ref": "#/definitions/hcpBackups"
+        },
         "nsp": {
           "$ref": "#/definitions/nsp"
         },
@@ -2354,29 +2398,7 @@
       "type": "object",
       "properties": {
         "storageAccount": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "zoneRedundantMode": {
-              "$ref": "#/definitions/zoneRedundantMode"
-            },
-            "public": {
-              "type": "boolean",
-              "description": "Whether the storage account is public or private. If private, it can only be accessed via Azure Front Door"
-            },
-            "privateLinkLocation": {
-              "type": "string",
-              "description": "The location of the storage account private link. Not every region supports private links so we need to be able to override the default location."
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "zoneRedundantMode",
-            "public"
-          ]
+          "ref" : "#/definitions/storageAccount"
         },
         "frontdoor": {
           "type": "object",
@@ -2635,7 +2657,7 @@
   "additionalProperties": false,
   "required": [
     "administration",
-    "geoShortId",
+    "azureGeoShortId",
     "kvCertOfficerPrincipalId",
     "backplaneAPI",
     "clustersService",

@@ -49,6 +49,14 @@ param globalMSIId string
 // Log Analytics Workspace ID will be passed from region pipeline if enabled in config
 param logAnalyticsWorkspaceId string = ''
 
+// Storage Account for HCP Backups
+@minLength(3)
+// @maxLength(24) Fails on EV2 pipelines, probably because the EV2 placeholder is longer than 24.
+param hcpBackupsStorageAccountName string
+param hcpBackupsStorageAccountContainerName string = 'backups'
+param hcpBackupsStorageAccountZoneRedundantMode string = 'Auto'
+param hcpBackupsStorageAccountPublic bool = true
+
 // Reader role
 // https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
 var readerRoleId = subscriptionResourceId(
@@ -149,3 +157,20 @@ module mgmtKeyVaultAccess '../modules/keyvault/keyvault-secret-access.bicep' = [
 ]
 
 output mgmtKeyVaultUrl string = mgmtKeyVault.outputs.kvUrl
+
+//
+// H C P   B A C K U P S   S T O R A G E
+//
+
+module hcpBackupsStorage '../modules/hcp-backups/storage.bicep' = {
+  name: 'hcp-backups-storage'
+  params: {
+    storageAccountName: hcpBackupsStorageAccountName
+    location: location
+    containerName: hcpBackupsStorageAccountContainerName
+    zoneRedundantMode: hcpBackupsStorageAccountZoneRedundantMode
+    public: hcpBackupsStorageAccountPublic
+  }
+}
+
+output hcpBackupsStorageAccountId string = hcpBackupsStorage.outputs.storageAccountId

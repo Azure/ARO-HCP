@@ -47,7 +47,7 @@ resourceGroups:
       step: cluster
     - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
       resourceGroup: management
-      step: cs-akv-permissions
+      step: svc-mgmt-permissions
 - name: service
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'

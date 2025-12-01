@@ -521,8 +521,15 @@ model NodePoolProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   platform: NodePoolPlatformProfile;
 
-  /** The number of worker nodes, it cannot be used together with autoscaling */
+  /**
+   * The number of worker nodes, it cannot be used together with autoscaling.
+   * Validation:
+   * - Minimum: 0
+   * - Maximum: 200 (only when availabilityZone is not specified)
+   * - No maximum when availabilityZone is specified
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  @minValue(0)
   replicas?: int32;
 
   /** Auto-repair */
@@ -700,11 +707,23 @@ union DiskStorageAccountType {
 
 /** Node pool autoscaling */
 model NodePoolAutoScaling {
-  /** The minimum number of nodes in the node pool */
+  /**
+   * The minimum number of nodes in the node pool.
+   * Validation:
+   * - Minimum: 0
+   * - Maximum: 200 (only when availabilityZone is not specified)
+   * - No maximum when availabilityZone is specified
+   */
   @minValue(0)
   min?: int32;
 
-  /** The maximum number of nodes in the node pool */
+  /**
+   * The maximum number of nodes in the node pool.
+   * Validation:
+   * - Minimum: 0 (must be >= min)
+   * - Maximum: 200 (only when availabilityZone is not specified)
+   * - No maximum when availabilityZone is specified
+   */
   @minValue(0)
   max?: int32;
 }

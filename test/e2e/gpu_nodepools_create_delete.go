@@ -70,8 +70,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("deploying demo template (single-step infra + identities + cluster)")
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"aro-hcp-demo",
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
@@ -83,7 +82,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("getting credentials and verifying cluster is viable")
-				adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
@@ -96,8 +95,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 				// Use Bicep template to create a nodepool with the specified parameters
 				npName := "np-1" // node pools have very restrictive naming rules
 				By(fmt.Sprintf("creating GPU nodepool %q with VM size %q using Bicep template", npName, sku.vmSize))
-				_, err = framework.CreateBicepTemplateAndWait(ctx,
-					tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+				_, err = tc.CreateBicepTemplateAndWait(ctx,
 					*resourceGroup.Name,
 					"aro-hcp-gpu-nodepool-"+sku.display,
 					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),

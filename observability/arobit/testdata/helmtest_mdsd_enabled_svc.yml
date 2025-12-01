@@ -1,7 +1,0 @@
-values: ../values-svc.yaml
-name: helmtest-mdsd-enabled-svc
-namespace: arobit
-testData:
-  arobit:
-    mdsd:
-      enabled: true
