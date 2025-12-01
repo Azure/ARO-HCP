@@ -52,23 +52,29 @@ var _ = Describe("Authorized CIDRs", func() {
 				resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-cidr-connectivity", tc.Location())
 				Expect(err).NotTo(HaveOccurred())
 
-				By("generating SSH key pair for VM")
-				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-				Expect(err).NotTo(HaveOccurred())
+				By("creating cluster parameters")
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = clusterName
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
 
-				By("creating customer infrastructure")
-				customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"customer-infra",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
+				By("creating customer resources")
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
 					map[string]interface{}{
 						"persistTagValue":        false,
 						"customerNsgName":        customerNetworkSecurityGroupName,
 						"customerVnetName":       customerVnetName,
 						"customerVnetSubnetName": customerVnetSubnetName,
 					},
-					45*time.Minute,
+					TestArtifactsFS,
 				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("generating SSH key pair for VM")
+				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
 				Expect(err).NotTo(HaveOccurred())
 
 				By("deploying test VM")
@@ -92,57 +98,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(vmPublicIP).NotTo(BeEmpty(), "VM public IP should be in deployment outputs")
 
-				By("creating managed identities")
-				keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-				Expect(err).NotTo(HaveOccurred())
-				keyVaultNameStr, ok := keyVaultName.(string)
-				Expect(ok).To(BeTrue())
-				etcdEncryptionKeyVersion, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyVersion")
-				Expect(err).NotTo(HaveOccurred())
-				managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"managed-identities",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-					map[string]interface{}{
-						"clusterName":  clusterName,
-						"nsgName":      customerNetworkSecurityGroupName,
-						"vnetName":     customerVnetName,
-						"subnetName":   customerVnetSubnetName,
-						"keyVaultName": keyVaultName,
-					},
-					45*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
-
-				By("creating cluster with VM IP in authorized CIDRs using SDK")
-				userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-				Expect(err).NotTo(HaveOccurred())
-				identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-				Expect(err).NotTo(HaveOccurred())
-				etcdEncryptionKeyName, err := framework.GetOutputValueString(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-				Expect(err).NotTo(HaveOccurred())
-				nsgResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "nsgID")
-				Expect(err).NotTo(HaveOccurred())
-				vnetSubnetResourceID, err := framework.GetOutputValueString(customerInfraDeploymentResult, "vnetSubnetID")
-				Expect(err).NotTo(HaveOccurred())
-				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
-				userAssignedIdentitiesProfile, err := framework.ConvertToUserAssignedIdentitiesProfile(userAssignedIdentities)
-				Expect(err).NotTo(HaveOccurred())
-				identityProfile, err := framework.ConvertToManagedServiceIdentity(identity)
-				Expect(err).NotTo(HaveOccurred())
-
-				clusterParams := framework.NewDefaultClusterParams()
-				clusterParams.ClusterName = clusterName
-				clusterParams.OpenshiftVersionId = openshiftControlPlaneVersionId
-				clusterParams.ManagedResourceGroupName = managedResourceGroupName
-				clusterParams.NsgResourceID = nsgResourceID
-				clusterParams.SubnetResourceID = vnetSubnetResourceID
-				clusterParams.VnetName = customerVnetName
-				clusterParams.UserAssignedIdentitiesProfile = userAssignedIdentitiesProfile
-				clusterParams.Identity = identityProfile
-				clusterParams.KeyVaultName = keyVaultNameStr
-				clusterParams.EtcdEncryptionKeyName = etcdEncryptionKeyName
-				clusterParams.EtcdEncryptionKeyVersion = etcdEncryptionKeyVersion
+				By("setting authorized CIDRs with VM IP")
 				clusterParams.AuthorizedCIDRs = []*string{
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
