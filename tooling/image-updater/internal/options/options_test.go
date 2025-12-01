@@ -585,3 +585,187 @@ images:
 
 	return configPath
 }
+
+func TestKeyVaultDeduplication(t *testing.T) {
+	tests := []struct {
+		name          string
+		configContent string
+		wantKVConfigs int // number of unique KeyVault configs
+		wantErr       bool
+	}{
+		{
+			name: "single image with keyVault",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 1,
+			wantErr:       false,
+		},
+		{
+			name: "multiple images with same keyVault - should deduplicate",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test1.yaml
+        jsonPath: image.digest
+  test2:
+    source:
+      image: quay.io/test/app2
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test2.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 1, // Same vault+secret should be deduplicated
+			wantErr:       false,
+		},
+		{
+			name: "multiple images with different keyVault configs",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test1.yaml
+        jsonPath: image.digest
+  test2:
+    source:
+      image: quay.io/test/app2
+      useAuth: true
+      keyVault:
+        url: "https://vault2.vault.azure.net/"
+        secretName: "secret2"
+    targets:
+      - filePath: test2.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 2, // Different vaults
+			wantErr:       false,
+		},
+		{
+			name: "same vault different secrets",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test1.yaml
+        jsonPath: image.digest
+  test2:
+    source:
+      image: quay.io/test/app2
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret2"
+    targets:
+      - filePath: test2.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 2, // Same vault but different secrets
+			wantErr:       false,
+		},
+		{
+			name: "mixed - some with keyVault some without",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+      useAuth: true
+      keyVault:
+        url: "https://vault1.vault.azure.net/"
+        secretName: "secret1"
+    targets:
+      - filePath: test1.yaml
+        jsonPath: image.digest
+  test2:
+    source:
+      image: quay.io/test/app2
+      useAuth: false
+    targets:
+      - filePath: test2.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 1, // Only test1 has keyVault
+			wantErr:       false,
+		},
+		{
+			name: "no images with keyVault",
+			configContent: `
+images:
+  test1:
+    source:
+      image: quay.io/test/app1
+    targets:
+      - filePath: test1.yaml
+        jsonPath: image.digest
+`,
+			wantKVConfigs: 0,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temp config file
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.yaml")
+			if err := os.WriteFile(configPath, []byte(tt.configContent), 0644); err != nil {
+				t.Fatalf("failed to create config file: %v", err)
+			}
+
+			// Load and validate config
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				t.Fatalf("failed to load config: %v", err)
+			}
+
+			// Simulate the deduplication logic from Complete()
+			kvConfigs := make(map[string]struct{})
+			for _, imageConfig := range cfg.Images {
+				if imageConfig.Source.KeyVault != nil &&
+					imageConfig.Source.KeyVault.URL != "" &&
+					imageConfig.Source.KeyVault.SecretName != "" {
+					key := imageConfig.Source.KeyVault.URL + "|" + imageConfig.Source.KeyVault.SecretName
+					kvConfigs[key] = struct{}{}
+				}
+			}
+
+			gotCount := len(kvConfigs)
+			if gotCount != tt.wantKVConfigs {
+				t.Errorf("KeyVault config count = %v, want %v", gotCount, tt.wantKVConfigs)
+			}
+		})
+	}
+}

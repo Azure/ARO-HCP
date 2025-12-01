@@ -16,6 +16,8 @@ The image-updater supports multiple container registry types with optimized clie
 - **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
 - **Anonymous by Default**: No authentication required for public registries (MCR, Docker Hub, public Quay.io)
 - **Opt-in Authentication**: Explicitly enable authentication only for private registries
+- **Azure Key Vault Integration**: Per-image Key Vault configuration for secure credential management
+- **Smart Credential Caching**: Automatically deduplicates Key Vault secret fetches across images
 - **Architecture-Aware**: Automatically filters images by architecture (defaults to amd64)
 - **Multi-Registry Client**: Automatically selects the appropriate client based on registry URL
 - **Flexible Digest Format**: Supports both `.digest` fields (with `sha256:` prefix) and `.sha` fields (hash only)
@@ -31,6 +33,8 @@ The image-updater supports multiple container registry types with optimized clie
 | pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager | Quay.io |
 | arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (Private) |
 | arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (Private) |
+| admin-api | arohcpsvcdev.azurecr.io/arohcpadminapi | ACR (Private) |
+| clusters-service | quay.io/app-sre/aro-hcp-clusters-service | Quay.io (Private) |
 | kubeEvents | kubernetesshared.azurecr.io/shared/kube-events | ACR (Public) |
 | acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR |
 | secretSyncController | registry.k8s.io/secrets-store-sync/controller | Generic |
@@ -56,7 +60,9 @@ make update
 
 ## Configuration
 
-Define images to monitor and target files to update:
+Define images to monitor and target files to update. Each image can optionally specify Azure Key Vault credentials for authentication.
+
+### Image Configuration Examples
 
 ```yaml
 images:
@@ -144,12 +150,51 @@ Authentication behavior varies by registry type.
 
 ### Default Behavior (useAuth defaults to `false`)
 
-- **Quay.io**: Always uses anonymous access
+- **Quay.io**: Uses anonymous access by default, set `useAuth: true` for private repositories
 - **MCR (mcr.microsoft.com)**: Always uses anonymous access
-- **Generic registries**: Uses anonymous access by default
+- **Generic registries**: Uses anonymous access by default, set `useAuth: true` for private registries
 - **Azure Container Registry**: Uses anonymous access by default, set `useAuth: true` for private registries
 
 ### Registry-Specific Authentication
+
+**Private Quay.io repositories (requires authentication)**:
+
+```yaml
+source:
+  image: quay.io/your-org/private-repo
+  useAuth: true  # Required for private Quay repositories
+```
+
+**Public Quay.io repositories (anonymous access)**:
+
+```yaml
+source:
+  image: quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  # useAuth defaults to false for public repos
+```
+
+**Private Quay.io repositories (requires authentication)**:
+
+```yaml
+source:
+  image: quay.io/app-sre/aro-hcp-clusters-service
+  tagPattern: "^[a-f0-9]{7}$"
+  useAuth: true
+  keyVault:
+    url: "https://arohcpdev-global.vault.azure.net/"
+    secretName: "component-sync-pull-secret"
+```
+
+**Note**: For Quay.io, authentication can use either:
+1. **Docker credentials from `~/.docker/config.json`**:
+   ```bash
+   docker login quay.io
+   # Or use podman:
+   podman login quay.io
+   ```
+2. **Azure Key Vault pull secrets** (recommended for CI/CD and private repositories):
+   Configure the `keyVault` section in the image's source configuration (as shown above).
+   The tool will automatically fetch the pull secret from Azure Key Vault and merge it with your local Docker config before authenticating. This requires Azure CLI authentication (`az login`).
 
 **Private ACR (requires authentication)**:
 
@@ -175,12 +220,55 @@ source:
   # useAuth defaults to false, MCR is always public
 ```
 
-**Note**: For Azure Container Registry, authentication uses `DefaultAzureCredential` which supports:
+**Authentication Methods by Registry**:
+- **Quay.io**:
+  - Docker credentials from `~/.docker/config.json` (via `docker login quay.io`)
+  - Azure Key Vault pull secrets (per-image configuration)
+- **Azure Container Registry**: Uses `DefaultAzureCredential` which supports:
+  - Managed Identity
+  - Azure CLI credentials (`az login`)
+  - Environment variables
+  - And other Azure authentication methods
+- **Generic registries**: Uses Docker credentials from `~/.docker/config.json`
 
-- Managed Identity
-- Azure CLI credentials (`az login`)
-- Environment variables
-- And other Azure authentication methods
+### Azure Key Vault Authentication
+
+For private registries that require authentication, you can configure Azure Key Vault credentials on a per-image basis. This is the recommended approach for CI/CD pipelines and production environments.
+
+**Benefits**:
+- **Secure**: Credentials stored in Azure Key Vault, not in configuration files
+- **Flexible**: Different images can use different Key Vault secrets
+- **Efficient**: Automatic deduplication prevents fetching the same secret multiple times
+- **Integrated**: Works seamlessly with Azure CLI authentication (`az login`)
+
+**Configuration**:
+
+```yaml
+images:
+  clusters-service:
+    source:
+      image: quay.io/app-sre/aro-hcp-clusters-service
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+      - jsonPath: clouds.dev.defaults.clustersService.image.digest
+        filePath: ../../config/config.yaml
+```
+
+**How it works**:
+1. Tool authenticates to Azure using `DefaultAzureCredential` (supports `az login`, managed identity, etc.)
+2. Fetches the pull secret from the specified Key Vault
+3. Merges credentials with your local `~/.docker/config.json`
+4. Uses merged credentials to authenticate with the registry
+5. Multiple images with the same Key Vault URL + secret name are deduplicated (fetched only once)
+
+**Requirements**:
+- Azure CLI installed and authenticated (`az login`)
+- Read access to the specified Key Vault
+- Pull secret must be stored in Key Vault in Docker config.json format (supports both base64-encoded and raw JSON)
 
 ## Tag Patterns
 
@@ -253,10 +341,10 @@ source:
 
 ```text
 Flags:
-      --config string       Path to configuration file (required)
-      --dry-run             Preview changes without modifying files
-      --components string   Comma-separated list of components to update (optional)
-      --exclude string      Comma-separated list of components to exclude (optional)
+      --config string             Path to configuration file (required)
+      --dry-run                   Preview changes without modifying files
+      --components string         Comma-separated list of components to update (optional)
+      --exclude-components string Comma-separated list of components to exclude (optional)
 ```
 
 **Component Filtering**:
@@ -276,13 +364,18 @@ Flags:
 | `tagPattern` | string | No | - | Regex pattern to filter tags (uses most recent if omitted) |
 | `architecture` | string | No | `amd64` | Target architecture for single-arch images (`amd64`, `arm64`, etc.) |
 | `multiArch` | bool | No | `false` | If `true`, fetches multi-arch manifest list digest |
-| `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private ACR) |
+| `useAuth` | bool | No | `false` | If `true`, uses authentication (required for private registries) |
+| `keyVault` | object | No | - | Azure Key Vault configuration for fetching pull secrets |
+| `keyVault.url` | string | No | - | Azure Key Vault URL (e.g., `https://vault.vault.azure.net/`) |
+| `keyVault.secretName` | string | No | - | Name of the pull secret in Key Vault |
 
 **Notes**:
 
 - `multiArch` and `architecture` are mutually exclusive
 - `useAuth` defaults to `false` for all registries
-- For private Azure Container Registries, explicitly set `useAuth: true`
+- For private registries, explicitly set `useAuth: true`
+- `keyVault` is optional and only needed for registries requiring Azure Key Vault credentials
+- When `keyVault` is configured, credentials are automatically fetched before registry authentication
 
 ### Target Configuration Options
 
@@ -298,18 +391,56 @@ Flags:
 
 ## How It Works
 
-1. **Registry Client Selection**: Automatically selects the appropriate client based on registry URL:
+1. **Key Vault Authentication** (if configured):
+   - Collects all unique Key Vault configurations from images
+   - Deduplicates by vault URL + secret name combination
+   - Fetches each unique secret from Azure Key Vault
+   - Merges credentials with local `~/.docker/config.json`
+
+2. **Registry Client Selection**: Automatically selects the appropriate client based on registry URL:
    - `quay.io` → QuayClient (uses Quay API)
    - `*.azurecr.io` → ACRClient (uses Azure SDK)
    - `mcr.microsoft.com` → GenericRegistryClient (uses Docker Registry HTTP API v2)
    - Others → GenericRegistryClient (uses Docker Registry HTTP API v2)
 
-2. **Tag Discovery**: Fetches all tags from the registry and filters by `tagPattern` (if specified)
+3. **Tag Discovery**: Fetches all tags from the registry and filters by `tagPattern` (if specified)
 
-3. **Architecture Validation**:
+4. **Architecture Validation**:
    - For single-arch mode: Inspects each tag to find matching architecture and OS
    - For multi-arch mode: Finds multi-arch manifest lists
 
-4. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
+5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
 
-5. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
+6. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
+
+## Testing
+
+The image-updater includes comprehensive test coverage:
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with coverage
+go test ./... -cover
+
+# Run specific test packages
+go test ./internal/config/...
+go test ./internal/clients/...
+go test ./internal/options/...
+```
+
+**Test Coverage**:
+- Config parsing and validation: 97.9%
+- Options and Key Vault deduplication: 78.5%
+- YAML editing: 81.9%
+- Update logic: 89.8%
+- Client authentication: 18.0%
+
+**Key Test Areas**:
+- Per-image Key Vault configuration parsing
+- Docker config merging with Key Vault credentials
+- Key Vault deduplication across multiple images
+- Base64 and raw JSON secret decoding
+- Registry client selection and authentication
+- YAML file updates with format preservation
