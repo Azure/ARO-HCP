@@ -63,8 +63,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("deploying the demo cluster bicep template")
-			_, err = framework.CreateBicepTemplateAndWait(ctx,
-				tc.GetARMResourcesClientFactoryOrDie(ctx).NewDeploymentsClient(),
+			_, err = tc.CreateBicepTemplateAndWait(ctx,
 				*resourceGroup.Name,
 				"pull-secret-cluster",
 				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
@@ -77,7 +76,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("getting credentials")
-			adminRESTConfig, err := framework.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
