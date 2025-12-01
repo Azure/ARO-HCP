@@ -9,6 +9,7 @@ GA_AUTH_CLIENT_ID ?= $(shell az ad app list --display-name '{{ .geneva.actions.a
 GA_AUTH_SCOPES ?= "https://management.azure.com/.default"
 ADMIN_API_HOST ?= "admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}"
 ADMIN_API_ENDPOINT_BASE ?= "https://${ADMIN_API_HOST}"
+SVC_RG ?= {{ .svc.rg }}
 
 # Portforwarding details
 SVC_CLUSTER ?= {{ .svc.aks.name }}

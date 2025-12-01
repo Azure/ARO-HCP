@@ -98,6 +98,10 @@ port-forward: $(HCPCTL)
 		sleep 42d
 .PHONY: port-forward
 
+allow-istio-ingress-from-current-ip:
+	./hack/allow-istio-ingress-from-current-ip.sh "${SVC_RG}"
+.PHONY: allow-istio-ingress-from-current-ip
+
 #
 #   C L I
 #
