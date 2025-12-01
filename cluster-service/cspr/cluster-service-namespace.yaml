@@ -18,6 +18,11 @@ parameters:
   required: true
 - name: FPA_CLIENT_ID
   description: Client ID of First Party Application
+- name: FIRST_PARTY_CHECK_ACCESS_APP_CERTIFICATE_NAME
+  description: Name of first party check access app certificate
+  required: true
+- name: FPA_CHECK_ACCESS_CLIENT_ID
+  description: Client ID of First Party Check Access Application
   required: true
 - name: ARM_HELPER_CERTIFICATE_NAME
   description: Name of ARM helper certificate
@@ -100,6 +105,8 @@ objects:
     key-vault-name: ${KEY_VAULT_NAME}
     fpa-cert-name: ${FIRST_PARTY_APP_CERTIFICATE_NAME}
     fpa-client-id: ${FPA_CLIENT_ID}
+    fpa-check-access-cert-name: ${FIRST_PARTY_CHECK_ACCESS_APP_CERTIFICATE_NAME}
+    fpa-check-access-client-id: ${FPA_CHECK_ACCESS_CLIENT_ID}
     arm-helper-cert-name: ${ARM_HELPER_CERTIFICATE_NAME}
     arm-helper-client-id: ${ARM_HELPER_CLIENT_ID}
     arm-helper-mock-fpa-principal-id: ${ARM_HELPER_MOCK_FPA_PRINCIPAL_ID}
