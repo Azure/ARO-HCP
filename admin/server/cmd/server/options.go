@@ -177,8 +177,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		kustoClient = client
 	}
 
-	// Create FPA TokenCredentials
-	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(ctx, logger, o.FpaClientID, o.FpaCertBundlePath, azcore.ClientOptions{}, 30*time.Minute)
+	// Create FPA TokenCredentials with watching and caching
+	certReader, err := fpa.NewWatchingFileCertificateReader(ctx, o.FpaCertBundlePath, 30*time.Minute, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create certificate reader: %w", err)
+	}
+
+	fpaCredentialRetriever, err := fpa.NewFirstPartyApplicationTokenCredentialRetriever(logger, o.FpaClientID, certReader, azcore.ClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the FPA token credentials: %w", err)
 	}
