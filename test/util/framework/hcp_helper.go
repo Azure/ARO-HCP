@@ -183,7 +183,11 @@ func UpdateHCPCluster(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.HcpOpenShiftClustersClientUpdateResponse:
-		// Make sure the operation result content matches the current cluster model.
+		// Verify the operationResult content matches the current cluster model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
 		expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
 		if err != nil {
 			return nil, err
@@ -328,7 +332,11 @@ func CreateOrUpdateExternalAuthAndWait(
 
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.ExternalAuthsClientCreateOrUpdateResponse:
-		// Make sure the operation result content matches the current external auth model.
+		// Verify the operationResult content matches the current external auth model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
 		expect, err := GetExternalAuth(ctx, externalAuthClient, resourceGroupName, hcpClusterName, externalAuthName)
 		if err != nil {
 			return nil, err
@@ -476,7 +484,11 @@ func CreateHCPClusterAndWait(
 		}
 		switch m := any(operationResult).(type) {
 		case hcpsdk20240610preview.HcpOpenShiftClustersClientCreateOrUpdateResponse:
-			// Make sure the operation result content matches the current cluster model.
+			// Verify the operationResult content matches the current cluster model.
+			// When an asynchronous operation completes successfully, the RP's result
+			// endpoint for the operation is supposed to respond as though the operation
+			// were completed synchronously. In production, ARM would call this endpoint
+			// automatically. In this context, the poller calls it automatically.
 			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
 			if err != nil {
 				return nil, err
@@ -576,7 +588,11 @@ func CreateNodePoolAndWait(
 	}
 	switch m := any(operationResult).(type) {
 	case hcpsdk20240610preview.NodePoolsClientCreateOrUpdateResponse:
-		// Make sure the operation result content matches the current node pool model.
+		// Verify the operationResult content matches the current node pool model.
+		// When an asynchronous operation completes successfully, the RP's result
+		// endpoint for the operation is supposed to respond as though the operation
+		// were completed synchronously. In production, ARM would call this endpoint
+		// automatically. In this context, the poller calls it automatically.
 		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 		if err != nil {
 			return nil, err
