@@ -274,7 +274,7 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		}
 	}
 
-	if err := api.ApplyRequestBody(request, body, externalNewAuth); err != nil {
+	if err := api.ApplyRequestBody(request.Method, body, externalNewAuth); err != nil {
 		return err
 	}
 

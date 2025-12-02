@@ -359,30 +359,25 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
-func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
-	logger := LoggerFromContext(ctx)
-
+func (f *Frontend) GetInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
 		return nil, arm.NewResourceNotFoundError(resourceID)
 	}
 	if err != nil {
-		logger.Error(err.Error())
-		return nil, arm.NewInternalServerError()
+		return nil, err
 	}
 
 	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err.Error())
 		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 	}
 
-	externalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
+	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
+	internalCluster, err = mergeToInternalCluster(csCluster, internalCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		return nil, arm.NewInternalServerError()
+		return nil, err
 	}
 
-	return externalCluster, nil
+	return internalCluster, nil
 }

@@ -774,9 +774,10 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	return nil
 }
 
-// mergeToExternalCluster renders a CS Cluster object in JSON format, applying
+// mergeToInternalCluster renders a CS Cluster object in JSON format, applying
 // the necessary conversions for the API version of the request.
-func mergeToExternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
+// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
+func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
 	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
 	if err != nil {
 		return nil, err
@@ -795,7 +796,7 @@ func mergeToExternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
 	}
 
-	return versionedInterface.NewHCPOpenShiftCluster(clusterServiceBasedInternalCluster), nil
+	return clusterServiceBasedInternalCluster, nil
 }
 
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
@@ -943,11 +944,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
-		resultingExternalCluster, err := f.GetExternalClusterFromStorage(ctx, cosmosOperation.ExternalID, versionedInterface)
+		resultingInternalCluster, err := f.GetInternalClusterFromStorage(ctx, cosmosOperation.ExternalID)
 		if err != nil {
 			return err
 		}
-		responseBody, err = arm.MarshalJSON(resultingExternalCluster)
+		responseBody, err = arm.MarshalJSON(versionedInterface.NewHCPOpenShiftCluster(resultingInternalCluster))
 		if err != nil {
 			return err
 		}

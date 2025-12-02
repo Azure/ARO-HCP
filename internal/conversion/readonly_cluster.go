@@ -19,13 +19,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
-	// the old code appeared to shallow copies only
-
+func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
+	dest.Location = src.Location
 	dest.SystemData = src.SystemData
+}
+
+func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
+	// the old code appeared to shallow copies only
+	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:

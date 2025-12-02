@@ -283,7 +283,7 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		}
 	}
 
-	if err := api.ApplyRequestBody(request, body, externalNewNodePool); err != nil {
+	if err := api.ApplyRequestBody(request.Method, body, externalNewNodePool); err != nil {
 		return err
 	}
 
