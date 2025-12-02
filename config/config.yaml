@@ -260,6 +260,19 @@ defaults:
       registry: quay.io
       repository: prometheus/blackbox-exporter
       digest: sha256:b04a9fef4fa086a02fc7fcd8dcdbc4b7b35cc30cdee860fdc6a19dd8b208d63e
+  velero:
+    server:
+      registry: quay.io
+      repository: konveyor/velero
+      digest: sha256:a23111a98c9a7e99ce7a36e2a9288614dcfe13cd5ec9ac2bcf52c849772b160a
+    azurePlugin:
+      registry: quay.io
+      repository: konveyor/velero-plugin-for-microsoft-azure
+      digest: sha256:94cab84a1396a14be5eabb694ac0f80ce20fbb186cb7e708afb5941cb0b810e3
+    hypershiftPlugin:
+      registry: quay.io
+      repository: redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main
+      digest: sha256:adb840bf3890b4904a8cdda1a74c82cf8d96c52eba9944ac10e795335d6fd450
   # SVC cluster specifics
   svc:
     subscription:

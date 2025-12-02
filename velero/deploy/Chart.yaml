@@ -1,0 +1,10 @@
+apiVersion: v2
+appVersion: 99.0.0
+description: A Helm chart for deploying Velero with HCP backup configuration
+name: velero-hcp
+type: application
+version: 99.0.0
+dependencies:
+- name: velero
+  version: 8.1.0
+  repository: https://vmware-tanzu.github.io/helm-charts

@@ -1,0 +1,90 @@
+# Velero HCP deployment values
+# These values are templated by the pipeline
+# Azure configuration
+azureCloud: AzurePublicCloud
+tenantId: "__tenantId__"
+subscriptionId: "__subscriptionId__"
+clientId: "__veleroMsiClientId__"
+resourceGroup: "{{ .mgmt.rg }}"
+bucket: "{{ .mgmt.hcpBackups.storageAccountContainerName }}"
+storageAccount: "__storageAccountName__"
+# Image registry (ACR)
+imageRegistry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+# Image pull binding
+pullBinding:
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__imagePullerMsiTenantId__"
+# Velero images
+veleroServer:
+  repository: "{{ .velero.server.repository }}"
+  digest: "{{ .velero.server.digest }}"
+azurePlugin:
+  repository: "{{ .velero.azurePlugin.repository }}"
+  digest: "{{ .velero.azurePlugin.digest }}"
+hypershiftPlugin:
+  repository: "{{ .velero.hypershiftPlugin.repository }}"
+  digest: "{{ .velero.hypershiftPlugin.digest }}"
+# Velero Helm chart values (passed to subchart)
+velero:
+  image:
+    repository: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/{{ .velero.server.repository }}"
+    digest: "{{ .velero.server.digest }}"
+  # Disable CRD upgrade job - we apply CRDs directly via templates
+  upgradeCRDs: false
+  cleanUpCRDs: false
+  # Use existing service account (created by template)
+  serviceAccount:
+    server:
+      create: false
+      name: velero
+  # Plugins configuration
+  initContainers:
+  - name: velero-plugin-for-microsoft-azure
+    image: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/{{ .velero.azurePlugin.repository }}@{{ .velero.azurePlugin.digest }}"
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - mountPath: /target
+      name: plugins
+  - name: hypershift-oadp-plugin
+    image: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}/{{ .velero.hypershiftPlugin.repository }}@{{ .velero.hypershiftPlugin.digest }}"
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - mountPath: /target
+      name: plugins
+  podLabels:
+    azure.workload.identity/use: "true"
+  nodeSelector:
+    aro-hcp.azure.com/role: infra
+  tolerations:
+  - key: "infra"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+  credentials:
+    useSecret: true
+    existingSecret: cloud-credentials-azure
+  # Backup storage location configuration
+  configuration:
+    backupStorageLocation:
+    - name: default
+      provider: azure
+      bucket: "{{ .mgmt.hcpBackups.storageAccountContainerName }}"
+      prefix: velero
+      config:
+        resourceGroup: "{{ .mgmt.rg }}"
+        storageAccount: "__storageAccountName__"
+        subscriptionId: "__subscriptionId__"
+    volumeSnapshotLocation:
+    - name: default
+      provider: azure
+      config:
+        subscriptionId: "__subscriptionId__"
+    # Features
+    features: EnableCSI
+    # Uploader type for file system backups
+    uploaderType: kopia
+  # Node agent (for file system backups with Kopia)
+  deployNodeAgent: true
+  nodeAgent:
+    podLabels:
+      azure.workload.identity/use: "true"
