@@ -50,9 +50,11 @@ type QueryOptions struct {
 func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, table := range servicesTables {
-		query := kusto.NewConfigurableQuery(table, servicesDatabase).
-			WithTable(table).
-			WithDefaultFields()
+		query := kusto.NewConfigurableQuery(table, servicesDatabase)
+		if opts.Limit < 0 {
+			query.WithNoTruncation()
+		}
+		query.WithTable(table).WithDefaultFields()
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
@@ -67,9 +69,11 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewConfigurableQuery("hostedControlPlaneLogs", hostedControlPlaneLogsDatabase).
-			WithTable(containerLogsTable).
-			WithDefaultFields()
+		query := kusto.NewConfigurableQuery("hostedControlPlaneLogs", hostedControlPlaneLogsDatabase)
+		if opts.Limit < 0 {
+			query.WithNoTruncation()
+		}
+		query.WithTable(containerLogsTable).WithDefaultFields()
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterId(clusterId)

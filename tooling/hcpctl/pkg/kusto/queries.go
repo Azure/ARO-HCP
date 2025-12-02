@@ -53,6 +53,11 @@ func (q *ConfigurableQuery) WithClusterId(clusterId string) *ConfigurableQuery {
 	return q
 }
 
+func (q *ConfigurableQuery) WithNoTruncation() *ConfigurableQuery {
+	q.Query.AddLiteral("set notruncation;\n")
+	return q
+}
+
 func (q *ConfigurableQuery) WithLimit(limit int) *ConfigurableQuery {
 	q.Query.AddLiteral("\n| limit ").AddInt(int32(limit))
 	return q
