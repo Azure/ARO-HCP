@@ -69,6 +69,7 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 }
 
 func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string, client *azcontainerregistry.Client) ([]Tag, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	var allTags []Tag
 
 	pager := client.NewListTagsPager(repository, nil)
@@ -79,8 +80,10 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 		pageCount++
 		pageResp, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get ACR tags page %d: %w", pageCount, err)
+			return nil, fmt.Errorf("failed to get ACR tags page %d for repository %s: %w", pageCount, repository, err)
 		}
+
+		logger.V(1).Info("fetched ACR tags page", "repository", repository, "page", pageCount, "tagsInPage", len(pageResp.Tags))
 
 		for _, tagAttributes := range pageResp.Tags {
 			if tagAttributes.Name == nil {
@@ -122,15 +125,22 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	logger.V(1).Info("fetching tags from ACR", "registry", c.registryURL, "repository", repository)
+
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
+	logger.V(1).Info("fetched tags from ACR", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
+
 	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
+		logger.Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags))
 		return nil, err
 	}
+
+	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	client := c.getClient()
 

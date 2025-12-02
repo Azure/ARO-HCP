@@ -55,17 +55,17 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request registry API: %w", err)
+		return nil, fmt.Errorf("failed to request registry API (url: %s): %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
+		return nil, fmt.Errorf("registry API returned status %d for repository %s (url: %s)", resp.StatusCode, repository, url)
 	}
 
 	var tagsResp dockerRegistryTagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode registry API response: %w", err)
+		return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", url, err)
 	}
 
 	var allTags []Tag
@@ -84,10 +84,14 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	logger.V(1).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
+
 	allTags, err := c.getAllTags(repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
+
+	logger.V(1).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
 
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
@@ -119,8 +123,11 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	tags, err := PrepareTagsForArchValidation(enrichedTags, repository, tagPattern)
 	if err != nil {
+		logger.Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(enrichedTags))
 		return nil, err
 	}
+
+	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	for _, tag := range tags {
 		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))

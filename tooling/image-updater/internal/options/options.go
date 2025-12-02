@@ -34,6 +34,7 @@ type RawUpdateOptions struct {
 	ForceUpdate       bool
 	Components        string
 	ExcludeComponents string
+	Verbose           int // 0 = normal, 1 = verbose, 2 = debug
 }
 
 // ValidatedUpdateOptions contains validated configuration and inputs
@@ -58,6 +59,7 @@ func BindUpdateOptions(opts *RawUpdateOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.ForceUpdate, "force", false, "Force update even if digests match (useful for regenerating version tag comments)")
 	cmd.Flags().StringVar(&opts.Components, "components", "", "Update only specified components (comma-separated, e.g., 'maestro,arohcpfrontend'). If not specified, all components will be updated")
 	cmd.Flags().StringVar(&opts.ExcludeComponents, "exclude-components", "", "Exclude specified components from update (comma-separated, e.g., 'arohcpfrontend,arohcpbackend'). Ignored if --components is specified")
+	cmd.Flags().CountVarP(&opts.Verbose, "verbose", "v", "Increase verbosity (-v for verbose, -vv for debug)")
 
 	if err := cmd.MarkFlagRequired("config"); err != nil {
 		return err

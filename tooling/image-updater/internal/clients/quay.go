@@ -155,18 +155,18 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 
 		resp, err := c.httpClient.Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to request Quay.io API page %d: %w", page, err)
+			return nil, fmt.Errorf("failed to request Quay.io API page %d (url: %s): %w", page, url, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return nil, fmt.Errorf("quay.io API returned status %d for repository %s (page %d)", resp.StatusCode, repository, page)
+			return nil, fmt.Errorf("quay.io API returned status %d for repository %s (page %d, url: %s)", resp.StatusCode, repository, page, url)
 		}
 
 		var tagsResp quayTagsResponse
 		if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
 			resp.Body.Close()
-			return nil, fmt.Errorf("failed to decode Quay.io API response (page %d): %w", page, err)
+			return nil, fmt.Errorf("failed to decode Quay.io API response (page %d, url: %s): %w", page, url, err)
 		}
 		resp.Body.Close()
 
@@ -201,21 +201,21 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) 
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+			return nil, fmt.Errorf("failed to create request (page %d): %w", pageCount, err)
 	}
 
 	if err := c.addAuth(req, repository); err != nil {
-		return nil, fmt.Errorf("failed to add authentication: %w", err)
+			return nil, fmt.Errorf("failed to add authentication (page %d): %w", pageCount, err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request registry API: %w", err)
+			return nil, fmt.Errorf("failed to request registry API (page %d): %w", pageCount, err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
+			resp.Body.Close()
+			return nil, fmt.Errorf("registry API returned status %d for repository %s (page %d)", resp.StatusCode, repository, pageCount)
 	}
 
 	var tagsResp struct {
@@ -242,15 +242,22 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
+	logger.V(1).Info("fetching tags from Quay", "repository", repository, "useAuth", c.useAuth)
+
 	allTags, err := c.getAllTags(repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
+	logger.V(1).Info("fetched tags from Quay", "repository", repository, "totalTags", len(allTags))
+
 	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
+		logger.Error(err, "failed to prepare tags for arch validation", "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags))
 		return nil, err
 	}
+
+	logger.V(1).Info("filtered tags by pattern", "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
