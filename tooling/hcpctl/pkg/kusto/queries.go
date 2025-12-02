@@ -43,12 +43,12 @@ func (q *ConfigurableQuery) WithTable(tableName string) *ConfigurableQuery {
 }
 
 func (q *ConfigurableQuery) WithDefaultFields() *ConfigurableQuery {
-	q.Query.AddLiteral("\n| project timestamp, log, cluster, namespace, containerName")
+	q.Query.AddLiteral("\n| project timestamp, log, cluster, namespace_name, container_name")
 	return q
 }
 
 func (q *ConfigurableQuery) WithClusterId(clusterId string) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where namespace has clusterId")
+	q.Query.AddLiteral("\n| where namespace_name has clusterId")
 	q.Parameters.AddString("clusterId", clusterId)
 	return q
 }
@@ -89,7 +89,7 @@ func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup st
 
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
-		Database:   "HCPServiceLogs",
+		Database:   "ServiceLogs",
 		Query:      builder,
 		Parameters: parameters,
 	}
@@ -114,7 +114,7 @@ func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []s
 
 	return &ConfigurableQuery{
 		Name:       "KubeSystem Service Logs",
-		Database:   "HCPServiceLogs",
+		Database:   "HostedControlPlaneLogs",
 		Query:      builder,
 		Parameters: parameters,
 	}

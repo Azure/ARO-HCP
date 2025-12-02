@@ -20,13 +20,13 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
-var servicesDatabase = "HCPServiceLogs"
-var customerLogsDatabase = "HCPCustomerLogs"
+var servicesDatabase = "ServiceLogs"
+var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
 var servicesTables = []string{
 	"containerLogs",
-	"frontendContainerLogs",
-	"backendContainerLogs",
+	"frontendLogs",
+	"backendLogs",
 }
 
 var containerLogsTable = servicesTables[0]
@@ -63,7 +63,7 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewConfigurableQuery("customerLogs", customerLogsDatabase).
+		query := kusto.NewConfigurableQuery("hostedControlPlaneLogs", hostedControlPlaneLogsDatabase).
 			WithTable(containerLogsTable).
 			WithDefaultFields()
 
