@@ -77,7 +77,7 @@ func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterI
 	return q
 }
 
-func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
+func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
 	builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
 	builder.AddLiteral("\n| extend cid=extract(@\"cid='([a-v0-9]{32})'\", 1, tostring(log))")
@@ -89,7 +89,7 @@ func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup st
 
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
-		Database:   "ServiceLogs",
+		Database:   database,
 		Query:      builder,
 		Parameters: parameters,
 	}
@@ -114,7 +114,7 @@ func NewKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []s
 
 	return &ConfigurableQuery{
 		Name:       "KubeSystem Service Logs",
-		Database:   "HostedControlPlaneLogs",
+		Database:   "HCPServiceLogs",
 		Query:      builder,
 		Parameters: parameters,
 	}

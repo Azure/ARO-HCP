@@ -23,6 +23,8 @@ import (
 var servicesDatabase = "ServiceLogs"
 var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
 
+var servicesDatabaseLegacy = "HCPServiceLogs"
+
 var servicesTables = []string{
 	"containerLogs",
 	"frontendLogs",
@@ -80,7 +82,7 @@ func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuer
 }
 
 func getClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery(containerLogsTable, subscriptionId, resourceGroupName)
+	return kusto.NewClusterIdQuery(servicesDatabase, containerLogsTable, subscriptionId, resourceGroupName)
 }
 
 func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {
@@ -107,7 +109,7 @@ type KubesystemLogsRow struct {
 }
 
 func getKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery("kubesystem", subscriptionId, resourceGroupName)
+	return kusto.NewClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
 }
 
 func getKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {
