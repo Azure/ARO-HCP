@@ -13,14 +13,20 @@ images:
   hypershift:
     source:
       image: quay.io/acm-d/rhtap-hypershift-operator
-      tagPattern: "^sha256-[a-f0-9]{64}$"
+      tagPattern: "^[a-f0-9]{7}$"
       multiArch: true # Use multi-arch manifest
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.environments.cspr.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
     - jsonPath: clouds.dev.environments.pers.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
-  # PKO images
+    - jsonPath: clouds.dev.environments.prow.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+  # PKO imagess
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
