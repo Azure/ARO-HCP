@@ -28,6 +28,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 )
 
+const (
+	// quayPageSize is the number of tags to fetch per page from Quay API
+	quayPageSize = 100
+)
+
 // QuayClient provides methods to interact with Quay.io
 // Note: For private repositories, this client falls back to using the Docker Registry V2 API
 // instead of Quay's proprietary API, as the latter requires different credentials
@@ -236,7 +241,7 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 		default:
 		}
 
-		url := fmt.Sprintf("%s/repository/%s/tag?page=%d", c.baseURL, repository, page)
+		url := fmt.Sprintf("%s/repository/%s/tag?page=%d&limit=%d", c.baseURL, repository, page, quayPageSize)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
@@ -259,6 +264,8 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 			return nil, fmt.Errorf("failed to decode Quay.io API response (page %d, url: %s): %w", page, url, err)
 		}
 		resp.Body.Close()
+
+		logger.V(1).Info("fetched page", "page", page, "repository", repository, "tags", len(tagsResp.Tags))
 
 		for _, quayTag := range tagsResp.Tags {
 			timestamp, err := ParseTimestamp(quayTag.LastModified)
