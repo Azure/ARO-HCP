@@ -33,7 +33,7 @@ import (
 )
 
 var ServicesLogDirectory = "service"
-var HostedControlPlaneLogDirectory = "host-control-plane"
+var HostedControlPlaneLogDirectory = "hosted-control-plane"
 
 var OptionsOutputFile = "options.json"
 
@@ -80,8 +80,8 @@ and collecting diagnostic data for troubleshooting and analysis.`,
 type NormalizedLogLine struct {
 	Log           []byte    `kusto:"log"`
 	Cluster       string    `kusto:"cluster"`
-	Namespace     string    `kusto:"namespace"`
-	ContainerName string    `kusto:"containerName"`
+	Namespace     string    `kusto:"namespace_name"`
+	ContainerName string    `kusto:"container_name"`
 	Timestamp     time.Time `kusto:"timestamp"`
 }
 

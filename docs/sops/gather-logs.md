@@ -8,6 +8,10 @@ The must-gather commands are designed to collect and process diagnostic data fro
 
 ## Commands
 
+### 0. query
+
+The `query` command is supported in the Kusto instances owned by SLSRE, currently this can be used with dev and int clusters. Prod is work in progress. The difference is simply to use `must-gather query` instead of `must-gather legacy-query`, all the rest works the same.
+
 ### 1. legacy-query
 
 The `legacy-query` command executes preconfigured queries against Azure Data Explorer clusters using the `akskubesystem` table. This is legacy, cause it uses the ARO Classic table schema and is planned to replace with HCP specific schema/cli in the future.
@@ -109,6 +113,8 @@ The command creates the following directory structure:
 #### Handling large data
 
 Kusto has limits for what a query can return, in order to overcome these, you can check the `json` files created. These contain information on the datasize queried. You can then use the `limit` and `timestamp` parameters to reduce the number of log rows gathered. These filters are applied per query.
+
+Alternatively you can disable limits, by setting `limit` to `-1`. Caution watch the query size, if it is taking very long (i.e. more than five minutes) reduce the window by setting a limit and/or timestamps.
 
 ### 2. clean
 
