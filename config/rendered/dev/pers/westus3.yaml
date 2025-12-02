@@ -313,9 +313,9 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides=true
   image:
-    digest: sha256:838795c23edf143ea7c003010bd7e249743758aa8e24ba445d44599675586186
+    digest: sha256:52a1e3f00873348dc8e0de2a00ff22bb9b0dd13d02836b0e0285aa00b26432b3
     registry: quay.io
-    repository: acm-d/rhtap-hypershift-operator
+    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
   sharedIngressIPTag: ""
 imageSync:
