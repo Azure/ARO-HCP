@@ -8,6 +8,10 @@ The must-gather commands are designed to collect and process diagnostic data fro
 
 ## Commands
 
+### 0. query
+
+The `query` command is supported in the Kusto instances owned by SLSRE, currently this can be used with dev and int clusters. Prod is work in progress. The difference is simply to use `must-gather query` instead of `must-gather legacy-query`, all the rest works the same.
+
 ### 1. legacy-query
 
 The `legacy-query` command executes preconfigured queries against Azure Data Explorer clusters using the `akskubesystem` table. This is legacy, cause it uses the ARO Classic table schema and is planned to replace with HCP specific schema/cli in the future.

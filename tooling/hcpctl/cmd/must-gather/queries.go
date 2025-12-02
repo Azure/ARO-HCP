@@ -54,7 +54,9 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
-		query.WithLimit(opts.Limit)
+		if opts.Limit > 0 {
+			query.WithLimit(opts.Limit)
+		}
 		queries = append(queries, query)
 	}
 	return queries
@@ -69,7 +71,9 @@ func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuer
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterId(clusterId)
-		query.WithLimit(opts.Limit)
+		if opts.Limit > 0 {
+			query.WithLimit(opts.Limit)
+		}
 		queries = append(queries, query)
 	}
 	return queries
