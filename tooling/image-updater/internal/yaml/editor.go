@@ -30,6 +30,7 @@ type Update struct {
 	OldDigest string // Current digest value
 	NewDigest string // New digest value
 	Tag       string // Image tag (e.g., "v1.2.3")
+	Date      string // Image creation date (e.g., "2025-11-24 14:30")
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
 	Line      int    // Line number in the file
@@ -153,9 +154,13 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
 			}
 
-			// Add the tag comment
+			// Add the tag and date comment
 			if updates[updateIndex].Tag != "" {
-				line = line + " # " + updates[updateIndex].Tag
+				comment := updates[updateIndex].Tag
+				if updates[updateIndex].Date != "" {
+					comment = comment + " (" + updates[updateIndex].Date + ")"
+				}
+				line = line + " # " + comment
 			}
 			updateIndex++
 		}

@@ -186,11 +186,18 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		return true, nil
 	}
 
+	// Format the date as YYYY-MM-DD HH:MM if available
+	dateStr := ""
+	if !tag.LastModified.IsZero() {
+		dateStr = tag.LastModified.Format("2006-01-02 15:04")
+	}
+
 	u.Updates[target.FilePath] = append(u.Updates[target.FilePath], yaml.Update{
 		Name:      name,
 		NewDigest: newDigest,
 		OldDigest: currentDigest,
 		Tag:       tag.Name,
+		Date:      dateStr,
 		JsonPath:  target.JsonPath,
 		FilePath:  target.FilePath,
 		Line:      line,
