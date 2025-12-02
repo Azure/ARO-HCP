@@ -86,7 +86,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = deploymentResp.PollUntilDone(ctx, nil)
+			_, err = deploymentResp.PollUntilDone(deploymentCtx, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			expectedExternalAuth := hcpsdk.ExternalAuth{
