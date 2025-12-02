@@ -13,6 +13,7 @@ The image-updater supports multiple container registry types with optimized clie
 
 ## Key Features
 
+### Registry Support
 - **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
 - **Anonymous by Default**: No authentication required for public registries (MCR, Docker Hub, public Quay.io)
 - **Opt-in Authentication**: Explicitly enable authentication only for private registries
@@ -21,6 +22,13 @@ The image-updater supports multiple container registry types with optimized clie
 - **Architecture-Aware**: Automatically filters images by architecture (defaults to amd64)
 - **Multi-Registry Client**: Automatically selects the appropriate client based on registry URL
 - **Flexible Digest Format**: Supports both `.digest` fields (with `sha256:` prefix) and `.sha` fields (hash only)
+
+### Reliability & Performance
+- **Automatic Retry Logic**: Exponential backoff retry for transient network errors and server failures (5xx, 429)
+- **Context Cancellation Support**: Proper context propagation for graceful shutdown and timeout handling
+- **Enhanced Logging**: Detailed structured logging with verbosity levels for debugging and monitoring
+- **Optimized Pagination**: Configurable page size (100 tags/page) for efficient bulk tag fetching from Quay.io
+- **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
 
 ## Managed Images
 
@@ -56,7 +64,30 @@ make update
 
 # Update all components except specific ones
 ./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
+
+# Enable verbose logging for debugging (shows retry attempts, detailed operations)
+./image-updater update --config config.yaml -v=1
+
+# Maximum verbosity (shows all debug details including HTTP requests)
+./image-updater update --config config.yaml -v=2
 ```
+
+## Output Format
+
+When the tool updates image digests in YAML files, it automatically adds inline comments with version tag and timestamp information:
+
+```yaml
+defaults:
+  pko:
+    imagePackage:
+      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
+```
+
+This helps track:
+- **Tag name**: The version or tag name (e.g., `v1.18.4`)
+- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
+
+The comments are automatically generated and updated each time the tool runs.
 
 ## Configuration
 
@@ -345,6 +376,7 @@ Flags:
       --dry-run                   Preview changes without modifying files
       --components string         Comma-separated list of components to update (optional)
       --exclude-components string Comma-separated list of components to exclude (optional)
+  -v, --verbosity int             Log verbosity level: 0=info (default), 1=debug, 2=trace
 ```
 
 **Component Filtering**:
@@ -353,6 +385,24 @@ Flags:
 - Use `--exclude` to update all images except specific ones: `--exclude arohcpfrontend,arohcpbackend`
 - If `--components` is specified, `--exclude` is ignored
 - If neither is specified, all images are updated
+
+**Logging Verbosity Levels**:
+
+- **Level 0** (default): Info-level logging - shows high-level operations and results
+  - Component updates, digest changes, file modifications
+  - Errors and warnings
+- **Level 1** (debug): Adds detailed operation logs
+  - Registry API calls and responses
+  - Retry attempts with backoff durations
+  - Tag filtering and architecture validation steps
+  - Key Vault authentication details
+- **Level 2** (trace): Maximum verbosity for troubleshooting
+  - HTTP request/response details
+  - Individual tag inspection operations
+  - Manifest fetching and parsing details
+  - Docker config merging operations
+
+Use higher verbosity levels when debugging authentication issues, tag filtering problems, or transient network failures.
 
 ## Configuration Reference
 
@@ -385,9 +435,55 @@ Flags:
 | `jsonPath` | string | Yes | Dot-notation path to digest field (e.g., `defaults.image.digest` or `defaults.image.sha`) |
 
 **Note on digest vs sha fields:**
+
 - Fields ending with `.digest` will store the full digest including the `sha256:` prefix
 - Fields ending with `.sha` will store only the hash value without the `sha256:` prefix
 - This allows the tool to work with different configuration formats that have different digest field conventions
+
+## Reliability Features
+
+### Automatic Retry with Exponential Backoff
+
+The image-updater implements robust retry logic to handle transient failures gracefully:
+
+**Configuration** (default values):
+
+- **Initial Interval**: 500ms - Starting delay before first retry
+- **Max Interval**: 60s - Maximum delay between retries
+- **Max Elapsed Time**: 5 minutes - Total time before giving up
+- **Multiplier**: 2.0 - Exponential backoff multiplier
+- **Randomization Factor**: 0.1 - Jitter to prevent thundering herd
+
+**Retryable Scenarios**:
+
+- Network errors (connection failures, timeouts)
+- HTTP 5xx server errors
+- HTTP 429 (rate limiting)
+
+**Registry Support**:
+
+- **Quay.io**: Retry on API calls and Registry V2 API requests
+- **Generic Registries**: Retry on all HTTP requests
+- **ACR**: Uses Azure SDK's built-in retry mechanisms
+
+**Logging**:
+
+- Logs each retry attempt with backoff duration
+- Logs final failure after all retries exhausted
+
+### Context Cancellation
+
+All registry operations support context cancellation for:
+
+- Graceful shutdown on interrupt signals (Ctrl+C)
+- Timeout enforcement for long-running operations
+- Proper cleanup of resources (HTTP connections, etc.)
+
+Context is propagated through all layers:
+
+- Registry client operations
+- HTTP requests with retry logic
+- Tag fetching and manifest inspection
 
 ## How It Works
 
@@ -398,12 +494,15 @@ Flags:
    - Merges credentials with local `~/.docker/config.json`
 
 2. **Registry Client Selection**: Automatically selects the appropriate client based on registry URL:
-   - `quay.io` → QuayClient (uses Quay API)
+   - `quay.io` → QuayClient (uses Quay API with 100 tags/page pagination)
    - `*.azurecr.io` → ACRClient (uses Azure SDK)
    - `mcr.microsoft.com` → GenericRegistryClient (uses Docker Registry HTTP API v2)
    - Others → GenericRegistryClient (uses Docker Registry HTTP API v2)
 
-3. **Tag Discovery**: Fetches all tags from the registry and filters by `tagPattern` (if specified)
+3. **Tag Discovery** (with retry logic):
+   - Fetches all tags from the registry with automatic retries on failures
+   - Filters by `tagPattern` (if specified)
+   - Enriches tags with timestamps for proper sorting (both Quay API and Registry V2 API)
 
 4. **Architecture Validation**:
    - For single-arch mode: Inspects each tag to find matching architecture and OS
@@ -411,7 +510,9 @@ Flags:
 
 5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
 
-6. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
+6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp (e.g., `# v1.2.3 (2025-11-24 14:30)`)
+
+7. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
 
 ## Testing
 
@@ -431,6 +532,7 @@ go test ./internal/options/...
 ```
 
 **Test Coverage**:
+
 - Config parsing and validation: 97.9%
 - Options and Key Vault deduplication: 78.5%
 - YAML editing: 81.9%
@@ -438,6 +540,7 @@ go test ./internal/options/...
 - Client authentication: 18.0%
 
 **Key Test Areas**:
+
 - Per-image Key Vault configuration parsing
 - Docker config merging with Key Vault credentials
 - Key Vault deduplication across multiple images
