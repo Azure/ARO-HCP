@@ -26,9 +26,9 @@ import (
 type HCPOpenShiftCluster struct {
 	arm.TrackedResource
 
-	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty" validate:"required"`
-	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
-	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"   validate:"omitempty"`
+	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
+	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftCluster{}
@@ -49,51 +49,51 @@ func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID uuid.UUID) {
 type HCPOpenShiftClusterCustomerProperties struct {
 	Version                 VersionProfile              `json:"version,omitempty"`
 	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
-	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
+	Network                 NetworkProfile              `json:"network,omitempty"`
 	API                     CustomerAPIProfile          `json:"api,omitempty"`
-	Platform                CustomerPlatformProfile     `json:"platform,omitempty"                visibility:"read create"`
-	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
-	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update" validate:"omitempty,min=0,max=10080"`
-	Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
-	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
+	Platform                CustomerPlatformProfile     `json:"platform,omitempty"`
+	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
+	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
+	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
+	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"       visibility:"read"`
+	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	CosmosUID         string                         `json:"cosmosUID,omitempty"`
-	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
-	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"                 visibility:"read"`
+	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
-	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
+	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create"        validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
-	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	ID           string `json:"id,omitempty"`
+	ChannelGroup string `json:"channelGroup,omitempty"`
 }
 
 // CustomerDNSProfile represents the DNS configuration of the cluster.
 type CustomerDNSProfile struct {
-	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create" validate:"omitempty,dns_rfc1035_label,max=15"`
+	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
 }
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
-	BaseDomain string `json:"baseDomain,omitempty"       visibility:"read"`
+	BaseDomain string `json:"baseDomain,omitempty"`
 }
 
 // NetworkProfile represents a cluster network configuration.
 // Visibility for the entire struct is "read create".
 type NetworkProfile struct {
-	NetworkType NetworkType `json:"networkType,omitempty" validate:"enum_networktype"`
-	PodCIDR     string      `json:"podCidr,omitempty"     validate:"omitempty,cidrv4"`
-	ServiceCIDR string      `json:"serviceCidr,omitempty" validate:"omitempty,cidrv4"`
-	MachineCIDR string      `json:"machineCidr,omitempty" validate:"omitempty,cidrv4"`
-	HostPrefix  int32       `json:"hostPrefix,omitempty"  validate:"omitempty,min=23,max=26"`
+	NetworkType NetworkType `json:"networkType,omitempty"`
+	PodCIDR     string      `json:"podCidr,omitempty"`
+	ServiceCIDR string      `json:"serviceCidr,omitempty"`
+	MachineCIDR string      `json:"machineCidr,omitempty"`
+	HostPrefix  int32       `json:"hostPrefix,omitempty"`
 }
 
 // ServiceProviderConsoleProfile represents a cluster web console configuration.
@@ -104,26 +104,26 @@ type ServiceProviderConsoleProfile struct {
 
 // CustomerAPIProfile represents a cluster API server configuration.
 type CustomerAPIProfile struct {
-	Visibility      Visibility `json:"visibility,omitempty"      visibility:"read create"        validate:"enum_visibility"`
-	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty" visibility:"read create update" validate:"max=500,dive,ipv4|cidrv4"`
+	Visibility      Visibility `json:"visibility,omitempty"`
+	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty"`
 }
 
 type ServiceProviderAPIProfile struct {
-	URL string `json:"url,omitempty"             visibility:"read"`
+	URL string `json:"url,omitempty"`
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
 // Visibility for (almost) the entire struct is "read create".
 type CustomerPlatformProfile struct {
 	ManagedResourceGroup    string                         `json:"managedResourceGroup,omitempty"`
-	SubnetID                string                         `json:"subnetId,omitempty"                                  validate:"required,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	OutboundType            OutboundType                   `json:"outboundType,omitempty"                              validate:"enum_outboundtype"`
-	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"                    validate:"required,resource_id=Microsoft.Network/networkSecurityGroups"`
+	SubnetID                string                         `json:"subnetId,omitempty"`
+	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
+	NetworkSecurityGroupID  string                         `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 }
 
 type ServiceProviderPlatformProfile struct {
-	IssuerURL string `json:"issuerUrl,omitempty"               visibility:"read"`
+	IssuerURL string `json:"issuerUrl,omitempty"`
 }
 
 // Cluster autoscaling configuration
@@ -145,16 +145,16 @@ type EtcdProfile struct {
 // EtcdDataEncryptionProfile represents a data encryption configuration for ETCD.
 // Visibility for the entire struct is "read create".
 type EtcdDataEncryptionProfile struct {
-	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty" validate:"enum_etcddataencryptionkeymanagementmodetype"`
-	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"   validate:"required_if=KeyManagementMode CustomerManaged,excluded_unless=KeyManagementMode CustomerManaged,omitempty"`
+	KeyManagementMode EtcdDataEncryptionKeyManagementModeType `json:"keyManagementMode,omitempty"`
+	CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
 }
 
 // CustomerManagedEncryptionProfile repesents a data encryption configuration for
 // ETCD using customer-managed keys.
 // Visibility for the entire struct is "read create".
 type CustomerManagedEncryptionProfile struct {
-	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty" validate:"enum_customermanagedencryptiontype"`
-	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"            validate:"required_if=EncryptionType KMS,excluded_unless=EncryptionType KMS,omitempty"`
+	EncryptionType CustomerManagedEncryptionType `json:"encryptionType,omitempty"`
+	Kms            *KmsEncryptionProfile         `json:"kms,omitempty"`
 }
 
 // KmsEncryptionProfile represents a data encryption configuration for ETCD using
@@ -167,9 +167,9 @@ type KmsEncryptionProfile struct {
 // KmsKey represents an Azure KeyVault secret.
 // Visibility for the entire struct is "read create".
 type KmsKey struct {
-	Name      string `json:"name"      validate:"required,min=1,max=255"`
-	VaultName string `json:"vaultName" validate:"required,min=1,max=255"`
-	Version   string `json:"version"   validate:"required,min=1,max=255"`
+	Name      string `json:"name"`
+	VaultName string `json:"vaultName"`
+	Version   string `json:"version"`
 }
 
 // OperatorsAuthenticationProfile represents authentication configuration for
@@ -183,9 +183,9 @@ type OperatorsAuthenticationProfile struct {
 // OpenShift operators using user-assigned managed identities.
 // Visibility for the entire struct is "read create".
 type UserAssignedIdentitiesProfile struct {
-	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"  validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"     validate:"dive,keys,required,endkeys,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
-	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty" validate:"omitempty,resource_id=Microsoft.ManagedIdentity/userAssignedIdentities"`
+	ControlPlaneOperators  map[string]string `json:"controlPlaneOperators,omitempty"`
+	DataPlaneOperators     map[string]string `json:"dataPlaneOperators,omitempty"`
+	ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry
@@ -194,7 +194,7 @@ type ClusterImageRegistryProfile struct {
 	// creation and cannot be changed after cluster creation. Enabled means the
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
-	State ClusterImageRegistryProfileState `json:"state,omitempty" validate:"enum_clusterimageregistryprofilestate"`
+	State ClusterImageRegistryProfileState `json:"state,omitempty"`
 }
 
 // Creates an HCPOpenShiftCluster with any non-zero default values.

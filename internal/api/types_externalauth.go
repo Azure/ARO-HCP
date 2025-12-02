@@ -28,8 +28,8 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
-	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties" validate:"required"`
-	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
+	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
@@ -49,23 +49,23 @@ func (o *HCPOpenShiftClusterExternalAuth) SetCosmosDocumentData(cosmosUID uuid.U
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ProvisioningState       `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
-	Condition         ExternalAuthCondition       `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
-	Issuer            TokenIssuerProfile          `json:"issuer"                  visibility:"read create update"       validate:"required"`
-	Clients           []ExternalAuthClientProfile `json:"clients"                 visibility:"read create update"       validate:"omitempty,max=20,dive"`
-	Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"       validate:"required"`
+	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
+	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
+	Issuer            TokenIssuerProfile          `json:"issuer"`
+	Clients           []ExternalAuthClientProfile `json:"clients"`
+	Claim             ExternalAuthClaimProfile    `json:"claim"`
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
 }
 
 // Condition defines an observation of the external auth state.
 // Visibility for the entire struct is "read".
 type ExternalAuthCondition struct {
-	Type               ExternalAuthConditionType `json:"type"               validate:"enum_externalauthconditiontype"`
-	Status             ConditionStatusType       `json:"status"             validate:"enum_externalauthconditionstatustype"`
+	Type               ExternalAuthConditionType `json:"type"`
+	Status             ConditionStatusType       `json:"status"`
 	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
 	Reason             string                    `json:"reason"`
 	Message            string                    `json:"message"`
@@ -76,42 +76,42 @@ type ExternalAuthCondition struct {
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 // Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
-	URL       string   `json:"url"       validate:"required,url,startswith=https://"`
-	Audiences []string `json:"audiences" validate:"required,max=10"`
-	CA        string   `json:"ca"        validate:"omitempty,pem_certificates"`
+	URL       string   `json:"url"`
+	Audiences []string `json:"audiences"`
+	CA        string   `json:"ca"`
 }
 
 // External Auth client profile
 // This configures how on-cluster, platform clients should request tokens from the identity provider.
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClientProfile struct {
-	Component   ExternalAuthClientComponentProfile `json:"component"   validate:"required"`
-	ClientID    string                             `json:"clientId"    validate:"required"`
-	ExtraScopes []string                           `json:"extraScopes" validate:"omitempty"`
-	Type        ExternalAuthClientType             `json:"type"        validate:"required,enum_externalauthclienttype"`
+	Component   ExternalAuthClientComponentProfile `json:"component"`
+	ClientID    string                             `json:"clientId"`
+	ExtraScopes []string                           `json:"extraScopes"`
+	Type        ExternalAuthClientType             `json:"type"`
 }
 
 // External Auth component profile
 // Must have unique namespace/name pairs.
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClientComponentProfile struct {
-	Name                string `json:"name"                validate:"required,max=256"`
-	AuthClientNamespace string `json:"authClientNamespace" validate:"required,max=63"`
+	Name                string `json:"name"`
+	AuthClientNamespace string `json:"authClientNamespace"`
 }
 
 // External Auth claim profile
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClaimProfile struct {
-	Mappings        TokenClaimMappingsProfile  `json:"mappings"        validate:"required"`
-	ValidationRules []TokenClaimValidationRule `json:"validationRules" validate:"omitempty,dive"`
+	Mappings        TokenClaimMappingsProfile  `json:"mappings"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules"`
 }
 
 // External Auth claim mappings profile.
 // At a minimum username or groups must be defined.
 // Visibility for the entire struct is "read create update".
 type TokenClaimMappingsProfile struct {
-	Username UsernameClaimProfile `json:"username" validate:"required"`
-	Groups   *GroupClaimProfile   `json:"groups"   validate:"omitempty"`
+	Username UsernameClaimProfile `json:"username"`
+	Groups   *GroupClaimProfile   `json:"groups"`
 }
 
 // External Auth claim profile
@@ -124,8 +124,8 @@ type TokenClaimMappingsProfile struct {
 //
 // Visibility for the entire struct is "read create update".
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"  validate:"required,max=256"`
-	Prefix string `json:"prefix" validate:"omitempty"`
+	Claim  string `json:"claim"`
+	Prefix string `json:"prefix"`
 }
 
 // External Auth claim profile
@@ -133,23 +133,23 @@ type GroupClaimProfile struct {
 // from the claims in a JWT token issued by the identity provider.
 // Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
-	Claim        string                    `json:"claim"        validate:"required,max=256"`
-	Prefix       string                    `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
-	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicy"`
+	Claim        string                    `json:"claim"`
+	Prefix       string                    `json:"prefix"`
+	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy"`
 }
 
 // External Auth claim validation rule
 // Visibility for the entire struct is "read create update".
 type TokenClaimValidationRule struct {
-	Type          TokenValidationRuleType `json:"type"          validate:"required,enum_tokenvalidationruletyperequiredclaim"`
-	RequiredClaim TokenRequiredClaim      `json:"requiredClaim" validate:"omitempty"`
+	Type          TokenValidationRuleType `json:"type"`
+	RequiredClaim TokenRequiredClaim      `json:"requiredClaim"`
 }
 
 // Token required claim validation rule.
 // Visibility for the entire struct is "read create update".
 type TokenRequiredClaim struct {
-	Claim         string `json:"claim"         validate:"required"`
-	RequiredValue string `json:"requiredValue" validate:"required"`
+	Claim         string `json:"claim"`
+	RequiredValue string `json:"requiredValue"`
 }
 
 func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {
