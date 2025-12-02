@@ -117,6 +117,11 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh && \
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+		--only-show-errors
 	APPLICATION_NAME=aro-hcp-int-msi-mock \
 	KEY_VAULT_NAME=aro-hcp-int-kv \
 	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
@@ -151,6 +156,12 @@ create-mock-identities: configurations/mock-identities.bicepparam
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
+
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+		--only-show-errors
 
 	APPLICATION_NAME=aro-dev-msi-mock2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
