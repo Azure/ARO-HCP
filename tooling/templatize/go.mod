@@ -14,7 +14,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/dusted-go/logging v1.3.0
-	github.com/go-echarts/go-echarts/v2 v2.6.5
+	github.com/go-echarts/go-echarts/v2 v2.6.7
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0

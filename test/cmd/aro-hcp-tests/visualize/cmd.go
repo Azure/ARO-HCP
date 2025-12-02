@@ -16,24 +16,31 @@ package visualize
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/dusted-go/logging/prettylog"
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/azauth"
 )
 
 func NewCommand() (*cobra.Command, error) {
+	var logVerbosity int
+
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:           "visualize",
-		Short:         "Generate visualizations of pipeline or entrypoint execution timing.",
+		Short:         "Generate visualizations of test timing.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			ctx := logr.NewContext(cmd.Context(), createLogger(logVerbosity))
+			cmd.SetContext(ctx)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return Visualize(cmd.Context(), opts)
 		},
 	}
+	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 	if err := BindOptions(opts, cmd); err != nil {
 		return nil, err
 	}
@@ -54,9 +61,17 @@ func Visualize(ctx context.Context, opts *RawOptions) error {
 	if err != nil {
 		return err
 	}
-	err = azauth.SetupAzureAuth(ctx)
-	if err != nil {
-		return err
-	}
 	return completed.Visualize(ctx)
+}
+
+func createLogger(verbosity int) logr.Logger {
+	level := slog.Level(verbosity * -1)
+	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+		Level:       level,
+		AddSource:   false,
+		ReplaceAttr: nil,
+	})
+	slog.SetDefault(slog.New(prettyHandler))
+	slog.SetLogLoggerLevel(level)
+	return logr.FromSlogHandler(prettyHandler)
 }
