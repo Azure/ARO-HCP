@@ -48,7 +48,7 @@ func NewResource(resourceID *azcorearm.ResourceID) Resource {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create nocase" validate:"required"`
+	Location string            `json:"location,omitempty" visibility:"read create nocase"`
 	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
 }
 
