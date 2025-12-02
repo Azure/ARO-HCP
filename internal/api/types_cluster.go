@@ -49,41 +49,41 @@ func (o *HCPOpenShiftCluster) SetCosmosDocumentData(cosmosUID uuid.UUID) {
 type HCPOpenShiftClusterCustomerProperties struct {
 	Version                 VersionProfile              `json:"version,omitempty"`
 	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
-	Network                 NetworkProfile              `json:"network,omitempty"                 visibility:"read create"`
+	Network                 NetworkProfile              `json:"network,omitempty"`
 	API                     CustomerAPIProfile          `json:"api,omitempty"`
-	Platform                CustomerPlatformProfile     `json:"platform,omitempty"                visibility:"read create"`
-	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"             visibility:"read create update"`
-	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
-	Etcd                    EtcdProfile                 `json:"etcd,omitempty"                    visibility:"read create"`
-	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"    visibility:"read create"`
+	Platform                CustomerPlatformProfile     `json:"platform,omitempty"`
+	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
+	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
+	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
+	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"       visibility:"read"`
+	ProvisioningState arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	CosmosUID         string                         `json:"cosmosUID,omitempty"`
-	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string                         `json:"activeOperationId,omitempty"`
 	DNS               ServiceProviderDNSProfile      `json:"dns,omitempty"`
-	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"                 visibility:"read"`
+	Console           ServiceProviderConsoleProfile  `json:"console,omitempty"`
 	API               ServiceProviderAPIProfile      `json:"api,omitempty"`
-	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
+	Platform          ServiceProviderPlatformProfile `json:"platform,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.
 type VersionProfile struct {
-	ID           string `json:"id,omitempty"                visibility:"read create"`
-	ChannelGroup string `json:"channelGroup,omitempty"      visibility:"read create update"`
+	ID           string `json:"id,omitempty"`
+	ChannelGroup string `json:"channelGroup,omitempty"`
 }
 
 // CustomerDNSProfile represents the DNS configuration of the cluster.
 type CustomerDNSProfile struct {
-	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty" visibility:"read create"`
+	BaseDomainPrefix string `json:"baseDomainPrefix,omitempty"`
 }
 
 // ServiceProviderDNSProfile represents the DNS configuration of the cluster.
 type ServiceProviderDNSProfile struct {
-	BaseDomain string `json:"baseDomain,omitempty"       visibility:"read"`
+	BaseDomain string `json:"baseDomain,omitempty"`
 }
 
 // NetworkProfile represents a cluster network configuration.
@@ -104,12 +104,12 @@ type ServiceProviderConsoleProfile struct {
 
 // CustomerAPIProfile represents a cluster API server configuration.
 type CustomerAPIProfile struct {
-	Visibility      Visibility `json:"visibility,omitempty"      visibility:"read create"`
-	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty" visibility:"read create update"`
+	Visibility      Visibility `json:"visibility,omitempty"`
+	AuthorizedCIDRs []string   `json:"authorizedCidrs,omitempty"`
 }
 
 type ServiceProviderAPIProfile struct {
-	URL string `json:"url,omitempty"             visibility:"read"`
+	URL string `json:"url,omitempty"`
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
@@ -123,7 +123,7 @@ type CustomerPlatformProfile struct {
 }
 
 type ServiceProviderPlatformProfile struct {
-	IssuerURL string `json:"issuerUrl,omitempty"               visibility:"read"`
+	IssuerURL string `json:"issuerUrl,omitempty"`
 }
 
 // Cluster autoscaling configuration

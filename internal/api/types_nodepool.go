@@ -51,20 +51,20 @@ func (o *HCPOpenShiftClusterNodePool) SetCosmosDocumentData(cosmosUID uuid.UUID)
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"       visibility:"read"`
+	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
 	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	Platform                NodePoolPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
-	Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update"`
-	AutoRepair              bool                    `json:"autoRepair,omitempty"              visibility:"read create"`
-	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"             visibility:"read create update"`
-	Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update"`
-	Taints                  []Taint                 `json:"taints,omitempty"                  visibility:"read create update"`
-	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
+	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
+	Replicas                int32                   `json:"replicas,omitempty"`
+	AutoRepair              bool                    `json:"autoRepair,omitempty"`
+	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
+	Labels                  map[string]string       `json:"labels,omitempty"`
+	Taints                  []Taint                 `json:"taints,omitempty"`
+	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

@@ -26,10 +26,10 @@ import (
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         *azcorearm.ResourceID `json:"id,omitempty"         visibility:"read nocase"`
-	Name       string                `json:"name,omitempty"       visibility:"read nocase"`
-	Type       string                `json:"type,omitempty"       visibility:"read nocase"`
-	SystemData *SystemData           `json:"systemData,omitempty" visibility:"read"`
+	ID         *azcorearm.ResourceID `json:"id,omitempty"`
+	Name       string                `json:"name,omitempty"`
+	Type       string                `json:"type,omitempty"`
+	SystemData *SystemData           `json:"systemData,omitempty"`
 }
 
 // NewResource returns a Resource initialized from resourceID.
@@ -48,8 +48,8 @@ func NewResource(resourceID *azcorearm.ResourceID) Resource {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty" visibility:"read create nocase"`
-	Tags     map[string]string `json:"tags,omitempty"     visibility:"read create update"`
+	Location string            `json:"location,omitempty"`
+	Tags     map[string]string `json:"tags,omitempty"`
 }
 
 // NewTrackedResource returns a TrackedResource initialized from resourceID.

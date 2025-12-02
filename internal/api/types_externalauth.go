@@ -49,16 +49,16 @@ func (o *HCPOpenShiftClusterExternalAuth) SetCosmosDocumentData(cosmosUID uuid.U
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ProvisioningState       `json:"provisioningState"       visibility:"read"`
-	Condition         ExternalAuthCondition       `json:"condition,omitzero"      visibility:"read"`
-	Issuer            TokenIssuerProfile          `json:"issuer"                  visibility:"read create update"`
-	Clients           []ExternalAuthClientProfile `json:"clients"                 visibility:"read create update"`
-	Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"`
+	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
+	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
+	Issuer            TokenIssuerProfile          `json:"issuer"`
+	Clients           []ExternalAuthClientProfile `json:"clients"`
+	Claim             ExternalAuthClaimProfile    `json:"claim"`
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
 }
 
 // Condition defines an observation of the external auth state.
