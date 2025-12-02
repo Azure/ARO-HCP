@@ -2548,6 +2548,27 @@
         "blackboxExporterImage"
       ]
     },
+    "velero": {
+      "type": "object",
+      "description": "Velero configuration",
+      "properties": {
+        "server": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "azurePlugin": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "hypershiftPlugin": {
+          "$ref": "#/definitions/containerImage"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "server",
+        "azurePlugin",
+        "hypershiftPlugin"
+      ]
+    },
     "logs": {
       "type": "object",
       "additionalProperties": false,

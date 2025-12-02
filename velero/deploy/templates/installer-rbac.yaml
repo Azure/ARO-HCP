@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-installer
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    azure.workload.identity/client-id: '{{ .Values.clientId }}'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: velero-installer
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - secrets
+  - configmaps
+  - serviceaccounts
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  - daemonsets
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources:
+  - clusterroles
+  - clusterrolebindings
+  - roles
+  - rolebindings
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "bind", "escalate"]
+- apiGroups: ["velero.io"]
+  resources:
+  - backupstoragelocations
+  - volumesnapshotlocations
+  - backups
+  - restores
+  - schedules
+  - backuprepositories
+  - deletebackuprequests
+  - downloadrequests
+  - podvolumebackups
+  - podvolumerestores
+  - serverstatusrequests
+  - datauploads
+  - datadownloads
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["snapshot.storage.k8s.io"]
+  resources:
+  - volumesnapshots
+  - volumesnapshotcontents
+  - volumesnapshotclasses
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources:
+  - customresourcedefinitions
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: velero-installer
+subjects:
+- kind: ServiceAccount
+  name: velero-installer
+  namespace: '{{ .Release.Namespace }}'
+roleRef:
+  kind: ClusterRole
+  name: velero-installer
+  apiGroup: rbac.authorization.k8s.io
