@@ -119,10 +119,16 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 }
 
 func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	// Use Docker Registry HTTP API v2 for listing tags
 	url := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request (url: %s): %w", url, err)
+	}
+
+	resp, err := c.doRequestWithRetry(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request registry API (url: %s): %w", url, err)
 	}
@@ -136,6 +142,8 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
 		return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", url, err)
 	}
+
+	logger.V(1).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(tagsResp.Tags))
 
 	var allTags []Tag
 	for _, tagName := range tagsResp.Tags {
@@ -155,27 +163,32 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	logger.V(1).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
 
-	allTags, err := c.getAllTags(repository)
+	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
-
-	logger.V(1).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
 
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
 	// Enrich tags with digest and timestamp information before filtering
 	var enrichedTags []Tag
 	for _, tag := range allTags {
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while enriching tags: %w", ctx.Err())
+		default:
+		}
+
 		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
 		if err != nil {
-			logger.Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
+			logger.V(1).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
 
 		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
-			logger.Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
+			logger.V(1).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
 
@@ -199,6 +212,13 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
 
 	for _, tag := range tags {
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while checking tags: %w", ctx.Err())
+		default:
+		}
+
 		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
 		if err != nil {
 			logger.Error(err, "failed to parse reference", "tag", tag.Name)

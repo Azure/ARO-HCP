@@ -158,6 +158,7 @@ func (c *QuayClient) getBearerToken(repository string, authConfig authn.AuthConf
 
 // doRequestWithRetry performs an HTTP request with exponential backoff retry logic
 // It retries on temporary network errors and 5xx server errors
+// The operation can be cancelled via context (e.g., Ctrl+C)
 func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 	var resp *http.Response
@@ -170,7 +171,17 @@ func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) 
 	expBackoff.Multiplier = c.retryConfig.multiplier
 	expBackoff.RandomizationFactor = c.retryConfig.randomizationFactor
 
+	// Wrap with context to respect cancellation (Ctrl+C)
+	contextBackoff := backoff.WithContext(expBackoff, ctx)
+
 	operation := func() error {
+		// Check if context is already cancelled before making the request
+		select {
+		case <-ctx.Done():
+			return backoff.Permanent(ctx.Err())
+		default:
+		}
+
 		var err error
 		resp, err = c.httpClient.Do(req)
 		if err != nil {
@@ -194,8 +205,11 @@ func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) 
 		logger.Info("retrying request after backoff", "url", req.URL.String(), "error", err.Error(), "backoff", duration.String())
 	}
 
-	// Use backoff.RetryNotify to perform the operation with retries
-	if err := backoff.RetryNotify(operation, expBackoff, notify); err != nil {
+	// Use backoff.RetryNotify with context to respect cancellation
+	if err := backoff.RetryNotify(operation, contextBackoff, notify); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("request cancelled: %w", ctx.Err())
+		}
 		return nil, fmt.Errorf("request failed after retries: %w", err)
 	}
 
@@ -215,6 +229,13 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 	page := 1
 
 	for {
+		// Check if context is cancelled before fetching next page
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while fetching Quay tags: %w", ctx.Err())
+		default:
+		}
+
 		url := fmt.Sprintf("%s/repository/%s/tag?page=%d", c.baseURL, repository, page)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -266,31 +287,33 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 
 // getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
 // This works with Docker credentials and is used for private repositories
-// Note: Docker Registry V2 API uses Link header for pagination but Quay may return all tags in one response
 func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
-	var allTags []Tag
 	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
 
-	for url != "" {
-		pageCount++
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request (page %d): %w", pageCount, err)
+	// Check if context is cancelled
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("operation cancelled while fetching Quay tags via registry API: %w", ctx.Err())
+	default:
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if err := c.addAuth(req, repository); err != nil {
-			return nil, fmt.Errorf("failed to add authentication (page %d): %w", pageCount, err)
+		return nil, fmt.Errorf("failed to add authentication: %w", err)
 	}
 
-		resp, err := c.doRequestWithRetry(ctx, req)
-		if err != nil {
-			return nil, fmt.Errorf("failed to request registry API (page %d): %w", pageCount, err)
+	resp, err := c.doRequestWithRetry(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request registry API: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return nil, fmt.Errorf("registry API returned status %d for repository %s (page %d)", resp.StatusCode, repository, pageCount)
+		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
 	}
 
 	var tagsResp struct {
@@ -305,25 +328,11 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 	for _, tagName := range tagsResp.Tags {
 		tag := Tag{
 			Name: tagName,
-			// Note: Registry V2 API doesn't provide timestamps, they'll be fetched later if needed
+			// Registry V2 API doesn't provide timestamps in tags list
+			// They will be enriched from image config
 			LastModified: time.Time{},
 		}
-		resp.Body.Close()
-
-		for _, tagName := range tagsResp.Tags {
-			tag := Tag{
-				Name: tagName,
-				// Note: Registry V2 API doesn't provide timestamps, they'll be fetched later if needed
-				LastModified: time.Time{},
-			}
-			allTags = append(allTags, tag)
-		}
-
-		// If no Link header or couldn't parse next URL, we're done
-		if nextURL != "" {
-			logger.V(1).Info("fetching next page via registry API", "page", pageCount+1, "repository", repository)
-		}
-		url = nextURL
+		allTags = append(allTags, tag)
 	}
 
 	return allTags, nil
@@ -332,14 +341,14 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	logger.V(1).Info("fetching tags from Quay", "repository", repository, "useAuth", c.useAuth)
+	logger.V(1).Info("fetching tags from Quay", "image", repository, "repository", repository, "useAuth", c.useAuth)
 
 	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
-	logger.V(1).Info("fetched tags from Quay", "repository", repository, "totalTags", len(allTags))
+	logger.V(1).Info("fetched tags from Quay", "image", repository, "repository", repository, "totalTags", len(allTags))
 
 	tags, err := PrepareTagsForArchValidation(allTags, repository, tagPattern)
 	if err != nil {
@@ -352,6 +361,13 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
 	for _, tag := range tags {
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while checking tags: %w", ctx.Err())
+		default:
+		}
+
 		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
 		if err != nil {
 			logger.Error(err, "failed to parse reference", "tag", tag.Name)
@@ -366,7 +382,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 		// If multiArch is requested, return the multi-arch manifest list digest
 		if multiArch && desc.MediaType.IsIndex() {
-			logger.Info("found multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String())
+			logger.Info("found multi-arch manifest", "image", repository, "tag", tag.Name, "mediaType", desc.MediaType, "digest", desc.Digest.String(), "date", tag.LastModified.Format("2006-01-02"))
 			tag.Digest = desc.Digest.String()
 			return &tag, nil
 		}
@@ -397,6 +413,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 				continue
 			}
 			tag.Digest = digest.String()
+			logger.V(1).Info("found matching image", "image", repository, "tag", tag.Name, "arch", arch, "digest", digest.String(), "date", tag.LastModified.Format("2006-01-02"))
 			return &tag, nil
 		}
 

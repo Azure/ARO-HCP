@@ -77,6 +77,13 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 	pageCount := 0
 
 	for pager.More() {
+		// Check if context is cancelled before fetching next page
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while fetching ACR tags: %w", ctx.Err())
+		default:
+		}
+
 		pageCount++
 		pageResp, err := pager.NextPage(ctx)
 		if err != nil {
@@ -100,7 +107,7 @@ func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string,
 
 			tagProps, err := client.GetTagProperties(ctx, repository, *tagAttributes.Name, nil)
 			if err != nil {
-				fmt.Printf("  Warning: Could not get tag properties for %s: %v\n", *tagAttributes.Name, err)
+				logger.V(1).Info("could not get tag properties", "tag", *tagAttributes.Name, "error", err)
 				tag.LastModified = time.Time{}
 			} else {
 				if tagProps.Tag.CreatedOn != nil {
@@ -145,7 +152,14 @@ func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string
 	client := c.getClient()
 
 	for _, tag := range tags {
-		logger.Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while checking tags: %w", ctx.Err())
+		default:
+		}
+
+		logger.V(1).Info("checking tag", "tag", tag.Name, "digest", tag.Digest)
 
 		manifestProps, err := client.GetManifestProperties(ctx, repository, tag.Digest, nil)
 		if err != nil {
