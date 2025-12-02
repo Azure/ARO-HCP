@@ -24,7 +24,8 @@ images:
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.imagePackage.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
@@ -33,7 +34,8 @@ images:
   pko-manager:
     source:
       image: quay.io/package-operator/package-operator-manager
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.imageManager.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
@@ -42,7 +44,8 @@ images:
   pko-remote-phase-manager:
     source:
       image: quay.io/package-operator/remote-phase-manager
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
