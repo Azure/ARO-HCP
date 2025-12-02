@@ -1,0 +1,99 @@
+---
+# Source: hcp-backups/templates/dpa.secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloud-credentials-azure
+  namespace: openshift-adp
+type: Opaque
+stringData:
+  cloud: |-
+    AZURE_SUBSCRIPTION_ID=__subscriptionId__
+    AZURE_TENANT_ID=__tenantId__
+    AZURE_CLIENT_ID=__veleroMsiClientId__
+    AZURE_RESOURCE_GROUP=hcp-underlay-dev-westus3-mgmt-1
+    AZURE_CLOUD_NAME=AzurePublicCloud
+---
+# Source: hcp-backups/templates/cloudstorage.yaml
+apiVersion: oadp.openshift.io/v1alpha1
+kind: CloudStorage
+metadata:
+  name: azure-backup-storage
+  namespace: openshift-adp
+spec:
+  name: backups
+  provider: azure
+  creationSecret:
+    name: cloud-credentials-azure
+    key: cloud
+  config:
+    storageAccount: __storageAccountName__
+---
+# Source: hcp-backups/templates/hcp.dpa.yaml
+apiVersion: oadp.openshift.io/v1alpha1
+kind: DataProtectionApplication
+metadata:
+  name: azure-hypershift-dpa
+  namespace: openshift-adp
+spec:
+  configuration:
+    velero:
+      podConfig:
+        labels:
+          azure.workload.identity/use: "true"
+        nodeSelector:
+          aro-hcp.azure.com/role: infra
+        tolerations:
+        - key: "infra"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      defaultPlugins:
+      - azure
+      - csi
+      customPlugins:
+      - name: hypershift-oadp-plugin
+        image: 'arohcpsvcdev.azurecr.io/redhat-user-workloads/ocp-art-tenant/oadp-hypershift-oadp-plugin-main@sha256:1234567890'
+      featureFlags:
+      - EnableCSI
+    nodeAgent:
+      enable: true
+      uploaderType: kopia
+      podConfig:
+        labels:
+          azure.workload.identity/use: "true"
+  backupLocations:
+  - velero:
+      provider: azure
+      default: true
+      objectStorage:
+        bucket: backups
+        prefix: velero
+      config:
+        resourceGroup: hcp-underlay-dev-westus3-mgmt-1
+        storageAccount: __storageAccountName__
+        subscriptionId: __subscriptionId__
+      credential:
+        name: cloud-credentials-azure
+        key: cloud
+  snapshotLocations:
+  - velero:
+      provider: azure
+      config:
+        subscriptionId: __subscriptionId__
+      credential:
+        name: cloud-credentials-azure
+        key: cloud
+---
+# Source: hcp-backups/templates/volumesnapshotclass.yaml
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: azure-disk-snapclass
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: disk.csi.azure.com
+deletionPolicy: Retain
+parameters:
+  incremental: "true"
+

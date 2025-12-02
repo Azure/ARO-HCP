@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oadp-operator.v99.0-ttqv7joc2p77dedzte9opirl03wybbhw43gwl97wf8y
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oadp-operator.v99.0-ttqv7joc2p77dedzte9opirl03wybbhw43gwl97wf8y
+subjects:
+- kind: ServiceAccount
+  name: openshift-adp-controller-manager
+  namespace: '{{ .Release.Namespace }}'

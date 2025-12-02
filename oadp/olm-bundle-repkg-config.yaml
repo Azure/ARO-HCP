@@ -1,0 +1,110 @@
+# OADP Operator Configuration
+# Configuration for repackaging the OpenShift OADP (API for Data Protection) operator bundle
+chartName: oadp-operator
+chartDescription: A Helm chart for OADP (OpenShift API for Data Protection) Operator
+# Operator deployment identification
+# OADP uses "openshift-adp-controller-manager" as the deployment name
+operatorDeploymentNames:
+- openshift-adp-controller-manager
+# Image environment variable patterns
+# OADP uses RELATED_IMAGE_ prefix for all operand images
+operandImageEnvPrefixes:
+- RELATED_IMAGE_
+# Image registry parameterization
+# Parameterize the registry part of all image references
+imageRegistryParam: imageRegistry
+# Validation requirements
+# Ensure RELATED_IMAGE_ environment variables are present
+requiredEnvVarPrefixes:
+- RELATED_IMAGE_
+# Require essential resources in the bundle
+requiredResources:
+- Deployment
+- ServiceAccount
+# Annotation cleanup patterns
+# Remove OLM and OpenShift specific annotations that aren't needed for Helm deployment
+annotationPrefixesToRemove:
+- openshift.io
+- operatorframework.io
+- olm
+- alm-examples
+- createdAt
+- operators.coreos.com
+# Manifest-level overrides for Azure Workload Identity and namespace handling
+# These automate the manual changes previously documented in MANUAL_CHANGES.md
+manifestOverrides:
+# Override 1: Fix WATCH_NAMESPACE environment variable for Helm deployment
+- selector:
+    kind: Deployment
+    name: openshift-adp-controller-manager
+  operations:
+  # Replace WATCH_NAMESPACE env var to use Helm release namespace
+  - op: replace
+    path: spec.template.spec.containers[name=manager].env[name=WATCH_NAMESPACE]
+    value:
+      name: WATCH_NAMESPACE
+      value: '{{ .Release.Namespace }}'
+  # Add Azure Workload Identity label to pod template
+  - op: add
+    path: spec.template.metadata.labels
+    merge: true
+    value:
+      azure.workload.identity/use: "true"
+  # Parameterize container image
+  - op: replace
+    path: spec.template.spec.containers[name=manager].image
+    value: '{{ .Values.imageRegistry }}/{{ .Values.oadpOperator.repository}}@{{ .Values.oadpOperator.digest }}'
+  # Parameterize RELATED_IMAGE_VELERO
+  - op: replace
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_VELERO].value
+    value: '{{ .Values.imageRegistry }}/{{ .Values.velero.repository }}@{{ .Values.velero.digest }}'
+  # Parameterize RELATED_IMAGE_VELERO_PLUGIN_FOR_MICROSOFT_AZURE
+  - op: replace
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_VELERO_PLUGIN_FOR_MICROSOFT_AZURE].value
+    value: '{{ .Values.imageRegistry }}/{{ .Values.azurePlugin.repository }}@{{ .Values.azurePlugin.digest }}'
+  # Parameterize RELATED_IMAGE_HYPERSHIFT_VELERO_PLUGIN
+  - op: replace
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_HYPERSHIFT_VELERO_PLUGIN].value
+    value: '{{ .Values.imageRegistry }}/{{ .Values.hypershiftPlugin.repository }}@{{ .Values.hypershiftPlugin.digest }}'
+  # Remove values from env vars that should be empty
+  - op: remove
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_OPENSHIFT_VELERO_PLUGIN].value
+  - op: remove
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_VELERO_PLUGIN_FOR_AWS].value
+  - op: remove
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_VELERO_PLUGIN_FOR_LEGACY_AWS].value
+  - op: remove
+    path: spec.template.spec.containers[name=manager].env[name=RELATED_IMAGE_VELERO_PLUGIN_FOR_GCP].value
+- selector:
+    kind: ServiceAccount
+    name: velero
+  operations:
+  - op: add
+    path: metadata.annotations
+    merge: true
+    value:
+      azure.workload.identity/client-id: '{{ .Values.velero.workloadIdentity.clientId }}'
+- selector:
+    kind: ServiceAccount
+    name: openshift-adp-controller-manager
+  operations:
+  - op: add
+    path: metadata.annotations
+    merge: true
+    value:
+      azure.workload.identity/client-id: '{{ .Values.oadpControllerManager.workloadIdentity.clientId }}'
+- selector:
+    kind: Deployment
+    name: openshift-adp-controller-manager
+  operations:
+  - op: add
+    path: spec.template.spec.nodeSelector
+    value:
+      aro-hcp.azure.com/role: infra
+  - op: add
+    path: spec.template.spec.tolerations
+    value:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"

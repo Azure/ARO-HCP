@@ -1,0 +1,28 @@
+azureCloud: AzurePublicCloud
+azurePlugin:
+  digest: '{{ .oadp.azurePlugin.digest }}'
+  repository: '{{ .oadp.azurePlugin.repository }}'
+bucket: '{{ .mgmt.hcpBackups.storageAccountContainerName }}'
+clientId: __veleroMsiClientId__
+hypershiftPlugin:
+  digest: '{{ .oadp.hypershiftPlugin.digest }}'
+  repository: '{{ .oadp.hypershiftPlugin.repository }}'
+imageRegistry: '{{ .acr.svc.name }}.azurecr.io'
+oadpControllerManager:
+  workloadIdentity:
+    clientId: __oadpControllerMsiClientId__
+oadpOperator:
+  digest: '{{ .oadp.operator.digest }}'
+  repository: '{{ .oadp.operator.repository }}'
+pullBinding:
+  workloadIdentityClientId: __imagePullerMsiClientId__
+  workloadIdentityTenantId: __imagePullerMsiTenantId__
+resourceGroup: '{{ .mgmt.rg }}'
+storageAccount: __hcpBackupsStorageAccountName__
+subscriptionId: __subscriptionId__
+tenantId: __tenantId__
+velero:
+  digest: '{{ .oadp.velero.digest }}'
+  repository: '{{ .oadp.velero.repository }}'
+  workloadIdentity:
+    clientId: __veleroMsiClientId__
