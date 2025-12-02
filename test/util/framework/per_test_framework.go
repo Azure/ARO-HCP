@@ -702,7 +702,11 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	hash := sha256.New()
 	hash.Write(encodedIdentifier)
 	hashBytes := hash.Sum(nil)
-	output := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+	output := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "test-timing", fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
+		return
+	}
 	if err := os.WriteFile(output, encoded, 0644); err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
 		return
