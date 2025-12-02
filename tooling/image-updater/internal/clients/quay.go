@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -31,9 +32,18 @@ import (
 // Note: For private repositories, this client falls back to using the Docker Registry V2 API
 // instead of Quay's proprietary API, as the latter requires different credentials
 type QuayClient struct {
-	httpClient *http.Client
-	baseURL    string
-	useAuth    bool
+	httpClient     *http.Client
+	baseURL        string
+	useAuth        bool
+	retryConfig    retryConfig
+}
+
+type retryConfig struct {
+	initialInterval    time.Duration
+	maxInterval        time.Duration
+	maxElapsedTime     time.Duration
+	multiplier         float64
+	randomizationFactor float64
 }
 
 // NewQuayClient creates a new Quay.io client
@@ -44,6 +54,13 @@ func NewQuayClient(useAuth bool) *QuayClient {
 		},
 		baseURL: "https://quay.io/api/v1",
 		useAuth: useAuth,
+		retryConfig: retryConfig{
+			initialInterval:    1 * time.Second,
+			maxInterval:        30 * time.Second,
+			maxElapsedTime:     2 * time.Minute,
+			multiplier:         2.0,
+			randomizationFactor: 0.5,
+		},
 	}
 }
 
@@ -139,13 +156,60 @@ func (c *QuayClient) getBearerToken(repository string, authConfig authn.AuthConf
 	return "", fmt.Errorf("no token in response")
 }
 
-func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
+// doRequestWithRetry performs an HTTP request with exponential backoff retry logic
+// It retries on temporary network errors and 5xx server errors
+func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	var resp *http.Response
+
+	// Create a new backoff instance for this request
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = c.retryConfig.initialInterval
+	expBackoff.MaxInterval = c.retryConfig.maxInterval
+	expBackoff.MaxElapsedTime = c.retryConfig.maxElapsedTime
+	expBackoff.Multiplier = c.retryConfig.multiplier
+	expBackoff.RandomizationFactor = c.retryConfig.randomizationFactor
+
+	operation := func() error {
+		var err error
+		resp, err = c.httpClient.Do(req)
+		if err != nil {
+			logger.V(1).Info("request failed, will retry", "url", req.URL.String(), "error", err.Error())
+			return err
+		}
+
+		// Retry on 5xx server errors and 429 (rate limiting)
+		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			err = fmt.Errorf("server returned status %d", resp.StatusCode)
+			logger.V(1).Info("request failed with retryable status code", "url", req.URL.String(), "status", resp.StatusCode)
+			return err
+		}
+
+		// Success or non-retryable error
+		return nil
+	}
+
+	notify := func(err error, duration time.Duration) {
+		logger.Info("retrying request after backoff", "url", req.URL.String(), "error", err.Error(), "backoff", duration.String())
+	}
+
+	// Use backoff.RetryNotify to perform the operation with retries
+	if err := backoff.RetryNotify(operation, expBackoff, notify); err != nil {
+		return nil, fmt.Errorf("request failed after retries: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
 	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API
 	// This is because Quay's API requires different credentials (OAuth2 tokens) than registry access
 	if c.useAuth {
-		return c.getAllTagsViaRegistryAPI(repository)
+		return c.getAllTagsViaRegistryAPI(ctx, repository)
 	}
 
+	logger := logr.FromContextOrDiscard(ctx)
 	// For public repositories, use Quay's proprietary API which provides timestamps
 	var allTags []Tag
 	page := 1
@@ -153,7 +217,12 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 	for {
 		url := fmt.Sprintf("%s/repository/%s/tag?page=%d", c.baseURL, repository, page)
 
-		resp, err := c.httpClient.Get(url)
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request for page %d (url: %s): %w", page, url, err)
+		}
+
+		resp, err := c.doRequestWithRetry(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("failed to request Quay.io API page %d (url: %s): %w", page, url, err)
 		}
@@ -189,6 +258,7 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 		}
 
 		page++
+		logger.V(1).Info("fetching next page", "page", page, "repository", repository)
 	}
 
 	return allTags, nil
@@ -196,11 +266,16 @@ func (c *QuayClient) getAllTags(repository string) ([]Tag, error) {
 
 // getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
 // This works with Docker credentials and is used for private repositories
-func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) {
+// Note: Docker Registry V2 API uses Link header for pagination but Quay may return all tags in one response
+func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+	var allTags []Tag
 	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
+	for url != "" {
+		pageCount++
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
 			return nil, fmt.Errorf("failed to create request (page %d): %w", pageCount, err)
 	}
 
@@ -208,8 +283,8 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) 
 			return nil, fmt.Errorf("failed to add authentication (page %d): %w", pageCount, err)
 	}
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
+		resp, err := c.doRequestWithRetry(ctx, req)
+		if err != nil {
 			return nil, fmt.Errorf("failed to request registry API (page %d): %w", pageCount, err)
 	}
 
@@ -233,7 +308,22 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(repository string) ([]Tag, error) 
 			// Note: Registry V2 API doesn't provide timestamps, they'll be fetched later if needed
 			LastModified: time.Time{},
 		}
-		allTags = append(allTags, tag)
+		resp.Body.Close()
+
+		for _, tagName := range tagsResp.Tags {
+			tag := Tag{
+				Name: tagName,
+				// Note: Registry V2 API doesn't provide timestamps, they'll be fetched later if needed
+				LastModified: time.Time{},
+			}
+			allTags = append(allTags, tag)
+		}
+
+		// If no Link header or couldn't parse next URL, we're done
+		if nextURL != "" {
+			logger.V(1).Info("fetching next page via registry API", "page", pageCount+1, "repository", repository)
+		}
+		url = nextURL
 	}
 
 	return allTags, nil
@@ -244,7 +334,7 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 	logger.V(1).Info("fetching tags from Quay", "repository", repository, "useAuth", c.useAuth)
 
-	allTags, err := c.getAllTags(repository)
+	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
