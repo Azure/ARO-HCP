@@ -288,6 +288,7 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 // getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
 // This works with Docker credentials and is used for private repositories
 func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
+	logger := logr.FromContextOrDiscard(ctx)
 	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
 
 	// Check if context is cancelled
@@ -335,7 +336,44 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 		allTags = append(allTags, tag)
 	}
 
-	return allTags, nil
+	// Enrich tags with timestamp information from image configs
+	logger.V(1).Info("enriching tags with timestamp information", "repository", repository, "totalTags", len(allTags))
+	remoteOpts := GetRemoteOptions(c.useAuth)
+	enrichedTags := make([]Tag, 0, len(allTags))
+
+	for _, tag := range allTags {
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while enriching tags: %w", ctx.Err())
+		default:
+		}
+
+		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
+		if err != nil {
+			logger.V(1).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
+			continue
+		}
+
+		desc, err := remote.Get(ref, remoteOpts...)
+		if err != nil {
+			logger.V(1).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
+			continue
+		}
+
+		// Try to get creation time from config
+		if img, err := desc.Image(); err == nil {
+			if configFile, err := img.ConfigFile(); err == nil {
+				tag.LastModified = configFile.Created.Time
+			}
+		}
+
+		tag.Digest = desc.Digest.String()
+		enrichedTags = append(enrichedTags, tag)
+	}
+
+	logger.V(1).Info("enriched tags with timestamp information", "repository", repository, "enrichedTags", len(enrichedTags))
+	return enrichedTags, nil
 }
 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
