@@ -20,7 +20,11 @@ import (
 	"fmt"
 	"net/http"
 
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
+
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 // erroringHTTPHandler is an http handler that leaves error reporting to a higher layer
@@ -53,12 +57,33 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...i
 
 	logger.Error(fmt.Sprintf("%v", err), args...) // fmt used to handle nil
 
+	var ocmError *ocmerrors.Error
+	if errors.As(err, &ocmError) {
+		resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+		if err != nil {
+			arm.WriteInternalServerError(w)
+			return nil
+		}
+		arm.WriteCloudError(w, ocm.CSErrorToCloudError(err, resourceID, w.Header()))
+		return nil
+	}
+
 	var cloudErr *arm.CloudError
 	if err != nil && errors.As(err, &cloudErr) {
 		if cloudErr != nil { // difference between interface is nil and the content is nil
 			arm.WriteCloudError(w, cloudErr)
 			return nil
 		}
+	}
+
+	if database.IsResponseError(err, http.StatusNotFound) {
+		resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
+		if err != nil {
+			arm.WriteInternalServerError(w)
+			return nil
+		}
+		arm.WriteCloudError(w, arm.NewResourceNotFoundError(resourceID))
+		return nil
 	}
 
 	arm.WriteInternalServerError(w)

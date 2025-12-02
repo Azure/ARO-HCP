@@ -21,11 +21,7 @@ import (
 
 func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	// the old code appeared to shallow copies only
-
-	dest.ID = src.ID
-	dest.Name = src.Name
-	dest.Type = src.Type
-	dest.SystemData = src.SystemData
+	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
@@ -38,4 +34,5 @@ func CopyReadOnlyNodePoolValues(dest, src *api.HCPOpenShiftClusterNodePool) {
 	}
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
+	dest.ServiceProviderProperties = src.ServiceProviderProperties
 }

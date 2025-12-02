@@ -1,3 +1,4 @@
+InvalidRequestContent: properties.autoRepair: Forbidden: field is immutable
 InvalidRequestContent: properties.platform.vmSize: Forbidden: field is immutable
 InvalidRequestContent: properties.platform.availabilityZone: Forbidden: field is immutable
 InvalidRequestContent: properties.platform.enableEncryptionAtHost: Forbidden: field is immutable
