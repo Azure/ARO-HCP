@@ -35,10 +35,12 @@ var allServiceLogsTablesKQL = {
   backendLogs: loadTextContent('tables/backendLogs.kql')
   containerlogs: loadTextContent('tables/containerLogs.kql')
   frontendLogs: loadTextContent('tables/frontendLogs.kql')
+  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
 var allCustomerLogsTablesKQL = {
   containerlogs: loadTextContent('tables/containerLogs.kql')
+  kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
 // 1. Cluster
