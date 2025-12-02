@@ -362,10 +362,45 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 		}
 
 		// Try to get creation time from config
-		if img, err := desc.Image(); err == nil {
-			if configFile, err := img.ConfigFile(); err == nil {
-				tag.LastModified = configFile.Created.Time
+		// For multi-arch manifests, get the timestamp from the first platform-specific image
+		if desc.MediaType.IsIndex() {
+			// Multi-arch manifest - get timestamp from first platform image
+			logger.V(1).Info("processing multi-arch manifest", "tag", tag.Name, "mediaType", desc.MediaType)
+			if idx, err := desc.ImageIndex(); err == nil {
+				if manifest, err := idx.IndexManifest(); err == nil && len(manifest.Manifests) > 0 {
+					// Try to get the config from the first manifest
+					if platformDesc := manifest.Manifests[0]; platformDesc.MediaType.IsImage() {
+						platformRef, err := name.ParseReference(fmt.Sprintf("quay.io/%s@%s", repository, platformDesc.Digest.String()))
+						if err == nil {
+							if platformDescriptor, err := remote.Get(platformRef, remoteOpts...); err == nil {
+								if platformImg, err := platformDescriptor.Image(); err == nil {
+									if configFile, err := platformImg.ConfigFile(); err == nil {
+										tag.LastModified = configFile.Created.Time
+										logger.V(1).Info("got timestamp from multi-arch manifest", "tag", tag.Name, "timestamp", tag.LastModified)
+									}
+								}
+							}
+						}
+					}
+				}
 			}
+		} else {
+			// Single-arch image
+			logger.V(1).Info("processing single-arch image", "tag", tag.Name, "mediaType", desc.MediaType)
+			if img, err := desc.Image(); err == nil {
+				if configFile, err := img.ConfigFile(); err == nil {
+					tag.LastModified = configFile.Created.Time
+					logger.V(1).Info("got timestamp from single-arch image", "tag", tag.Name, "timestamp", tag.LastModified)
+				} else {
+					logger.V(1).Info("failed to get config file", "tag", tag.Name, "error", err)
+				}
+			} else {
+				logger.V(1).Info("failed to get image", "tag", tag.Name, "error", err)
+			}
+		}
+
+		if tag.LastModified.IsZero() {
+			logger.V(1).Info("warning: tag has zero timestamp after enrichment", "tag", tag.Name, "mediaType", desc.MediaType)
 		}
 
 		tag.Digest = desc.Digest.String()

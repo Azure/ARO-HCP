@@ -116,9 +116,17 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 		return nil, fmt.Errorf("failed to parse registry from image reference: %w", err)
 	}
 
-	client, exists := u.RegistryClients[registry]
+	// Determine useAuth for this specific image - default to false if not specified
+	useAuth := false
+	if source.UseAuth != nil {
+		useAuth = *source.UseAuth
+	}
+
+	// Use the same key format as in options.go: "registry:useAuth"
+	clientKey := fmt.Sprintf("%s:%t", registry, useAuth)
+	client, exists := u.RegistryClients[clientKey]
 	if !exists {
-		return nil, fmt.Errorf("no registry client available for %s", registry)
+		return nil, fmt.Errorf("no registry client available for %s (useAuth=%t)", registry, useAuth)
 	}
 
 	arch := source.Architecture

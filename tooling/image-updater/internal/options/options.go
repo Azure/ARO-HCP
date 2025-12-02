@@ -133,23 +133,8 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 		}
 	}
 
-	// Determine authentication requirements per registry
-	registryAuthRequired := make(map[string]bool)
-	for _, imageConfig := range v.Config.Images {
-		registry, _, err := imageConfig.Source.ParseImageReference()
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse image reference: %w", err)
-		}
-
-		// If any image from a registry sets useAuth: true, use authentication for that registry
-		if imageConfig.Source.UseAuth != nil && *imageConfig.Source.UseAuth {
-			registryAuthRequired[registry] = true
-		} else if _, exists := registryAuthRequired[registry]; !exists {
-			// Default to no auth if not explicitly set to true
-			registryAuthRequired[registry] = false
-		}
-	}
-
+	// Create registry clients - one client per registry+auth combination
+	// Key format: "registry:useAuth" (e.g., "quay.io:true", "quay.io:false")
 	registryClients := make(map[string]clients.RegistryClient)
 	for _, imageConfig := range v.Config.Images {
 		registry, _, err := imageConfig.Source.ParseImageReference()
@@ -157,13 +142,20 @@ func (v *ValidatedUpdateOptions) Complete(ctx context.Context) (*updater.Updater
 			return nil, fmt.Errorf("failed to parse image reference: %w", err)
 		}
 
-		if _, exists := registryClients[registry]; !exists {
-			useAuth := registryAuthRequired[registry]
+		// Determine useAuth for this specific image - default to false if not specified
+		useAuth := false
+		if imageConfig.Source.UseAuth != nil {
+			useAuth = *imageConfig.Source.UseAuth
+		}
+
+		// Create a unique key for this registry+auth combination
+		clientKey := fmt.Sprintf("%s:%t", registry, useAuth)
+		if _, exists := registryClients[clientKey]; !exists {
 			client, err := clients.NewRegistryClient(registry, useAuth)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create registry client for %s: %w", registry, err)
+				return nil, fmt.Errorf("failed to create registry client for %s (useAuth=%t): %w", registry, useAuth, err)
 			}
-			registryClients[registry] = client
+			registryClients[clientKey] = client
 		}
 	}
 
