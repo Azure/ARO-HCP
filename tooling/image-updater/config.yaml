@@ -48,11 +48,15 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.yaml
+  # Clusters Service image
   clusters-service:
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
       tagPattern: "^[a-f0-9]{7}$"
       useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: clouds.dev.defaults.clustersService.image.digest
       filePath: ../../config/config.yaml
