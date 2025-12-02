@@ -54,10 +54,10 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 	//arm.ProxyResource
 	errs = append(errs, validateProxyResource(ctx, op, field.NewPath("trackedResource"), &newObj.ProxyResource, safe.Field(oldObj, toExternalAuthProxyResource))...)
 
-	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties" validate:"required"`
+	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
 
-	//ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
+	//ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	errs = append(errs, validateExternalAuthServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties, safe.Field(oldObj, toExternalAuthServiceProviderProperties))...)
 
 	return errs
@@ -97,16 +97,16 @@ var (
 func validateExternalAuthProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterExternalAuthProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"       visibility:"read"                     validate:"omitempty"`
+	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toExternalAuthPropertiesProvisioningState))...)
 
-	//Condition         ExternalAuthCondition       `json:"condition,omitzero"      visibility:"read"                     validate:"omitempty"`
+	//Condition         ExternalAuthCondition       `json:"condition,omitzero"`
 	errs = append(errs, validateExternalAuthCondition(ctx, op, fldPath.Child("condition"), &newObj.Condition, safe.Field(oldObj, toExternalAuthPropertiesCondition))...)
 
-	//Issuer            TokenIssuerProfile          `json:"issuer"                  visibility:"read create update"       validate:"required"`
+	//Issuer            TokenIssuerProfile          `json:"issuer"`
 	errs = append(errs, validateTokenIssuerProfile(ctx, op, fldPath.Child("issuer"), &newObj.Issuer, safe.Field(oldObj, toExternalAuthPropertiesIssuer))...)
 
-	//Clients           []ExternalAuthClientProfile `json:"clients"                 visibility:"read create update"       validate:"omitempty,max=20,dive"`
+	//Clients           []ExternalAuthClientProfile `json:"clients"`
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("clients"), newObj.Clients, safe.Field(oldObj, toExternalAuthPropertiesClients), 20)...)
 	errs = append(errs, validate.EachSliceVal(
 		ctx, op, fldPath.Child("clients"),
@@ -122,7 +122,7 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 		},
 	)...)
 
-	//Claim             ExternalAuthClaimProfile    `json:"claim"                   visibility:"read create update"       validate:"required"`
+	//Claim             ExternalAuthClaimProfile    `json:"claim"`
 	errs = append(errs, validateExternalAuthClaimProfile(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toExternalAuthPropertiesClaim))...)
 
 	errs = append(errs, validate.EachSliceVal(
@@ -162,7 +162,7 @@ func validateExternalAuthServiceProviderProperties(ctx context.Context, op opera
 		errs = append(errs, validate.ForbiddenValue(ctx, op, fldPath.Child("cosmosUID"), &newObj.CosmosUID, nil)...)
 	}
 
-	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"                visibility:"read"`
+	//ClusterServiceID  InternalID                     `json:"clusterServiceID,omitempty"`
 	errs = append(errs, validate.ImmutableByReflect(ctx, op, fldPath.Child("clusterServiceID"), &newObj.ClusterServiceID, safe.Field(oldObj, toExternalAuthServiceProviderClusterServiceID))...)
 
 	return errs
@@ -181,12 +181,11 @@ var (
 func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.TokenIssuerProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// TODO why didn't we make this a URL?
-	//URL       string   `json:"url"       validate:"required,url,startswith=https://"`
+	//URL       string   `json:"url"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toTokenIssuerProfileURL))...)
 	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("url"), &newObj.URL, safe.Field(oldObj, toTokenIssuerProfileURL), startsWithHTTPSRegex, startsWithHTTPSErrorString)...)
 
-	//Audiences []string `json:"audiences" validate:"required,max=10"`
+	//Audiences []string `json:"audiences"`
 	errs = append(errs, validate.RequiredSlice(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences))...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 10)...)
@@ -204,7 +203,7 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	//	NoExtraWhitespace,
 	//)...)
 
-	//CA        string   `json:"ca"        validate:"omitempty,pem_certificates"`
+	//CA        string   `json:"ca"`
 	errs = append(errs, ValidatePEM(ctx, op, fldPath.Child("ca"), &newObj.CA, safe.Field(oldObj, toTokenIssuerProfileCA))...)
 
 	return errs
@@ -221,16 +220,16 @@ var (
 func validateExternalAuthClientProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClientProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Component   ExternalAuthClientComponentProfile `json:"component"   validate:"required"`
+	//Component   ExternalAuthClientComponentProfile `json:"component"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("component"), &newObj.Component, safe.Field(oldObj, toExternalAuthClientProfileComponent))...)
 	errs = append(errs, validateExternalAuthClientComponentProfile(ctx, op, fldPath.Child("component"), &newObj.Component, safe.Field(oldObj, toExternalAuthClientProfileComponent))...)
 
-	//ClientID    string                             `json:"clientId"    validate:"required"`
+	//ClientID    string                             `json:"clientId"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clientId"), &newObj.ClientID, safe.Field(oldObj, toExternalAuthClientProfileClientID))...)
 
-	//ExtraScopes []string                           `json:"extraScopes" validate:"omitempty"`
+	//ExtraScopes []string                           `json:"extraScopes"`
 
-	//Type        ExternalAuthClientType             `json:"type"        validate:"required,enum_externalauthclienttype"`
+	//Type        ExternalAuthClientType             `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType), api.ValidExternalAuthClientTypes)...)
 
@@ -245,11 +244,11 @@ var (
 func validateExternalAuthClientComponentProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClientComponentProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Name                string `json:"name"                validate:"required,max=256"`
+	//Name                string `json:"name"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toExternalAuthClientComponentProfileName))...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("name"), &newObj.Name, safe.Field(oldObj, toExternalAuthClientComponentProfileName), 256)...)
 
-	//AuthClientNamespace string `json:"authClientNamespace" validate:"required,max=63"`
+	//AuthClientNamespace string `json:"authClientNamespace"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("authClientNamespace"), &newObj.AuthClientNamespace, safe.Field(oldObj, toExternalAuthClientComponentProfileAuthClientNamespace))...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("authClientNamespace"), &newObj.AuthClientNamespace, safe.Field(oldObj, toExternalAuthClientComponentProfileAuthClientNamespace), 63)...)
 
@@ -266,11 +265,11 @@ var (
 func validateExternalAuthClaimProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClaimProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Mappings        TokenClaimMappingsProfile  `json:"mappings"        validate:"required"`
+	//Mappings        TokenClaimMappingsProfile  `json:"mappings"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("mappings"), &newObj.Mappings, safe.Field(oldObj, toExternalAuthClaimProfileMappings))...)
 	errs = append(errs, validateTokenClaimMappingsProfile(ctx, op, fldPath.Child("mappings"), &newObj.Mappings, safe.Field(oldObj, toExternalAuthClaimProfileMappings))...)
 
-	//ValidationRules []TokenClaimValidationRule `json:"validationRules" validate:"omitempty,dive"`
+	//ValidationRules []TokenClaimValidationRule `json:"validationRules"`
 	errs = append(errs, validate.EachSliceVal(
 		ctx, op, fldPath.Child("validationRules"),
 		newObj.ValidationRules, safe.Field(oldObj, toExternalAuthClaimProfileValidationRules),
@@ -289,11 +288,11 @@ var (
 func validateTokenClaimMappingsProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.TokenClaimMappingsProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Username UsernameClaimProfile `json:"username" validate:"required"`
+	//Username UsernameClaimProfile `json:"username"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("username"), &newObj.Username, safe.Field(oldObj, toTokenClaimMappingsProfileUsername))...)
 	errs = append(errs, validateUsernameClaimProfile(ctx, op, fldPath.Child("username"), &newObj.Username, safe.Field(oldObj, toTokenClaimMappingsProfileUsername))...)
 
-	//Groups   *GroupClaimProfile   `json:"groups"   validate:"omitempty"`
+	//Groups   *GroupClaimProfile   `json:"groups"`
 	errs = append(errs, validateGroupClaimProfile(ctx, op, fldPath.Child("groups"), newObj.Groups, safe.Field(oldObj, toTokenClaimMappingsProfileGroups))...)
 
 	return errs
@@ -307,12 +306,12 @@ var (
 func validateUsernameClaimProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.UsernameClaimProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Claim        string                    `json:"claim"        validate:"required,max=256"`
+	//Claim        string                    `json:"claim"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toUsernameClaimProfileClaim))...)
 
-	//Prefix       string                    `json:"prefix"       validate:"required_if=PrefixPolicy Prefix,excluded_unless=PrefixPolicy Prefix"`
+	//Prefix       string                    `json:"prefix"`
 
-	//PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy" validate:"enum_usernameclaimprefixpolicy"`
+	//PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("prefixPolicy"), &newObj.PrefixPolicy, safe.Field(oldObj, toUsernameClaimProfilePrefixPolicy), api.ValidUsernameClaimPrefixPolicies)...)
 	union := validate.NewDiscriminatedUnionMembership("prefixPolicy", [2]string{"prefix", string(api.UsernameClaimPrefixPolicyPrefix)})
 	discriminatorExtractor := func(obj *api.UsernameClaimProfile) api.UsernameClaimPrefixPolicy {
@@ -339,11 +338,11 @@ func validateGroupClaimProfile(ctx context.Context, op operation.Operation, fldP
 
 	errs := field.ErrorList{}
 
-	//Claim  string `json:"claim"  validate:"required,max=256"`
+	//Claim  string `json:"claim"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toGroupClaimProfileClaim))...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toGroupClaimProfileClaim), 256)...)
 
-	//Prefix string `json:"prefix" validate:"omitempty"`
+	//Prefix string `json:"prefix"`
 
 	return errs
 }
@@ -356,9 +355,9 @@ var (
 func validateTokenClaimValidationRule(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.TokenClaimValidationRule) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Type          TokenValidationRuleType `json:"type"          validate:"required,enum_tokenvalidationruletyperequiredclaim"`
+	//Type          TokenValidationRuleType `json:"type"`
 	// TODO discriminated unions should be pointers
-	//RequiredClaim TokenRequiredClaim      `json:"requiredClaim" validate:"omitempty"`
+	//RequiredClaim TokenRequiredClaim      `json:"requiredClaim"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toTokenClaimValidationRuleType), api.ValidTokenValidationRuleTypes)...)
 	union := validate.NewDiscriminatedUnionMembership("type", [2]string{"requiredClaim", string(api.TokenValidationRuleTypeRequiredClaim)})
 	discriminatorExtractor := func(obj *api.TokenClaimValidationRule) api.TokenValidationRuleType {
@@ -384,10 +383,10 @@ var (
 func validateTokenRequiredClaim(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.TokenRequiredClaim) field.ErrorList {
 	errs := field.ErrorList{}
 
-	//Claim         string `json:"claim"         validate:"required"`
+	//Claim         string `json:"claim"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toTokenRequiredClaimClaim))...)
 
-	//RequiredValue string `json:"requiredValue" validate:"required"`
+	//RequiredValue string `json:"requiredValue"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("requiredValue"), &newObj.RequiredValue, safe.Field(oldObj, toTokenRequiredClaimRequiredValue))...)
 
 	return errs
@@ -405,10 +404,10 @@ func validateExternalAuthCondition(ctx context.Context, op operation.Operation, 
 
 	errs := field.ErrorList{}
 
-	//Type               ExternalAuthConditionType `json:"type"               validate:"enum_externalauthconditiontype"`
+	//Type               ExternalAuthConditionType `json:"type"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthConditionType), api.ValidExternalAuthConditionTypes)...)
 
-	//Status             ConditionStatusType       `json:"status"             validate:"enum_externalauthconditionstatustype"`
+	//Status             ConditionStatusType       `json:"status"`
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("status"), &newObj.Status, safe.Field(oldObj, toExternalAuthConditionStatus), api.ValidConditionStatusTypes)...)
 
 	//LastTransitionTime time.Time                 `json:"lastTransitionTime"`
