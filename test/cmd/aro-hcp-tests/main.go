@@ -27,6 +27,7 @@ import (
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -167,10 +168,16 @@ func main() {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 	root.AddCommand(newCleanupCommand())
+	visualizeCmd, err := visualize.NewCommand()
+	if err != nil {
+		panic(err)
+	}
+	root.AddCommand(visualizeCmd)
 
 	if err := func() error {
 		return root.Execute()
 	}(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }

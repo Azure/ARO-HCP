@@ -27,7 +27,7 @@ go.work.sum
 .graph.svg
 .tool-versions
 resourcegroups
-timing
+/timing/
 .graph.html
 report.json
 _artifacts
