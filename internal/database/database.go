@@ -114,6 +114,9 @@ type DBClient interface {
 	// GetHCPClusterCRUD retrieves a CRUD interface for managing HCPCluster resources and their nested resources.
 	HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD
 
+	// Controllers retrieves a CRUD interface for managing Controller resources.
+	Controllers(subscriptionID, resourceGroupName string) ControllerCRUD
+
 	// GetResourceDoc queries the "Resources" container for a cluster or node pool document with a
 	// matching resourceID.
 	GetResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID) (string, *ResourceDocument, error)

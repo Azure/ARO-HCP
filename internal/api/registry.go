@@ -70,6 +70,7 @@ const (
 	ExternalAuthResourceTypeName    = "externalAuths"
 	OperationResultResourceTypeName = "hcpOperationResults"
 	OperationStatusResourceTypeName = "hcpOperationStatuses"
+	ControllerResourceTypeName      = "hcpOpenShiftControllers"
 	ResourceTypeDisplay             = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
@@ -79,6 +80,7 @@ var (
 	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	ControllerResourceType   = azcorearm.NewResourceType(ProviderNamespace, ControllerResourceTypeName)
 )
 
 type VersionedResource interface {

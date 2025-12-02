@@ -17,8 +17,9 @@ package database
 import (
 	"fmt"
 
-	"github.com/Azure/ARO-HCP/internal/api"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 type NodePool struct {
