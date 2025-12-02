@@ -233,13 +233,8 @@ var workloadIdentities = items({
   }
   velero_wi: {
     uamiName: 'velero'
-    namespace: 'openshift-adp'
+    namespace: 'velero'
     serviceAccountName: 'velero'
-  }
-  oadp_wi: {
-    uamiName: 'openshift-adp-controller-manager'
-    namespace: 'openshift-adp'
-    serviceAccountName: 'openshift-adp-controller-manager'
   }
 })
 
@@ -525,9 +520,5 @@ module hcpBackupsRbac '../modules/hcp-backups/storage-rbac.bicep' = {
   params: {
     storageAccountName: hcpBackupsStorageAccountName
     veleroManagedIdentityPrincipalId: mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, 'velero').uamiPrincipalID
-    oadpControllerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
-      managedIdentities.outputs.managedIdentities,
-      'openshift-adp-controller-manager'
-    ).uamiPrincipalID
   }
 }

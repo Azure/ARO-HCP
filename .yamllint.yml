@@ -29,6 +29,7 @@ ignore:
 - 'observability/kube-events/deploy/templates/deployment.yaml'
 - 'mgmt-fixes/deploy/kubelet-ds/templates/ds-kubelet-parameters.yaml'
 - '**/zz_fixture_TestHelmTemplate*.yaml'
+- 'velero/deploy/templates/install-job.yaml'
 rules:
   brackets: enable
   colons: enable

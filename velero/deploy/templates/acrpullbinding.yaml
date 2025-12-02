@@ -1,0 +1,16 @@
+apiVersion: acrpull.microsoft.com/v1beta2
+kind: AcrPullBinding
+metadata:
+  name: velero-pull-binding
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  acr:
+    environment: PublicCloud
+    server: '{{ .Values.imageRegistry }}'
+    scope: 'repository:{{ .Values.veleroServer.repository }}:pull repository:{{ .Values.azurePlugin.repository }}:pull repository:{{ .Values.hypershiftPlugin.repository }}:pull'
+  auth:
+    workloadIdentity:
+      serviceAccountRef: velero
+      clientID: '{{ .Values.pullBinding.workloadIdentityClientId }}'
+      tenantID: '{{ .Values.pullBinding.workloadIdentityTenantId }}'
+  serviceAccountName: velero
