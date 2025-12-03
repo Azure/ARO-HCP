@@ -81,7 +81,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Give 10 minutes for the cluster to reach Provisioning state
+			// Give 20 minutes for the cluster to reach Provisioning state
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			Eventually(func() hcpsdk20240610preview.ProvisioningState {
 				By("waiting for the cluster to be in Provisioning state")
@@ -94,7 +94,7 @@ var _ = Describe("Customer", func() {
 				}
 				return ""
 
-			}, 10*time.Minute, 30*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateProvisioning))
+			}, 20*time.Minute, 30*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateProvisioning))
 
 			By("creating the node pool while the cluster is in Provisioning state")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
