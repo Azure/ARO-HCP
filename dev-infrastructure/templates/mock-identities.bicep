@@ -34,6 +34,9 @@ param armHelperCertName string = 'armHelperCert2'
 @description('The DNS of the arm helper mock certificate, used for subject and DNS names.')
 param armHelperCertDns string = 'armhelper.hcp.osadev.cloud'
 
+@description('E2E Test subscription ID, that needs to use this role as well')
+param e2eTestSubscription string
+
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: globalMSIName
 }
@@ -80,6 +83,7 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     assignableScopes: [
       subscription().id
       subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+      format('/subscriptions/%s', e2eTestSubscription)
     ]
   }
 }
@@ -152,6 +156,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
     assignableScopes: [
       subscription().id
       subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+      format('/subscriptions/%s', e2eTestSubscription)
     ]
   }
 }
