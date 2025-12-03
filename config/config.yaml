@@ -122,6 +122,9 @@ defaults:
     image:
       registry: registry.k8s.io
       repository: secrets-store-sync/controller
+    providerImage:
+      registry: mcr.microsoft.com
+      repository: oss/v2/azure/secrets-store/provider-azure
   # Backplane API
   backplaneAPI:
     image:
@@ -868,7 +871,8 @@ clouds:
       secretSyncController:
         image:
           digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 # v0.0.2 (2025-07-17 15:49)
-        providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+        providerImage:
+          digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
       # Cluster Service
       clustersService:
         environment: "arohcpdev"

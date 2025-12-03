@@ -20,6 +20,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/semver"
 )
 
 // FilterTagsByPattern filters tags by a regex pattern
@@ -60,6 +62,14 @@ func NormalizeArchitecture(arch string) string {
 	return arch
 }
 
+// canonicalizeVersion ensures tag has 'v' prefix for semver library
+func canonicalizeVersion(tag string) string {
+	if !strings.HasPrefix(tag, "v") {
+		return "v" + tag
+	}
+	return tag
+}
+
 // PrepareTagsForArchValidation filters and sorts tags for architecture validation
 func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern string) ([]Tag, error) {
 	if len(tags) == 0 {
@@ -92,7 +102,31 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 		return nil, fmt.Errorf("no valid tags found for repository %s", repository)
 	}
 
+	// Detect if we should use semantic version sorting based on the pattern and actual tags
+	// Only use semver sorting if the pattern looks like a semver pattern (contains version numbers)
+	// and all filtered tags are valid semantic versions
+	useSemverSort := false
+	if tagPattern != "" && strings.Contains(tagPattern, `\d+\.\d+\.\d+`) {
+		// Check if all tags are valid semantic versions
+		allSemver := true
+		for _, tag := range tags {
+			if !semver.IsValid(canonicalizeVersion(tag.Name)) {
+				allSemver = false
+				break
+			}
+		}
+		useSemverSort = allSemver
+	}
+
+	// Sort tags: semver by version (descending), otherwise by date (descending)
 	sort.Slice(tags, func(i, j int) bool {
+		if useSemverSort {
+			cmp := semver.Compare(canonicalizeVersion(tags[i].Name), canonicalizeVersion(tags[j].Name))
+			if cmp != 0 {
+				return cmp > 0 // Higher version first
+			}
+		}
+		// Use date as tiebreaker or default sorting
 		return tags[i].LastModified.After(tags[j].LastModified)
 	})
 

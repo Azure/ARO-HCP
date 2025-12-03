@@ -657,7 +657,10 @@ secretSyncController:
     digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
-  providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+  providerImage:
+    digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7
+    registry: mcr.microsoft.com
+    repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
   assignNSP: true
   name: aro-hcp-dev-svc-kv

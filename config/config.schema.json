@@ -2044,7 +2044,7 @@
           "$ref": "#/definitions/containerImage"
         },
         "providerImage": {
-          "type": "string"
+          "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
