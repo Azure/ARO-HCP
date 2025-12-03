@@ -184,6 +184,26 @@ func TestWithImmutableAttributes(t *testing.T) {
 			hcpCluster: &api.HCPOpenShiftCluster{},
 			want:       ocmCluster(t, ocmClusterDefaults()),
 		},
+		{
+			name: "with version 4.19",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{ID: "4.19", ChannelGroup: "stable"},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults().Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.7").ChannelGroup("stable"))),
+		},
+		{
+			name: "with version 4.20",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{ID: "4.20", ChannelGroup: "stable"},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults().Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.5").ChannelGroup("stable"))),
+		},
 	}
 
 	for _, tc := range testCases {
