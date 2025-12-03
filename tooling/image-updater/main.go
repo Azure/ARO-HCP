@@ -29,11 +29,13 @@ import (
 )
 
 func main() {
-	logger := createLogger()
+	logger := createLogger(0)
 
 	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	var logVerbosity int
 
 	rootCmd := &cobra.Command{
 		Use:   "image-updater",
@@ -47,10 +49,15 @@ checking for new image versions and updating configuration files accordingly.`,
 		SilenceErrors:    true,
 		TraverseChildren: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			ctx = logr.NewContext(ctx, logger)
+			ctx = logr.NewContext(ctx, createLogger(logVerbosity))
 			cmd.SetContext(ctx)
 		},
+		CompletionOptions: cobra.CompletionOptions{
+			HiddenDefaultCmd: true,
+		},
 	}
+
+	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 
@@ -60,11 +67,14 @@ checking for new image versions and updating configuration files accordingly.`,
 	}
 }
 
-func createLogger() logr.Logger {
-	prettyHandler := prettylog.New(&slog.HandlerOptions{
-		Level:       slog.LevelInfo,
+func createLogger(verbosity int) logr.Logger {
+	level := slog.Level(verbosity * -1)
+	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+		Level:       level,
 		AddSource:   false,
 		ReplaceAttr: nil,
-	}, prettylog.WithDestinationWriter(os.Stderr))
+	})
+	slog.SetDefault(slog.New(prettyHandler))
+	slog.SetLogLoggerLevel(level)
 	return logr.FromSlogHandler(prettyHandler)
 }

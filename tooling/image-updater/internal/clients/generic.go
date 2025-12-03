@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -31,6 +32,7 @@ type GenericRegistryClient struct {
 	httpClient  *http.Client
 	registryURL string
 	useAuth     bool
+	retryConfig retryConfig
 }
 
 // NewGenericRegistryClient creates a new generic registry client
@@ -41,6 +43,13 @@ func NewGenericRegistryClient(registryURL string, useAuth bool) *GenericRegistry
 		},
 		registryURL: registryURL,
 		useAuth:     useAuth,
+		retryConfig: retryConfig{
+			initialInterval:     1 * time.Second,
+			maxInterval:         30 * time.Second,
+			maxElapsedTime:      2 * time.Minute,
+			multiplier:          2.0,
+			randomizationFactor: 0.5,
+		},
 	}
 }
 
@@ -49,24 +58,98 @@ type dockerRegistryTagsResponse struct {
 	Tags []string `json:"tags"`
 }
 
-func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
+// doRequestWithRetry performs an HTTP request with exponential backoff retry logic
+// It retries on temporary network errors and 5xx server errors
+// The operation can be cancelled via context (e.g., Ctrl+C)
+func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
+	var resp *http.Response
+
+	// Create a new backoff instance for this request
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = c.retryConfig.initialInterval
+	expBackoff.MaxInterval = c.retryConfig.maxInterval
+	expBackoff.MaxElapsedTime = c.retryConfig.maxElapsedTime
+	expBackoff.Multiplier = c.retryConfig.multiplier
+	expBackoff.RandomizationFactor = c.retryConfig.randomizationFactor
+
+	// Wrap with context to respect cancellation (Ctrl+C)
+	contextBackoff := backoff.WithContext(expBackoff, ctx)
+
+	operation := func() error {
+		// Check if context is already cancelled before making the request
+		select {
+		case <-ctx.Done():
+			return backoff.Permanent(ctx.Err())
+		default:
+		}
+
+		var err error
+		resp, err = c.httpClient.Do(req)
+		if err != nil {
+			logger.V(1).Info("request failed, will retry", "url", req.URL.String(), "error", err.Error())
+			return err
+		}
+
+		// Retry on 5xx server errors and 429 (rate limiting)
+		if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			err = fmt.Errorf("server returned status %d", resp.StatusCode)
+			logger.V(1).Info("request failed with retryable status code", "url", req.URL.String(), "status", resp.StatusCode)
+			return err
+		}
+
+		// Success or non-retryable error
+		return nil
+	}
+
+	notify := func(err error, duration time.Duration) {
+		logger.Info("retrying request after backoff", "url", req.URL.String(), "error", err.Error(), "backoff", duration.String())
+	}
+
+	// Use backoff.RetryNotify with context to respect cancellation
+	if err := backoff.RetryNotify(operation, contextBackoff, notify); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("request cancelled: %w", ctx.Err())
+		}
+		return nil, fmt.Errorf("request failed after retries: %w", err)
+	}
+
+	return resp, nil
+}
+
+func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	// Use Docker Registry HTTP API v2 for listing tags
 	url := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request registry API: %w", err)
+		return nil, fmt.Errorf("failed to create request (url: %s): %w", url, err)
+	}
+
+	resp, err := c.doRequestWithRetry(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request registry API (url: %s): %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry API returned status %d for repository %s", resp.StatusCode, repository)
+		return nil, fmt.Errorf("registry API returned status %d for repository %s (url: %s)", resp.StatusCode, repository, url)
 	}
 
 	var tagsResp dockerRegistryTagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode registry API response: %w", err)
+		return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", url, err)
 	}
+
+	logger.V(1).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(tagsResp.Tags))
 
 	var allTags []Tag
 	for _, tagName := range tagsResp.Tags {
@@ -82,29 +165,47 @@ func (c *GenericRegistryClient) getAllTags(repository string) ([]Tag, error) {
 }
 
 func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 
-	allTags, err := c.getAllTags(repository)
+	logger.V(1).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
+
+	allTags, err := c.getAllTags(ctx, repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
+	// Cache for remote descriptors to avoid duplicate remote.Get calls
+	descriptorCache := make(map[string]*remote.Descriptor)
+
 	// Enrich tags with digest and timestamp information before filtering
 	var enrichedTags []Tag
 	for _, tag := range allTags {
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while enriching tags: %w", ctx.Err())
+		default:
+		}
+
 		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
 		if err != nil {
-			logger.Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
+			logger.V(1).Info("failed to parse reference, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
 
 		desc, err := remote.Get(ref, remoteOpts...)
 		if err != nil {
-			logger.Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
+			logger.V(1).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
+
+		// Cache the descriptor for later use
+		descriptorCache[tag.Name] = desc
 
 		// Try to get creation time from config
 		if img, err := desc.Image(); err == nil {
@@ -119,19 +220,24 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	tags, err := PrepareTagsForArchValidation(enrichedTags, repository, tagPattern)
 	if err != nil {
+		logger.Error(err, "failed to prepare tags for arch validation", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(enrichedTags))
 		return nil, err
 	}
 
+	logger.V(1).Info("filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "matchingTags", len(tags))
+
 	for _, tag := range tags {
-		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
-		if err != nil {
-			logger.Error(err, "failed to parse reference", "tag", tag.Name)
-			continue
+		// Check if context is cancelled before processing each tag
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("operation cancelled while checking tags: %w", ctx.Err())
+		default:
 		}
 
-		desc, err := remote.Get(ref, remoteOpts...)
-		if err != nil {
-			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
+		// Use cached descriptor instead of calling remote.Get again
+		desc, ok := descriptorCache[tag.Name]
+		if !ok {
+			logger.Error(fmt.Errorf("descriptor not found in cache"), "missing descriptor for tag", "tag", tag.Name)
 			continue
 		}
 

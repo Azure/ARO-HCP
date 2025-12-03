@@ -66,6 +66,13 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 		return nil, fmt.Errorf("no tags found for repository %s", repository)
 	}
 
+	originalTagCount := len(tags)
+	var sampleOriginalTags []string
+	maxSamples := 5
+	for i := 0; i < min(maxSamples, originalTagCount); i++ {
+		sampleOriginalTags = append(sampleOriginalTags, tags[i].Name)
+	}
+
 	if tagPattern != "" {
 		filteredTags, err := FilterTagsByPattern(tags, tagPattern)
 		if err != nil {
@@ -76,6 +83,10 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 
 	if len(tags) == 0 {
 		if tagPattern != "" {
+			// Provide more context about what tags were available
+			if len(sampleOriginalTags) > 0 {
+				return nil, fmt.Errorf("no tags matching pattern %s found for repository %s (sample tags from %d total: %v)", tagPattern, repository, originalTagCount, sampleOriginalTags)
+			}
 			return nil, fmt.Errorf("no tags matching pattern %s found for repository %s", tagPattern, repository)
 		}
 		return nil, fmt.Errorf("no valid tags found for repository %s", repository)

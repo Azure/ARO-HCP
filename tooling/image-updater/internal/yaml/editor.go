@@ -30,6 +30,7 @@ type Update struct {
 	OldDigest string // Current digest value
 	NewDigest string // New digest value
 	Tag       string // Image tag (e.g., "v1.2.3")
+	Date      string // Image creation date (e.g., "2025-11-24 14:30")
 	FilePath  string // Path to the YAML file
 	JsonPath  string // JSON path to the value in the YAML
 	Line      int    // Line number in the file
@@ -143,19 +144,43 @@ func (e *Editor) ApplyUpdates(updates []Update) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if updateIndex < len(updates) && updates[updateIndex].Line == lineNum {
-			// Find the old digest and replace everything from that point to end of line
-			digestIdx := strings.Index(line, updates[updateIndex].OldDigest)
-			if digestIdx != -1 {
-				// Keep everything before the digest, replace with new digest
-				line = line[:digestIdx] + updates[updateIndex].NewDigest
-			} else {
-				// Fallback: simple replace if digest not found
-				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
-			}
+			// Find where the YAML value starts (after "key: ")
+			// We look for the colon followed by optional whitespace
+			colonIdx := strings.Index(line, ":")
+			if colonIdx != -1 {
+				// Keep everything up to and including the colon and any following spaces
+				prefix := line[:colonIdx+1]
+				// Add a single space after the colon
+				if colonIdx+1 < len(line) && line[colonIdx+1] == ' ' {
+					prefix = line[:colonIdx+2]
+				} else {
+					prefix += " "
+				}
 
-			// Add the tag comment
-			if updates[updateIndex].Tag != "" {
-				line = line + " # " + updates[updateIndex].Tag
+				// Build the new value with the digest and optional comment
+				newValue := updates[updateIndex].NewDigest
+				if updates[updateIndex].Tag != "" {
+					comment := updates[updateIndex].Tag
+					if updates[updateIndex].Date != "" {
+						comment = comment + " (" + updates[updateIndex].Date + ")"
+					}
+					newValue = newValue + " # " + comment
+				}
+
+				line = prefix + newValue
+			} else {
+				// Fallback: if we can't find a colon, just replace the old digest with new
+				// This shouldn't normally happen but provides a safety net
+				line = strings.Replace(line, updates[updateIndex].OldDigest, updates[updateIndex].NewDigest, 1)
+
+				// Add the tag and date comment
+				if updates[updateIndex].Tag != "" {
+					comment := updates[updateIndex].Tag
+					if updates[updateIndex].Date != "" {
+						comment = comment + " (" + updates[updateIndex].Date + ")"
+					}
+					line = line + " # " + comment
+				}
 			}
 			updateIndex++
 		}
