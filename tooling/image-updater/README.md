@@ -14,6 +14,7 @@ The image-updater supports multiple container registry types with optimized clie
 ## Key Features
 
 ### Registry Support
+
 - **Universal Registry Support**: Works with any Docker Registry HTTP API v2 compatible registry
 - **Anonymous by Default**: No authentication required for public registries (MCR, Docker Hub, public Quay.io)
 - **Opt-in Authentication**: Explicitly enable authentication only for private registries
@@ -24,11 +25,13 @@ The image-updater supports multiple container registry types with optimized clie
 - **Flexible Digest Format**: Supports both `.digest` fields (with `sha256:` prefix) and `.sha` fields (hash only)
 
 ### Reliability & Performance
+
 - **Automatic Retry Logic**: Exponential backoff retry for transient network errors and server failures (5xx, 429)
 - **Context Cancellation Support**: Proper context propagation for graceful shutdown and timeout handling
 - **Enhanced Logging**: Detailed structured logging with verbosity levels for debugging and monitoring
 - **Optimized Pagination**: Configurable page size (100 tags/page) for efficient bulk tag fetching from Quay.io
 - **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
+- **Descriptor Caching**: Eliminates duplicate API calls by caching image descriptors during tag processing (~50% reduction in API calls)
 
 ## Managed Images
 
@@ -84,6 +87,7 @@ defaults:
 ```
 
 This helps track:
+
 - **Tag name**: The version or tag name (e.g., `v1.18.4`)
 - **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
 
@@ -217,12 +221,15 @@ source:
 ```
 
 **Note**: For Quay.io, authentication can use either:
+
 1. **Docker credentials from `~/.docker/config.json`**:
+
    ```bash
    docker login quay.io
    # Or use podman:
    podman login quay.io
    ```
+
 2. **Azure Key Vault pull secrets** (recommended for CI/CD and private repositories):
    Configure the `keyVault` section in the image's source configuration (as shown above).
    The tool will automatically fetch the pull secret from Azure Key Vault and merge it with your local Docker config before authenticating. This requires Azure CLI authentication (`az login`).
@@ -252,6 +259,7 @@ source:
 ```
 
 **Authentication Methods by Registry**:
+
 - **Quay.io**:
   - Docker credentials from `~/.docker/config.json` (via `docker login quay.io`)
   - Azure Key Vault pull secrets (per-image configuration)
@@ -267,6 +275,7 @@ source:
 For private registries that require authentication, you can configure Azure Key Vault credentials on a per-image basis. This is the recommended approach for CI/CD pipelines and production environments.
 
 **Benefits**:
+
 - **Secure**: Credentials stored in Azure Key Vault, not in configuration files
 - **Flexible**: Different images can use different Key Vault secrets
 - **Efficient**: Automatic deduplication prevents fetching the same secret multiple times
@@ -290,6 +299,7 @@ images:
 ```
 
 **How it works**:
+
 1. Tool authenticates to Azure using `DefaultAzureCredential` (supports `az login`, managed identity, etc.)
 2. Fetches the pull secret from the specified Key Vault
 3. Merges credentials with your local `~/.docker/config.json`
@@ -297,6 +307,7 @@ images:
 5. Multiple images with the same Key Vault URL + secret name are deduplicated (fetched only once)
 
 **Requirements**:
+
 - Azure CLI installed and authenticated (`az login`)
 - Read access to the specified Key Vault
 - Pull secret must be stored in Key Vault in Docker config.json format (supports both base64-encoded and raw JSON)
@@ -305,7 +316,8 @@ images:
 
 Common regex patterns for filtering tags:
 
-- `^[a-f0-9]{40}$` - 40-character commit hashes
+- `^[a-f0-9]{7}$` - 7-character commit hashes (short)
+- `^[a-f0-9]{40}$` - 40-character commit hashes (full)
 - `^sha256-[a-f0-9]{64}$` - SHA256-prefixed single-arch images
 - `^latest$` - Only 'latest' tag
 - `^v\\d+\\.\\d+\\.\\d+$` - Semantic versions (v1.2.3)
