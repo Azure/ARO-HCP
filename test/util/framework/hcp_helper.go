@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -692,7 +691,7 @@ func BuildNodePoolFromParams(
 func RunVMCommand(ctx context.Context, tc interface {
 	SubscriptionID(ctx context.Context) (string, error)
 	AzureCredential() (azcore.TokenCredential, error)
-}, resourceGroup, vmName, command string) (string, error) {
+}, resourceGroup, vmName, command string, pollTimeout time.Duration) (string, error) {
 	subscriptionID, err := tc.SubscriptionID(ctx)
 	if err != nil {
 		return "", err
@@ -722,7 +721,7 @@ func RunVMCommand(ctx context.Context, tc interface {
 
 	// Create a timeout context to avoid waiting too long on VM command failures
 	// VM commands should complete quickly (within a few minutes at most)
-	pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	pollCtx, cancel := context.WithTimeout(ctx, pollTimeout)
 	defer cancel()
 
 	result, err := poller.PollUntilDone(pollCtx, nil)
@@ -733,7 +732,7 @@ func RunVMCommand(ctx context.Context, tc interface {
 	if len(result.Value) > 0 && result.Value[0].Message != nil {
 		// Azure Run Command returns output in format:
 		// "Enable succeeded: \n[stdout]\n<actual output>\n[stderr]\n<errors>"
-		// We need to extract just the stdout content
+		// We need to extract stdout and stderr content
 		message := *result.Value[0].Message
 
 		// Find the stdout section
@@ -756,6 +755,16 @@ func RunVMCommand(ctx context.Context, tc interface {
 		} else {
 			// Take only the stdout section
 			output = message[stdoutStart : stdoutStart+stderrStart]
+
+			// Extract and inspect stderr
+			stderrAbsoluteStart := stdoutStart + stderrStart + len("\n[stderr]\n")
+			if stderrAbsoluteStart < len(message) {
+				stderr := strings.TrimSpace(message[stderrAbsoluteStart:])
+				if stderr != "" {
+					// Return an error if stderr is not empty
+					return "", fmt.Errorf("%s", stderr)
+				}
+			}
 		}
 
 		return strings.TrimSpace(output), nil
@@ -791,60 +800,45 @@ func GenerateSSHKeyPair() (publicKey string, privateKey string, err error) {
 
 // Helper to generate kubeconfig
 func GenerateKubeconfig(restConfig *rest.Config) (string, error) {
-	var kubeconfig string
+	// Create kubeconfig using proper types
+	config := clientcmdapi.NewConfig()
+
+	// Define cluster
+	clusterName := "cluster"
+	cluster := clientcmdapi.NewCluster()
+	cluster.Server = restConfig.Host
 
 	// In development environments, CAData is cleared and Insecure is set to true
 	// We need to handle this case by adding insecure-skip-tls-verify
 	if len(restConfig.CAData) == 0 || restConfig.Insecure {
-		kubeconfig = fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: %s
-    insecure-skip-tls-verify: true
-  name: cluster
-contexts:
-- context:
-    cluster: cluster
-    user: admin
-  name: admin@cluster
-current-context: admin@cluster
-users:
-- name: admin
-  user:
-    client-certificate-data: %s
-    client-key-data: %s
-`,
-			restConfig.Host,
-			base64.StdEncoding.EncodeToString(restConfig.CertData),
-			base64.StdEncoding.EncodeToString(restConfig.KeyData),
-		)
+		cluster.InsecureSkipTLSVerify = true
 	} else {
-		kubeconfig = fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: %s
-    certificate-authority-data: %s
-  name: cluster
-contexts:
-- context:
-    cluster: cluster
-    user: admin
-  name: admin@cluster
-current-context: admin@cluster
-users:
-- name: admin
-  user:
-    client-certificate-data: %s
-    client-key-data: %s
-`,
-			restConfig.Host,
-			base64.StdEncoding.EncodeToString(restConfig.CAData),
-			base64.StdEncoding.EncodeToString(restConfig.CertData),
-			base64.StdEncoding.EncodeToString(restConfig.KeyData),
-		)
+		cluster.CertificateAuthorityData = restConfig.CAData
+	}
+	config.Clusters[clusterName] = cluster
+
+	// Define user
+	userName := "admin"
+	authInfo := clientcmdapi.NewAuthInfo()
+	authInfo.ClientCertificateData = restConfig.CertData
+	authInfo.ClientKeyData = restConfig.KeyData
+	config.AuthInfos[userName] = authInfo
+
+	// Define context
+	contextName := "admin@cluster"
+	context := clientcmdapi.NewContext()
+	context.Cluster = clusterName
+	context.AuthInfo = userName
+	config.Contexts[contextName] = context
+
+	// Set current context
+	config.CurrentContext = contextName
+
+	// Marshal to YAML
+	kubeconfigBytes, err := clientcmd.Write(*config)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal kubeconfig: %w", err)
 	}
 
-	return kubeconfig, nil
+	return string(kubeconfigBytes), nil
 }

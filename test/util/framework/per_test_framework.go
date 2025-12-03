@@ -749,12 +749,12 @@ func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
-	tc.contextLock.RLock()
+	tc.contextLock.Lock()
 	if len(tc.subscriptionID) > 0 {
 		defer tc.contextLock.RUnlock()
 		return tc.subscriptionID, nil
 	}
-	tc.contextLock.RUnlock()
+	tc.contextLock.Unlock()
 
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()

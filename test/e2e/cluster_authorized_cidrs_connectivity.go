@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -98,7 +100,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(vmPublicIP).NotTo(BeEmpty(), "VM public IP should be in deployment outputs")
 
-				By("setting authorized CIDRs with VM IP")
+				By("Creating a cluster with authorized CIDR containing VM IP")
 				clusterParams.AuthorizedCIDRs = []*string{
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
@@ -136,7 +138,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Wrap in Eventually for robustness - authorized CIDR rules may take time to propagate
 				var httpCode string
 				Eventually(func(g Gomega) {
-					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest, 2*time.Minute)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					// Should get HTTP response (likely 401 or 200, but not connection refused)
@@ -148,9 +150,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				By("testing connectivity from current machine (should be blocked)")
 				// Try to connect from the test runner (which is not in authorized CIDRs)
 				err = testAPIConnectivity(apiURL, 5*time.Second)
-				if err != nil {
-					By(fmt.Sprintf("Connection from unauthorized IP correctly blocked: %v", err))
-				}
+				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
+				// Verify it's a connection error (EOF indicates connection was closed by server/network)
+				Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Get \"%s/healthz\": EOF", apiURL)), "Should fail with EOF error indicating blocked connection")
 
 				By("verifying VM can access cluster API with credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
@@ -167,23 +169,27 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Test kubectl command from VM
-				// Use base64 encoding to safely transfer kubeconfig
 				kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
-				kubectlTest := fmt.Sprintf("echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get nodes 2>&1", kubeconfigB64)
+				kubectlTest := fmt.Sprintf("echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get nodes -o json", kubeconfigB64)
 
-				// Wrap in Eventually for robustness - API access may take time to propagate
 				Eventually(func(g Gomega) {
 					var err error
-					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest)
-					By(fmt.Sprintf("kubectl output from authorized VM: %s", output))
+					output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlTest, 2*time.Minute)
+					By("kubectl command executed from authorized VM")
 
-					// Should be able to run kubectl commands (even if nodes aren't ready)
-					g.Expect(err).NotTo(HaveOccurred())
-					g.Expect(output).To(Or(
-						ContainSubstring("NAME"),         // Success - got nodes
-						ContainSubstring("No resources"), // Success - no nodes yet
-						ContainSubstring("NotReady"),     // Success - nodes not ready
-					), "Should be able to execute kubectl from authorized VM")
+					// Should be able to run kubectl commands successfully (exit code 0)
+					g.Expect(err).NotTo(HaveOccurred(), "kubectl should execute successfully from authorized VM")
+
+					// Deserialize JSON response to validate API connectivity
+					var nodeList corev1.NodeList
+					err = json.Unmarshal([]byte(output), &nodeList)
+					g.Expect(err).NotTo(HaveOccurred(), "Should receive valid JSON response from Kubernetes API")
+
+					// Verify the response has correct Kubernetes API structure
+					g.Expect(nodeList.APIVersion).To(Equal("v1"), "Response should have v1 API version")
+					g.Expect(nodeList.Kind).To(Equal("List"), "Response should be a List kind")
+					// Note: Items may be empty if nodes aren't ready yet, but structure should be valid
+					By(fmt.Sprintf("Successfully retrieved node list with %d items", len(nodeList.Items)))
 				}, 2*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("updating cluster to remove VM from authorized CIDRs")
@@ -215,7 +221,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("verifying VM is now blocked from API access")
-				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest)
+				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest, 2*time.Minute)
 				if err != nil || strings.TrimSpace(output) == "000" || strings.TrimSpace(output) == "" {
 					By("Connection correctly blocked after removing VM from authorized CIDRs")
 				} else {
