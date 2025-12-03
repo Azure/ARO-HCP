@@ -545,7 +545,7 @@ mise:
     authorityFQDN: sts.windows.net
     policyLabel: Geneva Actions
   image:
-    digest: sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd
+    digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
     repository: mise-1p-container-image
   tracing:
     address: ""
