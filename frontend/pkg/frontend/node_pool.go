@@ -58,7 +58,6 @@ func (f *Frontend) GetNodePool(writer http.ResponseWriter, request *http.Request
 	if err != nil {
 		return err
 	}
-
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
 	if err != nil {
 		return err
@@ -122,8 +121,8 @@ func (f *Frontend) ArmResourceListNodePools(writer http.ResponseWriter, request 
 			if err != nil {
 				return err
 			}
-			resultingExternalCluster := versionedInterface.NewHCPOpenShiftClusterNodePool(internalNodePool)
-			jsonBytes, err := arm.MarshalJSON(resultingExternalCluster)
+			resultingExternalNodePool := versionedInterface.NewHCPOpenShiftClusterNodePool(internalNodePool)
+			jsonBytes, err := arm.MarshalJSON(resultingExternalNodePool)
 			if err != nil {
 				return err
 			}
@@ -265,14 +264,14 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	// Node pool validation checks some fields against the parent cluster
 	// so we have to request the cluster from Cluster Service.
-	hcpCluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
+	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
 		return err
 	}
 
 	validationErrs := validation.ValidateNodePoolCreate(ctx, newInternalNodePool)
 	// in addition to static validation, we have validation based on the state of the hcp cluster
-	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, hcpCluster)...)
+	validationErrs = append(validationErrs, admission.AdmitNodePool(newInternalNodePool, cluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return err
 	}
@@ -282,11 +281,10 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err != nil {
 		return err
 	}
-	csNodePool, err := f.clusterServiceClient.PostNodePool(ctx, hcpCluster.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
+	csNodePool, err := f.clusterServiceClient.PostNodePool(ctx, cluster.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
 	if err != nil {
 		return err
 	}
-
 	newInternalNodePool.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(csNodePool.HREF())
 	if err != nil {
 		return err
@@ -299,12 +297,12 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	createNodePoolOperation.TenantID = request.Header.Get(arm.HeaderNameHomeTenantID)
 	createNodePoolOperation.ClientID = request.Header.Get(arm.HeaderNameClientObjectID)
 	createNodePoolOperation.NotificationURI = request.Header.Get(arm.HeaderNameAsyncNotificationURI)
-	operationCosmosID := transaction.CreateOperationDoc(createNodePoolOperation, nil)
+	operationCosmosUID := transaction.CreateOperationDoc(createNodePoolOperation, nil)
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, createNodePoolOperation.NotificationURI, createNodePoolOperation.OperationID))
 
 	// set fields that were not known until the operation doc instance was created.
 	// TODO once we we have separate creation/validation of operation documents, this can be done ahead of time.
-	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosID
+	newInternalNodePool.ServiceProviderProperties.ActiveOperationID = operationCosmosUID
 	newInternalNodePool.Properties.ProvisioningState = createNodePoolOperation.Status
 
 	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).NodePools(resourceID.Parent.Name)
@@ -550,7 +548,6 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	if !ok {
 		return fmt.Errorf("unexpected type %T", resultingUncastInternalNodePool)
 	}
-
 	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
 	resultingInternalNodePool, err = mergeToInternalNodePool(csNodePool, resultingInternalNodePool)
 	if err != nil {
@@ -569,17 +566,16 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 }
 
 // the necessary conversions for the API version of the request.
-func mergeToInternalNodePool(clusterServiceNod *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, clusterServiceNod)
+func mergeToInternalNodePool(clusterServiceNode *arohcpv1alpha1.NodePool, internalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
+	mergedOldClusterServiceNodePool := ocm.ConvertCStoNodePool(internalNodePool.ID, clusterServiceNode)
 
-	// Do not set the TrackedResource.Tags field here. We need
-	// the Tags map to remain nil so we can see if the request
-	// body included a new set of resource tags.
+	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	mergedOldClusterServiceNodePool.SystemData = internalNodePool.SystemData
 	mergedOldClusterServiceNodePool.Tags = maps.Clone(internalNodePool.Tags)
 	mergedOldClusterServiceNodePool.Properties.ProvisioningState = internalNodePool.Properties.ProvisioningState
 	mergedOldClusterServiceNodePool.ServiceProviderProperties.CosmosUID = internalNodePool.ServiceProviderProperties.CosmosUID
 	mergedOldClusterServiceNodePool.ServiceProviderProperties.ClusterServiceID = internalNodePool.ServiceProviderProperties.ClusterServiceID
+	mergedOldClusterServiceNodePool.ServiceProviderProperties.ActiveOperationID = internalNodePool.ServiceProviderProperties.ActiveOperationID
 
 	return mergedOldClusterServiceNodePool, nil
 }
@@ -599,7 +595,6 @@ func (f *Frontend) getInternalNodePoolFromStorage(ctx context.Context, resourceI
 
 // readInternalNodePoolFromClusterService takes an internal NodePool read from cosmos, retrieves the corresponding cluster-service data,
 // merges the states together, and returns the internal representation.
-// TODO remove the header it takes and collapse that to some general error handling.
 func (f *Frontend) readInternalNodePoolFromClusterService(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
 	oldClusterServiceNodePool, err := f.clusterServiceClient.GetNodePool(ctx, oldInternalNodePool.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {

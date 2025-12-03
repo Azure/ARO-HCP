@@ -599,6 +599,7 @@ func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *
 		return nil, err
 	}
 
+	// this does not use conversion.CopyReadOnly* because some ServiceProvider properties come from cluster-service-only or live reads
 	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData
 	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
 	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState

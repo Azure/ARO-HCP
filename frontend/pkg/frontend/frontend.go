@@ -938,15 +938,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case cosmosOperation.ExternalID.ResourceType.String() == api.ExternalAuthResourceType.String():
-		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).ExternalAuth(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		resultingInternalExternalAuth, err := f.getInternalExternalAuthFromStorage(ctx, cosmosOperation.ExternalID)
 		if err != nil {
 			return err
 		}
-		clusterServiceObj, err := f.clusterServiceClient.GetExternalAuth(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
-		if err != nil {
-			return ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-		responseBody, err = mergeToExternalExternalAuth(clusterServiceObj, internalObj, versionedInterface)
+		responseBody, err = arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterExternalAuth(resultingInternalExternalAuth))
 		if err != nil {
 			return err
 		}
