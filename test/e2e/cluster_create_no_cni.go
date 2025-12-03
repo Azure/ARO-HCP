@@ -35,6 +35,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			Skip("Skipping WIP test: https://issues.redhat.com/browse/ARO-20529")
+			return
 			const (
 				customerClusterName  = "no-cni-cl"
 				customerNodePoolName = "no-cni-np"
