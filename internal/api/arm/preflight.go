@@ -48,10 +48,10 @@ func UnmarshalDeploymentPreflight(data []byte) (*DeploymentPreflight, error) {
 
 // DeploymentPreflightResource represents a desired resource in a deployment preflight request.
 type DeploymentPreflightResource struct {
-	Name       string `json:"name"                 validate:"required"`
-	Type       string `json:"type"                 validate:"required"`
-	Location   string `json:"location"             validate:"required"`
-	APIVersion string `json:"apiVersion,omitempty" validate:"required"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Location   string `json:"location"`
+	APIVersion string `json:"apiVersion,omitempty"`
 
 	// Preserve other tracked resource fields as raw data.
 	Identity   json.RawMessage `json:"identity,omitempty"`

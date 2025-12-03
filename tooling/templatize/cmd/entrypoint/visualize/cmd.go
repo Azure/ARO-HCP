@@ -27,7 +27,7 @@ func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
 		Use:           "visualize",
-		Short:         "Generate visualizations of executing timing.",
+		Short:         "Generate visualizations of pipeline or entrypoint execution timing.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {

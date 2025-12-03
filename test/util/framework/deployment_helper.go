@@ -17,6 +17,7 @@ package framework
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -92,7 +93,7 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	parameters map[string]interface{},
 	timeout time.Duration,
 ) (*armresources.DeploymentExtended, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateBicepTemplateAndWait for deployment %s in resource group %s", timeout.Minutes(), deploymentName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
@@ -134,12 +135,18 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 		nil,
 	)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q, caused by: %w, error: %w", deploymentName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return nil, fmt.Errorf("failed creating deployment %q in resourcegroup=%q: %w", deploymentName, resourceGroupName, err)
 	}
 	operationResult, err := pollerResp.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish, caused by: %w, error: %w", deploymentName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return nil, fmt.Errorf("failed waiting for deployment %q in resourcegroup=%q to finish: %w", deploymentName, resourceGroupName, err)
 	}
 
@@ -160,7 +167,7 @@ func ListAllDeployments(
 	resourceGroupName string,
 	timeout time.Duration,
 ) ([]*armresources.DeploymentExtended, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during ListAllDeployments for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
 	deploymentsPager := deploymentsClient.NewListByResourceGroupPager(resourceGroupName, nil)
@@ -169,6 +176,9 @@ func ListAllDeployments(
 	for deploymentsPager.More() {
 		deploymentPage, err := deploymentsPager.NextPage(ctx)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed listing deployments in resourcegroup=%q, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), err)
+			}
 			return nil, fmt.Errorf("failed listing deployments in resourcegroup=%q: %w", resourceGroupName, err)
 		}
 		allDeployments = append(allDeployments, deploymentPage.Value...)
@@ -184,7 +194,7 @@ func ListAllOperations(
 	deploymentName string,
 	timeout time.Duration,
 ) ([]*armresources.DeploymentOperation, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during ListAllOperations for deployment %s in resource group %s", timeout.Minutes(), deploymentName, resourceGroupName))
 	defer cancel()
 
 	operationsPager := deploymentOperationsClient.NewListPager(resourceGroupName, deploymentName, nil)
@@ -193,6 +203,9 @@ func ListAllOperations(
 	for operationsPager.More() {
 		operationsPage, err := operationsPager.NextPage(ctx)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed listing operations in resourcegroup=%q deployment=%q, caused by: %w, error: %w", resourceGroupName, deploymentName, context.Cause(ctx), err)
+			}
 			return nil, fmt.Errorf("failed listing operations in resourcegroup=%q deployment=%q: %w", resourceGroupName, deploymentName, err)
 		}
 		allOperations = append(allOperations, operationsPage.Value...)
@@ -209,7 +222,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 ) error {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterFromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
 		defer cancel()
 	}
 	clusterName := parameters.ClusterName
@@ -230,6 +243,9 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam(
 		cluster,
 		timeout,
 	); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
 	}
 	return nil
@@ -242,7 +258,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 	parameters NodePoolParams,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
@@ -267,6 +283,9 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam(
 		nodePool,
 		timeout,
 	); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
 	}
 

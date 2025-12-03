@@ -33,10 +33,10 @@ func validateSubscription(ctx context.Context, op operation.Operation, newObj, o
 	errs := field.ErrorList{}
 
 	// these are the only two validated fields
-	//State            SubscriptionState       `json:"state"            validate:"required,enum_subscriptionstate"`
+	//State            SubscriptionState       `json:"state"`
 	errs = append(errs, validate.Enum(ctx, op, field.NewPath("required"), &newObj.State, nil, arm.ValidSubscriptionStates)...)
 
-	//RegistrationDate *string                 `json:"registrationDate" validate:"required"`
+	//RegistrationDate *string                 `json:"registrationDate"`
 	errs = append(errs, validate.RequiredPointer(ctx, op, field.NewPath("registrationDate"), newObj.RegistrationDate, nil)...)
 	if newObj.RegistrationDate != nil {
 		errs = append(errs, NoExtraWhitespace(ctx, op, field.NewPath("registrationDate"), newObj.RegistrationDate, nil)...)

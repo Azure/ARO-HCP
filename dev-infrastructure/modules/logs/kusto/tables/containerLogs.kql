@@ -3,7 +3,7 @@
   log: dynamic,
   environment: string,
   cluster: string,
-  namespace: string,
+  namespace_name: string,
   container_name: string,
   container_image: string,
   host: string,
@@ -24,7 +24,7 @@
   {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
   {"column":"container_name", "Properties": {"path": "$log.kubernetes.container_name"}},
   {"column":"container_image","Properties":{"path":"$.log.kubernetes.container_image"}},
-  {"column":"namespace","Properties":{"path":"$.log.kubernetes.namespace_name"}},
+  {"column":"namespace_name","Properties":{"path":"$.log.kubernetes.namespace_name"}},
   {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
   {"column":"pod_name","Properties":{"path":"$.log.kubernetes.pod_name"}},
   {"column":"tag","Properties":{"path":"$.tag"}}

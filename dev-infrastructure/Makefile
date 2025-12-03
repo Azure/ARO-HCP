@@ -28,6 +28,7 @@ ROLE_ASSIGNMENTS_DEPLOYMENT_NAME ?= role-assignments${DEPLOYMENT_NAME_SUFFIX}
 DEV_TESTING_SUBSCRIPTION_ID = 1d3378d3-5a3f-4712-85a1-2485495dfc4b
 INT_TESTING_SUBSCRIPTION_ID = 64f0619f-ebc2-4156-9d91-c4c781de7e54
 STAGE_TESTING_SUBSCRIPTION_ID = b23756f7-4594-40a3-980f-10bb6168fc20
+E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 # Environments where automation accounts are deployed
 AUTOMATION_ACCOUNT_ENVS = dev stage int
@@ -117,6 +118,11 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh && \
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+		--only-show-errors
 	APPLICATION_NAME=aro-hcp-int-msi-mock \
 	KEY_VAULT_NAME=aro-hcp-int-kv \
 	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
@@ -137,19 +143,13 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--name "aro-hcp-dev-mock-certificates" \
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/mock-identities.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identities.bicepparam
+		--parameters configurations/mock-identities.bicepparam \
+		--parameters e2eTestSubscription=974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
 	APPLICATION_NAME=aro-dev-first-party2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=firstPartyCert2 \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
-	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
-	./scripts/create-sp-for-rbac.sh
-
-	APPLICATION_NAME=aro-dev-first-party-check-access \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
-	CERTIFICATE_NAME=firstPartyCheckAccessCert \
-	ROLE_DEFINITION_NAME=Contributor \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
@@ -159,6 +159,12 @@ create-mock-identities: configurations/mock-identities.bicepparam
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
+
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
+		--only-show-errors
 
 	APPLICATION_NAME=aro-dev-msi-mock2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
@@ -173,8 +179,40 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
 
-
 .PHONY: create-mock-identities
+
+grant-e2e-access:
+	az role assignment create \
+		--role "dev-first-party-mock" \
+		--assignee "$(shell az ad app list --display-name aro-dev-first-party2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Contributor" \
+		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Role Based Access Control Administrator" \
+		--assignee "$(shell az ad app list --display-name aro-dev-arm-helper2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/974ebd46-8ad3-41e3-afef-7ef25fd5c371" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "dev-msi-mock" \
+		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--only-show-errors
+
+	az role assignment create \
+		--role "Azure Red Hat OpenShift KMS Plugin - Dev" \
+		--assignee "$(shell az ad app list --display-name aro-dev-msi-mock2 --query '[*]'.appId -o tsv)" \
+		--scope "/subscriptions/$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)" \
+		--only-show-errors
+.PHONY: grant-e2e-access
+
 
 #
 # Global
@@ -432,7 +470,8 @@ operator-roles:
 		--name operator-roles \
 		--template-file templates/dev-operator-roles.bicep \
 		$(PROMPT_TO_CONFIRM) \
-		--parameters configurations/dev-operator-roles.bicepparam
+		--parameters configurations/dev-operator-roles.bicepparam \
+		--parameters e2eTestSubscription=$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)
 .PHONY: operator-roles
 
 operator-roles.what-if:
@@ -440,7 +479,8 @@ operator-roles.what-if:
 	    --location westus3 \
 		--name operator-roles \
 		--template-file templates/dev-operator-roles.bicep \
-		--parameters configurations/dev-operator-roles.bicepparam
+		--parameters configurations/dev-operator-roles.bicepparam \
+		--parameters e2eTestSubscription=$(E2E_HOSTED_CLUSTER_SUBSCRIPTION_ID)
 .PHONY: operator-roles.what-if
 
 #

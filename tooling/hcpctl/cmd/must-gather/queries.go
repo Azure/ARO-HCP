@@ -20,13 +20,15 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 )
 
-var servicesDatabase = "HCPServiceLogs"
-var customerLogsDatabase = "HCPCustomerLogs"
+var servicesDatabase = "ServiceLogs"
+var hostedControlPlaneLogsDatabase = "HostedControlPlaneLogs"
+
+var servicesDatabaseLegacy = "HCPServiceLogs"
 
 var servicesTables = []string{
 	"containerLogs",
-	"frontendContainerLogs",
-	"backendContainerLogs",
+	"frontendLogs",
+	"backendLogs",
 }
 
 var containerLogsTable = servicesTables[0]
@@ -48,13 +50,17 @@ type QueryOptions struct {
 func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, table := range servicesTables {
-		query := kusto.NewConfigurableQuery(table, servicesDatabase).
-			WithTable(table).
-			WithDefaultFields()
+		query := kusto.NewConfigurableQuery(table, servicesDatabase)
+		if opts.Limit < 0 {
+			query.WithNoTruncation()
+		}
+		query.WithTable(table).WithDefaultFields()
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
-		query.WithLimit(opts.Limit)
+		if opts.Limit > 0 {
+			query.WithLimit(opts.Limit)
+		}
 		queries = append(queries, query)
 	}
 	return queries
@@ -63,20 +69,24 @@ func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 func getHostedControlPlaneLogsQuery(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, clusterId := range opts.ClusterIds {
-		query := kusto.NewConfigurableQuery("customerLogs", customerLogsDatabase).
-			WithTable(containerLogsTable).
-			WithDefaultFields()
+		query := kusto.NewConfigurableQuery("hostedControlPlaneLogs", hostedControlPlaneLogsDatabase)
+		if opts.Limit < 0 {
+			query.WithNoTruncation()
+		}
+		query.WithTable(containerLogsTable).WithDefaultFields()
 
 		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
 		query.WithClusterId(clusterId)
-		query.WithLimit(opts.Limit)
+		if opts.Limit > 0 {
+			query.WithLimit(opts.Limit)
+		}
 		queries = append(queries, query)
 	}
 	return queries
 }
 
 func getClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery(containerLogsTable, subscriptionId, resourceGroupName)
+	return kusto.NewClusterIdQuery(servicesDatabase, containerLogsTable, subscriptionId, resourceGroupName)
 }
 
 func getTimeMinMax(timestampMin, timestampMax time.Time) (time.Time, time.Time) {
@@ -103,7 +113,7 @@ type KubesystemLogsRow struct {
 }
 
 func getKubeSystemClusterIdQuery(subscriptionId, resourceGroupName string) *kusto.ConfigurableQuery {
-	return kusto.NewClusterIdQuery("kubesystem", subscriptionId, resourceGroupName)
+	return kusto.NewClusterIdQuery(servicesDatabaseLegacy, "kubesystem", subscriptionId, resourceGroupName)
 }
 
 func getKubeSystemQuery(subscriptionId, resourceGroupName string, clusterIds []string) *kusto.ConfigurableQuery {

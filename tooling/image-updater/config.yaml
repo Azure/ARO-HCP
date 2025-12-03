@@ -9,22 +9,44 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+  # Maestro Agent Sidecar image
+  maestro-agent-sidecar:
+    source:
+      image: mcr.microsoft.com/azurelinux/base/nginx
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
+      multiArch: true
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.yaml
   # Hypershift image
   hypershift:
     source:
-      image: quay.io/acm-d/rhtap-hypershift-operator
-      tagPattern: "^sha256-[a-f0-9]{64}$"
+      image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+      tagPattern: "^[a-f0-9]{7}$"
       multiArch: true # Use multi-arch manifest
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.dev.environments.cspr.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
     - jsonPath: clouds.dev.environments.pers.defaults.hypershift.image.digest
       filePath: ../../config/config.yaml
-  # PKO images
+    - jsonPath: clouds.dev.environments.prow.defaults.hypershift.image.digest
+      filePath: ../../config/config.yaml
+  # PKO imagess
   pko-package:
     source:
       image: quay.io/package-operator/package-operator-package
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.imagePackage.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
@@ -33,7 +55,8 @@ images:
   pko-manager:
     source:
       image: quay.io/package-operator/package-operator-manager
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.imageManager.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
@@ -42,12 +65,27 @@ images:
   pko-remote-phase-manager:
     source:
       image: quay.io/package-operator/remote-phase-manager
-      tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      # tagPattern: "^v\\d+\\.\\d+\\.\\d+$"
+      tagPattern: "v1.18.3" # Current image is failing, we needed to rollback
     targets:
     - jsonPath: clouds.public.environments.int.defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: defaults.pko.remotePhaseManager.digest
       filePath: ../../config/config.yaml
+  # Clusters Service image
+  clusters-service:
+    source:
+      image: quay.io/app-sre/aro-hcp-clusters-service
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+    - jsonPath: clouds.dev.defaults.clustersService.image.digest
+      filePath: ../../config/config.yaml
+    - jsonPath: clouds.public.environments.int.defaults.clustersService.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
   # Frontend and Backend images
   arohcpfrontend:
     source:
@@ -66,6 +104,20 @@ images:
     - jsonPath: clouds.public.environments.int.defaults.backend.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.backend.image.digest
+      filePath: ../../config/config.yaml
+  # backplaneAPI
+  backplaneAPI:
+    source:
+      image: quay.io/app-sre/backplane-api
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.backplaneAPI.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.backplaneAPI.image.digest
       filePath: ../../config/config.yaml
   # Kube Events image
   kubeEvents:
@@ -127,6 +179,17 @@ images:
     - jsonPath: clouds.public.environments.int.defaults.secretSyncController.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
+      filePath: ../../config/config.yaml
+  # Image Sync
+  imageSync:
+    source:
+      image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.imageSync.ocMirror.image.digest
       filePath: ../../config/config.yaml
   # Prometheus images
   prometheus-operator:

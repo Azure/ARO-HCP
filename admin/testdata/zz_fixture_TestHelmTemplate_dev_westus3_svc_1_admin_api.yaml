@@ -49,6 +49,8 @@ spec:
       labels:
         app: admin-api
         azure.workload.identity/use: "true"
+      annotations:
+        checksum/fpa-spc: '2e2611d7c7e903179473feb1da88b71bdee7fbdcc4de93c3eda89486d72e6088'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
@@ -80,6 +82,10 @@ spec:
           value: "arohcpdev-rp-usw3"
         - name: KUSTO_ENDPOINT
           value: "__kustoEndpoint__"
+        - name: FPA_CERT_BUNDLE_PATH
+          value: "/secrets/fpa-cert/bundle"
+        - name: FPA_CLIENT_ID
+          value: "b3cb2fab-15cb-4583-ad06-f91da9bfe2d1"
         ports:
         - containerPort: 8443
           name: http
@@ -115,6 +121,17 @@ spec:
             port: 8444
           initialDelaySeconds: 5
           periodSeconds: 10
+        volumeMounts:
+        - name: fpa-cert
+          mountPath: /secrets/fpa-cert
+          readOnly: true
+      volumes:
+      - name: fpa-cert
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: fpa-cert
 ---
 # Source: ARO HCP Admin API/templates/admin.secret-refresher.yaml
 ################################
@@ -175,6 +192,27 @@ spec:
       clientID: '__imagePullerMsiClientId__'
       tenantID: '__tenantId__'
   serviceAccountName: 'admin-api'
+---
+# Source: ARO HCP Admin API/templates/admin.fpa.secretproviderclass.yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: fpa-cert
+  namespace: 'aro-hcp-admin-api'
+spec:
+  parameters:
+    clientID: '__adminApiMsiClientId__'
+    cloudName: AzurePublicCloud
+    keyvaultName: 'aro-hcp-dev-svc-kv'
+    objects: |-
+      array:
+        - |
+          objectName: 'firstPartyCert2'
+          objectType: secret
+          objectAlias: bundle
+    tenantId: '__tenantId__'
+    usePodIdentity: "false"
+  provider: azure
 ---
 # Source: ARO HCP Admin API/templates/admin.secretproviderclass.yaml
 ################################

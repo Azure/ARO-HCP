@@ -68,7 +68,8 @@ var _ = Describe("Customer", func() {
 			// Start deployment without waiting
 			// Apply 45-minute timeout for the entire cluster deployment process (matches all other tests)
 			// This timeout covers both the initial deployment call and the subsequent polling
-			deploymentCtx, deploymentCancel := context.WithTimeout(ctx, 45*time.Minute)
+			timeout := 45 * time.Minute
+			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during admin credential lifecycle test", timeout.Minutes()))
 			defer deploymentCancel()
 
 			_, err = deploymentsClient.BeginCreateOrUpdate(

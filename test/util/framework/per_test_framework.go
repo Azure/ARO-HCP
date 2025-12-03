@@ -42,6 +42,7 @@ import (
 
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 )
 
 type perItOrDescribeTestContext struct {
@@ -56,25 +57,8 @@ type perItOrDescribeTestContext struct {
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	graphClient                   *graphutil.Client
 
-	timingMetadata   specTimingMetadata
+	timingMetadata   timing.SpecTimingMetadata
 	knownDeployments []deploymentInfo
-}
-
-type specTimingMetadata struct {
-	Identifier []string
-
-	Steps []stepTimingMetadata `json:"steps,omitempty"`
-
-	// deployments holds deployment operation metadata by resource group and deployment name
-	Deployments map[string]map[string][]Operation `json:"deployments,omitempty"`
-}
-
-type stepTimingMetadata struct {
-	Name string `json:"name"`
-	// StartedAt is the time at which the step started, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
-	StartedAt string `json:"startedAt"`
-	// FinishedAt is the time at which the step finished, formatted as RFC3339 date+time: 2025-11-05T13:16:20.624264+00:00
-	FinishedAt string `json:"finishedAt"`
 }
 
 type deploymentInfo struct {
@@ -85,16 +69,22 @@ type deploymentInfo struct {
 func NewTestContext() *perItOrDescribeTestContext {
 	tc := &perItOrDescribeTestContext{
 		perBinaryInvocationTestContext: invocationContext(),
-		timingMetadata: specTimingMetadata{
+		timingMetadata: timing.SpecTimingMetadata{
 			// Answering the question of "what's the currently-running test name?" in Ginkgo is difficult -
 			// all we know in general is the hierarchy of nodes under which we are currently running. We
 			// need to have some stable identifier for this test context to record metadata in the global,
 			// but we do not want metadata registration to be sensitive to a test author choosing to nest
 			// another `By()` node or whatever, so we can snapshot the hierarchy at test context construction
 			// time to keep a record of the "root" name for registration purposes.
-			Identifier:  ginkgo.CurrentSpecReport().ContainerHierarchyTexts,
-			Steps:       make([]stepTimingMetadata, 0),
-			Deployments: make(map[string]map[string][]Operation),
+			//
+			// n.b. ContainerHierarchyTexts contains Describe() and Context() but does not contain It(),
+			// and the LeadNodeText has It() but not By(), so the full identifier must contain both the
+			// hierarchy prefix and the leaf node. Multiple tests nested in By() under one It() will run
+			// afoul of this approach, but that looks to never happen based on convention.
+			Identifier:  append(ginkgo.CurrentSpecReport().ContainerHierarchyTexts, ginkgo.CurrentSpecReport().LeafNodeText),
+			StartedAt:   time.Now().Format(time.RFC3339),
+			Steps:       make([]timing.StepTimingMetadata, 0),
+			Deployments: make(map[string]map[string][]timing.Operation),
 		},
 	}
 
@@ -648,9 +638,9 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
-func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []Operation) {
+func (tc *perItOrDescribeTestContext) recordDeploymentOperationsUnlocked(resourceGroup, deployment string, operations []timing.Operation) {
 	if _, exists := tc.timingMetadata.Deployments[resourceGroup]; !exists {
-		tc.timingMetadata.Deployments[resourceGroup] = make(map[string][]Operation)
+		tc.timingMetadata.Deployments[resourceGroup] = make(map[string][]timing.Operation)
 	}
 	tc.timingMetadata.Deployments[resourceGroup][deployment] = operations
 }
@@ -672,7 +662,7 @@ func (tc *perItOrDescribeTestContext) RecordTestStep(name string, startTime, fin
 }
 
 func (tc *perItOrDescribeTestContext) recordTestStepUnlocked(name string, startTime, finishTime time.Time) {
-	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, stepTimingMetadata{
+	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
 		Name:       name,
 		StartedAt:  startTime.Format(time.RFC3339),
 		FinishedAt: finishTime.Format(time.RFC3339),
@@ -701,6 +691,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
 	}
 
+	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to marshal timing metadata")
@@ -715,7 +706,11 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	hash := sha256.New()
 	hash.Write(encodedIdentifier)
 	hashBytes := hash.Sum(nil)
-	output := filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+	output := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "test-timing", fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
+		return
+	}
 	if err := os.WriteFile(output, encoded, 0644); err != nil {
 		ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
 		return

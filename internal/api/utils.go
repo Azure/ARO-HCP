@@ -183,13 +183,13 @@ func MergeStringPtrMap(src map[string]*string, dst *map[string]string) {
 // If the request method is PATCH, the request body is applied to v using JSON
 // Merge Patch (RFC 7396) semantics. Otherwise the request body is unmarshalled
 // directly to v.
-func ApplyRequestBody(request *http.Request, body []byte, v any) *arm.CloudError {
+func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return arm.NewInvalidRequestContentError(&json.InvalidUnmarshalError{Type: rv.Type()})
 	}
 
-	switch request.Method {
+	switch requestMethod {
 	case http.MethodPatch:
 		originalData, err := json.Marshal(v)
 		if err != nil {

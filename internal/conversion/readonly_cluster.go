@@ -19,13 +19,17 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
-	// the old code appeared to shallow copies only
-
+func CopyReadOnlyTrackedResourceValues(dest, src *arm.TrackedResource) {
 	dest.ID = src.ID
 	dest.Name = src.Name
 	dest.Type = src.Type
+	dest.Location = src.Location
 	dest.SystemData = src.SystemData
+}
+
+func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
+	// the old code appeared to shallow copies only
+	CopyReadOnlyTrackedResourceValues(&dest.TrackedResource, &src.TrackedResource)
 
 	switch {
 	case hasClusterIdentityToSet(src.Identity) && dest.Identity == nil:
@@ -37,11 +41,7 @@ func CopyReadOnlyClusterValues(dest, src *api.HCPOpenShiftCluster) {
 		copyReadOnlyManagedServiceIdentityValues(dest.Identity, src.Identity)
 	}
 
-	dest.ServiceProviderProperties.ProvisioningState = src.ServiceProviderProperties.ProvisioningState
-	dest.ServiceProviderProperties.Console = src.ServiceProviderProperties.Console
-	dest.ServiceProviderProperties.DNS.BaseDomain = src.ServiceProviderProperties.DNS.BaseDomain
-	dest.ServiceProviderProperties.API.URL = src.ServiceProviderProperties.API.URL
-	dest.ServiceProviderProperties.Platform.IssuerURL = src.ServiceProviderProperties.Platform.IssuerURL
+	dest.ServiceProviderProperties = src.ServiceProviderProperties
 }
 
 func copyReadOnlyManagedServiceIdentityValues(dest, src *arm.ManagedServiceIdentity) {

@@ -30,6 +30,24 @@ import (
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
+func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
+	return func(result database.DBTransactionResult) {
+		// If ARM passed a notification URI, acknowledge it.
+		if len(notificationURI) > 0 {
+			writer.Header().Set(arm.HeaderNameAsyncNotification, "Enabled")
+		}
+
+		// Add callback header(s) based on the request method.
+		switch request.Method {
+		case http.MethodDelete, http.MethodPatch, http.MethodPost:
+			AddLocationHeader(writer, request, operationID)
+			fallthrough
+		case http.MethodPut:
+			AddAsyncOperationHeader(writer, request, operationID)
+		}
+	}
+}
+
 // checkForProvisioningStateConflict returns a "409 Conflict" error response if the
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
@@ -341,30 +359,25 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 	return operationID, nil
 }
 
-func (f *Frontend) GetExternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID, versionedInterface api.Version) (api.VersionedHCPOpenShiftCluster, error) {
-	logger := LoggerFromContext(ctx)
-
+func (f *Frontend) GetInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
 	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsResponseError(err, http.StatusNotFound) {
-		logger.Error(err.Error())
 		return nil, arm.NewResourceNotFoundError(resourceID)
 	}
 	if err != nil {
-		logger.Error(err.Error())
-		return nil, arm.NewInternalServerError()
+		return nil, err
 	}
 
 	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		logger.Error(err.Error())
 		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
 	}
 
-	externalCluster, err := mergeToExternalCluster(csCluster, internalCluster, versionedInterface)
+	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
+	internalCluster, err = mergeToInternalCluster(csCluster, internalCluster)
 	if err != nil {
-		logger.Error(err.Error())
-		return nil, arm.NewInternalServerError()
+		return nil, err
 	}
 
-	return externalCluster, nil
+	return internalCluster, nil
 }

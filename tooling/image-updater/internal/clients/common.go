@@ -93,11 +93,11 @@ func NewRegistryClient(registryURL string, useAuth bool) (RegistryClient, error)
 	switch {
 	case strings.Contains(registryURL, "quay.io"):
 		// Quay has a proprietary API with better tag discovery
-		return NewQuayClient(), nil
+		return NewQuayClient(useAuth), nil
 	case strings.Contains(registryURL, "azurecr.io"):
 		return NewACRClient(registryURL, useAuth)
 	default:
 		// Use generic client for other Docker Registry v2 compatible registries (mcr.microsoft.com, etc.)
-		return NewGenericRegistryClient(registryURL), nil
+		return NewGenericRegistryClient(registryURL, useAuth), nil
 	}
 }

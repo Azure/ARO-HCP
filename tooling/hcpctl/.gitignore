@@ -4,3 +4,5 @@ hcpctl
 
 # Generated kubeconfig files
 *.kubeconfig
+
+must-gather-*

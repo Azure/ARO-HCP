@@ -5,6 +5,8 @@ targetScope = 'subscription'
 @description('Array of roles for platform workload identity')
 param roles array = []
 
+param e2eTestSubscription string
+
 resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
   for role in roles: {
     name: guid(role.roleName)
@@ -22,6 +24,7 @@ resource roleDef 'Microsoft.Authorization/roleDefinitions@2022-04-01' = [
       ]
       assignableScopes: [
         subscription().id
+        format('/subscriptions/%s', e2eTestSubscription)
       ]
     }
   }

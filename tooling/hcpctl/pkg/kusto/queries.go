@@ -43,13 +43,18 @@ func (q *ConfigurableQuery) WithTable(tableName string) *ConfigurableQuery {
 }
 
 func (q *ConfigurableQuery) WithDefaultFields() *ConfigurableQuery {
-	q.Query.AddLiteral("\n| project timestamp, log, cluster, namespace, containerName")
+	q.Query.AddLiteral("\n| project timestamp, log, cluster, namespace_name, container_name")
 	return q
 }
 
 func (q *ConfigurableQuery) WithClusterId(clusterId string) *ConfigurableQuery {
-	q.Query.AddLiteral("\n| where namespace has clusterId")
+	q.Query.AddLiteral("\n| where namespace_name has clusterId")
 	q.Parameters.AddString("clusterId", clusterId)
+	return q
+}
+
+func (q *ConfigurableQuery) WithNoTruncation() *ConfigurableQuery {
+	q.Query.AddLiteral("set notruncation;\n")
 	return q
 }
 
@@ -77,7 +82,7 @@ func (q *ConfigurableQuery) WithClusterIdOrSubscriptionAndResourceGroup(clusterI
 	return q
 }
 
-func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
+func NewClusterIdQuery(database, clusterServiceLogsTable, subscriptionId, resourceGroup string) *ConfigurableQuery {
 	builder := kql.New("").AddTable(clusterServiceLogsTable)
 	builder.AddLiteral("\n| where log has subscriptionId  and log has resourceGroupName")
 	builder.AddLiteral("\n| extend cid=extract(@\"cid='([a-v0-9]{32})'\", 1, tostring(log))")
@@ -89,7 +94,7 @@ func NewClusterIdQuery(clusterServiceLogsTable, subscriptionId, resourceGroup st
 
 	return &ConfigurableQuery{
 		Name:       "Cluster ID",
-		Database:   "HCPServiceLogs",
+		Database:   database,
 		Query:      builder,
 		Parameters: parameters,
 	}

@@ -201,3 +201,5 @@ param roles = [
     notDataActions: []
   }
 ]
+
+param e2eTestSubscription = ''

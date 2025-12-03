@@ -29,9 +29,9 @@ import (
 // OpenShift clusters.
 type HCPOpenShiftClusterNodePool struct {
 	arm.TrackedResource
-	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty" validate:"required"`
-	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty" validate:"required"`
-	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"   validate:"omitempty"`
+	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
+	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
 }
 
 var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
@@ -51,34 +51,34 @@ func (o *HCPOpenShiftClusterNodePool) SetCosmosDocumentData(cosmosUID uuid.UUID)
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"       visibility:"read"`
+	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
 	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	Platform                NodePoolPlatformProfile `json:"platform,omitempty"                visibility:"read create"`
-	Replicas                int32                   `json:"replicas,omitempty"                visibility:"read create update" validate:"min=0,max_if_no_az=200,excluded_with=AutoScaling"`
-	AutoRepair              bool                    `json:"autoRepair,omitempty"              visibility:"read create"`
-	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"             visibility:"read create update"`
-	Labels                  map[string]string       `json:"labels,omitempty"                  visibility:"read create update" validate:"dive,keys,k8s_qualified_name,endkeys,k8s_label_value"`
-	Taints                  []Taint                 `json:"taints,omitempty"                  visibility:"read create update" validate:"dive"`
-	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" visibility:"read create update"`
+	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
+	Replicas                int32                   `json:"replicas,omitempty"`
+	AutoRepair              bool                    `json:"autoRepair,omitempty"`
+	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
+	Labels                  map[string]string       `json:"labels,omitempty"`
+	Taints                  []Taint                 `json:"taints,omitempty"`
+	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"                visibility:"read"`
+	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
 // Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"           validate:"required_unless=ChannelGroup stable,omitempty,openshift_version"`
+	ID           string `json:"id,omitempty"`
 	ChannelGroup string `json:"channelGroup,omitempty"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
 // Visibility for the entire struct is "read create".
 type NodePoolPlatformProfile struct {
-	SubnetID               string        `json:"subnetId,omitempty"         validate:"omitempty,resource_id=Microsoft.Network/virtualNetworks/subnets"`
-	VMSize                 string        `json:"vmSize,omitempty"           validate:"required"`
+	SubnetID               string        `json:"subnetId,omitempty"`
+	VMSize                 string        `json:"vmSize,omitempty"`
 	EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	OSDisk                 OSDiskProfile `json:"osDisk"`
 	AvailabilityZone       string        `json:"availabilityZone,omitempty"`
@@ -87,25 +87,25 @@ type NodePoolPlatformProfile struct {
 // OSDiskProfile represents a OS Disk configuration.
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
-	SizeGiB                int32                  `json:"sizeGiB,omitempty"                validate:"min=1"`
-	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" validate:"enum_diskstorageaccounttype"`
-	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"        validate:"omitempty,resource_id=Microsoft.Compute/diskEncryptionSets"`
+	SizeGiB                int32                  `json:"sizeGiB,omitempty"`
+	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
+	EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty" validate:"min=0,max_if_no_az=200"`
-	Max int32 `json:"max,omitempty" validate:"gtefield=Min,max_if_no_az=200"`
+	Min int32 `json:"min,omitempty"`
+	Max int32 `json:"max,omitempty"`
 }
 
 // Taint represents a Kubernetes taint for a node.
 // Visibility for the entire struct is "read create update".
 type Taint struct {
-	Effect Effect `json:"effect,omitempty" validate:"required,enum_effect"`
-	Key    string `json:"key,omitempty"    validate:"required,k8s_qualified_name"`
-	Value  string `json:"value,omitempty"  validate:"k8s_label_value"`
+	Effect Effect `json:"effect,omitempty"`
+	Key    string `json:"key,omitempty"`
+	Value  string `json:"value,omitempty"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterNodePool {

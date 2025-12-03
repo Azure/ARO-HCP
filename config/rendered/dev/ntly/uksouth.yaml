@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:e0636863d48f89e17933fcfd7a80f21f9f217b9b320c7fa6a9f121dcac4e9f2b
+      digest: sha256:0b31ec456c5f7f9829bdbd55b59ee7faf100b3d7cd63959c5214c33fe9ab66d0
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:4486a5d83d497241afe39d888c65d07e35f1377b5d772af1101c9359214b1620
+      digest: sha256:328fc12e9451429a8b05fd303181d02fb9999d40327e87e5bd9b68943d03d28c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-ntly-ln
   image:
-    digest: sha256:ce8035386368cf99717fed25a9046cd832f27645163442eb19f69af2d4e7713a
+    digest: sha256:ad2822e2656e633b8523de2affdb9d35b3c8a418269d00871455cd01524b4905
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: uk
 azureRegionAvailabilityZoneCount: 3
 backend:
   image:
-    digest: sha256:cfa9d3075d830f22e6970a8f0bd9c5b3706a3e4b7c217f0cd0db1998903e982b
+    digest: sha256:93a2943aa444810182a530b23a466609f9757bfaf98fc13ab65c2b8023621e09
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -82,7 +82,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+    digest: sha256:6ac9622a70ba8f80e99c0b113704513c2dde31531cdad26ff437cf10ab05b589
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -125,7 +125,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:f538c2f925614d0f331b06ddae90d210e4e47e728a87baa9eeac53f97feb423c
+    digest: sha256:359842fa601abfbc21189931d8a89e68acee427afad3fe6667ba876114bea1d7
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -208,7 +208,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:ea2b27abd12facc139496d81d2f20940061a29b6a0be2db36e2f9ffc491fd7dc
+    digest: sha256:74001ff6704ae610280a4ad37cf73e58120bbaa13f3aab879633b396528bf838
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -313,9 +313,9 @@ global:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:75ba18994921469d9a64638a19213a6c4fd3764c97a9638314be5c3c119f11d7
+    digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606
     registry: quay.io
-    repository: acm-d/rhtap-hypershift-operator
+    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   namespace: hypershift
   sharedIngressIPTag: ""
 imageSync:
@@ -323,7 +323,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+      digest: sha256:920bb7fe0cd8013180264afc662f3e9884f4bb7dfe8a9e4be93ced81cf82fb04
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -336,7 +336,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:df4c50016208a6c3f4aaaa1d2254e64772447699e644704bf5d026d1e4eb6ed8
+    digest: sha256:053401cc862f54e181c5b308d1082cfe1ecc9322721a237e15216abc90e3707a
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -375,7 +375,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
+        digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -385,7 +385,7 @@ maestro:
     name: arohcp-ntly-maestro-ln
     private: false
   image:
-    digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36
+    digest: sha256:2683c0f1178b8f896815a00f533f13b16c763e5058f3a281f0ca77e170242c0b
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -490,7 +490,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
+        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
       shards: 1
   rg: hcp-underlay-ntly-uksouth-mgmt-1
@@ -625,11 +625,11 @@ oidc:
     zoneRedundantMode: Auto
 pko:
   imageManager:
-    digest: sha256:796f49540b84ee3b43cab51007e8ea9c6045e47e7ec4155da77fc7754d97de70
+    digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638
     registry: quay.io
     repository: package-operator/package-operator-manager
   imagePackage:
-    digest: sha256:a5cf16020748f9bcbadbbb9bf4885b66697cd2c7adf4d948341f0e3addde54ee
+    digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e
     registry: quay.io
     repository: package-operator/package-operator-package
   k8s:
@@ -637,7 +637,7 @@ pko:
     serviceAccountName: package-operator
   managedIdentityName: package-operator
   remotePhaseManager:
-    digest: sha256:685c49a148b19ca0acdd758d33dc4e85e52c20056c1e00167eb8edce52845d6d
+    digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71
     registry: quay.io
     repository: package-operator/remote-phase-manager
 region: uksouth
@@ -740,7 +740,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
+        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
       shards: 1
       version: ""
