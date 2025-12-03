@@ -19,32 +19,34 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	prowjobs "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowgangway "sigs.k8s.io/prow/pkg/gangway"
-
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 // Monitor handles job execution and monitoring
 type Monitor struct {
-	client       *Client
-	pollInterval time.Duration
-	timeout      time.Duration
+	client        *Client
+	pollInterval  time.Duration
+	timeout       time.Duration
+	dryRun        bool
+	gatePromotion bool
 }
 
 // NewMonitor creates a new job monitor with the specified polling interval and timeout.
-func NewMonitor(client *Client, pollInterval, timeout time.Duration) *Monitor {
+func NewMonitor(client *Client, pollInterval, timeout time.Duration, dryRun, gatePromotion bool) *Monitor {
 	return &Monitor{
-		client:       client,
-		pollInterval: pollInterval,
-		timeout:      timeout,
+		client:        client,
+		pollInterval:  pollInterval,
+		timeout:       timeout,
+		dryRun:        dryRun,
+		gatePromotion: gatePromotion,
 	}
 }
 
 // WaitForCompletion polls job status until completion
-func (m *Monitor) WaitForCompletion(ctx context.Context, prowExecutionID string) error {
-	logger := log.GetLogger()
-
+func (m *Monitor) WaitForCompletion(ctx context.Context, logger logr.Logger, prowExecutionID string) error {
 	ctx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
 
@@ -56,28 +58,42 @@ func (m *Monitor) WaitForCompletion(ctx context.Context, prowExecutionID string)
 	for {
 		job, err := m.client.GetJobStatus(ctx, prowExecutionID)
 		if err != nil {
-			logger.WithError(err).Warn("Failed to get job status after retries, will continue polling")
+			logger.Error(err, "Failed to get job status after retries, will continue polling")
 		} else {
 			status := string(job.Status.State)
-			logger.WithFields(map[string]interface{}{
-				"prowExecutionID": prowExecutionID,
-				"status":          status,
-				"jobName":         job.Spec.Job,
-			}).Info("Job status update")
+			logger = logger.WithValues(
+				"prowExecutionID", prowExecutionID,
+				"status", status,
+				"jobName", job.Spec.Job,
+				"prowUrl", job.Status.URL,
+			)
+			logger.Info("Job status update")
 
 			switch status {
 			case string(prowjobs.SuccessState):
-				logger.WithFields(map[string]interface{}{
-					"prowExecutionID": prowExecutionID,
-					"prowUrl":         job.Status.URL,
-				}).Info("Job completed successfully")
+				logger.Info("Job completed successfully")
 				return nil
 			case string(prowjobs.FailureState):
-				return fmt.Errorf("job %s failed - check the Prow UI for detailed logs: %s", prowExecutionID, job.Status.URL)
+				if m.gatePromotion {
+					return fmt.Errorf("job %s failed - check the Prow UI for detailed logs: %s", prowExecutionID, job.Status.URL)
+				} else {
+					logger.Error(err, "Unexpected job state, but gating is not requested.")
+					return nil
+				}
 			case string(prowjobs.ErrorState):
-				return fmt.Errorf("job %s encountered an error - check Prow status page and job logs for details: %s", prowExecutionID, job.Status.URL)
+				if m.gatePromotion {
+					return fmt.Errorf("job %s encountered an error - check Prow status page and job logs for details: %s", prowExecutionID, job.Status.URL)
+				} else {
+					logger.Error(err, "Unexpected job state, but gating is not requested.")
+					return nil
+				}
 			case string(prowjobs.AbortedState):
-				return fmt.Errorf("job %s was aborted - this may be due to timeout or manual cancellation", prowExecutionID)
+				if m.gatePromotion {
+					return fmt.Errorf("job %s was aborted - this may be due to timeout or manual cancellation", prowExecutionID)
+				} else {
+					logger.Error(err, "Unexpected job state, but gating is not requested.")
+					return nil
+				}
 			}
 		}
 
@@ -91,21 +107,19 @@ func (m *Monitor) WaitForCompletion(ctx context.Context, prowExecutionID string)
 }
 
 // ExecuteAndWait submits a job and waits for completion
-func (m *Monitor) ExecuteAndWait(ctx context.Context, request *prowgangway.CreateJobExecutionRequest) error {
-	logger := log.GetLogger()
-
+func (m *Monitor) ExecuteAndWait(ctx context.Context, logger logr.Logger, request *prowgangway.CreateJobExecutionRequest) error {
 	// Submit job
-	logger.WithField("jobName", request.JobName).Info("Submitting Prow job")
+	logger.Info("Submitting Prow job", "jobName", request.JobName)
+	if m.dryRun {
+		logger.Info("Dry-run is set, exiting.")
+	}
 	prowExecutionID, err := m.client.SubmitJob(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to submit job: %w", err)
 	}
 
-	logger.WithFields(map[string]interface{}{
-		"prowExecutionID": prowExecutionID,
-		"jobName":         request.JobName,
-	}).Info("Job submitted successfully")
+	logger.Info("Job submitted successfully", "prowExecutionID", prowExecutionID, "jobName", request.JobName)
 
 	// Wait for completion using shared logic
-	return m.WaitForCompletion(ctx, prowExecutionID)
+	return m.WaitForCompletion(ctx, logger, prowExecutionID)
 }

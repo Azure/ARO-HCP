@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -28,7 +29,6 @@ import (
 	prowgangway "sigs.k8s.io/prow/pkg/gangway"
 
 	"github.com/Azure/ARO-HCP/test/pkg/prowjob"
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 const (
@@ -69,6 +69,8 @@ func (o *RawExecuteOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().DurationVar(&o.Timeout, "timeout", o.Timeout, "Maximum wait time for job completion")
 	cmd.Flags().StringVar(&o.GangwayURL, "gangway-url", o.GangwayURL, "Gangway API URL for job execution")
 	cmd.Flags().StringVar(&o.ProwURL, "prow-url", o.ProwURL, "Prow API URL for job status monitoring")
+	cmd.Flags().BoolVar(&o.DryRun, "dry-run", o.DryRun, "Print which job would be started, but do not start one.")
+	cmd.Flags().BoolVar(&o.GatePromotion, "gate-promotion", o.GatePromotion, "Exit with an error code if the job fails.")
 
 	// Mark required flags
 	for _, flag := range []string{
@@ -97,6 +99,8 @@ type RawExecuteOptions struct {
 	Timeout           time.Duration
 	GangwayURL        string
 	ProwURL           string
+	DryRun            bool
+	GatePromotion     bool
 }
 
 // validatedExecuteOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -125,6 +129,8 @@ type completedExecuteOptions struct {
 	ProwToken       string
 	GangwayURL      string
 	ProwURL         string
+	DryRun          bool
+	GatePromotion   bool
 }
 
 type ExecuteOptions struct {
@@ -225,23 +231,30 @@ func (o *ValidatedExecuteOptions) Complete(ctx context.Context) (*ExecuteOptions
 			ProwToken:       completed.ProwToken,
 			GangwayURL:      o.GangwayURL,
 			ProwURL:         o.ProwURL,
+			DryRun:          o.DryRun,
+			GatePromotion:   o.GatePromotion,
 		},
 	}, nil
 }
 
 func (o *ExecuteOptions) Execute(ctx context.Context) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Create Prow client
 	client := prowjob.NewClient(o.ProwToken, o.GangwayURL, o.ProwURL)
 
 	// Create job monitor
-	monitor := prowjob.NewMonitor(client, o.PollInterval, o.Timeout)
+	monitor := prowjob.NewMonitor(client, o.PollInterval, o.Timeout, o.DryRun, o.GatePromotion)
 
 	// Prepare environment variables, including the region
 	envs := make(map[string]string)
 	maps.Copy(envs, o.EnvironmentVars)
 	envs["MULTISTAGE_PARAM_OVERRIDE_LOCATION"] = o.Region
 
-	return monitor.ExecuteAndWait(ctx, &prowgangway.CreateJobExecutionRequest{
+	return monitor.ExecuteAndWait(ctx, logger, &prowgangway.CreateJobExecutionRequest{
 		JobName:          o.ProwJobName,
 		JobExecutionType: prowgangway.JobExecutionType_PERIODIC, // hardcode periodic for now
 		PodSpecOptions: &prowgangway.PodSpecOptions{
@@ -418,14 +431,13 @@ func (o *ValidatedMonitorOptions) Complete(ctx context.Context) (*MonitorOptions
 	}, nil
 }
 
-func (o *MonitorOptions) Monitor(ctx context.Context) error {
+func (o *MonitorOptions) Monitor(ctx context.Context, logger logr.Logger) error {
 	// Create Prow client and monitor
 	client := prowjob.NewClient(o.ProwToken, o.GangwayURL, o.ProwURL)
-	monitor := prowjob.NewMonitor(client, o.PollInterval, o.Timeout)
+	monitor := prowjob.NewMonitor(client, o.PollInterval, o.Timeout, false, false)
 
 	// Monitor existing job using shared polling logic
-	logger := log.GetLogger()
-	logger.WithField("jobExecutionID", o.JobExecutionID).Info("Starting to monitor existing job")
+	logger.Info("Starting to monitor existing job", "jobExecutionID", o.JobExecutionID)
 
-	return monitor.WaitForCompletion(ctx, o.JobExecutionID)
+	return monitor.WaitForCompletion(ctx, logger, o.JobExecutionID)
 }
