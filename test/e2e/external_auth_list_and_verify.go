@@ -68,7 +68,8 @@ var _ = Describe("Customer", func() {
 			}
 
 			// Create ARO HCP cluster
-			deploymentCtx, deploymentCancel := context.WithTimeout(ctx, 45*time.Minute)
+			timeout := 45 * time.Minute
+			deploymentCtx, deploymentCancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during external auth list and verify test", timeout.Minutes()))
 			defer deploymentCancel()
 
 			deploymentResp, err := deploymentsClient.BeginCreateOrUpdate(

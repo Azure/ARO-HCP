@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -68,7 +69,7 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 	hcpClusterName string,
 	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
 ) (*rest.Config, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
@@ -91,6 +92,9 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
 	}
 
@@ -131,7 +135,7 @@ func DeleteHCPCluster(
 	hcpClusterName string,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	poller, err := hcpClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nil)
@@ -143,6 +147,9 @@ func DeleteHCPCluster(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish deleting, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish deleting: %w", hcpClusterName, resourceGroupName, err)
 	}
 
@@ -166,7 +173,7 @@ func UpdateHCPCluster(
 	update hcpsdk20240610preview.HcpOpenShiftClusterUpdate,
 	timeout time.Duration,
 ) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during UpdateHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	poller, err := hcpClient.BeginUpdate(ctx, resourceGroupName, hcpClusterName, update, nil)
@@ -178,6 +185,9 @@ func UpdateHCPCluster(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish updating: %w", hcpClusterName, resourceGroupName, err)
 	}
 
@@ -190,6 +200,9 @@ func UpdateHCPCluster(
 		// automatically. In this context, the poller calls it automatically.
 		expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed getting hcpCluster=%q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
 			return nil, err
 		}
 		err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
@@ -219,7 +232,7 @@ func DeleteAllHCPClusters(
 	resourceGroupName string,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteAllHCPClusters for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
 	hcpClusterNames := []string{}
@@ -227,6 +240,9 @@ func DeleteAllHCPClusters(
 	for hcpClusterPager.More() {
 		page, err := hcpClusterPager.NextPage(ctx)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("failed listing hcp clusters in resourcegroup=%q, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), err)
+			}
 			return fmt.Errorf("failed listing hcp clusters in resourcegroup=%q: %w", resourceGroupName, err)
 		}
 		for _, cluster := range page.Value {
@@ -247,6 +263,9 @@ func DeleteAllHCPClusters(
 		})
 	}
 	if err := waitGroup.Wait(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed deleting hcp clusters in resourcegroup=%q, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), err)
+		}
 		// remember that Wait only shows the first error, not all the errors.
 		return fmt.Errorf("at least one hcp cluster failed to delete: %w", err)
 	}
@@ -263,11 +282,14 @@ func DeleteNodePool(
 	nodePoolName string,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteNodePool for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	poller, err := nodePoolsClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed starting nodepool deletion %q for cluster %q in resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return err
 	}
 
@@ -275,6 +297,9 @@ func DeleteNodePool(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish deleting, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed waiting for nodepool=%q in cluster=%q resourcegroup=%q to finish deleting: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
 	}
 
@@ -309,7 +334,7 @@ func CreateOrUpdateExternalAuthAndWait(
 	externalAuth hcpsdk20240610preview.ExternalAuth,
 	timeout time.Duration,
 ) (*hcpsdk20240610preview.ExternalAuth, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateOrUpdateExternalAuthAndWait for external auth %s in cluster %s in resource group %s", timeout.Minutes(), externalAuthName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	pollerResp, err := externalAuthClient.BeginCreateOrUpdate(
@@ -327,6 +352,9 @@ func CreateOrUpdateExternalAuthAndWait(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish, caused by: %w, error: %w", externalAuthName, resourceGroupName, hcpClusterName, context.Cause(ctx), err)
+		}
 		return nil, fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
 	}
 
@@ -378,7 +406,7 @@ func DeleteExternalAuthAndWait(
 	externalAuthName string,
 	timeout time.Duration,
 ) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteExternalAuthAndWait for external auth %s in cluster %s in resource group %s", timeout.Minutes(), externalAuthName, hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	pollerResp, err := externalAuthClient.BeginDelete(
@@ -395,6 +423,9 @@ func DeleteExternalAuthAndWait(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish deleting, caused by: %w, error: %w", externalAuthName, resourceGroupName, hcpClusterName, context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed waiting for external auth %q in resourcegroup=%q for cluster=%q to finish deleting: %w", externalAuthName, resourceGroupName, hcpClusterName, err)
 	}
 
@@ -466,7 +497,7 @@ func CreateHCPClusterAndWait(
 ) (*hcpsdk20240610preview.HcpOpenShiftCluster, error) {
 	if timeout > 0*time.Second {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPClusterAndWait for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 		defer cancel()
 	}
 
@@ -480,6 +511,9 @@ func CreateHCPClusterAndWait(
 			Frequency: StandardPollInterval,
 		})
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
 			return nil, fmt.Errorf("failed waiting for cluster=%q in resourcegroup=%q to finish creating: %w", hcpClusterName, resourceGroupName, err)
 		}
 		switch m := any(operationResult).(type) {
@@ -491,6 +525,9 @@ func CreateHCPClusterAndWait(
 			// automatically. In this context, the poller calls it automatically.
 			expect, err := GetHCPCluster(ctx, hcpClient, resourceGroupName, hcpClusterName)
 			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return nil, fmt.Errorf("failed getting cluster=%q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+				}
 				return nil, err
 			}
 			err = checkOperationResult(&expect.HcpOpenShiftCluster, &m.HcpOpenShiftCluster)
@@ -505,6 +542,9 @@ func CreateHCPClusterAndWait(
 	} else {
 		_, err := poller.Poll(ctx)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed checking for deployment %q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
 			return nil, fmt.Errorf("failed checking for deployment %q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
 		}
 		return nil, nil
@@ -573,7 +613,7 @@ func CreateNodePoolAndWait(
 	nodePool hcpsdk20240610preview.NodePool,
 	timeout time.Duration,
 ) (*hcpsdk20240610preview.NodePool, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolAndWait for nodepool %s in cluster %s in resource group %s", timeout.Minutes(), nodePoolName, hcpClusterName, resourceGroupName))
 	defer cancel()
 	poller, err := nodePoolsClient.BeginCreateOrUpdate(ctx, resourceGroupName, hcpClusterName, nodePoolName, nodePool, nil)
 	if err != nil {
@@ -595,6 +635,9 @@ func CreateNodePoolAndWait(
 		// automatically. In this context, the poller calls it automatically.
 		expect, err := GetNodePool(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("failed to get nodepool, caused by: %w, error: %w", context.Cause(ctx), err)
+			}
 			return nil, err
 		}
 		err = checkOperationResult(&expect.NodePool, &m.NodePool)

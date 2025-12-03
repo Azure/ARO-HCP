@@ -16,6 +16,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -54,7 +55,7 @@ func CreateResourceGroup(
 	resourceGroupTTL time.Duration,
 	timeout time.Duration,
 ) (*armresources.ResourceGroup, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateResourceGroup for resource group %s in location %s", timeout.Minutes(), resourceGroupName, location))
 	defer cancel()
 
 	if resourceGroupTTL < 60*time.Minute {
@@ -69,6 +70,9 @@ func CreateResourceGroup(
 		},
 	}, nil)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("failed to create resource group, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
 		return nil, err
 	}
 
@@ -123,7 +127,7 @@ func DeleteResourceGroup(
 	timeout time.Duration,
 ) error {
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during DeleteResourceGroup for resource group %s", timeout.Minutes(), resourceGroupName))
 	defer cancel()
 
 	var opts *armresources.ResourceGroupsClientBeginDeleteOptions
@@ -135,6 +139,9 @@ func DeleteResourceGroup(
 
 	poller, err := resourceGroupsClient.BeginDelete(ctx, resourceGroupName, opts)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
 		return err
 	}
 
@@ -142,6 +149,9 @@ func DeleteResourceGroup(
 		Frequency: StandardPollInterval,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
+		}
 		return fmt.Errorf("failed waiting for resourcegroup=%q to finish deleting: %w", resourceGroupName, err)
 	}
 
