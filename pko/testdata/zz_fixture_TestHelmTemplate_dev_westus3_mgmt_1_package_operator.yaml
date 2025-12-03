@@ -70,6 +70,8 @@ spec:
         args: ["-self-bootstrap=arohcpsvcdev.azurecr.io/package-operator/package-operator-package@sha256:1234567890"]
         imagePullPolicy: Always
         env:
+        - name: LOG_LEVEL
+          value: "0"
         - name: PKO_REGISTRY_HOST_OVERRIDES
           value: ''
         - name: PKO_CONFIG
