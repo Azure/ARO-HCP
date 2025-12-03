@@ -37,17 +37,17 @@ const (
 // Note: For private repositories, this client falls back to using the Docker Registry V2 API
 // instead of Quay's proprietary API, as the latter requires different credentials
 type QuayClient struct {
-	httpClient     *http.Client
-	baseURL        string
-	useAuth        bool
-	retryConfig    retryConfig
+	httpClient  *http.Client
+	baseURL     string
+	useAuth     bool
+	retryConfig retryConfig
 }
 
 type retryConfig struct {
-	initialInterval    time.Duration
-	maxInterval        time.Duration
-	maxElapsedTime     time.Duration
-	multiplier         float64
+	initialInterval     time.Duration
+	maxInterval         time.Duration
+	maxElapsedTime      time.Duration
+	multiplier          float64
 	randomizationFactor float64
 }
 
@@ -60,10 +60,10 @@ func NewQuayClient(useAuth bool) *QuayClient {
 		baseURL: "https://quay.io/api/v1",
 		useAuth: useAuth,
 		retryConfig: retryConfig{
-			initialInterval:    1 * time.Second,
-			maxInterval:        30 * time.Second,
-			maxElapsedTime:     2 * time.Minute,
-			multiplier:         2.0,
+			initialInterval:     1 * time.Second,
+			maxInterval:         30 * time.Second,
+			maxElapsedTime:      2 * time.Minute,
+			multiplier:          2.0,
 			randomizationFactor: 0.5,
 		},
 	}

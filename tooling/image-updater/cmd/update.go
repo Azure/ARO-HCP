@@ -57,7 +57,7 @@ func runUpdate(cmd *cobra.Command, opts *options.RawUpdateOptions) error {
 	ctx := cmd.Context()
 
 	// Adjust logger level based on verbosity
-	level := slog.LevelInfo
+	var level slog.Level
 	if opts.Verbose >= 2 {
 		level = slog.LevelDebug
 	} else if opts.Verbose == 1 {

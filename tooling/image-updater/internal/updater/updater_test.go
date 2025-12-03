@@ -205,8 +205,9 @@ image:
 				err:    tt.registryError,
 			}
 
+			// Registry client key format is "registry:useAuth"
 			registryClients := map[string]clients.RegistryClient{
-				"quay.io": mockClient,
+				"quay.io:false": mockClient,
 			}
 
 			u := &Updater{
@@ -389,8 +390,9 @@ image:
 				digest: "sha256:newdigest",
 			}
 
+			// Registry client key format is "registry:useAuth"
 			registryClients := map[string]clients.RegistryClient{
-				"quay.io": mockClient,
+				"quay.io:false": mockClient,
 			}
 
 			u := &Updater{
@@ -403,7 +405,7 @@ image:
 				Updates:         make(map[string][]yaml.Update),
 			}
 
-			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
+			_, err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -619,7 +621,7 @@ image:
 			}
 
 			// Process update
-			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
+			_, err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}
@@ -720,8 +722,10 @@ config:
 			digest: newDigest,
 		}
 
+		// Registry client key format is "registry:useAuth"
+		// Since UseAuth is not set in the config, it defaults to false
 		registryClients := map[string]clients.RegistryClient{
-			"quay.io": mockClient,
+			"quay.io:false": mockClient,
 		}
 
 		// Create updater
