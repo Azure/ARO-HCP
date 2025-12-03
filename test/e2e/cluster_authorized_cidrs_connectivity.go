@@ -26,8 +26,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
