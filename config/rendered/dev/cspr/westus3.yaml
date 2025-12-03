@@ -1,13 +1,13 @@
 acm:
   mce:
     bundle:
-      digest: sha256:e0636863d48f89e17933fcfd7a80f21f9f217b9b320c7fa6a9f121dcac4e9f2b
+      digest: sha256:35e2f7811b50da54a5b8df2d70766648a9daa5e587ebca5582a132b1430746e7
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
     version: 2.9.2
   operator:
     bundle:
-      digest: sha256:4486a5d83d497241afe39d888c65d07e35f1377b5d772af1101c9359214b1620
+      digest: sha256:895930bfb435bc7275208640290a8d14d9eb0d4c3a7eb418060e34c26db58716
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
     version: 2.14.2
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
-    digest: sha256:ce8035386368cf99717fed25a9046cd832f27645163442eb19f69af2d4e7713a
+    digest: sha256:ad2822e2656e633b8523de2affdb9d35b3c8a418269d00871455cd01524b4905
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -69,7 +69,7 @@ azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
   image:
-    digest: sha256:cfa9d3075d830f22e6970a8f0bd9c5b3706a3e4b7c217f0cd0db1998903e982b
+    digest: sha256:93a2943aa444810182a530b23a466609f9757bfaf98fc13ab65c2b8023621e09
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -208,7 +208,7 @@ frontend:
     private: false
     zoneRedundantMode: Disabled
   image:
-    digest: sha256:ea2b27abd12facc139496d81d2f20940061a29b6a0be2db36e2f9ffc491fd7dc
+    digest: sha256:74001ff6704ae610280a4ad37cf73e58120bbaa13f3aab879633b396528bf838
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -336,7 +336,7 @@ keyVaultDNSSuffix: vault.azure.net
 kubeEvents:
   enabled: false
   image:
-    digest: sha256:df4c50016208a6c3f4aaaa1d2254e64772447699e644704bf5d026d1e4eb6ed8
+    digest: sha256:053401cc862f54e181c5b308d1082cfe1ecc9322721a237e15216abc90e3707a
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
 kusto:
@@ -385,7 +385,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:8d6495887723fde505296575bfcfa59d584debe966f05565c38a370e35d72e36
+    digest: sha256:2683c0f1178b8f896815a00f533f13b16c763e5058f3a281f0ca77e170242c0b
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -490,7 +490,7 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
+        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
       shards: 1
   rg: hcp-underlay-cspr-westus3-mgmt-1
@@ -740,7 +740,7 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 645b6390daa8fc99985cf40c6868aee92f3ea36b6e92fdf121348e3b26288923
+        sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
       shards: 1
       version: ""
