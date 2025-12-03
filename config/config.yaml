@@ -909,7 +909,7 @@ clouds:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+            digest: sha256:920bb7fe0cd8013180264afc662f3e9884f4bb7dfe8a9e4be93ced81cf82fb04 # d75c341 (2025-12-03 13:40)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'

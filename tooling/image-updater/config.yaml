@@ -180,6 +180,17 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
+  # Image Sync
+  imageSync:
+    source:
+      image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
+      tagPattern: "^[a-f0-9]{7}$"
+      useAuth: true
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.imageSync.ocMirror.image.digest
+      filePath: ../../config/config.yaml
   # Prometheus images
   prometheus-operator:
     source:
