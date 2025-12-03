@@ -99,13 +99,6 @@ func PrepareTagsForArchValidation(tags []Tag, repository string, tagPattern stri
 	return tags, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // NewRegistryClient creates a new registry client based on the registry URL
 func NewRegistryClient(registryURL string, useAuth bool) (RegistryClient, error) {
 	switch {
