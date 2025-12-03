@@ -9,6 +9,17 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.maestro.image.digest
       filePath: ../../config/config.yaml
+  # Maestro Agent Sidecar image
+  maestro-agent-sidecar:
+    source:
+      image: mcr.microsoft.com/azurelinux/base/nginx
+      tagPattern: "^\\d+\\.\\d+\\.\\d+-\\d+-azl\\d+\\.\\d+\\.\\d+$"
+      multiArch: true
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.maestro.agent.sidecar.image.digest
+      filePath: ../../config/config.yaml
   # Hypershift image
   hypershift:
     source:
