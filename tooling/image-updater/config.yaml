@@ -12,9 +12,13 @@ images:
   # Hypershift image
   hypershift:
     source:
-      image: quay.io/acm-d/rhtap-hypershift-operator
+      image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
       tagPattern: "^[a-f0-9]{7}$"
       multiArch: true # Use multi-arch manifest
+      useAuth: true
+      keyVault:
+        url: "https://arohcpdev-global.vault.azure.net/"
+        secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: clouds.public.environments.int.defaults.hypershift.image.digest
       filePath: ../../config/config.msft.clouds-overlay.yaml
