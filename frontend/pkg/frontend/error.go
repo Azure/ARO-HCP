@@ -59,11 +59,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, err error, args ...i
 
 	var ocmError *ocmerrors.Error
 	if errors.As(err, &ocmError) {
-		resourceID, err := ResourceIDFromContext(ctx) // used for error reporting
-		if err != nil {
-			arm.WriteInternalServerError(w)
-			return nil
-		}
+		resourceID, _ := ResourceIDFromContext(ctx) // used for error reporting
 		arm.WriteCloudError(w, ocm.CSErrorToCloudError(err, resourceID, w.Header()))
 		return nil
 	}

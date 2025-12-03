@@ -436,7 +436,7 @@ func (f *Frontend) updateHCPCluster(writer http.ResponseWriter, request *http.Re
 		return err
 	}
 
-	return f.updateHCPClusterInCosmos(ctx, writer, request, newInternalCluster, oldInternalCluster)
+	return f.updateHCPClusterInCosmos(ctx, writer, request, http.StatusOK, newInternalCluster, oldInternalCluster)
 }
 
 func decodeDesiredClusterPatch(ctx context.Context, oldInternalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
@@ -489,10 +489,10 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 		return err
 	}
 
-	return f.updateHCPClusterInCosmos(ctx, writer, request, newInternalCluster, oldInternalCluster)
+	return f.updateHCPClusterInCosmos(ctx, writer, request, http.StatusAccepted, newInternalCluster, oldInternalCluster)
 }
 
-func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
+func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
 	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -583,8 +583,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return err
 	}
 
-	// TODO is patch supposed to be status accepted?
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	_, err = arm.WriteJSONResponse(writer, httpStatusCode, responseBytes)
 	if err != nil {
 		return err
 	}

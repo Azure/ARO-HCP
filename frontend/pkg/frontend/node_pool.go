@@ -419,7 +419,7 @@ func (f *Frontend) updateNodePool(writer http.ResponseWriter, request *http.Requ
 		return err
 	}
 
-	return f.updateNodePoolInCosmos(ctx, writer, request, newInternalNodePool, oldInternalNodePool)
+	return f.updateNodePoolInCosmos(ctx, writer, request, http.StatusOK, newInternalNodePool, oldInternalNodePool)
 }
 
 func decodeDesiredNodePoolPatch(ctx context.Context, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) (*api.HCPOpenShiftClusterNodePool, error) {
@@ -466,10 +466,10 @@ func (f *Frontend) patchNodePool(writer http.ResponseWriter, request *http.Reque
 		return err
 	}
 
-	return f.updateNodePoolInCosmos(ctx, writer, request, newInternalNodePool, oldInternalNodePool)
+	return f.updateNodePoolInCosmos(ctx, writer, request, http.StatusAccepted, newInternalNodePool, oldInternalNodePool)
 }
 
-func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
+func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalNodePool, oldInternalNodePool *api.HCPOpenShiftClusterNodePool) error {
 	logger := LoggerFromContext(ctx)
 
 	versionedInterface, err := VersionFromContext(ctx)
@@ -561,8 +561,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		return err
 	}
 
-	// TODO is patch supposed to be status accepted?
-	_, err = arm.WriteJSONResponse(writer, http.StatusOK, responseBytes)
+	_, err = arm.WriteJSONResponse(writer, httpStatusCode, responseBytes)
 	if err != nil {
 		return err
 	}
