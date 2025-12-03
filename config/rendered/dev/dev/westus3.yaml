@@ -82,7 +82,7 @@ backend:
     exporter: ""
 backplaneAPI:
   image:
-    digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+    digest: sha256:6ac9622a70ba8f80e99c0b113704513c2dde31531cdad26ff437cf10ab05b589
     registry: quay.io
     repository: app-sre/backplane-api
 billing:
@@ -323,7 +323,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:92dc2b18de0126caa2212f62c54023f6e8ecf12e2025c37a5f4151d0253ae14e
+      digest: sha256:920bb7fe0cd8013180264afc662f3e9884f4bb7dfe8a9e4be93ced81cf82fb04
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -375,7 +375,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
+        digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
