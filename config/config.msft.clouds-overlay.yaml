@@ -94,7 +94,7 @@ clouds:
             agent:
               sidecar:
                 image:
-                  digest: sha256:ceee627439ca3e6443c37601d3fbdf8e2394bee52b4287286ad279c10179f9ad
+                  digest: sha256:c9932f5875ba5e0be70d174dc96f45d5474e77df8fe57ed6327b8d8208ee1635 # 1.25.4-6-azl3.0.20251106 (2025-11-07 03:08)
           # OCP image sync
           imageSync:
             ocMirror:
