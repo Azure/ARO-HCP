@@ -880,7 +880,7 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:f85e08ad730a3ca91b8fb55803f324cf2a249409453c9ed86fb06a92917d8bd5 # 10052d9 (2025-12-02 09:39)
+          digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
       # Backplane API
       backplaneAPI:
         image:
@@ -1108,7 +1108,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:f85e08ad730a3ca91b8fb55803f324cf2a249409453c9ed86fb06a92917d8bd5 # 10052d9 (2025-12-02 09:39)
+              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1243,7 +1243,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:f85e08ad730a3ca91b8fb55803f324cf2a249409453c9ed86fb06a92917d8bd5 # 10052d9 (2025-12-02 09:39)
+              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1402,7 +1402,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:f85e08ad730a3ca91b8fb55803f324cf2a249409453c9ed86fb06a92917d8bd5 # 10052d9 (2025-12-02 09:39)
+              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
