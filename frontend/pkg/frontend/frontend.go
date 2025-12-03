@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -774,31 +773,6 @@ func (f *Frontend) OperationStatus(writer http.ResponseWriter, request *http.Req
 	return nil
 }
 
-// mergeToInternalCluster renders a CS Cluster object in JSON format, applying
-// the necessary conversions for the API version of the request.
-// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-func mergeToInternalCluster(csCluster *arohcpv1alpha1.Cluster, internalCluster *api.HCPOpenShiftCluster) (*api.HCPOpenShiftCluster, error) {
-	clusterServiceBasedInternalCluster, err := ocm.ConvertCStoHCPOpenShiftCluster(internalCluster.ID, csCluster)
-	if err != nil {
-		return nil, err
-	}
-
-	clusterServiceBasedInternalCluster.SystemData = internalCluster.SystemData
-	clusterServiceBasedInternalCluster.Tags = maps.Clone(internalCluster.Tags)
-	clusterServiceBasedInternalCluster.ServiceProviderProperties.ProvisioningState = internalCluster.ServiceProviderProperties.ProvisioningState
-	if clusterServiceBasedInternalCluster.Identity == nil {
-		clusterServiceBasedInternalCluster.Identity = &arm.ManagedServiceIdentity{}
-	}
-
-	if internalCluster.Identity != nil {
-		clusterServiceBasedInternalCluster.Identity.PrincipalID = internalCluster.Identity.PrincipalID
-		clusterServiceBasedInternalCluster.Identity.TenantID = internalCluster.Identity.TenantID
-		clusterServiceBasedInternalCluster.Identity.Type = internalCluster.Identity.Type
-	}
-
-	return clusterServiceBasedInternalCluster, nil
-}
-
 func getSubscriptionDifferences(oldSub, newSub *arm.Subscription) []string {
 	var messages []string
 
@@ -944,7 +918,7 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case cosmosOperation.InternalID.Kind() == arohcpv1alpha1.ClusterKind:
-		resultingInternalCluster, err := f.GetInternalClusterFromStorage(ctx, cosmosOperation.ExternalID)
+		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, cosmosOperation.ExternalID)
 		if err != nil {
 			return err
 		}
@@ -954,15 +928,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		}
 
 	case cosmosOperation.ExternalID.ResourceType.String() == api.NodePoolResourceType.String():
-		internalObj, err := f.dbClient.HCPClusters(cosmosOperation.ExternalID.SubscriptionID, cosmosOperation.ExternalID.ResourceGroupName).NodePools(cosmosOperation.ExternalID.Parent.Name).Get(ctx, cosmosOperation.ExternalID.Name)
+		resultingInternalNodePool, err := f.getInternalNodePoolFromStorage(ctx, cosmosOperation.ExternalID)
 		if err != nil {
 			return err
 		}
-		clusterServiceObj, err := f.clusterServiceClient.GetNodePool(ctx, internalObj.ServiceProviderProperties.ClusterServiceID)
-		if err != nil {
-			return ocm.CSErrorToCloudError(err, resourceID, nil)
-		}
-		responseBody, err = mergeToExternalNodePool(clusterServiceObj, internalObj, versionedInterface)
+		responseBody, err = arm.MarshalJSON(versionedInterface.NewHCPOpenShiftClusterNodePool(resultingInternalNodePool))
 		if err != nil {
 			return err
 		}
