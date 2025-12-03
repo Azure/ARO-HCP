@@ -887,7 +887,7 @@ clouds:
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:822477832a73c7eab7fe27200994f10030f708f4a752f33ded3f8f8eaa0470f6
+          digest: sha256:6ac9622a70ba8f80e99c0b113704513c2dde31531cdad26ff437cf10ab05b589 # 078ce6c (2025-11-25 04:00)
       # Admin API
       adminApi:
         image:
