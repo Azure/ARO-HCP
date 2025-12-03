@@ -16,28 +16,37 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/dusted-go/logging/prettylog"
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
-
-	"github.com/Azure/ARO-HCP/test/util/log"
 )
 
 func main() {
-	logger := log.GetLogger()
+	logger := createLogger(0)
 
 	// Create a root context with signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	var logVerbosity int
 
 	cmd := &cobra.Command{
 		Use:           "prow-job-executor",
 		Short:         "Execute and monitor Prow jobs for service validation",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			ctx = logr.NewContext(ctx, createLogger(logVerbosity))
+			cmd.SetContext(ctx)
+		},
 	}
+
+	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
 
 	// Add subcommands
 	subcommands := []func() (*cobra.Command, error){
@@ -48,14 +57,14 @@ func main() {
 	for _, newCmd := range subcommands {
 		subCmd, err := newCmd()
 		if err != nil {
-			logger.WithError(err).Error("failed to create subcommand")
+			logger.Error(err, "failed to create subcommand")
 			os.Exit(1)
 		}
 		cmd.AddCommand(subCmd)
 	}
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		logger.WithError(err).Error("command failed")
+		logger.Error(err, "command failed")
 		os.Exit(1)
 	}
 }
@@ -80,7 +89,10 @@ func NewExecuteCommand() (*cobra.Command, error) {
 }
 
 func runExecute(ctx context.Context, opts *RawExecuteOptions) error {
-	logger := log.GetLogger()
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return err
+	}
 
 	validated, err := opts.Validate(ctx)
 	if err != nil {
@@ -92,10 +104,7 @@ func runExecute(ctx context.Context, opts *RawExecuteOptions) error {
 		return err
 	}
 
-	logger.WithFields(map[string]interface{}{
-		"jobName": completed.ProwJobName,
-		"region":  completed.Region,
-	}).Info("Starting Prow job execution")
+	logger.Info("Starting Prow job execution", "jobName", completed.ProwJobName, "region", completed.Region)
 
 	return completed.Execute(ctx)
 }
@@ -120,7 +129,10 @@ func NewMonitorCommand() (*cobra.Command, error) {
 }
 
 func runMonitor(ctx context.Context, opts *RawMonitorOptions) error {
-	logger := log.GetLogger()
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return err
+	}
 
 	validated, err := opts.Validate(ctx)
 	if err != nil {
@@ -132,7 +144,19 @@ func runMonitor(ctx context.Context, opts *RawMonitorOptions) error {
 		return err
 	}
 
-	logger.WithField("jobExecutionID", completed.JobExecutionID).Info("Starting Prow job monitoring")
+	logger.Info("Starting Prow job monitoring", "jobExecutionID", completed.JobExecutionID)
 
-	return completed.Monitor(ctx)
+	return completed.Monitor(ctx, logger)
+}
+
+func createLogger(verbosity int) logr.Logger {
+	level := slog.Level(verbosity * -1)
+	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
+		Level:       level,
+		AddSource:   false,
+		ReplaceAttr: nil,
+	})
+	slog.SetDefault(slog.New(prettyHandler))
+	slog.SetLogLoggerLevel(level)
+	return logr.FromSlogHandler(prettyHandler)
 }
