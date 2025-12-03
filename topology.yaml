@@ -51,9 +51,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
         pipelinePath: hypershiftoperator/pipeline.yaml
         purpose: Deploy the HyperShift operator.
-      - serviceGroup: Microsoft.Azure.ARO.HCP.PKO
-        pipelinePath: pko/pipeline.yaml
-        purpose: Deploy the Package Operator.
+      # - serviceGroup: Microsoft.Azure.ARO.HCP.PKO
+      #   pipelinePath: pko/pipeline.yaml
+      #   purpose: Deploy the Package Operator.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
         pipelinePath: maestro/agent/pipeline.yaml
         purpose: Deploy the Maestro Agent and register it with the MQTT stream.
