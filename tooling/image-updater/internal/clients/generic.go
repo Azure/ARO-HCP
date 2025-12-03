@@ -62,7 +62,10 @@ type dockerRegistryTagsResponse struct {
 // It retries on temporary network errors and 5xx server errors
 // The operation can be cancelled via context (e.g., Ctrl+C)
 func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	var resp *http.Response
 
 	// Create a new backoff instance for this request
@@ -119,7 +122,10 @@ func (c *GenericRegistryClient) doRequestWithRetry(ctx context.Context, req *htt
 }
 
 func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	// Use Docker Registry HTTP API v2 for listing tags
 	url := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
 
@@ -159,7 +165,10 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 }
 
 func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 
 	logger.V(1).Info("fetching tags from generic registry", "registry", c.registryURL, "repository", repository, "useAuth", c.useAuth)
 

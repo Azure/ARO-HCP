@@ -55,7 +55,10 @@ func New(cfg *config.Config, dryRun bool, forceUpdate bool, registryClients map[
 
 // UpdateImages processes all images in the configuration
 func (u *Updater) UpdateImages(ctx context.Context) error {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return fmt.Errorf("logger not found in context: %w", err)
+	}
 
 	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
 
@@ -140,7 +143,10 @@ func (u *Updater) fetchLatestDigest(ctx context.Context, source config.Source) (
 // ProcessImageUpdates sets up the updates needed for a specific image and target
 // Returns true if an update was needed/applied, false otherwise
 func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *clients.Tag, target config.Target) (bool, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return false, fmt.Errorf("logger not found in context: %w", err)
+	}
 
 	logger.V(1).Info("Processing image", "name", name, "latestDigest", tag.Digest, "tag", tag.Name)
 

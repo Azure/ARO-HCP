@@ -69,7 +69,10 @@ func (c *ACRClient) getAllTags(ctx context.Context, repository string) ([]Tag, e
 }
 
 func (c *ACRClient) getAllTagsWithClient(ctx context.Context, repository string, client *azcontainerregistry.Client) ([]Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	var allTags []Tag
 
 	pager := client.NewListTagsPager(repository, nil)
@@ -130,7 +133,10 @@ func (c *ACRClient) getClient() *azcontainerregistry.Client {
 }
 
 func (c *ACRClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 
 	logger.V(1).Info("fetching tags from ACR", "registry", c.registryURL, "repository", repository)
 

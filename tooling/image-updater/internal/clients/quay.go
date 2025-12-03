@@ -165,7 +165,10 @@ func (c *QuayClient) getBearerToken(repository string, authConfig authn.AuthConf
 // It retries on temporary network errors and 5xx server errors
 // The operation can be cancelled via context (e.g., Ctrl+C)
 func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	var resp *http.Response
 
 	// Create a new backoff instance for this request
@@ -228,7 +231,10 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 		return c.getAllTagsViaRegistryAPI(ctx, repository)
 	}
 
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	// For public repositories, use Quay's proprietary API which provides timestamps
 	var allTags []Tag
 	page := 1
@@ -295,7 +301,10 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 // getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
 // This works with Docker credentials and is used for private repositories
 func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 	url := fmt.Sprintf("https://quay.io/v2/%s/tags/list", repository)
 
 	// Check if context is cancelled
@@ -419,7 +428,10 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 }
 
 func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, multiArch bool) (*Tag, error) {
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("logger not found in context: %w", err)
+	}
 
 	logger.V(1).Info("fetching tags from Quay", "image", repository, "repository", repository, "useAuth", c.useAuth)
 
