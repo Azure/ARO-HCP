@@ -1,4 +1,4 @@
-go 1.24.4
+go 1.25.2
 
 use (
 	./admin/client
@@ -16,4 +16,5 @@ use (
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/yamlwrap
+	example
 )
