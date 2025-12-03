@@ -224,11 +224,11 @@ func (c *QuayClient) doRequestWithRetry(ctx context.Context, req *http.Request) 
 	return resp, nil
 }
 
-func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, error) {
+func (c *QuayClient) getAllTagsWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor) ([]Tag, error) {
 	// If authentication is required, use Docker Registry V2 API instead of Quay's proprietary API
 	// This is because Quay's API requires different credentials (OAuth2 tokens) than registry access
 	if c.useAuth {
-		return c.getAllTagsViaRegistryAPI(ctx, repository)
+		return c.getAllTagsViaRegistryAPIWithCache(ctx, repository, descriptorCache)
 	}
 
 	logger, err := logr.FromContext(ctx)
@@ -298,9 +298,7 @@ func (c *QuayClient) getAllTags(ctx context.Context, repository string) ([]Tag, 
 	return allTags, nil
 }
 
-// getAllTagsViaRegistryAPI uses the Docker Registry V2 API to list tags
-// This works with Docker credentials and is used for private repositories
-func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository string) ([]Tag, error) {
+func (c *QuayClient) getAllTagsViaRegistryAPIWithCache(ctx context.Context, repository string, descriptorCache map[string]*remote.Descriptor) ([]Tag, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("logger not found in context: %w", err)
@@ -377,6 +375,11 @@ func (c *QuayClient) getAllTagsViaRegistryAPI(ctx context.Context, repository st
 			continue
 		}
 
+		// Cache the descriptor for later use if cache is provided
+		if descriptorCache != nil {
+			descriptorCache[tag.Name] = desc
+		}
+
 		// Try to get creation time from config
 		// For multi-arch manifests, get the timestamp from the first platform-specific image
 		if desc.MediaType.IsIndex() {
@@ -435,7 +438,10 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 
 	logger.V(1).Info("fetching tags from Quay", "image", repository, "repository", repository, "useAuth", c.useAuth)
 
-	allTags, err := c.getAllTags(ctx, repository)
+	// Cache for remote descriptors to avoid duplicate remote.Get calls
+	descriptorCache := make(map[string]*remote.Descriptor)
+
+	allTags, err := c.getAllTagsWithCache(ctx, repository, descriptorCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
@@ -460,16 +466,21 @@ func (c *QuayClient) GetArchSpecificDigest(ctx context.Context, repository strin
 		default:
 		}
 
-		ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
-		if err != nil {
-			logger.Error(err, "failed to parse reference", "tag", tag.Name)
-			continue
-		}
+		// Use cached descriptor if available, otherwise fetch it
+		desc, ok := descriptorCache[tag.Name]
+		if !ok {
+			ref, err := name.ParseReference(fmt.Sprintf("quay.io/%s:%s", repository, tag.Name))
+			if err != nil {
+				logger.Error(err, "failed to parse reference", "tag", tag.Name)
+				continue
+			}
 
-		desc, err := remote.Get(ref, remoteOpts...)
-		if err != nil {
-			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
-			continue
+			desc, err = remote.Get(ref, remoteOpts...)
+			if err != nil {
+				logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
+				continue
+			}
+			descriptorCache[tag.Name] = desc
 		}
 
 		// If multiArch is requested, return the multi-arch manifest list digest

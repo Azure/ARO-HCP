@@ -179,6 +179,9 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
+	// Cache for remote descriptors to avoid duplicate remote.Get calls
+	descriptorCache := make(map[string]*remote.Descriptor)
+
 	// Enrich tags with digest and timestamp information before filtering
 	var enrichedTags []Tag
 	for _, tag := range allTags {
@@ -200,6 +203,9 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 			logger.V(1).Info("failed to fetch image descriptor, skipping", "tag", tag.Name, "error", err)
 			continue
 		}
+
+		// Cache the descriptor for later use
+		descriptorCache[tag.Name] = desc
 
 		// Try to get creation time from config
 		if img, err := desc.Image(); err == nil {
@@ -228,15 +234,10 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		default:
 		}
 
-		ref, err := name.ParseReference(fmt.Sprintf("%s/%s:%s", c.registryURL, repository, tag.Name))
-		if err != nil {
-			logger.Error(err, "failed to parse reference", "tag", tag.Name)
-			continue
-		}
-
-		desc, err := remote.Get(ref, remoteOpts...)
-		if err != nil {
-			logger.Error(err, "failed to fetch image descriptor", "tag", tag.Name)
+		// Use cached descriptor instead of calling remote.Get again
+		desc, ok := descriptorCache[tag.Name]
+		if !ok {
+			logger.Error(fmt.Errorf("descriptor not found in cache"), "missing descriptor for tag", "tag", tag.Name)
 			continue
 		}
 
