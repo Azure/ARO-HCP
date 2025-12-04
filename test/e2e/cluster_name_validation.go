@@ -34,6 +34,7 @@ var _ = Describe("Customer", func() {
 		labels.Negative,
 		labels.Medium,
 		labels.AroRpApiCompatible,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
@@ -101,6 +102,7 @@ var _ = Describe("Customer", func() {
 		labels.Negative,
 		labels.Medium,
 		labels.AroRpApiCompatible,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 

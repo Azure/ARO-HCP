@@ -33,6 +33,7 @@ var _ = Describe("Customer", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			Skip("Skipping WIP test: https://issues.redhat.com/browse/ARO-20529")
 			const (

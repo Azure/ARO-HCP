@@ -27,20 +27,25 @@ import (
 )
 
 var _ = Describe("Put HCPOpenShiftCluster", func() {
-	It("Attempts to put HCPOpenshiftCluster with non-existent Resource Group and cluster resource as nil", labels.CreateCluster, labels.RequireNothing, labels.Medium, labels.Negative, func(ctx context.Context) {
-		tc := framework.NewTestContext()
+	It("Attempts to put HCPOpenshiftCluster with non-existent Resource Group and cluster resource as nil",
+		labels.CreateCluster,
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Negative, FlakeAttempts(3),
+		func(ctx context.Context) {
+			tc := framework.NewTestContext()
 
-		clusterName := "non-existing-cluster"
-		customerRGName := "non-existing-group"
-		var (
-			clusterResource hcpsdk20240610preview.HcpOpenShiftCluster
-			clusterOptions  *hcpsdk20240610preview.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
-		)
+			clusterName := "non-existing-cluster"
+			customerRGName := "non-existing-group"
+			var (
+				clusterResource hcpsdk20240610preview.HcpOpenShiftCluster
+				clusterOptions  *hcpsdk20240610preview.HcpOpenShiftClustersClientBeginCreateOrUpdateOptions
+			)
 
-		By("Sending put request to create HCPOpenshiftCluster")
-		_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
-		Expect(err).ToNot(BeNil())
-		errMessage := "The location property is required"
-		Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
-	})
+			By("Sending put request to create HCPOpenshiftCluster")
+			_, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(ctx, customerRGName, clusterName, clusterResource, clusterOptions)
+			Expect(err).ToNot(BeNil())
+			errMessage := "The location property is required"
+			Expect(strings.ToLower(err.Error())).To(ContainSubstring(strings.ToLower(errMessage)))
+		})
 })

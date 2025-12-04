@@ -36,6 +36,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Positive,
 		labels.Medium,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 

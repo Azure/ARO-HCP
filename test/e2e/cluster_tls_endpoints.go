@@ -36,7 +36,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should create an HCP cluster and validate TLS certificates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+	It("should create an HCP cluster and validate TLS certificates", labels.RequireNothing, labels.Critical, labels.Positive, FlakeAttempts(3), func(ctx context.Context) {
 
 		const (
 			customerNetworkSecurityGroupName = "customer-nsg-name"

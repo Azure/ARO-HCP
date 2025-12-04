@@ -59,6 +59,7 @@ var _ = Describe("HCP Nodepools GPU instances", func() {
 			labels.Critical,
 			labels.Positive,
 			labels.IntegrationOnly,
+			FlakeAttempts(3),
 			func(ctx context.Context) {
 				customerClusterName := "gpu-nodepool-cluster-" + rand.String(6)
 

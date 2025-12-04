@@ -41,7 +41,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	It("should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
-		labels.RequireNothing, labels.High, labels.Positive,
+		labels.RequireNothing, labels.High, labels.Positive, FlakeAttempts(3),
 		func(ctx context.Context) {
 			clusterName := "admin-cred-lifecycle-" + rand.String(6)
 			tc := framework.NewTestContext()

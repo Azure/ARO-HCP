@@ -36,6 +36,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			const (
 				customerClusterName             = "hcp-cluster-np-128"

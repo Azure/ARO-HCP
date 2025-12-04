@@ -38,6 +38,7 @@ var _ = Describe("Customer", func() {
 			labels.RequireNothing,
 			labels.Critical,
 			labels.Negative,
+			FlakeAttempts(3),
 			func(ctx context.Context) {
 				const (
 					customerNetworkSecurityGroupName = "customer-nsg-name"

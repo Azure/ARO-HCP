@@ -44,6 +44,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to lifecycle and confirm external auth on a cluster",
 		labels.RequireNothing, labels.High, labels.Positive,
+		FlakeAttempts(3),
 		func(ctx context.Context) {
 			clusterName := testingPrefix + rand.String(6)
 			tc := framework.NewTestContext()

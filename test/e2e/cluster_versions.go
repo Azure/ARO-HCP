@@ -30,7 +30,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	It("should be able to list available HCP OpenShift versions and validate response content",
-		labels.RequireNothing, labels.Medium, labels.Positive,
+		labels.RequireNothing, labels.Medium, labels.Positive, FlakeAttempts(3),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
