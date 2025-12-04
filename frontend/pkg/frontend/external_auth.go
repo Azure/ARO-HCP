@@ -161,8 +161,8 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		return err
 	}
 
-	nodePoolCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
-	oldInternalExternalAuth, err := nodePoolCosmosClient.Get(ctx, resourceID.Name)
+	externalAuthCosmosClient := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name)
+	oldInternalExternalAuth, err := externalAuthCosmosClient.Get(ctx, resourceID.Name)
 	if err != nil && !database.IsResponseError(err, http.StatusNotFound) {
 		return err
 	}
