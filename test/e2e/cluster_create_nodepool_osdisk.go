@@ -32,10 +32,11 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
+	It("should be able to create an HCP cluster and custom node pool osDisk size using direct RP API",
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerClusterName             = "hcp-cluster-np-128"
@@ -49,18 +50,42 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "clusternp128", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("creating the infrastructure, cluster and node pool from a single bicep template")
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"cluster-deployment",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-nodepool-osdisk.json")),
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources (infrastructure and managed identities)")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
 				map[string]interface{}{
-					"persistTagValue":       false,
-					"clusterName":           customerClusterName,
-					"nodePoolName":          customerNodePoolName,
-					"nodePoolOsDiskSizeGiB": customerNodeOsDiskSizeGiB,
-					"nodeReplicas":          customerNodeReplicas,
+					"persistTagValue": false,
 				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating the node pool with custom osDisk size")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.Replicas = customerNodeReplicas
+			nodePoolParams.OSDiskSizeGiB = customerNodeOsDiskSizeGiB
+
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
 				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())

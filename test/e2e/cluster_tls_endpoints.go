@@ -36,84 +36,47 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should create an HCP cluster and validate TLS certificates", labels.RequireNothing, labels.Critical, labels.Positive, func(ctx context.Context) {
+	It("should create an HCP cluster and validate TLS certificates",
+		labels.RequireNothing,
+		labels.Critical,
+		labels.Positive,
+		labels.AroRpApiCompatible,
+		func(ctx context.Context) {
 
-		const (
-			customerNetworkSecurityGroupName = "customer-nsg-name"
-			customerVnetName                 = "customer-vnet-name"
-			customerVnetSubnetName           = "customer-vnet-subnet1"
-			customerClusterName              = "tls-endpoint-hcp-cluster"
-			customerNodePoolName             = "np-1"
-			openshiftControlPlaneVersionId   = "4.19"
-			openshiftNodeVersionId           = "4.19.7"
-		)
-		tc := framework.NewTestContext()
+			const (
+				customerClusterName            = "tls-endpoint-hcp-cluster"
+				customerNodePoolName           = "np-1"
+			)
+			tc := framework.NewTestContext()
 
-		By("creating a resource group")
-		resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
-		Expect(err).NotTo(HaveOccurred())
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
+			Expect(err).NotTo(HaveOccurred())
 
-		By("creating a customer-infra")
-		customerInfraDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-			*resourceGroup.Name,
-			"customer-infra",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/customer-infra.json")),
-			map[string]interface{}{
-				"persistTagValue":        false,
-				"customerNsgName":        customerNetworkSecurityGroupName,
-				"customerVnetName":       customerVnetName,
-				"customerVnetSubnetName": customerVnetSubnetName,
-			},
-			45*time.Minute,
-		)
-		Expect(err).NotTo(HaveOccurred())
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-		By("creating a managed identities")
-		keyVaultName, err := framework.GetOutputValue(customerInfraDeploymentResult, "keyVaultName")
-		Expect(err).NotTo(HaveOccurred())
+			By("creating customer resources (infrastructure and managed identities)")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{
+					"persistTagValue": false,
+				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
-		managedIdentityDeploymentResult, err := tc.CreateBicepTemplateAndWait(ctx,
-			*resourceGroup.Name,
-			"managed-identities",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/managed-identities.json")),
-			map[string]interface{}{
-				"clusterName":  customerClusterName,
-				"nsgName":      customerNetworkSecurityGroupName,
-				"vnetName":     customerVnetName,
-				"subnetName":   customerVnetSubnetName,
-				"keyVaultName": keyVaultName,
-			},
-			45*time.Minute,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("creating a standard hcp cluster")
-		userAssignedIdentities, err := framework.GetOutputValue(managedIdentityDeploymentResult, "userAssignedIdentitiesValue")
-		Expect(err).NotTo(HaveOccurred())
-		identity, err := framework.GetOutputValue(managedIdentityDeploymentResult, "identityValue")
-		Expect(err).NotTo(HaveOccurred())
-		etcdEncryptionKeyName, err := framework.GetOutputValue(customerInfraDeploymentResult, "etcdEncryptionKeyName")
-		Expect(err).NotTo(HaveOccurred())
-		managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
-		_, err = tc.CreateBicepTemplateAndWait(ctx,
-			*resourceGroup.Name,
-			"hcp-cluster",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/cluster.json")),
-			map[string]interface{}{
-				"openshiftVersionId":          openshiftControlPlaneVersionId,
-				"clusterName":                 customerClusterName,
-				"managedResourceGroupName":    managedResourceGroupName,
-				"nsgName":                     customerNetworkSecurityGroupName,
-				"subnetName":                  customerVnetSubnetName,
-				"vnetName":                    customerVnetName,
-				"userAssignedIdentitiesValue": userAssignedIdentities,
-				"identityValue":               identity,
-				"keyVaultName":                keyVaultName,
-				"etcdEncryptionKeyName":       etcdEncryptionKeyName,
-			},
-			45*time.Minute,
-		)
-		Expect(err).NotTo(HaveOccurred())
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
 
 		By("ensuring the API TLS certificate issued is not an OpenShift root CA")
 		clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
@@ -134,16 +97,14 @@ var _ = Describe("Customer", func() {
 		), "expect certificate to be issued by Microsoft")
 
 		By("creating the node pool")
-		_, err = tc.CreateBicepTemplateAndWait(ctx,
+		nodePoolParams := framework.NewDefaultNodePoolParams()
+		nodePoolParams.ClusterName = customerClusterName
+		nodePoolParams.NodePoolName = customerNodePoolName
+
+		err = tc.CreateNodePoolFromParam(ctx,
 			*resourceGroup.Name,
-			"node-pool",
-			framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/modules/nodepool.json")),
-			map[string]interface{}{
-				"openshiftVersionId": openshiftNodeVersionId,
-				"clusterName":        customerClusterName,
-				"nodePoolName":       customerNodePoolName,
-				"replicas":           2,
-			},
+			customerClusterName,
+			nodePoolParams,
 			45*time.Minute,
 		)
 		Expect(err).NotTo(HaveOccurred())
