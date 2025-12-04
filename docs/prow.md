@@ -354,6 +354,7 @@ To modify or add jobs:
 2. **Resource cleanup**: Verify that resource group cleanup jobs are running successfully to prevent cost accumulation
 3. **Job maintenance**: Periodically review job configurations in the openshift/release repository to ensure they remain relevant
 4. **Schedule awareness**: Be aware of when periodic jobs run to avoid conflicts with maintenance windows
+5. **E2E failure notifications**: E2E test failures are automatically notified to Slack channels via the [Prow integration configuration](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/.config.prowgen)
 
 ## Troubleshooting
 
