@@ -831,7 +831,7 @@ clouds:
         arm:
           applicationId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
         image:
-          digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd"
+          digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74 # 1.39.0-azurelinux3.0-distroless
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
       firstPartyAppCertificate:

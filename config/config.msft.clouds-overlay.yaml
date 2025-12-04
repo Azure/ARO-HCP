@@ -104,7 +104,7 @@ clouds:
           # Mise
           mise:
             image:
-              digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd" # 1.38.1-azurelinux3.0-distroless
+              digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74 # 1.39.0-azurelinux3.0-distroless
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -207,7 +207,7 @@ clouds:
           # Mise
           mise:
             image:
-              digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd" # 1.38.1-azurelinux3.0-distroless
+              digest: sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd
       prod:
         # this is the MSFT PRODUCTION environment
         regions:
@@ -309,4 +309,4 @@ clouds:
           # Mise
           mise:
             image:
-              digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd" # 1.38.1-azurelinux3.0-distroless
+              digest: sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd
