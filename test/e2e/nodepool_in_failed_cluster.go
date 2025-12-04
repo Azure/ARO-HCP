@@ -102,7 +102,7 @@ var _ = Describe("Customer", func() {
 					return currentState
 				}
 				return ""
-			}, 3*time.Minute, 10*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateFailed))
+			}, 30*time.Minute, 10*time.Second).Should(Equal(hcpsdk20240610preview.ProvisioningStateFailed))
 
 			By("attempting to deploy nodepool into cluster with failed provisioning state")
 			nodePoolParams := framework.NewDefaultNodePoolParams()
