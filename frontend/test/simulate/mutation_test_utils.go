@@ -196,10 +196,9 @@ func trivialPassThroughClusterServiceMock(t *testing.T, testInfo *SimulationTest
 	require.NoError(t, testInfo.AddMockData(t.Name()+"_nodePools", internalIDToNodePool))
 	testInfo.MockClusterServiceClient.EXPECT().PostNodePool(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID, builder *arohcpv1alpha1.NodePoolBuilder) (*arohcpv1alpha1.NodePool, error) {
 		justID := rand.String(10)
-		builder.ID(justID)
 		nodePoolInternalID := clusterID.String() + "/node_pools/" + justID
-		builder = builder.HREF(nodePoolInternalID)
-		ret, err := builder.Build()
+
+		ret, err := builder.ID(justID).HREF(nodePoolInternalID).Build()
 		if err != nil {
 			return nil, err
 		}

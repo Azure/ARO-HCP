@@ -7,8 +7,6 @@ SUBSCRIPTIONS=(
     "ARO HCP E2E - Staging"
 )
 
-RECYCLE_CREDS=false
-
 # Role assignment condition to prevent assigning privileged administrator roles
 UAA_CONDITION="(
  (
@@ -31,6 +29,8 @@ AND
 )"
 
 GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 APP_ID=$(az ad app list --display-name "${APPLICATION_NAME}" --query '[*]'.appId -o tsv)
 
@@ -62,14 +62,6 @@ grant_api_permission() {
     --api-permissions "${permission}=${type}"
 }
 
-reset_creds() {
-    ./recycle-openshift-release-bot-creds.sh \
-        --app "OpenShift Release Bot MSFT Test" \
-        --vault-url "https://vault.ci.openshift.org:8200" \
-        --vault-secret "selfservice/hcm-aro/hcp-msft-test-credentials" \
-        --target-name "hcp-msft-test-test-credentials"
-}
-
 if [[ -z "${APP_ID}" ]]; then
     header "Creating or update application ${APPLICATION_NAME}"
     SP_OUTPUT=$(az ad sp create-for-rbac \
@@ -82,8 +74,6 @@ if [[ -z "${APP_ID}" ]]; then
 
     echo "Created service principal:"
     echo "  App ID: ${APP_ID}"
-
-    reset_creds
 else
     header "Application ${APPLICATION_NAME} already exists with appId ${APP_ID}"
 fi
@@ -105,7 +95,7 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
     az role assignment create \
         --assignee "${APP_ID}" \
         --role "Contributor" \
-        --scope "/subscriptions/${SUBSCRIPTION_ID}"
+        --scope "/subscriptions/${SUBSCRIPTION_ID}" 2>/dev/null || echo "    (already assigned)"
 
     # Assign Role Based Access Control Administrator role with conditions
     echo "  Assigning Role Based Access Control Administrator role with conditions..."
@@ -115,7 +105,7 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
         --scope "/subscriptions/${SUBSCRIPTION_ID}" \
         --condition "${UAA_CONDITION}" \
         --condition-version "2.0" \
-        --description "Allow user to assign all roles except privileged administrator roles Owner, UAA, RBAC (Recommended)"
+        --description "Allow user to assign all roles except privileged administrator roles Owner, UAA, RBAC (Recommended)" 2>/dev/null || echo "    (already assigned)"
 done
 
 header "Grant API Permissions"
@@ -129,7 +119,20 @@ grant_api_permission "${APP_ID}" "18a4783c-866b-4cc7-a460-3d5e5662c884" "Role"
 echo "Grant admin consent to the application"
 az ad app permission admin-consent --id "${APP_ID}"
 
-if [[ "${RECYCLE_CREDS}" == "true" ]]; then
-    header "Recycling credentials"
-    reset_creds
-fi
+header "Storing Credentials in Vault"
+
+# Call recycle script to handle credential generation and Vault storage
+# This rotates credentials once and updates both stg and prod Vault secrets
+"${SCRIPT_DIR}/recycle-openshift-release-bot-creds.sh"
+
+header "Setup Complete"
+echo ""
+echo "Application: ${APPLICATION_NAME}"
+echo "App ID: ${APP_ID}"
+echo ""
+echo "Credentials stored in:"
+echo "  - kv/selfservice/hcm-aro/aro-hcp-stg-test-tenant"
+echo "  - kv/selfservice/hcm-aro/aro-hcp-prod-test-tenant"
+echo ""
+echo "To switch to Test Test tenant:"
+echo "  ./switch-vault-tenant.sh --to test-tenant"

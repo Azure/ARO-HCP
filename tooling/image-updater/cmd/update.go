@@ -30,7 +30,9 @@ func NewUpdateCommand() *cobra.Command {
 from their source registries, then updates the target configuration files
 with the new digests.
 
-Use --dry-run to see what changes would be made without actually updating files.`,
+Use --dry-run to see what changes would be made without actually updating files.
+
+Use --verbosity (or -v) to control logging verbosity. Higher values show more detail.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUpdate(cmd, opts)
 		},

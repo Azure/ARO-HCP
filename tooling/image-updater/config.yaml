@@ -180,6 +180,17 @@ images:
       filePath: ../../config/config.msft.clouds-overlay.yaml
     - jsonPath: clouds.dev.defaults.secretSyncController.image.digest
       filePath: ../../config/config.yaml
+  # Secret Sync Azure Provider
+  secretSyncProvider:
+    source:
+      image: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure
+      tagPattern: "^v\\d+\\.\\d+\\.\\d+(-\\d+)?$"
+      multiArch: true
+    targets:
+    - jsonPath: clouds.public.environments.int.defaults.secretSyncController.providerImage.digest
+      filePath: ../../config/config.msft.clouds-overlay.yaml
+    - jsonPath: clouds.dev.defaults.secretSyncController.providerImage.digest
+      filePath: ../../config/config.yaml
   # Image Sync
   imageSync:
     source:

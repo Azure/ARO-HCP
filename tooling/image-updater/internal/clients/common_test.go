@@ -231,6 +231,33 @@ func TestPrepareTagsForArchValidation(t *testing.T) {
 			tagPattern: `[invalid(`,
 			wantErr:    true,
 		},
+		{
+			name: "semver sorting ignores push dates",
+			tags: []Tag{
+				// v1.6.2 pushed more recently than v1.7.2, but v1.7.2 should be selected
+				{Name: "v1.6.2", Digest: "sha256:v162", LastModified: now},
+				{Name: "v1.7.2", Digest: "sha256:v172", LastModified: twoDaysAgo},
+				{Name: "v1.7.1", Digest: "sha256:v171", LastModified: oneHourAgo},
+			},
+			repository:   "test/repo",
+			tagPattern:   `^v\d+\.\d+\.\d+$`,
+			wantTagNames: []string{"v1.7.2", "v1.7.1", "v1.6.2"},
+			wantErr:      false,
+		},
+		{
+			name: "semver with build suffixes",
+			tags: []Tag{
+				{Name: "v1.7.2", Digest: "sha256:v172", LastModified: twoDaysAgo},
+				{Name: "v1.7.2-1", Digest: "sha256:v1721", LastModified: twoDaysAgo},
+				{Name: "v1.7.2-2", Digest: "sha256:v1722", LastModified: twoDaysAgo},
+			},
+			repository: "test/repo",
+			tagPattern: `^v\d+\.\d+\.\d+(-\d+)?$`,
+			// In semver, v1.7.2 is the release, v1.7.2-X are pre-releases (lower precedence)
+			// So v1.7.2 comes first, then pre-releases are sorted alphanumerically
+			wantTagNames: []string{"v1.7.2", "v1.7.2-2", "v1.7.2-1"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {

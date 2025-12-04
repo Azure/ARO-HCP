@@ -358,26 +358,3 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	return operationID, nil
 }
-
-func (f *Frontend) GetInternalClusterFromStorage(ctx context.Context, resourceID *azcorearm.ResourceID) (*api.HCPOpenShiftCluster, error) {
-	internalCluster, err := f.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
-	if database.IsResponseError(err, http.StatusNotFound) {
-		return nil, arm.NewResourceNotFoundError(resourceID)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	csCluster, err := f.clusterServiceClient.GetCluster(ctx, internalCluster.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return nil, ocm.CSErrorToCloudError(err, resourceID, nil)
-	}
-
-	// TODO this overwrite will transformed into a "set" function as we transition fields to ownership in cosmos
-	internalCluster, err = mergeToInternalCluster(csCluster, internalCluster)
-	if err != nil {
-		return nil, err
-	}
-
-	return internalCluster, nil
-}

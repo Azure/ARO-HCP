@@ -492,6 +492,13 @@ mgmt:
         repository: prometheus/prometheus
         sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       shards: 1
   rg: hcp-underlay-cspr-westus3-mgmt-1
   subscription:
@@ -543,7 +550,7 @@ mise:
     authorityFQDN: sts.windows.net
     policyLabel: Geneva Actions
   image:
-    digest: sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd
+    digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74
     repository: mise-1p-container-image
   tracing:
     address: ""
@@ -657,7 +664,10 @@ secretSyncController:
     digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07
     registry: registry.k8s.io
     repository: secrets-store-sync/controller
-  providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+  providerImage:
+    digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7
+    registry: mcr.microsoft.com
+    repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
   assignNSP: false
   name: aro-hcp-dev-svc-kv
@@ -742,6 +752,13 @@ svc:
         repository: prometheus/prometheus
         sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06
       replicas: 2
+      resources:
+        limits:
+          cpu: NONE
+          memory: NONE
+        requests:
+          cpu: NONE
+          memory: NONE
       shards: 1
       version: ""
   rg: hcp-underlay-cspr-westus3-svc

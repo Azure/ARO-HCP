@@ -21,7 +21,7 @@ tokenRequestAudience:
 metricsPort: 8085
 providerContainer:
 - name: provider-azure-installer
-  image: '{{ .secretSyncController.providerImage }}'
+  image: '{{ .secretSyncController.providerImage.registry }}/{{ .secretSyncController.providerImage.repository }}@{{ .secretSyncController.providerImage.digest }}'
   imagePullPolicy: IfNotPresent
   args:
   - --endpoint=unix:///provider/azure.sock

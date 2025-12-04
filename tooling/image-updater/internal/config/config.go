@@ -39,7 +39,7 @@ type Source struct {
 	TagPattern   string          `yaml:"tagPattern,omitempty"`
 	Architecture string          `yaml:"architecture,omitempty"` // Specific architecture to use (e.g., "amd64", "arm64"). Mutually exclusive with MultiArch.
 	MultiArch    bool            `yaml:"multiArch,omitempty"`    // If true, fetch the multi-arch manifest list digest instead of a specific architecture
-	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // nil/true = use auth (default), false = anonymous only
+	UseAuth      *bool           `yaml:"useAuth,omitempty"`      // true = use auth, nil/false = anonymous (default)
 	KeyVault     *KeyVaultConfig `yaml:"keyVault,omitempty"`     // Optional: Azure Key Vault config for fetching pull secrets
 }
 

@@ -296,9 +296,35 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 	return resourceGroup, nil
 }
 
+func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Context, resourceGroupsClient *armresources.ResourceGroupsClient, ResourceGroupName string) ([]string, error) {
+	managedResourceGroups := []string{}
+	pager := resourceGroupsClient.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list resource groups while discovering managed groups: %w", err)
+		}
+		for _, rg := range page.Value {
+			if rg.ManagedBy == nil {
+				continue
+			}
+
+			// Match managed resource groups whose owner is an HCP resource in the parent resource group
+			if strings.Contains(
+				strings.ToLower(*rg.ManagedBy),
+				strings.ToLower("/resourceGroups/"+ResourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/"),
+			) {
+				managedResourceGroups = append(managedResourceGroups, *rg.Name)
+			}
+		}
+	}
+	return managedResourceGroups, nil
+}
+
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
-// 2. delete the resource group and wait for success
+// 2. check if any managed resource groups are left behind
+// 3. delete the resource group and wait for success
 func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient, resourceGroupsClient *armresources.ResourceGroupsClient, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -311,6 +337,17 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
 	if err := DeleteAllHCPClusters(ctx, hcpClient, resourceGroupName, timeout); err != nil {
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
+	}
+
+	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupsClient, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("failed to search for managed resource groups: %w", err)
+	}
+
+	if len(managedResourceGroups) > 0 {
+		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s", len(managedResourceGroups), resourceGroupName)
+	} else {
+		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
@@ -336,27 +373,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 
 	errs := []error{}
 
-	// Discover managed resource groups by inspecting the ManagedBy field.
-	managedResourceGroups := []string{}
-	pager := resourceGroupsClient.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list resource groups while discovering managed groups: %w", err)
-		}
-		for _, rg := range page.Value {
-			if rg.ManagedBy == nil {
-				continue
-			}
-
-			// Match managed resource groups whose owner is an HCP resource in the parent resource group.
-			if strings.Contains(
-				strings.ToLower(*rg.ManagedBy),
-				strings.ToLower("/resourceGroups/"+resourceGroupName+"/providers/Microsoft.RedHatOpenshift/hcpOpenShiftClusters/"),
-			) {
-				managedResourceGroups = append(managedResourceGroups, *rg.Name)
-			}
-		}
+	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupsClient, resourceGroupName)
+	if err != nil {
+		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
 
 	for _, managedRG := range managedResourceGroups {
@@ -706,15 +725,17 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 	hash := sha256.New()
 	hash.Write(encodedIdentifier)
 	hashBytes := hash.Sum(nil)
-	output := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "test-timing", fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
-	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
-		return
-	}
-	if err := os.WriteFile(output, encoded, 0644); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
-		return
-	}
+	for _, dir := range []string{tc.perBinaryInvocationTestContext.sharedDir, filepath.Join(tc.perBinaryInvocationTestContext.artifactDir, "test-timing")} {
+		output := filepath.Join(dir, fmt.Sprintf("timing-metadata-%s.yaml", hex.EncodeToString(hashBytes)))
+		if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
+			continue
+		}
+		if err := os.WriteFile(output, encoded, 0644); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
+			continue
+		}
 
-	ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
+		ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
+	}
 }

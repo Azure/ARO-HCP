@@ -6,10 +6,12 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry v0.2.3
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-containerregistry v0.20.6
 	github.com/spf13/cobra v1.10.1
+	golang.org/x/mod v0.29.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

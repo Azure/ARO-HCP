@@ -63,8 +63,9 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
-	CosmosUID        string     `json:"cosmosUID,omitempty"`
-	ClusterServiceID InternalID `json:"clusterServiceID,omitempty"`
+	CosmosUID         string     `json:"cosmosUID,omitempty"`
+	ClusterServiceID  InternalID `json:"clusterServiceID,omitempty"`
+	ActiveOperationID string     `json:"activeOperationId,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

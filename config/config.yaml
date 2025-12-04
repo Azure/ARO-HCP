@@ -122,6 +122,9 @@ defaults:
     image:
       registry: registry.k8s.io
       repository: secrets-store-sync/controller
+    providerImage:
+      registry: mcr.microsoft.com
+      repository: oss/v2/azure/secrets-store/provider-azure
   # Backplane API
   backplaneAPI:
     image:
@@ -348,6 +351,13 @@ defaults:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
         version: ""
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -445,6 +455,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
+        resources:
+          requests:
+            cpu: NONE
+            memory: NONE
+          limits:
+            cpu: NONE
+            memory: NONE
         replicas: 2
         shards: 2
       prometheusConfigReloader:
@@ -828,7 +845,7 @@ clouds:
         arm:
           applicationId: "e2c2ff5c-e5b4-4e79-8c3e-1da8c48461e7"
         image:
-          digest: "sha256:3b1a9e194c2c4ff1c6a1cc085a0944b0b44e7828d7bed793b08ec33943a085fd"
+          digest: sha256:4822b1998fafa4c7ed1e0723dfed8fd0562e1525545327b821e6d9ef29573c74 # 1.39.0-azurelinux3.0-distroless
       # 1P app
       firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
       firstPartyAppCertificate:
@@ -868,7 +885,8 @@ clouds:
       secretSyncController:
         image:
           digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 # v0.0.2 (2025-07-17 15:49)
-        providerImage: mcr.microsoft.com/oss/v2/azure/secrets-store/provider-azure:v1.7.0
+        providerImage:
+          digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
       # Cluster Service
       clustersService:
         environment: "arohcpdev"

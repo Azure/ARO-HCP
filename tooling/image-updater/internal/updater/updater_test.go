@@ -17,15 +17,25 @@ package updater
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
+
+// testLogger creates a logger for tests
+func testLogger() logr.Logger {
+	return logr.FromSlogHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelError, // Only show errors in tests
+	}))
+}
 
 // mockRegistryClient is a simple mock for testing
 type mockRegistryClient struct {
@@ -173,7 +183,7 @@ func TestUpdater_UpdateImages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := logr.NewContext(context.Background(), testLogger())
 
 			tmpDir := t.TempDir()
 			yamlPath := filepath.Join(tmpDir, "test.yaml")
@@ -205,8 +215,9 @@ image:
 				err:    tt.registryError,
 			}
 
+			// Registry client key format is "registry:useAuth"
 			registryClients := map[string]clients.RegistryClient{
-				"quay.io": mockClient,
+				"quay.io:false": mockClient,
 			}
 
 			u := &Updater{
@@ -375,7 +386,7 @@ image:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := logr.NewContext(context.Background(), testLogger())
 
 			editor, yamlPath := tt.setupEditor(t)
 			tt.target.FilePath = yamlPath
@@ -389,8 +400,9 @@ image:
 				digest: "sha256:newdigest",
 			}
 
+			// Registry client key format is "registry:useAuth"
 			registryClients := map[string]clients.RegistryClient{
-				"quay.io": mockClient,
+				"quay.io:false": mockClient,
 			}
 
 			u := &Updater{
@@ -403,7 +415,7 @@ image:
 				Updates:         make(map[string][]yaml.Update),
 			}
 
-			err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
+			_, err := u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: "sha256:newdigest", Name: "v1.0.0"}, tt.target)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ProcessImageUpdates() error = %v, wantErr %v", err, tt.wantErr)
@@ -560,7 +572,7 @@ func TestUpdater_ProcessImageUpdates_SHAFieldHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := logr.NewContext(context.Background(), testLogger())
 
 			// Create temp YAML file with initial content
 			tmpDir := t.TempDir()
@@ -619,7 +631,7 @@ image:
 			}
 
 			// Process update
-			err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
+			_, err = u.ProcessImageUpdates(ctx, "test-image", &clients.Tag{Digest: tt.latestDigest, Name: "v1.0.0"}, target)
 			if err != nil {
 				t.Fatalf("ProcessImageUpdates() failed: %v", err)
 			}
@@ -673,7 +685,7 @@ image:
 
 func TestUpdater_FileUpdateIntegration(t *testing.T) {
 	t.Run("complete file update workflow", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := logr.NewContext(context.Background(), testLogger())
 
 		// Create temp YAML file with initial content
 		tmpDir := t.TempDir()
@@ -720,8 +732,10 @@ config:
 			digest: newDigest,
 		}
 
+		// Registry client key format is "registry:useAuth"
+		// Since UseAuth is not set in the config, it defaults to false
 		registryClients := map[string]clients.RegistryClient{
-			"quay.io": mockClient,
+			"quay.io:false": mockClient,
 		}
 
 		// Create updater

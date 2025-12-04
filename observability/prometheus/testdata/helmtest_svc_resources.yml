@@ -1,0 +1,14 @@
+values: ../values-svc.yaml
+name: helmtest-svc-resources
+namespace: prometheus
+testData:
+  svc:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: "20"
+            memory: "1Gi"
+          limits:
+            cpu: "20"
+            memory: "100Gi"

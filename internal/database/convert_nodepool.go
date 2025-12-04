@@ -35,10 +35,9 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 		},
 		NodePoolProperties: NodePoolProperties{
 			ResourceDocument: ResourceDocument{
-				ResourceID: internalObj.ID,
-				InternalID: internalObj.ServiceProviderProperties.ClusterServiceID,
-				// TODO
-				//ActiveOperationID: "",
+				ResourceID:        internalObj.ID,
+				InternalID:        internalObj.ServiceProviderProperties.ClusterServiceID,
+				ActiveOperationID: internalObj.ServiceProviderProperties.ActiveOperationID,
 				ProvisioningState: internalObj.Properties.ProvisioningState,
 				Identity:          toCosmosIdentity(internalObj.Identity),
 				SystemData:        internalObj.SystemData,
@@ -61,6 +60,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 	cosmosObj.InternalState.InternalAPI.Tags = nil
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.CosmosUID = ""
 	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ClusterServiceID = ocm.InternalID{}
+	cosmosObj.InternalState.InternalAPI.ServiceProviderProperties.ActiveOperationID = ""
 
 	return cosmosObj, nil
 }
@@ -90,6 +90,7 @@ func CosmosToInternalNodePool(cosmosObj *NodePool) (*api.HCPOpenShiftClusterNode
 	internalObj.Tags = copyTags(cosmosObj.Tags)
 	internalObj.ServiceProviderProperties.CosmosUID = cosmosObj.ID
 	internalObj.ServiceProviderProperties.ClusterServiceID = cosmosObj.InternalID
+	internalObj.ServiceProviderProperties.ActiveOperationID = cosmosObj.ActiveOperationID
 
 	return internalObj, nil
 }

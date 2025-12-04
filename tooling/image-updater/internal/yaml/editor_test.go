@@ -301,6 +301,48 @@ app2:
 			updates:     []Update{},
 			wantContent: `version: v1.0.0`,
 		},
+		{
+			name: "update quoted value",
+			yamlContent: `
+image:
+  digest: "sha256:old123" # old comment
+`,
+			updates: []Update{
+				{Line: 3, OldDigest: "sha256:old123", NewDigest: "sha256:new456", Tag: "v1.2.3", Date: "2025-12-03 18:00"},
+			},
+			wantContent: `
+image:
+  digest: sha256:new456 # v1.2.3 (2025-12-03 18:00)
+`,
+		},
+		{
+			name: "update quoted value without existing comment",
+			yamlContent: `
+image:
+  digest: "sha256:old123"
+`,
+			updates: []Update{
+				{Line: 3, OldDigest: "sha256:old123", NewDigest: "sha256:new456", Tag: "v1.2.3"},
+			},
+			wantContent: `
+image:
+  digest: sha256:new456 # v1.2.3
+`,
+		},
+		{
+			name: "update replaces existing comment",
+			yamlContent: `
+image:
+  digest: sha256:old123 # old version
+`,
+			updates: []Update{
+				{Line: 3, OldDigest: "sha256:old123", NewDigest: "sha256:new456", Tag: "v2.0.0", Date: "2025-12-03 18:00"},
+			},
+			wantContent: `
+image:
+  digest: sha256:new456 # v2.0.0 (2025-12-03 18:00)
+`,
+		},
 	}
 
 	for _, tt := range tests {
