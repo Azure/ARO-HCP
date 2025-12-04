@@ -29,7 +29,7 @@ type nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any] struct {
 	containerClient   *azcosmos.ContainerClient
 	providerNamespace string
 	subscriptionID    string
-	resourceGroupID   string
+	resourceGroupName string
 
 	// intermediateResources is optional and present when the resourceType is under another.  Think NodePools is under
 	// an HCPCluster, so the intermediate resource is the HCPCluster
@@ -44,18 +44,18 @@ type intermediateResource struct {
 
 var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]{}
 
-func newNestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType, ParentInternalAPIType, ParentCosmosAPIType any](
-	parent *topLevelCosmosResourceCRUD[ParentInternalAPIType, ParentCosmosAPIType],
+func newNestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
+	containerClient *azcosmos.ContainerClient, parentResourceType azcorearm.ResourceType,
 	subscriptionID, resourceGroupID, parentResourceID string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
 	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
-		containerClient:   parent.containerClient,
-		providerNamespace: parent.resourceType.Namespace,
+		containerClient:   containerClient,
+		providerNamespace: parentResourceType.Namespace,
 		subscriptionID:    subscriptionID,
-		resourceGroupID:   resourceGroupID,
+		resourceGroupName: resourceGroupID,
 		resourceType:      resourceType,
 	}
 	ret.intermediateResources = append(ret.intermediateResources, intermediateResource{
-		resourceType: parent.resourceType,
+		resourceType: parentResourceType,
 		resourceID:   parentResourceID,
 	})
 	return ret
@@ -65,7 +65,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 	if len(d.subscriptionID) == 0 {
 		return nil, fmt.Errorf("subscriptionID is required")
 	}
-	if len(d.resourceGroupID) == 0 && len(d.intermediateResources) > 0 {
+	if len(d.resourceGroupName) == 0 && len(d.intermediateResources) > 0 {
 		return nil, fmt.Errorf("resourceGroupID is required for all subresources")
 	}
 
@@ -73,7 +73,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) makeResourceI
 		"/subscriptions",
 		d.subscriptionID,
 		"resourceGroups",
-		d.resourceGroupID,
+		d.resourceGroupName,
 		"providers",
 		d.providerNamespace,
 	}
@@ -102,7 +102,7 @@ func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) Get(ctx conte
 func (d *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	prefix, err := d.makeResourceIDPath("")
 	if err != nil {
-		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.resourceGroupID, err)
+		return nil, fmt.Errorf("failed to make ResourceID path for '%s': %w", d.resourceGroupName, err)
 	}
 
 	return list[InternalAPIType, CosmosAPIType](ctx, d.containerClient, d.resourceType, prefix, options)

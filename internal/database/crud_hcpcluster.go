@@ -16,11 +16,28 @@ package database
 
 import "github.com/Azure/ARO-HCP/internal/api"
 
+type ControllerContainer interface {
+	// TODO controllers are a concept that is at this scope and at lower scopes and sometimes you want to query all like it
+	// TODO they look a lot like operations, though we can model them as a one-off to start.
+	Controllers(hcpClusterID string) ResourceCRUD[api.Controller]
+}
+
 type HCPClusterCRUD interface {
 	ResourceCRUD[api.HCPOpenShiftCluster]
+	ControllerContainer
 
-	ExternalAuth(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterExternalAuth]
-	NodePools(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterNodePool]
+	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
+	NodePools(hcpClusterID string) NodePoolsCRUD
+}
+
+type NodePoolsCRUD interface {
+	ResourceCRUD[api.HCPOpenShiftClusterNodePool]
+	ControllerContainer
+}
+
+type ExternalAuthsCRUD interface {
+	ResourceCRUD[api.HCPOpenShiftClusterExternalAuth]
+	ControllerContainer
 }
 
 type hcpClusterCRUD struct {
@@ -29,10 +46,34 @@ type hcpClusterCRUD struct {
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
 
-func (h *hcpClusterCRUD) ExternalAuth(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterExternalAuth] {
-	return newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ExternalAuthResourceType)
+func (h *hcpClusterCRUD) ExternalAuth(hcpClusterID string) ExternalAuthsCRUD {
+	return &externalAuthCRUD{
+		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ExternalAuthResourceType),
+	}
 }
 
-func (h *hcpClusterCRUD) NodePools(hcpClusterID string) ResourceCRUD[api.HCPOpenShiftClusterNodePool] {
-	return newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool](h.topLevelCosmosResourceCRUD, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.NodePoolResourceType)
+func (h *hcpClusterCRUD) NodePools(hcpClusterID string) NodePoolsCRUD {
+	return &nodePoolsCRUD{
+		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.NodePoolResourceType),
+	}
+}
+
+func (h *hcpClusterCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
+	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
+}
+
+type externalAuthCRUD struct {
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, ExternalAuth]
+}
+
+func (h *externalAuthCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
+	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
+}
+
+type nodePoolsCRUD struct {
+	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, NodePool]
+}
+
+func (h *nodePoolsCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
+	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
 }

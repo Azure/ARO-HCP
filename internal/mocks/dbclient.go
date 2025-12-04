@@ -183,44 +183,6 @@ func (m *MockDBClient) EXPECT() *MockDBClientMockRecorder {
 	return m.recorder
 }
 
-// Controllers mocks base method.
-func (m *MockDBClient) Controllers(subscriptionID, resourceGroupName string) database.ControllerCRUD {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Controllers", subscriptionID, resourceGroupName)
-	ret0, _ := ret[0].(database.ControllerCRUD)
-	return ret0
-}
-
-// Controllers indicates an expected call of Controllers.
-func (mr *MockDBClientMockRecorder) Controllers(subscriptionID, resourceGroupName any) *MockDBClientControllersCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Controllers", reflect.TypeOf((*MockDBClient)(nil).Controllers), subscriptionID, resourceGroupName)
-	return &MockDBClientControllersCall{Call: call}
-}
-
-// MockDBClientControllersCall wrap *gomock.Call
-type MockDBClientControllersCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockDBClientControllersCall) Return(arg0 database.ControllerCRUD) *MockDBClientControllersCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockDBClientControllersCall) Do(f func(string, string) database.ControllerCRUD) *MockDBClientControllersCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockDBClientControllersCall) DoAndReturn(f func(string, string) database.ControllerCRUD) *MockDBClientControllersCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // CreateBillingDoc mocks base method.
 func (m *MockDBClient) CreateBillingDoc(ctx context.Context, doc *database.BillingDocument) error {
 	m.ctrl.T.Helper()
