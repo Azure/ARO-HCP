@@ -16,6 +16,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"iter"
 	"net/http"
 	"reflect"
@@ -193,6 +194,8 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError 
 	case http.MethodPatch:
 		originalData, err := json.Marshal(v)
 		if err != nil {
+			// there doesn't seem to be any sensible way to get at the logger in here, please forgive me
+			fmt.Printf(`{"level":"ERROR", "msg":"ApplyRequestBody: failed to marshal original data", "error":%q}\n`, err.Error())
 			return arm.NewInternalServerError()
 		}
 
@@ -235,6 +238,8 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) *arm.CloudError 
 
 		err = mergo.Merge(v, src, mergo.WithOverride)
 		if err != nil {
+			// there doesn't seem to be any sensible way to get at the logger in here, please forgive me
+			fmt.Printf(`{"level":"ERROR", "msg":"ApplyRequestBody: failed to merge data", "error":%q}\n`, err.Error())
 			return arm.NewInternalServerError()
 		}
 	}

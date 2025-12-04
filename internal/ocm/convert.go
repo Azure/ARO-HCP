@@ -1032,5 +1032,7 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID, header htt
 		}
 	}
 
+	// there doesn't seem to be any sensible way to get at the logger in here, please forgive me
+	fmt.Printf(`{"level":"ERROR", "msg":"CSErrorToCloudError: failed to convert CS error to a cloud error, original error body", "error":%q}\n`, err.Error())
 	return arm.NewInternalServerError()
 }
