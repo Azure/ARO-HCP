@@ -18,8 +18,6 @@ import (
 	"github.com/google/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type CosmosPersistable interface {
@@ -30,7 +28,5 @@ type CosmosPersistable interface {
 // CosmosData contains the information that persisted resources must have for us to support CRUD against them.
 // These are not (currently) all stored in the same place in our various types.
 type CosmosData struct {
-	ID                *azcorearm.ResourceID
-	ProvisioningState arm.ProvisioningState
-	ClusterServiceID  InternalID
+	ID *azcorearm.ResourceID
 }

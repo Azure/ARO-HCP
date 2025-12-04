@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 type NodePool struct {
@@ -50,10 +51,6 @@ func (o *NodePool) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
 }
 
-func (o *NodePool) GetResourceDocument() *ResourceDocument {
-	return &o.ResourceDocument
+func (o *NodePool) SetResourceID(newResourceID *azcorearm.ResourceID) {
+	o.ResourceDocument.SetResourceID(newResourceID)
 }
-
-var FilterNodePoolState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &NodePoolInternalState{} },
-)

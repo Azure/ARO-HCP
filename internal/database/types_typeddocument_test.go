@@ -15,7 +15,6 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -141,56 +140,6 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 			want:    `{"partitionKey":"","resourceType":"Microsoft.RedHatOpenShift/hcpOpenShiftClusters","properties":{"internalId":""}}`,
 			wantErr: assert.NoError,
 		},
-		{
-			name: "clear hcp",
-			args: args{
-				typedDoc: &TypedDocument{
-					ResourceType: api.ClusterResourceType.String(),
-				},
-				// cannot unmarshal string into Go struct field HCPOpenShiftClusterCustomerProperties.hcpOpenShiftCluster.properties.version of type api.VersionProfile
-				innerDoc: &ResourceDocument{
-					InternalState: map[string]any{
-						"alligator": "adept",
-						"internalAPI": map[string]any{
-							"bat": "black",
-							"customerProperties": map[string]any{
-								"version": map[string]any{
-									"id": "1.2.3",
-								},
-							},
-							"serviceProviderProperties": map[string]any{
-								"dns": map[string]any{
-									"baseDomain": "example.com",
-								},
-							},
-						},
-					},
-				},
-				documentFilter: FilterHCPClusterState,
-			},
-			// verifying that we filter out all unknown fields and serialize equivalently
-			want: jsonFor(
-				&TypedDocument{
-					ResourceType: api.ClusterResourceType.String(),
-				},
-				&ResourceDocument{},
-				ClusterInternalState{
-					InternalAPI: api.HCPOpenShiftCluster{
-						CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-							Version: api.VersionProfile{
-								ID: "1.2.3",
-							},
-						},
-						ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-							DNS: api.ServiceProviderDNSProfile{
-								BaseDomain: "example.com",
-							},
-						},
-					},
-				},
-			),
-			wantErr: assert.NoError,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -202,31 +151,4 @@ func Test_resourceDocumentMarshal(t *testing.T) {
 			assert.Equalf(t, tt.want, string(got), "resourceDocumentMarshal(%v, %v, %v)", tt.args.typedDoc, tt.args.innerDoc, tt.args.documentFilter)
 		})
 	}
-}
-
-func jsonFor(TypedDocument *TypedDocument, doc *ResourceDocument, internalState any) string {
-	doc = toResourceDocument(doc, internalState)
-	return string(api.Must(typedDocumentMarshal(TypedDocument, doc)))
-}
-
-func toResourceDocument(doc *ResourceDocument, internalState any) *ResourceDocument {
-	doc.InternalState = api.Must(objToMap(internalState))
-	return doc
-}
-
-func objToMap(obj any) (map[string]any, error) {
-	if obj == nil {
-		return nil, nil
-	}
-
-	currBytes, err := json.Marshal(obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal original: %w", err)
-	}
-	endingMap := map[string]any{}
-	if err := json.Unmarshal(currBytes, &endingMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal into filtered map: %w", err)
-	}
-
-	return endingMap, nil
 }
