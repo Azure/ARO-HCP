@@ -121,7 +121,9 @@ func newKubeconfig(kubeconfig string) (*rest.Config, error) {
 }
 
 func Run(cmd *cobra.Command, args []string) error {
-	handler := slog.NewJSONHandler(os.Stdout, nil)
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	})
 	logger := slog.New(handler)
 	klog.SetLogger(logr.FromSlogHandler(handler))
 
