@@ -16,22 +16,12 @@ package simulate
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
-
+	"github.com/Azure/ARO-HCP/frontend/test/simulate/controllermutation"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/stretchr/testify/require"
 )
 
 func TestControllerCRUD(t *testing.T) {
@@ -43,32 +33,21 @@ func TestControllerCRUD(t *testing.T) {
 
 	_, testInfo, err := NewFrontendFromTestingEnv(ctx, t)
 	require.NoError(t, err)
+	defer testInfo.Cleanup(context.Background())
 
-	testInfo.DBClient
-
-	database.NewCosmosDatabaseClient()
-	testInfo.CosmosResourcesContainer()
-
-	subscriptionID := "0465bc32-c654-41b8-8d87-9815d7abe8f6" // TODO could read from JSON
-	err = testInfo.CreateInitialCosmosContent(ctx, api.Must(fs.Sub(artifacts, "artifacts/ClusterReadOldData/initial-cosmos-state")))
+	controllerCRUDFS, err := fs.Sub(artifacts, "artifacts/ControllerCRUD")
 	require.NoError(t, err)
 
-	clusterServiceCluster, err := csarhcpv1alpha1.UnmarshalCluster(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/initial-cluster-service-state/02-some-cluster.json")))
-	require.NoError(t, err)
-	testInfo.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/fixed-value"))).Return(clusterServiceCluster, nil)
+	dirContent := api.Must(fs.ReadDir(controllerCRUDFS, "."))
+	for _, dirEntry := range dirContent {
+		currTest, err := controllermutation.NewControllerMutationTest(
+			ctx,
+			testInfo.CosmosResourcesContainer(),
+			dirEntry.Name(),
+			api.Must(fs.Sub(controllerCRUDFS, dirEntry.Name())),
+		)
+		require.NoError(t, err)
 
-	resourceGroup := "some-resource-group"
-	hcpClusterName := "some-hcp-cluster"
-	hcpCluster, err := testInfo.Get20240610ClientFactory(subscriptionID).NewHcpOpenShiftClustersClient().Get(ctx, resourceGroup, hcpClusterName, nil)
-	require.NoError(t, err)
-
-	actualJSON, err := json.MarshalIndent(hcpCluster, "", "    ")
-	require.NoError(t, err)
-
-	actualMap := map[string]any{}
-	require.NoError(t, json.Unmarshal(actualJSON, &actualMap))
-	expectedMap := map[string]any{}
-	require.NoError(t, json.Unmarshal(api.Must(artifacts.ReadFile("artifacts/ClusterReadOldData/some-hcp-cluster--expected.json")), &expectedMap))
-
-	require.Equal(t, expectedMap, actualMap)
+		t.Run(dirEntry.Name(), currTest.RunTest)
+	}
 }

@@ -46,17 +46,17 @@ var _ ResourceCRUD[api.HCPOpenShiftClusterNodePool] = &nestedCosmosResourceCRUD[
 
 func newNestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType any](
 	containerClient *azcosmos.ContainerClient, parentResourceType azcorearm.ResourceType,
-	subscriptionID, resourceGroupID, parentResourceID string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
+	subscriptionID, resourceGroupName, parentResourceName string, resourceType azcorearm.ResourceType) *nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType] {
 	ret := &nestedCosmosResourceCRUD[InternalAPIType, CosmosAPIType]{
 		containerClient:   containerClient,
 		providerNamespace: parentResourceType.Namespace,
 		subscriptionID:    subscriptionID,
-		resourceGroupName: resourceGroupID,
+		resourceGroupName: resourceGroupName,
 		resourceType:      resourceType,
 	}
 	ret.intermediateResources = append(ret.intermediateResources, intermediateResource{
 		resourceType: parentResourceType,
-		resourceID:   parentResourceID,
+		resourceID:   parentResourceName,
 	})
 	return ret
 }

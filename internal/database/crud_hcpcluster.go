@@ -14,7 +14,11 @@
 
 package database
 
-import "github.com/Azure/ARO-HCP/internal/api"
+import (
+	"github.com/Azure/ARO-HCP/internal/api"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+)
 
 type ControllerContainer interface {
 	// TODO controllers are a concept that is at this scope and at lower scopes and sometimes you want to query all like it
@@ -59,7 +63,7 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterID string) NodePoolsCRUD {
 }
 
 func (h *hcpClusterCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
-	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
+	return NewControllerCRUD(h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID)
 }
 
 type externalAuthCRUD struct {
@@ -67,7 +71,7 @@ type externalAuthCRUD struct {
 }
 
 func (h *externalAuthCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
-	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
+	return NewControllerCRUD(h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID)
 }
 
 type nodePoolsCRUD struct {
@@ -75,5 +79,12 @@ type nodePoolsCRUD struct {
 }
 
 func (h *nodePoolsCRUD) Controllers(hcpClusterID string) ResourceCRUD[api.Controller] {
-	return newNestedCosmosResourceCRUD[api.Controller, Controller](h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID, api.ControllerResourceType)
+	return NewControllerCRUD(h.containerClient, h.resourceType, h.subscriptionID, h.resourceGroupName, hcpClusterID)
+}
+
+func NewControllerCRUD(
+	containerClient *azcosmos.ContainerClient, parentResourceType azcorearm.ResourceType,
+	subscriptionID, resourceGroupName, parentResourceName string) ResourceCRUD[api.Controller] {
+
+	return newNestedCosmosResourceCRUD[api.Controller, Controller](containerClient, parentResourceType, subscriptionID, resourceGroupName, parentResourceName, api.ControllerResourceType)
 }
