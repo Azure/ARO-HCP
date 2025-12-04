@@ -599,7 +599,7 @@ func TestShouldRetryError(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := shouldRetryError(testr.New(t), tc.step, tc.err)
+			result := checkAutomatedRetry(testr.New(t), tc.step, tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -607,10 +607,11 @@ func TestShouldRetryError(t *testing.T) {
 
 func TestShouldExecuteStep(t *testing.T) {
 	testCases := []struct {
-		name     string
-		step     types.Step
-		runCount int
-		expected bool
+		name                 string
+		step                 types.Step
+		runCount             int
+		retryOnAnyErrorCount int
+		expected             bool
 	}{
 		{
 			name: "should execute",
@@ -621,8 +622,9 @@ func TestShouldExecuteStep(t *testing.T) {
 					},
 				},
 			},
-			runCount: 0,
-			expected: true,
+			runCount:             0,
+			retryOnAnyErrorCount: 0,
+			expected:             true,
 		},
 		{
 			name: "default, no retries",
@@ -631,13 +633,45 @@ func TestShouldExecuteStep(t *testing.T) {
 					AutomatedRetry: nil,
 				},
 			},
-			runCount: 0,
-			expected: true,
+			runCount:             0,
+			retryOnAnyErrorCount: 0,
+			expected:             true,
+		},
+		{
+			name: "retry on any error",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{},
+			},
+			runCount:             3,
+			retryOnAnyErrorCount: 4,
+			expected:             true,
+		},
+		{
+			name: "retry on any error exhausted",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{},
+			},
+			runCount:             3,
+			retryOnAnyErrorCount: 3,
+			expected:             false,
+		},
+		{
+			name: "automated retries bigger than any error retries",
+			step: &types.ShellStep{
+				StepMeta: types.StepMeta{
+					AutomatedRetry: &types.AutomatedRetry{
+						MaximumRetryCount: 5,
+					},
+				},
+			},
+			runCount:             3,
+			retryOnAnyErrorCount: 3,
+			expected:             true,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := shouldExecuteStep(tc.step, tc.runCount)
+			result := shouldExecuteStep(tc.step, tc.retryOnAnyErrorCount, tc.runCount)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

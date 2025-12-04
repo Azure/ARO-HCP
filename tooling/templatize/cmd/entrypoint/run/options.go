@@ -41,6 +41,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", opts.DryRun, "validate the pipeline without executing it")
 	cmd.Flags().BoolVar(&opts.Persist, "persist-tag", opts.Persist, "toggle if persist tag should be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", opts.DeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
+	cmd.Flags().IntVar(&opts.RetryOnAnyErrorCount, "retry-on-any-error-count", opts.RetryOnAnyErrorCount, "Number of times to retry on any error")
 
 	return nil
 }
@@ -54,6 +55,8 @@ type RawOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+
+	RetryOnAnyErrorCount int
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -77,6 +80,8 @@ type completedOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+
+	RetryOnAnyErrorCount int
 }
 
 type Options struct {
@@ -114,6 +119,8 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 			TimingOutputFile: o.TimingOutputFile,
 			JUnitOutputFile:  o.JUnitOutputFile,
+
+			RetryOnAnyErrorCount: o.RetryOnAnyErrorCount,
 		},
 	}, nil
 }
@@ -135,6 +142,7 @@ func (o *Options) Run(ctx context.Context) error {
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
+		RetryOnAnyErrorCount:  o.RetryOnAnyErrorCount,
 	}
 
 	if o.Entrypoint != nil {

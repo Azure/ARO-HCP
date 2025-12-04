@@ -55,6 +55,8 @@ type PipelineRunOptions struct {
 
 	TimingOutputFile string
 	JUnitOutputFile  string
+
+	RetryOnAnyErrorCount int
 }
 
 type BaseRunOptions struct {
@@ -496,13 +498,13 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		output = nil
 		stepRunErr = nil
 	} else {
-		for shouldExecuteStep(step, runCount) {
+		for shouldExecuteStep(step, options.RetryOnAnyErrorCount, runCount) {
 			runCount++
 			output, details, stepRunErr = executor(node, step, logr.NewContext(ctx, logger), target, &StepRunOptions{
 				BaseRunOptions:    options.BaseRunOptions,
 				PipelineDirectory: filepath.Join(options.TopologyDir, filepath.Dir(graphCtx.Services[node.ServiceGroup].PipelinePath)),
 			}, state)
-			if shouldRetryError(logger, step, stepRunErr) {
+			if checkAutomatedRetry(logger, step, stepRunErr) {
 				duration, err := time.ParseDuration(step.AutomatedRetries().DurationBetweenRetries)
 				if err != nil {
 					return nil, 0, fmt.Errorf("failed to parse duration between retries: %w", err)
@@ -533,15 +535,15 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 	return details, runCount, nil
 }
 
-func shouldExecuteStep(step types.Step, runCount int) bool {
+func shouldExecuteStep(step types.Step, retryOnAnyErrorCount int, runCount int) bool {
 	// Default, no retries, execute the step
-	if step.AutomatedRetries() == nil && runCount == 0 {
+	if step.AutomatedRetries() == nil && runCount == 0 && retryOnAnyErrorCount == 0 {
 		return true
 	}
-	return runCount < step.AutomatedRetries().MaximumRetryCount
+	return (step.AutomatedRetries() != nil && runCount < step.AutomatedRetries().MaximumRetryCount) || runCount < retryOnAnyErrorCount
 }
 
-func shouldRetryError(logger logr.Logger, step types.Step, err error) bool {
+func checkAutomatedRetry(logger logr.Logger, step types.Step, err error) bool {
 	if step.AutomatedRetries() == nil || err == nil {
 		return false
 	}
