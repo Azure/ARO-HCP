@@ -22,7 +22,9 @@ import (
 const TracerName = "github.com/Azure/ARO-HCP/frontend"
 
 func DefaultLogger() *slog.Logger {
-	handlerOptions := slog.HandlerOptions{}
+	handlerOptions := slog.HandlerOptions{
+		AddSource: true,
+	}
 	handler := slog.NewJSONHandler(os.Stdout, &handlerOptions)
 	logger := slog.New(handler)
 	return logger
