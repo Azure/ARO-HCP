@@ -68,14 +68,52 @@ make update
 # Update all components except specific ones
 ./image-updater update --config config.yaml --exclude arohcpfrontend,arohcpbackend
 
-# Enable verbose logging for debugging (shows retry attempts, detailed operations)
-./image-updater update --config config.yaml -v=1
-
-# Maximum verbosity (shows all debug details including HTTP requests)
+# Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
 ```
 
 ## Output Format
+
+### Summary Output
+
+At verbosity levels 0-1 (default), the tool displays a clean summary:
+
+```
+Summary
+-------
+Total images checked: 5
+Images updated:       2
+
+Files successfully updated!
+```
+
+For dry-run mode:
+
+```
+Summary
+-------
+Total images checked: 5
+Updates available:    2
+
+This was a dry-run. No files were modified.
+```
+
+### Commit Message
+
+After updating files, the tool outputs a markdown table showing the changes:
+
+```markdown
+Updated images for dev/int:
+
+| Image | Old SHA | New SHA | Version | Timestamp |
+|-------|---------|---------|---------|-----------|
+| frontend | abc123d… | 789xyz0… | v1.2.3 | 2025-12-05 10:30 |
+| backend | 111222 | 333444 | v2.0.0 | 2025-12-05 11:00 |
+```
+
+**Note**: SHA digests are truncated to 7 characters with `…` to indicate truncation, following git's short SHA convention.
+
+### YAML File Updates
 
 When the tool updates image digests in YAML files, it automatically adds inline comments with version tag and timestamp information:
 
@@ -388,7 +426,7 @@ Flags:
       --dry-run                   Preview changes without modifying files
       --components string         Comma-separated list of components to update (optional)
       --exclude-components string Comma-separated list of components to exclude (optional)
-  -v, --verbosity int             Log verbosity level: 0=info (default), 1=debug, 2=trace
+  -v, --verbosity int             Log verbosity level (default 0)
 ```
 
 **Component Filtering**:
@@ -400,21 +438,22 @@ Flags:
 
 **Logging Verbosity Levels**:
 
-- **Level 0** (default): Info-level logging - shows high-level operations and results
-  - Component updates, digest changes, file modifications
-  - Errors and warnings
-- **Level 1** (debug): Adds detailed operation logs
+- **Level 0 or 1** (default): Clean summary output only
+  - Shows a formatted summary table with total images checked and updates applied
+  - Displays markdown-formatted commit message with changes
+  - No verbose logging noise
+  - Ideal for CI/CD pipelines and regular usage
+
+- **Level 2+** (debug): Detailed debug logging for troubleshooting
   - Registry API calls and responses
   - Retry attempts with backoff durations
   - Tag filtering and architecture validation steps
   - Key Vault authentication details
-- **Level 2** (trace): Maximum verbosity for troubleshooting
-  - HTTP request/response details
   - Individual tag inspection operations
   - Manifest fetching and parsing details
-  - Docker config merging operations
+  - All debug information for troubleshooting
 
-Use higher verbosity levels when debugging authentication issues, tag filtering problems, or transient network failures.
+Use `--verbosity 2` or higher when debugging authentication issues, tag filtering problems, or transient network failures.
 
 ## Configuration Reference
 
@@ -549,6 +588,7 @@ go test ./internal/options/...
 - Options and Key Vault deduplication: 78.5%
 - YAML editing: 81.9%
 - Update logic: 89.8%
+- Output formatting: 100%
 - Client authentication: 18.0%
 
 **Key Test Areas**:
@@ -559,3 +599,5 @@ go test ./internal/options/...
 - Base64 and raw JSON secret decoding
 - Registry client selection and authentication
 - YAML file updates with format preservation
+- Summary output formatting (dry-run vs actual, with/without updates)
+- Commit message generation (SHA truncation, deduplication, edge cases)

@@ -32,7 +32,9 @@ with the new digests.
 
 Use --dry-run to see what changes would be made without actually updating files.
 
-Use --verbosity (or -v) to control logging verbosity. Higher values show more detail.`,
+Use --verbosity (or -v) to control logging verbosity:
+  -v 0 or -v 1: Show only human-friendly summary output (default)
+  -v 2 or higher: Show detailed debug information`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUpdate(cmd, opts)
 		},

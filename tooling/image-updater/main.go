@@ -29,9 +29,7 @@ import (
 )
 
 func main() {
-	logger := createLogger(0)
-
-	// Create a root context with the logger and signal handling
+	// Create a root context with signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -57,12 +55,12 @@ checking for new image versions and updating configuration files accordingly.`,
 		},
 	}
 
-	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
+	rootCmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level (0-1: summary only, 2+: detailed debug info)")
 
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 
 	if err := rootCmd.Execute(); err != nil {
-		logger.Error(err, "command failed")
+		slog.Error("command failed", "error", err)
 		os.Exit(1)
 	}
 }
