@@ -68441,13 +68441,6 @@ metadata:
 spec:
   image: 'mcr.microsoft.com/oss/v2/prometheus/prometheus@sha256:1234567890'
   version: '' # todo: can this be removed? we control the version via image
-  resources:
-    requests:
-      cpu: '1'
-      memory: '2Gi'
-    limits:
-      cpu: '2'
-      memory: '6Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -68476,7 +68469,7 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  retention: '6h'
+  retention: '1d'
   retentionSize: '45GiB'
   routePrefix: /
   ruleNamespaceSelector: {}
