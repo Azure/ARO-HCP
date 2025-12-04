@@ -15,8 +15,10 @@
 package api
 
 import (
+	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -36,7 +38,9 @@ var _ CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 
 func (o *HCPOpenShiftClusterExternalAuth) GetCosmosData() CosmosData {
 	return CosmosData{
-		ID: o.ID,
+		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ID.SubscriptionID)),
+		ItemID:       o.ID,
 	}
 }
 

@@ -150,33 +150,74 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	}
 }
 
-func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+// serializeItem will create a CosmosUID if it doesn't exist, otherwise uses what exists.  This makes it compatible with
+// create, replace, and upsert
+func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) (*uuid.UUID, *azcosmos.PartitionKey, []byte, error) {
 	cosmosPersistable, ok := any(newObj).(api.CosmosPersistable)
 	if !ok {
-		return "", fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
+		return nil, nil, nil, fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
 	}
 	cosmosData := cosmosPersistable.GetCosmosData()
 
-	newCosmosUID := uuid.New()
-	cosmosPersistable.SetCosmosDocumentData(newCosmosUID)
+	var cosmosUID uuid.UUID
+	if len(cosmosData.CosmosUID) == 0 {
+		var err error
+		cosmosUID, err = uuid.Parse(cosmosData.CosmosUID)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to parse Cosmos UID: %w", err)
+		}
+	} else {
+		newCosmosUID := uuid.New()
+		cosmosPersistable.SetCosmosDocumentData(newCosmosUID)
+	}
 
 	cosmosObj, err := InternalToCosmos[InternalAPIType, CosmosAPIType](newObj)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert internal object to Cosmos object: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to convert internal object to Cosmos object: %w", err)
+	}
+	data, err := json.Marshal(cosmosObj)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ItemID, err)
+	}
+
+	return &cosmosUID, &cosmosData.PartitionKey, data, nil
+}
+
+func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Context, transaction DBTransaction, newObj *InternalAPIType, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+	newCosmosUID, _, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return "", err
 	}
 
 	transaction.AddStep(
 		func(b *azcosmos.TransactionalBatch) (string, error) {
-			data, err := json.Marshal(cosmosObj)
-
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal Cosmos DB item for '%s': %w", cosmosData.ID, err)
-			}
-
 			b.CreateItem(data, opts)
 			return newCosmosUID.String(), nil
 		},
 	)
 
 	return newCosmosUID.String(), nil
+}
+
+func upsert[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClient *azcosmos.ContainerClient, newObj *InternalAPIType, opts *azcosmos.ItemOptions) (*InternalAPIType, error) {
+	newCosmosUID, partitionKey, data, err := serializeItem[InternalAPIType, CosmosAPIType](newObj)
+	if err != nil {
+		return nil, err
+	}
+
+	responseItem, err := containerClient.UpsertItem(ctx, *partitionKey, data, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var obj CosmosAPIType
+	if err := json.Unmarshal(responseItem.Value, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Cosmos DB item for '%s': %w", newCosmosUID, err)
+	}
+	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](&obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert Cosmos object to internal type: %w", err)
+	}
+
+	return internalObj, nil
 }

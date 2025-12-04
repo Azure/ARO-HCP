@@ -138,7 +138,7 @@ type createStep struct {
 	key    CreateKey
 
 	cosmosContainer *azcosmos.ContainerClient
-	controller      api.Controller
+	controller      *api.Controller
 }
 
 type CreateKey struct {
@@ -171,7 +171,7 @@ func newCreateStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, ste
 		stepID:          stepID,
 		key:             key,
 		cosmosContainer: cosmosContainer,
-		controller:      controller,
+		controller:      &controller,
 	}, nil
 }
 
@@ -186,6 +186,6 @@ func (l *createStep) RunTest(ctx context.Context, t *testing.T) {
 	require.NoError(t, err)
 
 	controllerCRUDClient := database.NewControllerCRUD(l.cosmosContainer, parentResourceType, l.key.SubscriptionID, l.key.SubscriptionID, l.key.ParentName)
-	_, err = controllerCRUDClient.Create(l.controller)
+	_, err = controllerCRUDClient.Upsert(ctx, l.controller, nil)
 	require.NoError(t, err, "failed to create controller")
 }
