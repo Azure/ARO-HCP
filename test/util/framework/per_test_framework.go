@@ -378,12 +378,6 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 		return fmt.Errorf("failed to search for managed resource groups: %w", err)
 	}
 
-	if len(managedResourceGroups) > 0 {
-		ginkgo.GinkgoLogr.Info("found managed resource groups for cleanup", "count", len(managedResourceGroups), "parentResourceGroup", resourceGroupName)
-	} else {
-		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
-	}
-
 	for _, managedRG := range managedResourceGroups {
 		ginkgo.GinkgoLogr.Info("deleting managed resource group", "resourceGroup", managedRG, "parentResourceGroup", resourceGroupName)
 		if err := DeleteResourceGroup(ctx, resourceGroupsClient, managedRG, true, timeout); err != nil {
