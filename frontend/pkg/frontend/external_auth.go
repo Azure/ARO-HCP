@@ -174,8 +174,6 @@ func (f *Frontend) CreateOrUpdateExternalAuth(writer http.ResponseWriter, reques
 		if err != nil {
 			return err
 		}
-		// CheckForProvisioningStateConflict does not log conflict errors
-		// but does log unexpected errors like database failures.
 		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalExternalAuth.ID, oldInternalExternalAuth.Properties.ProvisioningState); err != nil {
 			return err
 		}
@@ -266,11 +264,14 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
-	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
+	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
 	if err != nil {
 		return err
 	}
-	cluster, err := f.getInternalClusterFromStorage(ctx, resourceID.Parent)
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		return err
+	}
+	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
 	if err != nil {
 		return err
 	}

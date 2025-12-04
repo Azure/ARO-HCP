@@ -176,8 +176,6 @@ func (f *Frontend) CreateOrUpdateNodePool(writer http.ResponseWriter, request *h
 		if err != nil {
 			return err
 		}
-		// CheckForProvisioningStateConflict does not log conflict errors
-		// but does log unexpected errors like database failures.
 		if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, oldInternalNodePool.ID, oldInternalNodePool.Properties.ProvisioningState); err != nil {
 			return err
 		}
@@ -277,6 +275,9 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	logger.Info(fmt.Sprintf("creating resource %s", resourceID))
+	if err := checkForProvisioningStateConflict(ctx, f.dbClient, database.OperationRequestUpdate, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
+		return err
+	}
 	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
 	if err != nil {
 		return err

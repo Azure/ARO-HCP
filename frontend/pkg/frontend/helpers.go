@@ -58,7 +58,7 @@ func checkForProvisioningStateConflict(
 	operationRequest database.OperationRequest,
 	resourceID *azcorearm.ResourceID,
 	provisioningState arm.ProvisioningState,
-) *arm.CloudError {
+) error {
 
 	logger := LoggerFromContext(ctx)
 
@@ -77,7 +77,7 @@ func checkForProvisioningStateConflict(
 		if !provisioningState.IsTerminal() {
 			return arm.NewConflictError(
 				resourceID,
-				"Cannot update resource while resource is %s",
+				"Cannot update resource while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
 	case database.OperationRequestRequestCredential:
@@ -86,7 +86,7 @@ func checkForProvisioningStateConflict(
 		if !provisioningState.IsTerminal() {
 			return arm.NewConflictError(
 				resourceID,
-				"Cannot request credential while resource is %s",
+				"Cannot request credential while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
 	case database.OperationRequestRevokeCredentials:
@@ -95,7 +95,7 @@ func checkForProvisioningStateConflict(
 		if !provisioningState.IsTerminal() {
 			return arm.NewConflictError(
 				resourceID,
-				"Cannot revoke credentials while resource is %s",
+				"Cannot revoke credentials while resource is %q",
 				strings.ToLower(string(provisioningState)))
 		}
 	}
