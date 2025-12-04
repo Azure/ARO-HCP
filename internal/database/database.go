@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -203,22 +204,22 @@ type cosmosDBClient struct {
 func NewDBClient(ctx context.Context, database *azcosmos.DatabaseClient) (DBClient, error) {
 	resources, err := database.NewContainer(resourcesContainer)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	billing, err := database.NewContainer(billingContainer)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	locks, err := database.NewContainer(locksContainer)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	lockClient, err := NewLockClient(ctx, locks)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	return &cosmosDBClient{
@@ -405,7 +406,7 @@ func (d *cosmosDBClient) GetResourceDoc(ctx context.Context, resourceID *azcorea
 func (d *cosmosDBClient) PatchResourceDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops ResourceDocumentPatchOperations) (*ResourceDocument, error) {
 	typedDoc, _, err := d.getResourceDoc(ctx, resourceID)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	options := &azcosmos.ItemOptions{EnableContentResponseOnWrite: true}
@@ -696,7 +697,7 @@ func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.Cli
 			ClientOptions: clientOptions,
 		})
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	client, err := azcosmos.NewClient(
@@ -706,7 +707,7 @@ func NewCosmosDatabaseClient(url string, dbName string, clientOptions azcore.Cli
 			ClientOptions: clientOptions,
 		})
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 
 	return client.NewDatabase(dbName)

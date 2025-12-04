@@ -26,6 +26,7 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 const (
@@ -193,12 +194,12 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 	case http.MethodPatch:
 		originalData, err := json.Marshal(v)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 
 		modifiedData, err := jsonpatch.MergePatch(originalData, body)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 
 		// Reset *v to its zero value.
@@ -235,7 +236,7 @@ func ApplyRequestBody(requestMethod string, body []byte, v any) error {
 
 		err = mergo.Merge(v, src, mergo.WithOverride)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 	}
 

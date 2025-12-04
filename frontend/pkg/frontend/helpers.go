@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
@@ -106,7 +107,7 @@ func checkForProvisioningStateConflict(
 	for parent.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 		_, parentDoc, err := cosmosClient.GetResourceDoc(ctx, parent)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 
 		// XXX There is still a small opportunity for nested resource requests to get
@@ -185,7 +186,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	for parent.ResourceType.Namespace == doc.ResourceID.ResourceType.Namespace {
 		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
-			return err
+			return utils.TrackError(err)
 		}
 
 		// XXX There is still a small opportunity for nested resource requests to get
@@ -219,7 +220,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) error {
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
@@ -237,19 +238,19 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 		// Allow this method to be idempotent.
 		if resourceDoc.ProvisioningState != arm.ProvisioningStateDeleting {
 			if _, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc); err != nil {
-				return err
+				return utils.TrackError(err)
 			}
 		}
 	}
 
 	err = dbIterator.GetError()
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
-		return err
+		return utils.TrackError(err)
 	}
 
 	return nil
