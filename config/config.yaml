@@ -650,15 +650,15 @@ defaults:
     imagePackage:
       registry: quay.io
       repository: package-operator/package-operator-package
-      digest: sha256:5339d32cc2520b7a6328298a9d61dccb0b1df396585b46ffd8db8f74af45c31e # v1.18.3 (2025-09-18 09:48)
+      digest: sha256:6dc4ef7c2ac37438636fd18cda973f53440478c91f580fa5e15c6377f41d60c6 # v1.18.3 (2025-12-03 16:28)
     imageManager:
       registry: quay.io
       repository: package-operator/package-operator-manager
-      digest: sha256:2d0f030016d1661a017e3a015dff271ec1d74fee50cbaa94e238138a0a562638 # v1.18.3 (2025-09-18 09:44)
+      digest: sha256:e9f66a19bc9dcfcf2a9e6ba14f61395806b65813a89385a2f943fe5148b29142 # v1.18.3 (2025-12-03 16:28)
     remotePhaseManager:
       registry: quay.io
       repository: package-operator/remote-phase-manager
-      digest: sha256:59e606400b85025007b207ed19f32bd9698650c93fe8e7e7993539e4767f4f71 # v1.18.3 (2025-09-18 09:44)
+      digest: sha256:0298985d8a02c983be382d351e9243c45edd035b11aa23a6ed077b3d6df7aa45 # v1.18.3 (2025-12-03 16:28)
   # ACM
   acm:
     operator:
@@ -666,13 +666,13 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-214
-        digest: sha256:328fc12e9451429a8b05fd303181d02fb9999d40327e87e5bd9b68943d03d28c # v2.14.2-301 (2025-12-02 00:08)
+        digest: sha256:1483d6338f7b1bd2a8c91e3d18fc7748875b1c4b51bf30a23c2fcdd18c44221b # v2.14.2-303 (2025-12-04 00:08)
     mce:
       version: "2.9.2"
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-29
-        digest: sha256:0b31ec456c5f7f9829bdbd55b59ee7faf100b3d7cd63959c5214c33fe9ab66d0 # v2.9.2-140 (2025-12-02 00:10)
+        digest: sha256:fb450579832f1c5800f91294fb6b20ce2764d955faaae0c91d268df179681d81 # v2.9.2-142 (2025-12-04 00:09)
   # Cluster Service
   clustersService:
     image:
@@ -872,7 +872,7 @@ clouds:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
         image:
-          digest: sha256:2683c0f1178b8f896815a00f533f13b16c763e5058f3a281f0ca77e170242c0b # d54ff22802e1ec0ded52b6e7ad039994a0fa7d9d (2025-12-02 02:02)
+          digest: sha256:4e143ae8ffdee15792635741ade6adada45e508b87d9edec93d6cd82a13213bf # 76ac7dcdae466109e026087354d3c19d58c60751 (2025-12-03 07:30)
         agent:
           sidecar:
             image:
@@ -880,18 +880,18 @@ clouds:
       # ACR Pull
       acrPull:
         image:
-          digest: sha256:d0962cbd98b90a9c16933b33afaa27d72cc58f94322c93d1745388599562c37d # v0.1.20 (2025-09-19 20:18)
+          digest: sha256:0129450f2cb03f2d358ac5ac3f46af923f1384fda24cd1b6ace309bb45efc691 # v0.1.21 (2025-12-03 19:29)
       # Secret Sync Controller
       secretSyncController:
         image:
           digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 # v0.0.2 (2025-07-17 15:49)
         providerImage:
-          digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
+          digest: sha256:9b7a11630793ab772a6e433fc81af45d26838d7682e8412207306adb05e0dc83 # v1.6.2 (2025-11-18 22:24)
       # Cluster Service
       clustersService:
         environment: "arohcpdev"
         image:
-          digest: sha256:359842fa601abfbc21189931d8a89e68acee427afad3fe6667ba876114bea1d7 # fc8ed25 (2025-12-02)
+          digest: sha256:36c81faf8c92c7f50be6551dc6a0b068c0eef5f45274556c2bd98ad9f78244b7 # aced51a (2025-12-04 14:09)
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
@@ -901,15 +901,15 @@ clouds:
         image:
           registry: quay.io
           repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-          digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
+          digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
       # Backplane API
       backplaneAPI:
         image:
-          digest: sha256:6ac9622a70ba8f80e99c0b113704513c2dde31531cdad26ff437cf10ab05b589 # 078ce6c (2025-11-25 04:00)
+          digest: sha256:6d0c964c97c5a737b9270445eaeae05292f6b2b281493796b991ef708ca4f9db # 21a9913 (2025-12-04 08:17)
       # Admin API
       adminApi:
         image:
-          digest: sha256:ad2822e2656e633b8523de2affdb9d35b3c8a418269d00871455cd01524b4905 # c82658b (2025-12-02 22:38)
+          digest: sha256:486ebbb510ecbd4b8f89857e8b820e6ecff661df16591e83a338fe6fbb23854e # e368a2f (2025-12-04 12:50)
         cert:
           issuer: Self
       # Frontend
@@ -917,17 +917,17 @@ clouds:
         cert:
           issuer: Self
         image:
-          digest: sha256:74001ff6704ae610280a4ad37cf73e58120bbaa13f3aab879633b396528bf838 # c82658b (2025-12-02 22:38)
+          digest: sha256:f3b2d83dca499d344e2fa343883d527a508c6dce03ef653ec659b640dcc6c4ce # e368a2f (2025-12-04 12:50)
       # Backend
       backend:
         image:
-          digest: sha256:93a2943aa444810182a530b23a466609f9757bfaf98fc13ab65c2b8023621e09 # c82658b (2025-12-02 22:39)
+          digest: sha256:a9bd701d274bbf0713d0fe1529e0771555ed57ca474987d619ff516f79b41237 # e368a2f (2025-12-04 12:50)
       # Image Sync
       imageSync:
         ocMirror:
           jobNamePrefix: ''
           image:
-            digest: sha256:920bb7fe0cd8013180264afc662f3e9884f4bb7dfe8a9e4be93ced81cf82fb04 # d75c341 (2025-12-03 13:40)
+            digest: sha256:e00a6bae8b317891be41e27847819f9ae463370792f30d390676e4dfb0e2a7f5 # e368a2f (2025-12-04 12:50)
       # Shared SVC KV
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
@@ -1129,7 +1129,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
+              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
       ntly:
         # this is an environment to test the deployability of infra nightly
         defaults:
@@ -1264,7 +1264,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
+              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1423,7 +1423,7 @@ clouds:
             image:
               registry: quay.io
               repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-              digest: sha256:c6b7f68895a242dfff5f5729f90f3aa5108a88c840837cdce7cb9e87d0546606 # 02f528c (2025-12-03 01:47)
+              digest: sha256:2b33a38c788fd8cbc16c1f353d417bee4646140dbfbfaa847b4d81941c601c36 # 046886e (2025-12-04 03:04)
           # MC
           mgmt:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
