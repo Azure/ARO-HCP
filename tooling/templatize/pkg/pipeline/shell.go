@@ -287,9 +287,11 @@ func checkCachedOutput[T any](logger logr.Logger, data any, stepCacheDir string)
 
 		var output T
 		if err := json.Unmarshal(content, &output); err != nil {
-			return "", nil, nil, fmt.Errorf("failed to deserialize output: %w", err)
+			logger.V(2).Info("Failed to deserialize cached output, ignoring cache", "err", err, "content", string(content))
+			// Don't fail, just proceed without cache
+		} else {
+			return digest, &output, nil, nil
 		}
-		return digest, &output, nil, nil
 	} else {
 		logger.V(4).Info("Did not find any content in cache.", "err", err)
 	}
