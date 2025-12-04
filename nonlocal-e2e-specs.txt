@@ -13,11 +13,8 @@
   "should be able to create a cluster with an external auth config and get the external auth config",
   "should be able to create an HCP cluster and custom node pool osDisk size using bicep template",
   "should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group",
-  "should be able to lifecycle and confirm external auth on a cluster",
-  "should be able to list HCP clusters without node pools at both subscription and resource group levels",
   "should be able to list available HCP OpenShift versions and validate response content",
   "should be able to test admin credentials before cluster ready, then full admin credential lifecycle",
   "should confirm the HCP cluster is deleted (not found)",
-  "should create an HCP cluster and validate TLS certificates",
-  "should not be able to create a 4.18 HCP cluster"
+  "should create an HCP cluster and validate TLS certificates"
 ]
