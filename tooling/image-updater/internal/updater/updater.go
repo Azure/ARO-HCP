@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/clients"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/config"
+	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/output"
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
@@ -60,18 +61,21 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 		return fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(1).Info("starting image updates", "totalImages", len(u.Config.Images))
+	totalImages := len(u.Config.Images)
+	logger.V(2).Info("starting image updates", "totalImages", totalImages)
 
 	imageNum := 0
 	updatedCount := 0
 	for name, imageConfig := range u.Config.Images {
 		imageNum++
-		logger.V(1).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tagPattern", imageConfig.Source.TagPattern)
+		logger.V(2).Info("processing image", "name", name, "source", imageConfig.Source.Image, "tagPattern", imageConfig.Source.TagPattern)
 
 		imageInfo, err := u.fetchLatestDigest(ctx, imageConfig.Source)
 		if err != nil {
 			return fmt.Errorf("failed to fetch latest digest for %s: %w", name, err)
 		}
+
+		logger.V(2).Info("found latest tag", "name", name, "tag", imageInfo.Name, "digest", imageInfo.Digest)
 
 		for _, target := range imageConfig.Targets {
 			updated, err := u.ProcessImageUpdates(ctx, name, imageInfo, target)
@@ -85,11 +89,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 	}
 
 	// Always show summary
-	if u.DryRun {
-		fmt.Fprintf(os.Stderr, "Checked %d images, %d would be updated (dry-run mode)\n", len(u.Config.Images), updatedCount)
-	} else {
-		fmt.Fprintf(os.Stderr, "Checked %d images, %d updated\n", len(u.Config.Images), updatedCount)
-	}
+	output.PrintSummary(os.Stderr, totalImages, updatedCount, u.DryRun)
 
 	if !u.DryRun && len(u.Updates) > 0 {
 		for filePath, updates := range u.Updates {
@@ -103,7 +103,7 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 			}
 		}
 
-		commitMsg := u.GenerateCommitMessage()
+		commitMsg := output.GenerateCommitMessage(u.Updates)
 		if commitMsg != "" {
 			fmt.Println(commitMsg)
 		}
@@ -148,7 +148,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		return false, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	logger.V(1).Info("Processing image", "name", name, "latestDigest", tag.Digest, "tag", tag.Name)
+	logger.V(2).Info("Processing image", "name", name, "latestDigest", tag.Digest, "tag", tag.Name)
 
 	editor, exists := u.YAMLEditors[target.FilePath]
 	if !exists {
@@ -160,7 +160,7 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 		return false, fmt.Errorf("failed to get current digest at path %s: %w", target.JsonPath, err)
 	}
 
-	logger.V(1).Info("Current digest", "name", name, "currentDigest", currentDigest)
+	logger.V(2).Info("Current digest", "name", name, "currentDigest", currentDigest)
 
 	// If the target path ends with .sha, we need to strip the sha256: prefix
 	// from the digest since sha fields only contain the hash value
@@ -170,18 +170,18 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 	}
 
 	if currentDigest == newDigest && !u.ForceUpdate {
-		logger.V(1).Info("No update needed - digests match", "name", name)
+		logger.V(2).Info("No update needed - digests match", "name", name)
 		return false, nil
 	}
 
 	if currentDigest == newDigest && u.ForceUpdate {
-		logger.Info("Force update - regenerating version tag comment", "name", name)
+		logger.V(2).Info("Force update - regenerating version tag comment", "name", name)
 	} else {
-		logger.Info("Update needed", "name", name, "from", currentDigest, "to", newDigest)
+		logger.V(2).Info("Update needed", "name", name, "from", currentDigest, "to", newDigest)
 	}
 
 	if u.DryRun {
-		logger.Info("DRY RUN: Would update image",
+		logger.V(2).Info("DRY RUN: Would update image",
 			"name", name,
 			"jsonPath", target.JsonPath,
 			"filePath", target.FilePath,
@@ -210,18 +210,4 @@ func (u *Updater) ProcessImageUpdates(ctx context.Context, name string, tag *cli
 	})
 
 	return true, nil
-}
-
-// GenerateCommitMessage creates a commit message for the updated images
-func (u *Updater) GenerateCommitMessage() string {
-	for _, updates := range u.Updates {
-		if len(updates) > 0 {
-			var parts []string
-			for _, update := range updates {
-				parts = append(parts, fmt.Sprintf("%s: %s -> %s", update.Name, update.OldDigest, update.NewDigest))
-			}
-			return "Updated images for dev/int:\n" + strings.Join(parts, "\n")
-		}
-	}
-	return ""
 }
