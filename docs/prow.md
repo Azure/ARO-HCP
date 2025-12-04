@@ -42,25 +42,23 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 
 #### Quick Reference
 
-| Job | Trigger | Always Runs | Required | Environment |
-|-----|---------|-------------|----------|-------------|
-| images | `/test images` | Yes | Yes | - |
-| image-updater-images | `/test image-updater-images` | Yes | Yes | - |
-| periodic-images | `/test periodic-images` | Yes | Yes | - |
-| frontend-simulation | `/test frontend-simulation` | Yes | Yes | - |
-| e2e-parallel | `/test e2e-parallel` | Yes | No | Dev (westus3) |
-| integration-e2e-parallel | `/test integration-e2e-parallel` | No | No | Int (uksouth) |
-| stage-e2e-parallel | `/test stage-e2e-parallel` | No | No | Stage (uksouth) |
-| prod-e2e-parallel | `/test prod-e2e-parallel` | No | No | Prod (uksouth) |
+| Job | Always Runs | Required | Environment |
+|-----|-------------|----------|-------------|
+| images | Yes | Yes | - |
+| image-updater-images | Yes | Yes | - |
+| periodic-images | Yes | Yes | - |
+| frontend-simulation | Yes | Yes | - |
+| e2e-parallel | Yes | No | Dev (westus3) |
+| integration-e2e-parallel | No | No | Int (uksouth) |
+| stage-e2e-parallel | No | No | Stage (uksouth) |
+| prod-e2e-parallel | No | No | Prod (uksouth) |
 
 #### Images
 
 | Property | Value |
 |----------|-------|
 | **Job Names** | [`pull-ci-Azure-ARO-HCP-main-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-images)<br>[`pull-ci-Azure-ARO-HCP-main-image-updater-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-image-updater-images)<br>[`pull-ci-Azure-ARO-HCP-main-periodic-images`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-periodic-images) |
-| **Triggers** | `/test images`<br>`/test image-updater-images`<br>`/test periodic-images` |
 | **Status** | Always runs (required) |
-| **Step Registry** | [images](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=images)<br>[image-updater-images](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=image-updater-images)<br>[periodic-images](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-images) |
 | **Purpose** | Builds and validates container images for the project. The standard `images` job builds the main service images, while `image-updater-images` builds the image updater tooling variant, and `periodic-images` builds the images used by periodic jobs. |
 
 ---
@@ -70,7 +68,6 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 | Property | Value |
 |----------|-------|
 | **Job Name** | [`pull-ci-Azure-ARO-HCP-main-frontend-simulation`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-frontend-simulation) |
-| **Trigger** | `/test frontend-simulation` |
 | **Status** | Always runs (required) |
 | **Cluster** | build10 |
 | **Step Registry** | [frontend-simulation](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=frontend-simulation) |
@@ -83,7 +80,6 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 | Property | Value |
 |----------|-------|
 | **Job Name** | [`pull-ci-Azure-ARO-HCP-main-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-e2e-parallel) |
-| **Trigger** | `/test e2e-parallel` |
 | **Status** | Always runs, but optional (does not block merge) |
 | **Environment** | Dev (westus3) |
 | **Cluster** | build07 |
@@ -92,16 +88,15 @@ Presubmit jobs run automatically or on-demand for pull requests to the main bran
 
 ---
 
-#### Environment-Specific E2E Tests
+#### Environment-Specific E2E Test Jobs
 
-These optional jobs allow testing against specific Azure environments before merging changes.
+These optional jobs allow testing against specific Azure environments before merging changes in [ARO HCP E2E test case code](../test/e2e/). Using these jobs to validate changes in code of ARO HCP RP or ARO HCP infrastructure deployment is not possible, because changes in these components won't be available in Azure environments before a merge of given pull request.
 
 ##### Integration Environment E2E
 
 | Property | Value |
 |----------|-------|
 | **Job Name** | [`pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-integration-e2e-parallel) |
-| **Trigger** | `/test integration-e2e-parallel` |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Int (uksouth) |
 | **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=integration-e2e-parallel) |
@@ -112,7 +107,6 @@ These optional jobs allow testing against specific Azure environments before mer
 | Property | Value |
 |----------|-------|
 | **Job Name** | [`pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-stage-e2e-parallel) |
-| **Trigger** | `/test stage-e2e-parallel` |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Stage (uksouth) |
 | **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=stage-e2e-parallel) |
@@ -123,7 +117,6 @@ These optional jobs allow testing against specific Azure environments before mer
 | Property | Value |
 |----------|-------|
 | **Job Name** | [`pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel`](https://prow.ci.openshift.org/?job=pull-ci-Azure-ARO-HCP-main-prod-e2e-parallel) |
-| **Trigger** | `/test prod-e2e-parallel` |
 | **Status** | Optional (runs only when triggered) |
 | **Environment** | Prod (uksouth) |
 | **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=prod-e2e-parallel) |
@@ -142,7 +135,7 @@ Periodic jobs run on a regular schedule to maintain system health, perform routi
 |----------|-------|
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-image-updater-image-updater-tooling) |
 | **Schedule** | Daily at 2:00 AM UTC, Monday through Friday (`0 2 * * 1-5`) |
-| **Step Registry** | [image-updater-tooling](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=image-updater-tooling) |
+| **Step Registry** | [image-updater-tooling](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=image-updater&test=image-updater-tooling) |
 | **Purpose** | Runs the image updater tooling to check for and update container image references. This helps keep the project's container images up to date with the latest patches and security fixes. |
 
 ---
@@ -158,7 +151,7 @@ These jobs automatically delete expired resource groups across different environ
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-integration-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Int (uksouth) |
-| **Step Registry** | [periodic-delete-expired-integration-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-delete-expired-integration-resource-groups) |
+| **Step Registry** | [delete-expired-integration-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-integration-resource-groups) |
 | **Purpose** | Removes expired resource groups from the integration environment that were created during testing. |
 
 ##### Stage Environment Cleanup
@@ -168,7 +161,7 @@ These jobs automatically delete expired resource groups across different environ
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-stage-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Stage (uksouth) |
-| **Step Registry** | [periodic-delete-expired-stage-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-delete-expired-stage-resource-groups) |
+| **Step Registry** | [delete-expired-stage-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-stage-resource-groups) |
 | **Purpose** | Removes expired resource groups from the staging environment that were created during testing. |
 
 ##### Production Environment Cleanup
@@ -178,7 +171,7 @@ These jobs automatically delete expired resource groups across different environ
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-delete-expired-prod-resource-groups) |
 | **Schedule** | Every 30 minutes (`*/30 * * * *`) |
 | **Environment** | Prod (uksouth) |
-| **Step Registry** | [periodic-delete-expired-prod-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-delete-expired-prod-resource-groups) |
+| **Step Registry** | [delete-expired-prod-resource-groups](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=delete-expired-prod-resource-groups) |
 | **Purpose** | Removes expired resource groups from the production environment that were created during testing. |
 
 ---
@@ -194,7 +187,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel) |
 | **Schedule** | January 1st at midnight (`0 0 1 1 *`) - placeholder only |
 | **Environment** | Int (uksouth) |
-| **Step Registry** | [periodic-integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-integration-e2e-parallel) |
+| **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=integration-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the integration environment. |
 
 > [!NOTE]
@@ -207,7 +200,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel) |
 | **Schedule** | Daily at 2:00 AM UTC (`0 2 * * *`) |
 | **Environment** | Stage (uksouth) |
-| **Step Registry** | [periodic-stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-stage-e2e-parallel) |
+| **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=stage-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the staging environment daily to validate the environment's health and catch any regressions. |
 
 ##### Periodic Production E2E
@@ -217,7 +210,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Job Name** | [`periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel`](https://prow.ci.openshift.org/?job=periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel) |
 | **Schedule** | Daily at 2:00 AM UTC (`0 2 * * *`) |
 | **Environment** | Prod (uksouth) |
-| **Step Registry** | [periodic-prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&test=periodic-prod-e2e-parallel) |
+| **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=periodic&test=prod-e2e-parallel) |
 | **Purpose** | Runs end-to-end parallel tests against the production environment daily to ensure production environment health. |
 
 ## EV2 Pipeline Integration
@@ -228,7 +221,8 @@ The periodic E2E test jobs are integrated with EV2 (Express V2) deployment pipel
 
 The connection between Prow jobs and EV2 pipelines is established through configuration in the ARO-HCP repository:
 
-1. **Configuration Files**: The `config/config.msft.clouds-overlay.yaml` file defines the `prowJobName` for each environment:
+1. **Configuration Files**: The [`config/config.msft.clouds-overlay.yaml`](../config/config.msft.clouds-overlay.yaml) file defines the `prowJobName` for each environment:
+
    ```yaml
    e2e:
      regionTest:
@@ -236,7 +230,8 @@ The connection between Prow jobs and EV2 pipelines is established through config
        gatePromotion: true  # Optional: gates promotion on test success
    ```
 
-2. **E2E Pipeline**: The `test/e2e-pipeline.yaml` file defines the E2E test execution pipeline that references the `prowJobName`:
+2. **E2E Pipeline**: The [`test/e2e-pipeline.yaml`](../test/e2e-pipeline.yaml) file defines the E2E test execution pipeline that references the `prowJobName`:
+
    ```yaml
    variables:
    - name: PROW_JOB_NAME
@@ -244,9 +239,9 @@ The connection between Prow jobs and EV2 pipelines is established through config
    ```
 
 3. **Environment-Specific Mapping**:
-   - **Integration**: `periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel` (config/config.msft.clouds-overlay.yaml:15)
-   - **Stage**: `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel` (config/config.msft.clouds-overlay.yaml:117)
-   - **Production**: `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel` (config/config.msft.clouds-overlay.yaml:218)
+   - **Integration**: `periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel` - see `clouds.public.environments.int.defaults.e2e` in config
+   - **Stage**: `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel` - see `clouds.public.environments.stg.defaults.e2e` in config
+   - **Production**: `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel` - see `clouds.public.environments.prod.defaults.e2e` in config
 
 ### Identifying EV2 Rollouts from Prow Jobs
 
@@ -307,6 +302,7 @@ Job results are reported directly on pull requests as GitHub checks. You can:
 1. View the status of all jobs in the PR's "Checks" tab
 2. Click on a specific job to see detailed logs and test output
 3. Access the Prow dashboard for more detailed information and job history
+4. Receive notifications in Slack - Prow jobs are configured to post notifications to the [#forum-ocp-testplatform](https://redhat.enterprise.slack.com/archives/CBN38N3MW) Slack channel
 
 ### Job Execution Environment
 
@@ -323,7 +319,7 @@ Prow job definitions are maintained in the [openshift/release](https://github.co
 To modify or add jobs:
 
 1. Fork the [openshift/release](https://github.com/openshift/release) repository
-2. Edit configuration files in `ci-operator/config/Azure/ARO-HCP/`:
+2. Edit configuration files in [`ci-operator/config/Azure/ARO-HCP/`](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP):
    - `Azure-ARO-HCP-main.yaml` for presubmit and postsubmit jobs
    - `Azure-ARO-HCP-main__periodic.yaml` for periodic jobs
    - `Azure-ARO-HCP-main__image-updater.yaml` for image updater jobs
@@ -348,9 +344,9 @@ To modify or add jobs:
 ### For Developers
 
 1. **Always wait for required jobs**: The `images` and `frontend-simulation` jobs must pass before merging
-2. **Use optional jobs judiciously**: Trigger environment-specific E2E tests when your changes affect those environments
-3. **Monitor job results**: Check job logs when tests fail to understand what went wrong
-4. **Keep tests stable**: Flaky tests reduce confidence in the CI system
+2. **Monitor job results**: Check job logs when tests fail to understand what went wrong
+3. **Keep tests stable**: Flaky tests reduce confidence in the CI system
+4. **Understand test limitations**: Environment-specific E2E tests (integration, stage, prod) only validate E2E test code changes, not RP or infrastructure changes
 
 ### For SREs
 
