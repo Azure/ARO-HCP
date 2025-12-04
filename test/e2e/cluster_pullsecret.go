@@ -47,6 +47,7 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 		labels.RequireNothing,
 		labels.Critical,
 		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				customerClusterName    = "pullsecret-hcp-cluster"
@@ -62,16 +63,40 @@ var _ = Describe("Cluster Pull Secret Management", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "pullsecret-test", tc.Location())
 			Expect(err).NotTo(HaveOccurred())
 
-			By("deploying the demo cluster bicep template")
-			_, err = tc.CreateBicepTemplateAndWait(ctx,
-				*resourceGroup.Name,
-				"pull-secret-cluster",
-				framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/demo.json")),
+			By("creating cluster parameters")
+			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				resourceGroup,
+				clusterParams,
 				map[string]interface{}{
 					"persistTagValue": false,
-					"clusterName":     customerClusterName,
 				},
+				TestArtifactsFS,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Creating the cluster")
+			err = tc.CreateHCPClusterFromParam(ctx,
+				*resourceGroup.Name,
+				clusterParams,
 				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred())
+			By("Creating the node pool")
+			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams.NodePoolName = "np-1"
+			nodePoolParams.ClusterName = customerClusterName
+			nodePoolParams.Replicas = int32(2)
+			err = tc.CreateNodePoolFromParam(ctx,
+				*resourceGroup.Name,
+				customerClusterName,
+				nodePoolParams,
+				15*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
