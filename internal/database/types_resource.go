@@ -17,6 +17,7 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -54,6 +55,16 @@ func (doc ResourceDocument) GetValidTypes() []string {
 		api.NodePoolResourceType.String(),
 		api.ExternalAuthResourceType.String(),
 	}
+}
+
+func (o *ResourceDocument) SetResourceID(newResourceID *azcorearm.ResourceID) {
+	if newResourceID == nil {
+		panic("newResourceID cannot be nil")
+	}
+	if !strings.EqualFold(o.ResourceID.String(), newResourceID.String()) {
+		panic(fmt.Sprintf("cannot change resource ID from %s to %s", o.ResourceID.String(), newResourceID.String()))
+	}
+	o.ResourceID = newResourceID
 }
 
 // ResourceDocumentStateFilter is used to remove unknown fields from ResourceDocumentProperties.

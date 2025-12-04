@@ -15,35 +15,11 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
-
-// ResourceDocumentToInternalAPI is convenient for old code that uses ResourceDocument and needs to get to the internalAPI
-// this is very expensive while we transition
-func ResourceDocumentToInternalAPI[InternalAPIType, CosmosAPIType any](src *ResourceDocument) (*InternalAPIType, error) {
-	resourceDocumentJSON, err := json.Marshal(src)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	fullDocument := &TypedDocument{
-		Properties: resourceDocumentJSON,
-	}
-	fullDocumentJSON, err := json.Marshal(fullDocument)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	var cosmosObj CosmosAPIType
-	if err := json.Unmarshal(fullDocumentJSON, &cosmosObj); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	return CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-}
 
 func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*InternalAPIType, error) {
 	var internalObj any

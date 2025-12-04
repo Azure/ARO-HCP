@@ -98,7 +98,7 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	if !ok {
 		return nil, fmt.Errorf("type %T does not implement ResourceProperties interface", cosmosObj)
 	}
-	retAsResourceProperties.GetResourceDocument().ResourceID = completeResourceID
+	retAsResourceProperties.SetResourceID(completeResourceID)
 
 	internalObj, err := CosmosToInternal[InternalAPIType, CosmosAPIType](cosmosObj)
 	if err != nil {
@@ -126,7 +126,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 	query += " AND STRINGEQUALS(c.resourceType, @resourceType, true)"
 	queryParameter := azcosmos.QueryParameter{
 		Name:  "@resourceType",
-		Value: string(resourceType.String()),
+		Value: resourceType.String(),
 	}
 	queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
 
@@ -156,11 +156,6 @@ func addCreateToTransaction[InternalAPIType, CosmosAPIType any](ctx context.Cont
 		return "", fmt.Errorf("type %T does not implement ResourceProperties interface", newObj)
 	}
 	cosmosData := cosmosPersistable.GetCosmosData()
-
-	// prevent data corruption
-	if len(cosmosData.ClusterServiceID.String()) == 0 {
-		return "", fmt.Errorf("developer error: ClusterServiceID is required")
-	}
 
 	newCosmosUID := uuid.New()
 	cosmosPersistable.SetCosmosDocumentData(newCosmosUID)
