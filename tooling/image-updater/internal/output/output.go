@@ -22,6 +22,11 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
+const (
+	// truncatedSHALength is the number of characters to show for truncated SHA digests
+	truncatedSHALength = 7
+)
+
 // commitMessageTemplate is a Go template for the commit message.
 // Available fields in .Updates array:
 //   - .Name: image name
@@ -68,15 +73,15 @@ func GenerateCommitMessage(updates map[string][]yaml.Update) string {
 		if !seen[update.Name] {
 			seen[update.Name] = true
 
-			// Strip sha256: prefix if present, then take first 7 chars
+			// Strip sha256: prefix if present, then take first truncatedSHALength chars
 			oldSHA := strings.TrimPrefix(update.OldDigest, "sha256:")
-			if len(oldSHA) > 7 {
-				oldSHA = oldSHA[:7] + "…"
+			if len(oldSHA) > truncatedSHALength {
+				oldSHA = oldSHA[:truncatedSHALength] + "…"
 			}
 
 			newSHA := strings.TrimPrefix(update.NewDigest, "sha256:")
-			if len(newSHA) > 7 {
-				newSHA = newSHA[:7] + "…"
+			if len(newSHA) > truncatedSHALength {
+				newSHA = newSHA[:truncatedSHALength] + "…"
 			}
 
 			version := update.Tag
