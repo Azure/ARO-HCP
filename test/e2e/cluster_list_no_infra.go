@@ -36,6 +36,7 @@ var _ = Describe("Customer", func() {
 		labels.RequireNothing,
 		labels.Positive,
 		labels.Medium,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
@@ -52,15 +53,27 @@ var _ = Describe("Customer", func() {
 				clusterName := "list-test-cluster-" + rand.String(6)
 				clusterNames = append(clusterNames, clusterName)
 
-				By("creating cluster without node pool using cluster-only template: " + clusterName)
-				_, err = tc.CreateBicepTemplateAndWait(ctx,
-					*resourceGroup.Name,
-					"cluster-only",
-					framework.Must(TestArtifactsFS.ReadFile("test-artifacts/generated-test-artifacts/cluster-only.json")),
-					map[string]any{
-						"clusterName":     clusterName,
+				By("creating cluster without node pool: " + clusterName)
+				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams.ClusterName = clusterName
+				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
+				clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+				By("creating customer resources for cluster: " + clusterName)
+				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+					resourceGroup,
+					clusterParams,
+					map[string]interface{}{
 						"persistTagValue": false,
 					},
+					TestArtifactsFS,
+				)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("creating HCP cluster: " + clusterName)
+				err = tc.CreateHCPClusterFromParam(ctx,
+					*resourceGroup.Name,
+					clusterParams,
 					45*time.Minute,
 				)
 				Expect(err).NotTo(HaveOccurred())
