@@ -7,3 +7,11 @@ spec:
   customizedVariables:
   - name: managedKubeConfigSecret
     value: external-managed-kubeconfig
+  nodePlacement:
+    tolerations:
+    - effect: NoSchedule
+      key: infra
+      operator: "Equal"
+      value: "true"
+    nodeSelector:
+      aro-hcp.azure.com/role: infra
