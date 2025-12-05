@@ -28,7 +28,10 @@ import (
 )
 
 // The patch version is managed by Red Hat.
-const OpenShift419Patch = "7"
+const (
+	OpenShift419Patch = "7"
+	OpenShift420Patch = "5"
+)
 
 type ClusterServiceClientSpec interface {
 	// GetCluster sends a GET request to fetch a cluster from Cluster Service.
@@ -605,9 +608,18 @@ func NewOpenShiftVersionXYZ(v string) string {
 		if len(parts) == 1 {
 			parts = append(parts, "0")
 		}
-		// FIXME This assumes X.Y is 4.19. Eventually
-		//       we may need a switch statement here.
-		parts = append(parts[:2], OpenShift419Patch)
+
+		// TODO: Will change once we support allowing users to select a cluster installation version.
+		// hardcode patch versions for now
+		switch v {
+		case "4.19":
+			parts = append(parts, OpenShift419Patch)
+		case "4.20":
+			parts = append(parts, OpenShift420Patch)
+		default:
+			parts = append(parts, "0")
+		}
+
 		csVersion = api.OpenShiftVersionPrefix + strings.Join(parts, ".")
 	}
 
