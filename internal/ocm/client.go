@@ -24,6 +24,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // The patch version is managed by Red Hat.
@@ -167,7 +168,7 @@ func resolveClusterLinks(ctx context.Context, conn *sdk.Connection, cluster *aro
 
 		autoscalerGetResponse, err := autoscalerClient.Get().SendContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 		autoscaler, ok = autoscalerGetResponse.GetBody()
 		if !ok {
@@ -191,7 +192,7 @@ func resolveNodePoolLinks(ctx context.Context, conn *sdk.Connection, nodePool *a
 
 		versionGetResponse, err := versionClient.Get().SendContext(ctx)
 		if err != nil {
-			return nil, err
+			return nil, utils.TrackError(err)
 		}
 		version, ok = versionGetResponse.GetBody()
 		if !ok {
@@ -211,7 +212,7 @@ func (csc *clusterServiceClient) GetCluster(ctx context.Context, internalID Inte
 	}
 	clusterGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	cluster, ok := clusterGetResponse.GetBody()
 	if !ok {
@@ -227,7 +228,7 @@ func (csc *clusterServiceClient) GetClusterStatus(ctx context.Context, internalI
 	}
 	clusterStatusGetResponse, err := client.Status().Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	status, ok := clusterStatusGetResponse.GetBody()
 	if !ok {
@@ -243,7 +244,7 @@ func (csc *clusterServiceClient) GetClusterInflightChecks(ctx context.Context, i
 	}
 	clusterInflightChecksResponse, err := client.InflightChecks().List().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	inflightChecks, ok := clusterInflightChecksResponse.GetItems()
 	if !ok {
@@ -258,11 +259,11 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 	}
 	cluster, err := csc.addProperties(clusterBuilder).Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	clustersAddResponse, err := csc.conn.AroHCP().V1alpha1().Clusters().Add().Body(cluster).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	cluster, ok := clustersAddResponse.GetBody()
 	if !ok {
@@ -274,7 +275,7 @@ func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder
 func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	cluster, err := csc.addProperties(builder).Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
@@ -282,7 +283,7 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 	}
 	clusterUpdateResponse, err := client.Update().Body(cluster).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	cluster, ok = clusterUpdateResponse.GetBody()
 	if !ok {
@@ -294,7 +295,7 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 func (csc *clusterServiceClient) UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
 	autoscaler, err := builder.Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	client, ok := getAroHCPClusterClient(internalID, csc.conn)
 	if !ok {
@@ -302,7 +303,7 @@ func (csc *clusterServiceClient) UpdateClusterAutoscaler(ctx context.Context, in
 	}
 	autoscalerUpdateResponse, err := client.Autoscaler().Update().Body(autoscaler).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	autoscaler, ok = autoscalerUpdateResponse.GetBody()
 	if !ok {
@@ -317,7 +318,7 @@ func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID I
 		return fmt.Errorf("OCM path is not a cluster: %s", internalID)
 	}
 	_, err := client.Delete().SendContext(ctx)
-	return err
+	return utils.TrackError(err)
 }
 
 func (csc *clusterServiceClient) ListClusters(searchExpression string) ClusterListIterator {
@@ -335,7 +336,7 @@ func (csc *clusterServiceClient) GetNodePool(ctx context.Context, internalID Int
 	}
 	nodePoolGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	nodePool, ok := nodePoolGetResponse.GetBody()
 	if !ok {
@@ -352,7 +353,7 @@ func (csc *clusterServiceClient) GetNodePoolStatus(ctx context.Context, internal
 	}
 	nodePoolStatusGetResponse, err := client.Status().Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	status, ok := nodePoolStatusGetResponse.GetBody()
 	if !ok {
@@ -368,11 +369,11 @@ func (csc *clusterServiceClient) PostNodePool(ctx context.Context, clusterIntern
 	}
 	nodePool, err := builder.Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	nodePoolsAddResponse, err := client.NodePools().Add().Body(nodePool).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	nodePool, ok = nodePoolsAddResponse.GetBody()
 	if !ok {
@@ -388,11 +389,11 @@ func (csc *clusterServiceClient) UpdateNodePool(ctx context.Context, internalID 
 	}
 	nodePool, err := builder.Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	nodePoolUpdateResponse, err := client.Update().Body(nodePool).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	nodePool, ok = nodePoolUpdateResponse.GetBody()
 	if !ok {
@@ -407,7 +408,7 @@ func (csc *clusterServiceClient) DeleteNodePool(ctx context.Context, internalID 
 		return fmt.Errorf("OCM path is not a node pool: %s", internalID)
 	}
 	_, err := client.Delete().SendContext(ctx)
-	return err
+	return utils.TrackError(err)
 }
 
 func (csc *clusterServiceClient) ListNodePools(clusterInternalID InternalID, searchExpression string) NodePoolListIterator {
@@ -429,7 +430,7 @@ func (csc *clusterServiceClient) GetExternalAuth(ctx context.Context, internalID
 	}
 	externalAuthGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	externalAuth, ok := externalAuthGetResponse.GetBody()
 	if !ok {
@@ -445,11 +446,11 @@ func (csc *clusterServiceClient) PostExternalAuth(ctx context.Context, clusterIn
 	}
 	externalAuth, err := builder.Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	externalAuthsAddResponse, err := client.ExternalAuthConfig().ExternalAuths().Add().Body(externalAuth).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	externalAuth, ok = externalAuthsAddResponse.GetBody()
 	if !ok {
@@ -466,11 +467,11 @@ func (csc *clusterServiceClient) UpdateExternalAuth(ctx context.Context, interna
 	}
 	externalAuth, err := builder.Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	externalAuthUpdateResponse, err := client.Update().Body(externalAuth).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	externalAuth, ok = externalAuthUpdateResponse.GetBody()
 	if !ok {
@@ -485,7 +486,7 @@ func (csc *clusterServiceClient) DeleteExternalAuth(ctx context.Context, interna
 		return fmt.Errorf("OCM path is not a external auth: %s", internalID)
 	}
 	_, err := client.Delete().SendContext(ctx)
-	return err
+	return utils.TrackError(err)
 }
 
 func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator {
@@ -511,7 +512,7 @@ func (csc *clusterServiceClient) GetBreakGlassCredential(ctx context.Context, in
 	}
 	breakGlassCredentialGetResponse, err := client.Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	breakGlassCredential, ok := breakGlassCredentialGetResponse.GetBody()
 	if !ok {
@@ -527,11 +528,11 @@ func (csc *clusterServiceClient) PostBreakGlassCredential(ctx context.Context, c
 	}
 	breakGlassCredential, err := cmv1.NewBreakGlassCredential().Build()
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().Body(breakGlassCredential).SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	breakGlassCredential, ok = breakGlassCredentialsAddResponse.GetBody()
 	if !ok {
@@ -546,7 +547,7 @@ func (csc *clusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context
 		return fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
 	}
 	_, err := client.BreakGlassCredentials().Delete().SendContext(ctx)
-	return err
+	return utils.TrackError(err)
 }
 
 func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) *BreakGlassCredentialListIterator {
@@ -570,7 +571,7 @@ func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName str
 
 	resp, err := client.Get().SendContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.TrackError(err)
 	}
 	version, ok := resp.GetBody()
 	if !ok {
