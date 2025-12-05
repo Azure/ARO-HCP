@@ -33,23 +33,6 @@ The image-updater supports multiple container registry types with optimized clie
 - **Timestamp Enrichment**: Automatic tag timestamp retrieval and sorting for both Quay API and Registry V2 API
 - **Descriptor Caching**: Eliminates duplicate API calls by caching image descriptors during tag processing (~50% reduction in API calls)
 
-## Managed Images
-
-| Image Name | Image Reference | Registry Type |
-|------------|-----------------|---------------|
-| maestro | quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | Quay.io |
-| hypershift | quay.io/acm-d/rhtap-hypershift-operator | Quay.io |
-| pko-package | quay.io/package-operator/package-operator-package | Quay.io |
-| pko-manager | quay.io/package-operator/package-operator-manager | Quay.io |
-| pko-remote-phase-manager | quay.io/package-operator/remote-phase-manager | Quay.io |
-| arohcpfrontend | arohcpsvcdev.azurecr.io/arohcpfrontend | ACR (Private) |
-| arohcpbackend | arohcpsvcdev.azurecr.io/arohcpbackend | ACR (Private) |
-| admin-api | arohcpsvcdev.azurecr.io/arohcpadminapi | ACR (Private) |
-| clusters-service | quay.io/app-sre/aro-hcp-clusters-service | Quay.io (Private) |
-| kubeEvents | kubernetesshared.azurecr.io/shared/kube-events | ACR (Public) |
-| acrPull | mcr.microsoft.com/aks/msi-acrpull | MCR |
-| secretSyncController | registry.k8s.io/secrets-store-sync/controller | Generic |
-
 ## Usage
 
 ```bash
@@ -71,65 +54,6 @@ make update
 # Enable verbose logging for debugging (shows all details including retry attempts, API calls)
 ./image-updater update --config config.yaml -v=2
 ```
-
-## Output Format
-
-### Summary Output
-
-At verbosity levels 0-1 (default), the tool displays a clean summary:
-
-```
-Summary
--------
-Total images checked: 5
-Images updated:       2
-
-Files successfully updated!
-```
-
-For dry-run mode:
-
-```
-Summary
--------
-Total images checked: 5
-Updates available:    2
-
-This was a dry-run. No files were modified.
-```
-
-### Commit Message
-
-After updating files, the tool outputs a markdown table showing the changes:
-
-```markdown
-Updated images for dev/int:
-
-| Image | Old SHA | New SHA | Version | Timestamp |
-|-------|---------|---------|---------|-----------|
-| frontend | abc123d… | 789xyz0… | v1.2.3 | 2025-12-05 10:30 |
-| backend | 111222 | 333444 | v2.0.0 | 2025-12-05 11:00 |
-```
-
-**Note**: SHA digests are truncated to 7 characters with `…` to indicate truncation, following git's short SHA convention.
-
-### YAML File Updates
-
-When the tool updates image digests in YAML files, it automatically adds inline comments with version tag and timestamp information:
-
-```yaml
-defaults:
-  pko:
-    imagePackage:
-      digest: sha256:abc123... # v1.18.4 (2025-11-24 14:30)
-```
-
-This helps track:
-
-- **Tag name**: The version or tag name (e.g., `v1.18.4`)
-- **Timestamp**: When the image was created/published (format: `YYYY-MM-DD HH:MM`)
-
-The comments are automatically generated and updated each time the tool runs.
 
 ## Configuration
 
@@ -561,43 +485,6 @@ Context is propagated through all layers:
 
 5. **Digest Update**: Updates the specified YAML files with the latest digest using JSONPath notation
 
-6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp (e.g., `# v1.2.3 (2025-11-24 14:30)`)
+6. **Tag and Timestamp Comments**: Automatically adds inline comments with the tag name and creation timestamp
 
 7. **Preserves Formatting**: Maintains YAML structure, comments, and formatting when updating files
-
-## Testing
-
-The image-updater includes comprehensive test coverage:
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test ./... -cover
-
-# Run specific test packages
-go test ./internal/config/...
-go test ./internal/clients/...
-go test ./internal/options/...
-```
-
-**Test Coverage**:
-
-- Config parsing and validation: 97.9%
-- Options and Key Vault deduplication: 78.5%
-- YAML editing: 81.9%
-- Update logic: 89.8%
-- Output formatting: 100%
-- Client authentication: 18.0%
-
-**Key Test Areas**:
-
-- Per-image Key Vault configuration parsing
-- Docker config merging with Key Vault credentials
-- Key Vault deduplication across multiple images
-- Base64 and raw JSON secret decoding
-- Registry client selection and authentication
-- YAML file updates with format preservation
-- Summary output formatting (dry-run vs actual, with/without updates)
-- Commit message generation (SHA truncation, deduplication, edge cases)
