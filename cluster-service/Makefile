@@ -96,6 +96,8 @@ deploy:
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT}
 
+
+
 deploy-cs-debug-jobs:
 	./hack/helm.sh cs-debug-jobs helm-charts/cs-debug-jobs ${NAMESPACE} \
 	  --set imageDigest=${IMAGE_DIGEST} \
