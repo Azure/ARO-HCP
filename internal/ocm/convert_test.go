@@ -159,6 +159,51 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "converts stable version from CS to RP (X.Y.Z to X.Y)",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.7").
+					ChannelGroup("stable")),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.15",
+						ChannelGroup: "stable",
+					},
+				},
+			},
+		},
+		{
+			name: "converts nightly version from CS to RP (strips channel suffix)",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ChannelGroup("nightly")),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.19",
+						ChannelGroup: "nightly",
+					},
+				},
+			},
+		},
+		{
+			name: "converts candidate version from CS to RP",
+			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.1-candidate").
+					ChannelGroup("candidate")),
+			hcpClusterTweaks: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.15",
+						ChannelGroup: "candidate",
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -183,6 +228,51 @@ func TestWithImmutableAttributes(t *testing.T) {
 			name:       "simple default",
 			hcpCluster: &api.HCPOpenShiftCluster{},
 			want:       ocmCluster(t, ocmClusterDefaults()),
+		},
+		{
+			name: "converts stable version from RP to CS (adds patch and prefix)",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.15",
+						ChannelGroup: "stable",
+					},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.7").
+					ChannelGroup("stable"))),
+		},
+		{
+			name: "converts candidate version from RP to CS (preserves patch)",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.15.19",
+						ChannelGroup: "candidate",
+					},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.19-candidate").
+					ChannelGroup("candidate"))),
+		},
+		{
+			name: "converts nightly version from RP to CS (preserves semver)",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{
+						ID:           "4.19.0-0.nightly-2025-01-01",
+						ChannelGroup: "nightly",
+					},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ChannelGroup("nightly"))),
 		},
 	}
 
@@ -361,6 +451,51 @@ func TestBuildCSNodePool(t *testing.T) {
 						Key("").
 						Value(""),
 				}...),
+		},
+		{
+			name: "converts stable version from RP to CS (adds patch and prefix)",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Version = api.NodePoolVersionProfile{
+						ID:           "4.15",
+						ChannelGroup: "stable",
+					}
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.7").
+					ChannelGroup("stable")),
+		},
+		{
+			name: "converts candidate version from RP to CS (adds channel suffix)",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Version = api.NodePoolVersionProfile{
+						ID:           "4.15.19",
+						ChannelGroup: "candidate",
+					}
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.15.19-candidate").
+					ChannelGroup("candidate")),
+		},
+		{
+			name: "converts nightly version from RP to CS with semver",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Version = api.NodePoolVersionProfile{
+						ID:           "4.19.0-0.nightly-2025-01-01",
+						ChannelGroup: "nightly",
+					}
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				Version(arohcpv1alpha1.NewVersion().
+					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
+					ChannelGroup("nightly")),
 		},
 	}
 	for _, tc := range testCases {
