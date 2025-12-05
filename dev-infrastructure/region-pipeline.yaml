@@ -63,6 +63,11 @@ resourceGroups:
     omitFromServiceGroupCompletion: true
     command: ./add-grafana-datasource.sh
     workingDir: ./scripts
+    automatedRetry:
+      errorContainsAny:
+      - "is invalid as it is being provisioned with state"
+      maximumRetryCount: 5
+      durationBetweenRetries: 2m
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
@@ -89,6 +94,11 @@ resourceGroups:
     omitFromServiceGroupCompletion: true
     command: ./add-grafana-datasource.sh
     workingDir: ./scripts
+    automatedRetry:
+      errorContainsAny:
+      - "is invalid as it is being provisioned with state"
+      maximumRetryCount: 5
+      durationBetweenRetries: 2m
     variables:
     - name: GRAFANA_RESOURCE_ID
       input:
