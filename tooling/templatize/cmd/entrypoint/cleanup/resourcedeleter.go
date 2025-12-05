@@ -351,55 +351,47 @@ func (d *resourceGroupDeleter) deleteResourceWithRetries(ctx context.Context, cl
 // getAPIVersionForResourceType returns the API version for a given resource type
 // This uses commonly stable API versions for different resource providers
 func (d *resourceGroupDeleter) getAPIVersionForResourceType(resourceType string) string {
-	// Map of resource provider namespaces to their stable API versions
+	// Map of specific resource types and provider namespace defaults
+	// Format: "Microsoft.Provider/ResourceType" for specific resources
+	//         "Microsoft.Provider" for provider-wide defaults
 	// Updated with latest stable versions as of 2025-11-18
 	apiVersions := map[string]string{
-		"Microsoft.Network/virtualNetworks":                       "2025-05-01",
-		"Microsoft.Network/networkSecurityGroups":                 "2025-05-01",
-		"Microsoft.Network/privateEndpoints":                      "2025-05-01",
-		"Microsoft.Network/privateLinkServices":                   "2025-05-01",
-		"Microsoft.Network/privateDnsZones":                       "2024-06-01",
-		"Microsoft.Network/dnszones":                              "2018-05-01",
-		"Microsoft.Network/networkSecurityPerimeters":             "2025-05-01",
-		"Microsoft.Network/privateEndpointConnections":            "2025-05-01",
-		"Microsoft.Network/privateEndpoints/privateDnsZoneGroups": "2025-05-01",
-		"Microsoft.Network/privateDnsZones/virtualNetworkLinks":   "2020-06-01",
-		"Microsoft.Insights/dataCollectionRules":                  "2024-03-11",
-		"Microsoft.Insights/dataCollectionEndpoints":              "2024-03-11",
-		"Microsoft.ContainerService/managedClusters":              "2025-10-01",
-		"Microsoft.Compute/virtualMachines":                       "2025-04-01",
-		"Microsoft.Storage/storageAccounts":                       "2025-06-01",
+		// Specific resource types that need non-default versions
+		"Microsoft.Network/privateDnsZones":                     "2024-06-01",
+		"Microsoft.Network/dnszones":                            "2018-05-01", // Older but stable
+		"Microsoft.Network/privateDnsZones/virtualNetworkLinks": "2020-06-01",
+
+		// Provider namespace defaults (catch-all for each provider)
+		"Microsoft.Network":             "2025-05-01",
+		"Microsoft.Compute":             "2025-04-01",
+		"Microsoft.Storage":             "2025-06-01",
+		"Microsoft.Insights":            "2024-03-11",
+		"Microsoft.Monitor":             "2023-04-03",
+		"Microsoft.AlertsManagement":    "2023-03-01",
+		"Microsoft.OperationalInsights": "2023-09-01",
+		"Microsoft.ManagedIdentity":     "2023-01-31",
+		"Microsoft.DocumentDB":          "2024-05-15",
+		"Microsoft.Kusto":               "2023-08-15",
+		"Microsoft.EventGrid":           "2024-06-01-preview",
+		"Microsoft.ContainerService":    "2025-10-01",
+		"Microsoft.KeyVault":            "2025-05-01",
+		"Microsoft.Authorization":       "2022-04-01",
 	}
 
-	// Check if we have a specific API version for this resource type
+	// Try exact resource type match first
 	if version, ok := apiVersions[resourceType]; ok {
 		return version
 	}
 
-	// Extract the provider namespace (e.g., "Microsoft.Network" from "Microsoft.Network/virtualNetworks")
-	parts := strings.Split(resourceType, "/")
-	if len(parts) >= 2 {
-		providerNamespace := parts[0]
-
-		// Default API versions for common providers
-		// Updated with latest stable versions as of 2025-11-18
-		providerDefaults := map[string]string{
-			"Microsoft.Network":          "2025-05-01",
-			"Microsoft.Compute":          "2025-04-01",
-			"Microsoft.Storage":          "2025-06-01",
-			"Microsoft.Insights":         "2024-03-11",
-			"Microsoft.ContainerService": "2025-10-01",
-			"Microsoft.KeyVault":         "2025-05-01",
-			"Microsoft.Authorization":    "2022-04-01",
-		}
-
-		if version, ok := providerDefaults[providerNamespace]; ok {
+	// Try provider namespace match (e.g., "Microsoft.Network" from "Microsoft.Network/loadBalancers")
+	if idx := strings.Index(resourceType, "/"); idx > 0 {
+		providerNamespace := resourceType[:idx]
+		if version, ok := apiVersions[providerNamespace]; ok {
 			return version
 		}
 	}
 
-	// Default fallback - use a recent stable version
-	// Most Azure resources support this or will redirect to the latest
+	// Global fallback for unknown providers
 	return "2023-04-01"
 }
 
