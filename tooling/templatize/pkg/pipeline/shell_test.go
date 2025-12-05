@@ -364,7 +364,7 @@ func TestRunShellStep(t *testing.T) {
 					ResourceGroup: "group",
 					Step:          "step",
 				},
-			}, tc.step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
+			}, tc.step, context.Background(), "", "", &StepRunOptions{}, &ExecutionState{
 				RWMutex: &sync.RWMutex{},
 				Outputs: Outputs{},
 			}, &buf)
@@ -389,7 +389,7 @@ func TestRunShellStepCaptureOutput(t *testing.T) {
 			ResourceGroup: "group",
 			Step:          "step",
 		},
-	}, step, context.Background(), "", &StepRunOptions{}, &ExecutionState{
+	}, step, context.Background(), "", "", &StepRunOptions{}, &ExecutionState{
 		RWMutex: &sync.RWMutex{},
 		Outputs: Outputs{},
 	}, &buf)
