@@ -25,25 +25,22 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	BeforeEach(func() {
-		// Setup for cluster versions test
-	})
 
 	It("should be able to list available HCP OpenShift versions and validate response content",
-		labels.RequireNothing, labels.Medium, labels.Positive,
+		labels.RequireNothing,
+		labels.Medium,
+		labels.Positive,
+		labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 
-			// Use configured location for version listing
-			location := tc.Location()
-
-			By("listing HCP OpenShift versions via ARM API")
+			By("listing HCP OpenShift versions")
 			versionsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftVersionsClient()
-			versionsPager := versionsClient.NewListPager(location, nil)
+			versionsPager := versionsClient.NewListPager(tc.Location(), nil)
 
 			versions, err := versionsPager.NextPage(ctx)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(versions.Value).NotTo(BeEmpty(), "Should return at least one OpenShift version ")
+			Expect(versions.Value).NotTo(BeEmpty(), "Should return at least one OpenShift version")
 
 			By("validating version response structure and content")
 			for _, version := range versions.Value {
@@ -54,13 +51,12 @@ var _ = Describe("Customer", func() {
 				// Validate version name format (should be semantic version)
 				Expect(*version.Name).To(MatchRegexp(`^\d+\.\d+\.\d+`), "Version should follow semantic versioning")
 
-				// Validate ID follows ARM resource format
-				Expect(*version.ID).To(ContainSubstring("/providers/Microsoft.RedHatOpenShift/locations/"))
+				// Validate ID contains version-related path (works for both ARM and direct RP access)
 				Expect(*version.ID).To(ContainSubstring("/hcpOpenShiftVersions/"))
+				Expect(*version.ID).To(ContainSubstring(*version.Name))
 			}
 
 			By("verifying at least one version is available for cluster creation")
-			// This ensures the versions endpoint returns usable data
 			Expect(len(versions.Value)).To(BeNumerically(">=", 1))
 		})
 })
