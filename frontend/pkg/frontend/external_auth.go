@@ -129,7 +129,7 @@ func (f *Frontend) ArmResourceListExternalAuths(writer http.ResponseWriter, requ
 	}
 	err = csIterator.GetError()
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, nil, writer.Header())
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)

@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,11 +24,11 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 func addOperationResponseHeaders(writer http.ResponseWriter, request *http.Request, notificationURI string, operationID *azcorearm.ResourceID) database.DBTransactionCallback {
@@ -244,9 +245,8 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 		// Allow this method to be idempotent.
 		if resourceDoc.ProvisioningState != arm.ProvisioningStateDeleting {
-			_, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
-			if cloudError != nil {
-				return cloudError
+			if _, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc); err != nil {
+				return err
 			}
 		}
 	}
@@ -266,7 +266,7 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 	return nil
 }
 
-func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (string, *arm.CloudError) {
+func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTransaction, resourceItemID string, resourceDoc *database.ResourceDocument) (string, error) {
 	const operationRequest = database.OperationRequestDelete
 	var err error
 
@@ -274,8 +274,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", err
 	}
 
 	switch resourceDoc.InternalID.Kind() {
@@ -289,13 +288,12 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		err = f.clusterServiceClient.DeleteExternalAuth(ctx, resourceDoc.InternalID)
 
 	default:
-		logger.Error(fmt.Sprintf("unsupported Cluster Service path: %s", resourceDoc.InternalID))
-		return "", arm.NewInternalServerError()
+		return "", fmt.Errorf("unsupported Cluster Service path: %s", resourceDoc.InternalID)
 	}
 
 	if err != nil {
-		cloudError := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID, nil)
-		if cloudError.StatusCode == http.StatusNotFound {
+		var ocmError *ocmerrors.Error
+		if errors.As(err, &ocmError) {
 			// StatusNotFound means we have stale data in Cosmos DB.
 			// This can happen in test environments if a user bypasses
 			// the RP to delete a resource (e.g. "ocm delete"). It can
@@ -310,7 +308,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		} else {
 			logger.Error(err.Error())
 		}
-		return "", cloudError
+		return "", err
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -322,8 +320,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 		IncludeNestedResources: true,
 	})
 	if err != nil {
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", err
 	}
 
 	operationDoc := database.NewOperationDocument(operationRequest, resourceDoc.ResourceID, resourceDoc.InternalID, correlationData)
@@ -352,8 +349,7 @@ func (f *Frontend) DeleteResource(ctx context.Context, transaction database.DBTr
 
 	err = iterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		return "", arm.NewInternalServerError()
+		return "", err
 	}
 
 	return operationID, nil

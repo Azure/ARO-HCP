@@ -296,7 +296,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
 	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, nil)
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, newInternalCluster.ID, writer.Header())
+		return err
 	}
 
 	newInternalCluster.ServiceProviderProperties.ClusterServiceID, err = api.NewInternalID(resultingClusterServiceCluster.HREF())
@@ -521,7 +521,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
 	resultingClusterServiceCluster, err := f.clusterServiceClient.UpdateCluster(ctx, oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, oldInternalCluster.ID, writer.Header())
+		return err
 	}
 
 	pk := database.NewPartitionKey(oldInternalCluster.ID.SubscriptionID)

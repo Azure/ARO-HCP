@@ -224,7 +224,7 @@ func (f *Frontend) ArmResourceListVersion(writer http.ResponseWriter, request *h
 
 	// Check for iteration error.
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, nil, writer.Header())
+		return err
 	}
 
 	_, err = arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
@@ -252,7 +252,7 @@ func (f *Frontend) GetOpenshiftVersions(writer http.ResponseWriter, request *htt
 	versionName := resourceID.Name
 	version, err := f.clusterServiceClient.GetVersion(ctx, versionName)
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, resourceID, nil)
+		return err
 	}
 	responseBody, err := marshalCSVersion(resourceID, version, versionedInterface)
 	if err != nil {
@@ -300,15 +300,19 @@ func (f *Frontend) ArmResourceDelete(writer http.ResponseWriter, request *http.R
 
 	transaction := f.dbClient.NewTransaction(pk)
 
-	operationID, cloudError := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
-	if cloudError != nil && cloudError.StatusCode == http.StatusNotFound {
-		// For resource not found errors on deletion, ARM requires
-		// us to simply return 204 No Content and no response body.
-		writer.WriteHeader(http.StatusNoContent)
-		return nil
+	operationID, err := f.DeleteResource(ctx, transaction, resourceItemID, resourceDoc)
+	if err != nil {
+		// notice we never return this and if we aren't a not found, we return the original error back.
+		cloudErr := ocm.CSErrorToCloudError(err, resourceDoc.ResourceID)
+		if cloudErr.StatusCode == http.StatusNotFound {
+			// For resource not found errors on deletion, ARM requires
+			// us to simply return 204 No Content and no response body.
+			writer.WriteHeader(http.StatusNoContent)
+			return nil
+		}
 	}
-	if cloudError != nil {
-		return cloudError
+	if err != nil {
+		return err
 	}
 
 	f.ExposeOperation(writer, request, operationID, transaction)
