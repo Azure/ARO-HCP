@@ -600,6 +600,7 @@ func BuildHCPClusterFromParams(
 					},
 				},
 			},
+			Autoscaling: parameters.Autoscaling,
 		},
 	}
 }
