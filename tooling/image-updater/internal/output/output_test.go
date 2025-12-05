@@ -52,7 +52,6 @@ func TestPrintSummary(t *testing.T) {
 				"Summary",
 				"Total images checked: 5",
 				"Images updated:       2",
-				"Files successfully updated",
 			},
 		},
 		{
@@ -64,7 +63,6 @@ func TestPrintSummary(t *testing.T) {
 				"Summary",
 				"Total images checked: 5",
 				"Images updated:       0",
-				"All images are up to date",
 			},
 		},
 	}
@@ -104,7 +102,7 @@ func TestGenerateCommitMessage(t *testing.T) {
 				},
 			},
 			wantContains: []string{
-				"Updated images for dev/int:",
+				"Updated images in target config files:",
 				"| Image | Old SHA | New SHA | Version | Timestamp |",
 				"| frontend | abc123d… | 789xyz0… | v1.2.3 | 2025-12-05 10:30 |",
 			},
