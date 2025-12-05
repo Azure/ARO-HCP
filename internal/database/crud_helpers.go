@@ -205,6 +205,10 @@ func upsert[InternalAPIType, CosmosAPIType any](ctx context.Context, containerCl
 		return nil, err
 	}
 
+	if opts == nil {
+		opts = &azcosmos.ItemOptions{}
+	}
+	opts.EnableContentResponseOnWrite = true
 	responseItem, err := containerClient.UpsertItem(ctx, *partitionKey, data, opts)
 	if err != nil {
 		return nil, err

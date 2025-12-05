@@ -185,7 +185,7 @@ func (l *createStep) RunTest(ctx context.Context, t *testing.T) {
 	parentResourceType, err := azcorearm.ParseResourceType(l.key.ParentResourceType)
 	require.NoError(t, err)
 
-	controllerCRUDClient := database.NewControllerCRUD(l.cosmosContainer, parentResourceType, l.key.SubscriptionID, l.key.SubscriptionID, l.key.ParentName)
+	controllerCRUDClient := database.NewControllerCRUD(l.cosmosContainer, parentResourceType, l.key.SubscriptionID, l.key.ResourceGroup, l.key.ParentName)
 	_, err = controllerCRUDClient.Upsert(ctx, l.controller, nil)
 	require.NoError(t, err, "failed to create controller")
 }

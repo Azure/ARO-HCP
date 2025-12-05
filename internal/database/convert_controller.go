@@ -15,6 +15,8 @@
 package database
 
 import (
+	"strings"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -28,7 +30,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 			BaseDocument: BaseDocument{
 				ID: internalObj.CosmosUID,
 			},
-			PartitionKey: internalObj.ExternalID.SubscriptionID,
+			PartitionKey: strings.ToLower(internalObj.ExternalID.SubscriptionID),
 			ResourceType: api.ControllerResourceType.String(),
 		},
 		ControllerProperties: ControllerProperties{

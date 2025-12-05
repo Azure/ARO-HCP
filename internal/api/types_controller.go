@@ -15,9 +15,12 @@
 package api
 
 import (
+	"strings"
 	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/google/uuid"
 )
 
 type Controller struct {
@@ -29,7 +32,23 @@ type Controller struct {
 	// ControllerName is the name of controller this status is for.
 	ControllerName string `json:"controllerName"`
 
+	ResourceID *azcorearm.ResourceID `json:"resourceID"`
+
 	Status ControllerStatus `json:"status"`
+}
+
+var _ CosmosPersistable = &Controller{}
+
+func (o *Controller) GetCosmosData() CosmosData {
+	return CosmosData{
+		CosmosUID:    o.CosmosUID,
+		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ExternalID.SubscriptionID)),
+		ItemID:       o.ResourceID,
+	}
+}
+
+func (o *Controller) SetCosmosDocumentData(cosmosUID uuid.UUID) {
+	o.CosmosUID = cosmosUID.String()
 }
 
 type ControllerStatus struct {
