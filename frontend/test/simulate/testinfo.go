@@ -312,7 +312,7 @@ func resourceIDToDir(resourceID *azcorearm.ResourceID) string {
 
 		return filepath.Join(
 			startingDir,
-			resourceID.ResourceType.Type,
+			resourceID.ResourceType.Types[len(resourceID.ResourceType.Types)-1],
 			resourceID.Name,
 		)
 	}

@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/equality"
 )
@@ -271,6 +270,7 @@ func (l *getStep) RunTest(ctx context.Context, t *testing.T) {
 	require.NoError(t, err)
 
 	if !controllersEqual(l.expectedController, actualController) {
+		t.Logf("actual:\n%v", string(api.Must(json.MarshalIndent(actualController, "", "\t"))))
 		// cmpdiff doesn't handle private fields gracefully
 		require.Equal(t, l.expectedController, actualController)
 		t.Fatal("unexpected")
@@ -334,6 +334,14 @@ func (l *listStep) StepID() stepID {
 	return l.stepID
 }
 
+func stringifyController(controller *api.Controller) string {
+	return string(api.Must(json.MarshalIndent(controller, "", "\t")))
+}
+
+func stringifyControllers(controllers []*api.Controller) string {
+	return string(api.Must(json.MarshalIndent(controllers, "", "\t")))
+}
+
 func (l *listStep) RunTest(ctx context.Context, t *testing.T) {
 	parentResourceType, err := azcorearm.ParseResourceType(l.key.ParentResourceType)
 	require.NoError(t, err)
@@ -358,7 +366,10 @@ func (l *listStep) RunTest(ctx context.Context, t *testing.T) {
 				break
 			}
 		}
-		require.True(t, found, "expected controller not found", spew.Sdump(expected))
+		if !found {
+			t.Logf("actual:\n%v", stringifyControllers(actualControllers))
+		}
+		require.True(t, found, "expected controller not found: %v", expected.ControllerName)
 	}
 
 	// all the actual must be expected
@@ -370,6 +381,9 @@ func (l *listStep) RunTest(ctx context.Context, t *testing.T) {
 				break
 			}
 		}
-		require.True(t, found, "actual controller not found", spew.Sdump(actual))
+		if !found {
+			t.Logf("expected:\n%v", stringifyControllers(l.expectedControllers))
+		}
+		require.True(t, found, "actual controller not found: %v", actual.ControllerName)
 	}
 }

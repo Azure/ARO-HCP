@@ -51,7 +51,6 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 	}
 
 	queryPager := containerClient.NewQueryItemsPager(query, pk, &opt)
-
 	for queryPager.More() {
 		queryResponse, err := queryPager.NextPage(ctx)
 		if err != nil {
@@ -70,7 +69,10 @@ func get[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClien
 
 	if responseItem == nil {
 		// Fabricate a "404 Not Found" ResponseError to wrap.
-		err := &azcore.ResponseError{StatusCode: http.StatusNotFound}
+		err := &azcore.ResponseError{
+			ErrorCode:  http.StatusText(http.StatusNotFound),
+			StatusCode: http.StatusNotFound,
+		}
 		return nil, fmt.Errorf("failed to read Resources container item for '%s': %w", completeResourceID, err)
 	}
 
