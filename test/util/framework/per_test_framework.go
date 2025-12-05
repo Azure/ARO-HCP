@@ -649,6 +649,23 @@ func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }
 
+func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
+	tc.contextLock.Lock()
+	if len(tc.subscriptionID) > 0 {
+		defer tc.contextLock.RUnlock()
+		return tc.subscriptionID, nil
+	}
+	tc.contextLock.Unlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+	return tc.getSubscriptionIDUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) AzureCredential() (azcore.TokenCredential, error) {
+	return tc.perBinaryInvocationTestContext.getAzureCredentials()
+}
+
 func (tc *perItOrDescribeTestContext) TenantID() string {
 	return tc.perBinaryInvocationTestContext.tenantID
 }
