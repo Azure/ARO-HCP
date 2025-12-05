@@ -32,18 +32,20 @@ type Controller struct {
 	// ControllerName is the name of controller this status is for.
 	ControllerName string `json:"controllerName"`
 
-	ResourceID *azcorearm.ResourceID `json:"resourceID"`
-
 	Status ControllerStatus `json:"status"`
 }
 
 var _ CosmosPersistable = &Controller{}
 
+func (o *Controller) ComputeLogicalResourceID() *azcorearm.ResourceID {
+	return Must(azcorearm.ParseResourceID(o.ExternalID.String() + "/" + ControllerResourceTypeName + "/" + o.ControllerName))
+}
+
 func (o *Controller) GetCosmosData() CosmosData {
 	return CosmosData{
 		CosmosUID:    o.CosmosUID,
 		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ExternalID.SubscriptionID)),
-		ItemID:       o.ResourceID,
+		ItemID:       o.ComputeLogicalResourceID(),
 	}
 }
 

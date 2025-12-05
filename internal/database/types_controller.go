@@ -31,6 +31,9 @@ type Controller struct {
 var _ ResourceProperties = &Controller{}
 
 type ControllerProperties struct {
+	// ResourceID must be serialized exactly here for the generic CRUD to work.
+	ResourceID *azcorearm.ResourceID `json:"resourceId"`
+
 	InternalState api.Controller `json:"internalState"`
 }
 

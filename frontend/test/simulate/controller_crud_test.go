@@ -18,12 +18,9 @@ import (
 	"context"
 	"io/fs"
 	"testing"
-	"time"
 
 	"github.com/Azure/ARO-HCP/frontend/test/simulate/controllermutation"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/database"
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,36 +35,36 @@ func TestControllerCRUD(t *testing.T) {
 	require.NoError(t, err)
 	defer testInfo.Cleanup(context.Background())
 
-	controllerCRUDClient := database.NewControllerCRUD(
-		testInfo.CosmosResourcesContainer(),
-		api.ClusterResourceType,
-		"subscriptionID",
-		"resourceGroupName",
-		"parentCluster")
-
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster"))
-	controllerName := "test-controller"
-	controllerResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
-	_, err = controllerCRUDClient.Upsert(ctx, &api.Controller{
-		CosmosUID:      "e29415cf-5bde-463e-802f-6c475131d67b",
-		ExternalID:     clusterResourceID,
-		ControllerName: "test-controller",
-		ResourceID:     controllerResourceID,
-		Status: api.ControllerStatus{
-			Conditions: []api.Condition{
-				{
-					Type:               "Degraded",
-					Status:             api.ConditionTrue,
-					LastTransitionTime: time.Now(),
-					Reason:             "UpdateFailed",
-					Message:            "Updating cosmos failed for some reason.",
-				},
-			},
-		},
-	}, nil)
-	require.NoError(t, err)
-
-	return
+	//controllerCRUDClient := database.NewControllerCRUD(
+	//	testInfo.CosmosResourcesContainer(),
+	//	api.ClusterResourceType,
+	//	"subscriptionID",
+	//	"resourceGroupName",
+	//	"parentCluster")
+	//
+	//clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster"))
+	//controllerName := "test-controller"
+	//controllerResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	//_, err = controllerCRUDClient.Upsert(ctx, &api.Controller{
+	//	CosmosUID:      "e29415cf-5bde-463e-802f-6c475131d67b",
+	//	ExternalID:     clusterResourceID,
+	//	ControllerName: "test-controller",
+	//	ResourceID:     controllerResourceID,
+	//	Status: api.ControllerStatus{
+	//		Conditions: []api.Condition{
+	//			{
+	//				Type:               "Degraded",
+	//				Status:             api.ConditionTrue,
+	//				LastTransitionTime: time.Now(),
+	//				Reason:             "UpdateFailed",
+	//				Message:            "Updating cosmos failed for some reason.",
+	//			},
+	//		},
+	//	},
+	//}, nil)
+	//require.NoError(t, err)
+	//
+	//return
 
 	controllerCRUDFS, err := fs.Sub(artifacts, "artifacts/ControllerCRUD")
 	require.NoError(t, err)

@@ -80,7 +80,7 @@ var (
 	ExternalAuthResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
 	PreflightResourceType    = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
 	VersionResourceType      = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
-	ControllerResourceType   = azcorearm.NewResourceType(ProviderNamespace, ControllerResourceTypeName)
+	ControllerResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ControllerResourceTypeName)
 )
 
 type VersionedResource interface {

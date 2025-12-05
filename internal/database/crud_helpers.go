@@ -143,7 +143,7 @@ func list[InternalAPIType, CosmosAPIType any](ctx context.Context, containerClie
 
 	pager := containerClient.NewQueryItemsPager(query, pk, &queryOptions)
 
-	if ptr.Deref(options.PageSizeHint, -1) > 0 {
+	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
 		return newQueryResourcesSinglePageIterator[InternalAPIType, CosmosAPIType](pager), nil
 	} else {
 		return newQueryResourcesIterator[InternalAPIType, CosmosAPIType](pager), nil
@@ -160,7 +160,7 @@ func serializeItem[InternalAPIType, CosmosAPIType any](newObj *InternalAPIType) 
 	cosmosData := cosmosPersistable.GetCosmosData()
 
 	var cosmosUID uuid.UUID
-	if len(cosmosData.CosmosUID) == 0 {
+	if len(cosmosData.CosmosUID) != 0 {
 		var err error
 		cosmosUID, err = uuid.Parse(cosmosData.CosmosUID)
 		if err != nil {

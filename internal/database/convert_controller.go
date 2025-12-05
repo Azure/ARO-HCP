@@ -34,6 +34,7 @@ func InternalToCosmosController(internalObj *api.Controller) (*Controller, error
 			ResourceType: api.ControllerResourceType.String(),
 		},
 		ControllerProperties: ControllerProperties{
+			ResourceID:    internalObj.ComputeLogicalResourceID(),
 			InternalState: *internalObj,
 		},
 	}

@@ -1,16 +1,15 @@
 {
-  "controllerName": "second-controller",
-  "externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
-  "resourceID": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster/hcpOpenShiftControllers/second-controller",
-  "status": {
-    "conditions": [
-      {
-        "lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
-        "message": "Updated",
-        "reason": "SomeAction",
-        "status": "False",
-        "type": "Degraded"
-      }
-    ]
-  }
+	"controllerName": "second-controller",
+	"externalId": "/subscriptions/subscriptionID/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/parentCluster",
+	"status": {
+		"conditions": [
+			{
+				"lastTransitionTime": "2025-12-04T08:01:57.129283149-05:00",
+				"message": "Updated",
+				"reason": "SomeAction",
+				"status": "False",
+				"type": "Degraded"
+			}
+		]
+	}
 }
