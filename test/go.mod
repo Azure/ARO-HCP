@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251125140340-13f4631a80b0
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251205182537-ff5553e56f33
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
 	golang.org/x/sync v0.17.0
