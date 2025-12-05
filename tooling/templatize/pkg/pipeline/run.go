@@ -591,7 +591,12 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 			return nil, nil, fmt.Errorf("failed to prepare kubeconfig: %w", err)
 		}
 
-		err = runShellStep(id, step, ctx, kubeconfigFile, options, state, &buf)
+		azureConfigDir, err := configureAzureCLILogin(ctx, executionTarget.GetSubscriptionID())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to configure Azure CLI login: %w", err)
+		}
+
+		err = runShellStep(id, step, ctx, azureConfigDir, kubeconfigFile, options, state, &buf)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error running Shell Step, %v", err)
 		}
