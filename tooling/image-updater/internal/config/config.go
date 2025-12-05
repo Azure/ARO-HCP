@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // Config represents the image updater configuration
@@ -146,16 +147,13 @@ func (c *Config) FilterExcludingComponents(componentNames []string) (*Config, er
 		}
 	}
 
-	// Build map of excluded components for O(1) lookup
-	excluded := make(map[string]bool)
-	for _, componentName := range componentNames {
-		excluded[componentName] = true
-	}
+	// Build set of excluded components for O(1) lookup
+	excluded := sets.NewString(componentNames...)
 
 	// Filter images, excluding those in the exclusion list
 	filteredImages := make(map[string]ImageConfig)
 	for name, imageConfig := range c.Images {
-		if !excluded[name] {
+		if !excluded.Has(name) {
 			filteredImages[name] = imageConfig
 		}
 	}

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"text/template"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
 
@@ -67,11 +69,11 @@ func GenerateCommitMessage(updates map[string][]yaml.Update) string {
 	}
 
 	// Deduplicate updates by image name
-	seen := make(map[string]bool)
+	seen := sets.NewString()
 	var uniqueUpdates []updateData
 	for _, update := range allUpdates {
-		if !seen[update.Name] {
-			seen[update.Name] = true
+		if !seen.Has(update.Name) {
+			seen.Insert(update.Name)
 
 			// Strip sha256: prefix if present, then take first truncatedSHALength chars
 			oldSHA := strings.TrimPrefix(update.OldDigest, "sha256:")
