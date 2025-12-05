@@ -51,7 +51,12 @@ Image digests for Microsoft environments are defined in [config/config.msft.clou
 
 To update a digest:
 
-1. Modify the digest in the appropriate `clouds.public.environments.$env` section, open a PR and get it merged.
+1. Modify the digest in the appropriate `clouds.public.environments.$env` section by using one of the following commands:
+  ```bash
+  make -C config bump-msft-stg
+  make -C config bump-msft-prod
+  ```
+1. Open a PR and use the promotion report from the previous commands as PR description. Ensure that the PR is reviewed all affected teams before merging.
 2. Follow the [README instructions](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/README.md) in the `sdp-pipelines/hcp` directory bring in the change to the `sdp-pipelines` ADO repository via a pull request.
 
 > [!IMPORTANT]
