@@ -376,7 +376,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					stepLogs := bytes.Buffer{}
 					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(&stepLogs, &slog.HandlerOptions{}))
 					sink := multiSink{sinks: []logr.LogSink{originalSink, stepHandler.GetSink()}}
-					stepLogger := thisLogger.WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step).WithSink(&sink)
+					stepLogger := thisLogger.WithSink(&sink).WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
 					stepLogger.V(4).Info("Executing step.")
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
