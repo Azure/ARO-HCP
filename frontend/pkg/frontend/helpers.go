@@ -61,8 +61,6 @@ func checkForProvisioningStateConflict(
 	provisioningState arm.ProvisioningState,
 ) error {
 
-	logger := LoggerFromContext(ctx)
-
 	switch operationRequest {
 	case database.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
@@ -108,8 +106,7 @@ func checkForProvisioningStateConflict(
 	for parent.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 		_, parentDoc, err := cosmosClient.GetResourceDoc(ctx, parent)
 		if err != nil {
-			logger.Error(err.Error())
-			return arm.NewInternalServerError()
+			return err
 		}
 
 		// XXX There is still a small opportunity for nested resource requests to get
@@ -144,8 +141,6 @@ func checkForProvisioningStateConflict(
 // provisioning state of the resource is non-terminal, or any of its parent resources
 // within the same provider namespace are in a "Provisioning" or "Deleting" state.
 func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operationRequest database.OperationRequest, doc *database.ResourceDocument) error {
-	logger := LoggerFromContext(ctx)
-
 	switch operationRequest {
 	case database.OperationRequestCreate:
 		// Resource must already exist for there to be a conflict.
@@ -190,8 +185,7 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 	for parent.ResourceType.Namespace == doc.ResourceID.ResourceType.Namespace {
 		_, parentDoc, err := f.dbClient.GetResourceDoc(ctx, parent)
 		if err != nil {
-			logger.Error(err.Error())
-			return arm.NewInternalServerError()
+			return err
 		}
 
 		// XXX There is still a small opportunity for nested resource requests to get
@@ -223,12 +217,9 @@ func (f *Frontend) CheckForProvisioningStateConflict(ctx context.Context, operat
 }
 
 func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string) error {
-	logger := LoggerFromContext(ctx)
-
 	prefix, err := azcorearm.ParseResourceID("/subscriptions/" + subscriptionID)
 	if err != nil {
-		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return err
 	}
 
 	transaction := f.dbClient.NewTransaction(database.NewPartitionKey(subscriptionID))
@@ -253,14 +244,12 @@ func (f *Frontend) DeleteAllResources(ctx context.Context, subscriptionID string
 
 	err = dbIterator.GetError()
 	if err != nil {
-		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return err
 	}
 
 	_, err = transaction.Execute(ctx, nil)
 	if err != nil {
-		logger.Error(err.Error())
-		return arm.NewInternalServerError()
+		return err
 	}
 
 	return nil
