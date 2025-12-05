@@ -484,7 +484,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// so we have to request the cluster from Cluster Service.
 	cluster, err := f.getInternalClusterFromStorage(ctx, oldInternalNodePool.ID.Parent)
 	if err != nil {
-		return ocm.CSErrorToCloudError(err, oldInternalNodePool.ID.Parent, writer.Header())
+		return err
 	}
 
 	validationErrs := validation.ValidateNodePoolUpdate(ctx, newInternalNodePool, oldInternalNodePool)
