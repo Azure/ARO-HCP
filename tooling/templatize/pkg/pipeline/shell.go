@@ -117,6 +117,8 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 		commit = commitFunc
 	}
 
+	configureAzureCLILogin(ctx)
+
 	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
 	if skipCommand {
 		logger.V(5).Info(fmt.Sprintf("Skipping step '%s' due to missing dry-run configuration", s.Name))
@@ -313,4 +315,70 @@ func mapStepVariables(serviceGroup string, vars []types.Variable, cfg configtype
 		envVars[k] = utils.AnyToString(v)
 	}
 	return envVars, nil
+}
+
+// getAzureConfigDir gets the Azure CLI config directory by running `az config get --query 'cloud[0].source' -o tsv`
+// and extracting the directory from the source path in the output
+func getAzureConfigDir(ctx context.Context, logger logr.Logger) (string, error) {
+	cmd := exec.CommandContext(ctx, "az", "config", "get", "--query", "cloud[0].source", "-o", "tsv")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to run az config get: %w", err)
+	}
+
+	// Trim whitespace and extract directory from the config file path
+	configFile := string(bytes.TrimSpace(output))
+	if configFile == "" {
+		return "", fmt.Errorf("no source path found in az config get output")
+	}
+
+	configDir := filepath.Dir(configFile)
+	logger.V(4).Info("Found Azure CLI config directory from az config get", "dir", configDir)
+	return configDir, nil
+}
+
+func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	// Create a temporary directory for the Azure CLI login
+	tmpDir, err := os.MkdirTemp("", "azure-cli-config-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+
+	// Get azure cli config directory using az config get
+	azureConfigDir, err := getAzureConfigDir(ctx, logger)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure CLI config directory: %w", err)
+	}
+
+	// Copy the config directory to the temporary directory
+	if err := copyDirectory(azureConfigDir, tmpDir); err != nil {
+		return "", fmt.Errorf("failed to copy Azure CLI config directory: %w", err)
+	}
+
+	// Set the AZURE_CONFIG_DIR environment variable to the temporary directory
+	// and run az config get to ensure the config is set correctly
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("AZURE_CONFIG_DIR=%s", tmpDir))
+	cmd := exec.CommandContext(ctx, "az", "config", "get")
+	cmd.Env = env
+	if output, err := cmd.CombinedOutput(); err != nil {
+		logger.V(4).Info("az config get failed (may be expected if config is empty)", "output", string(output), "err", err)
+		// Don't fail here, as empty config is valid
+	}
+
+	// Run az account set --subscription $subscriptionID
+	cmd = exec.CommandContext(ctx, "az", "account", "set", "--subscription", subscriptionID)
+	cmd.Env = env
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to set Azure subscription: %s %w", string(output), err)
+	}
+	// Return the temporary directory
+	return tmpDir, nil
+}
+
+// copyDirectory recursively copies a directory from src to dst
+func copyDirectory(src, dst string) error {
+	return os.CopyFS(dst, os.DirFS(src))
 }
