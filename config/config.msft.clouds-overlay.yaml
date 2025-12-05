@@ -17,7 +17,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:36c81faf8c92c7f50be6551dc6a0b068c0eef5f45274556c2bd98ad9f78244b7 # aced51a (2025-12-04 14:09)
+              digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28 # a68ce00 (2025-12-05 07:23)
           # ACR Pull
           acrPull:
             image:
@@ -27,7 +27,7 @@ clouds:
             image:
               digest: sha256:399febaa4c537111589a8a52dea7d1ec4cecce8c3d1010729e875a2e305a2f07 # v0.0.2 (2025-07-17 15:49)
             providerImage:
-              digest: sha256:9b7a11630793ab772a6e433fc81af45d26838d7682e8412207306adb05e0dc83 # v1.6.2 (2025-11-18 22:24)
+              digest: sha256:c34ca57730d55189e843ebfb8343ef6b865e73b80adc3fd43f6181227c1320a7 # v1.7.2 (2025-11-18 22:23)
           # Backplane API
           backplaneAPI:
             image:
@@ -51,10 +51,10 @@ clouds:
                   sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
               prometheusConfigReloader:
                 image:
-                  sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f # v0.85.0 (2025-11-21 17:11)
+                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9 # v0.87.0 (2025-11-21 17:07)
               kubeStateMetrics:
                 image:
-                  digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0 (2025-11-20 19:27)
+                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
           # MC cluster settings
           mgmt:
             prometheus:
@@ -66,24 +66,24 @@ clouds:
                   sha: 70296b2f2cc69c88d070fe8b627d347bd070e084c14babbc93e91583e03eca06 # v3.8.0-1 (2025-12-02 17:33)
               prometheusConfigReloader:
                 image:
-                  sha: d5b35ba0ac17927a46e74eb024d864dabd8c3f58ce67b9269bc81a85d9fc146f # v0.85.0 (2025-11-21 17:11)
+                  sha: 807993bae8544ca5dba1a088507c39adce29fef1afd2fb7492247b09e0cfa2a9 # v0.87.0 (2025-11-21 17:07)
               kubeStateMetrics:
                 image:
-                  digest: sha256:4893b3f6e4d9b2d960a6afbce18ba025d47955d10d400587bf5450d5a3f9c5bc # v2.16.0 (2025-11-20 19:27)
+                  digest: sha256:377bd55d97824dfee27b3c577869bc793fc3970623433627c7f0ee1b1b74e725 # v2.17.0 (2025-11-20 19:25)
           # RP Frontend
           frontend:
             image:
-              digest: sha256:d4d47cb52c6fccd357e098f00e0dded9dd80af36a34f0572d86c4add80473df8 # 3e144a2 (2025-12-05 01:05)
+              digest: sha256:2c3b877314500fa336e5e642b80876f29d5533c909b45226fa64f38447ccfdca # 21f3f7a (2025-12-05 09:19)
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:a9bd701d274bbf0713d0fe1529e0771555ed57ca474987d619ff516f79b41237 # e368a2f (2025-12-04 12:50)
+              digest: sha256:accfff6438ad546dabf2547709afb1e099dcd0d1fcba24f54012194c1fa7d28c # 21f3f7a (2025-12-05 09:19)
           # Admin API
           adminApi:
             image:
-              digest: sha256:486ebbb510ecbd4b8f89857e8b820e6ecff661df16591e83a338fe6fbb23854e # e368a2f (2025-12-04 12:50)
+              digest: sha256:6689a91b1a0422e563fee00f40c9d9c3b16ddc541d263627ef0c727c79edcffc # 21f3f7a (2025-12-05 09:19)
           # Hypershift
           hypershift:
             image:
@@ -91,7 +91,7 @@ clouds:
           # Maestro
           maestro:
             image:
-              digest: sha256:4e143ae8ffdee15792635741ade6adada45e508b87d9edec93d6cd82a13213bf # 76ac7dcdae466109e026087354d3c19d58c60751 (2025-12-03 07:30)
+              digest: sha256:2f92b1a26199f7075a33530cebea0c709088d16c3a129271ce7123b38a309664 # d0b44e26559c7f9702cdcf86e0d74efd0a64dd44 (2025-12-05 06:10)
             agent:
               sidecar:
                 image:
@@ -100,7 +100,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:e00a6bae8b317891be41e27847819f9ae463370792f30d390676e4dfb0e2a7f5 # e368a2f (2025-12-04 12:50)
+                digest: sha256:58352276ca9d7640cfa69a6fe9b75ef62b77553c0fc961d7dccf8d244f6f0f57 # 21f3f7a (2025-12-05 09:21)
           # Mise
           mise:
             image:
