@@ -59,7 +59,7 @@ func buildBashScript(command string) string {
 	return fmt.Sprintf("set -o errexit -o nounset  -o pipefail\n%s", command)
 }
 
-func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
+func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, azureConfigDir, kubeconfigFile string, options *StepRunOptions, state *ExecutionState, outputWriter io.Writer) error {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	// set dryRun config if needed
@@ -117,7 +117,9 @@ func runShellStep(id graph.Identifier, s *types.ShellStep, ctx context.Context, 
 		commit = commitFunc
 	}
 
-	configureAzureCLILogin(ctx)
+	if azureConfigDir != "" {
+		envVars["AZURE_CONFIG_DIR"] = azureConfigDir
+	}
 
 	cmd, skipCommand := createCommand(ctx, s.Command, workingDir, dryRun, envVars)
 	if skipCommand {

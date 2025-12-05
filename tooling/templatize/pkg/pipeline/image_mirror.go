@@ -63,5 +63,5 @@ func runImageMirrorStep(id graph.Identifier, ctx context.Context, step *types.Im
 		return fmt.Errorf("error resolving image mirror step %w", err)
 	}
 
-	return runShellStep(id, tmpShellStep, ctx, "", options, state, outputWriter)
+	return runShellStep(id, tmpShellStep, ctx, "", "", options, state, outputWriter)
 }
