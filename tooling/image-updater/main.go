@@ -29,7 +29,9 @@ import (
 )
 
 func main() {
-	// Create a root context with signal handling
+	logger := createLogger(0)
+
+	// Create a root context with the logger and signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -60,7 +62,7 @@ checking for new image versions and updating configuration files accordingly.`,
 	rootCmd.AddCommand(cmd.NewUpdateCommand())
 
 	if err := rootCmd.Execute(); err != nil {
-		slog.Error("command failed", "error", err)
+		logger.Error(err, "command failed")
 		os.Exit(1)
 	}
 }
