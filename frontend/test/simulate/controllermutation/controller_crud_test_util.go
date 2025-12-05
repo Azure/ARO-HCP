@@ -3,6 +3,7 @@ package controllermutation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sort"
@@ -226,6 +227,7 @@ type getStep struct {
 
 	cosmosContainer    *azcosmos.ContainerClient
 	expectedController *api.Controller
+	expectedError      string
 }
 
 func newGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDir fs.FS) (*getStep, error) {
@@ -238,20 +240,45 @@ func newGetStep(stepID stepID, cosmosContainer *azcosmos.ContainerClient, stepDi
 		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
 	}
 
-	content, err := fs.ReadFile(stepDir, "instance.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read expected.json: %w", err)
+	expectedErrorBytes, err := fs.ReadFile(stepDir, "expected-error.txt")
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("failed to read expected-error.txt: %w", err)
 	}
-	var controller api.Controller
-	if err := json.Unmarshal(content, &controller); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal instance.json: %w", err)
+	expectedError := strings.TrimSpace(string(expectedErrorBytes))
+
+	var expectedController *api.Controller
+	testContent := api.Must(fs.ReadDir(stepDir, "."))
+	for _, dirEntry := range testContent {
+		if dirEntry.Name() == "00-key.json" || dirEntry.Name() == "expected-error.txt" {
+			continue
+		}
+		if !strings.HasSuffix(dirEntry.Name(), ".json") {
+			continue
+		}
+		if expectedController != nil {
+			return nil, fmt.Errorf("too many expectedControllers found %s", dirEntry.Name())
+		}
+
+		content, err := fs.ReadFile(stepDir, dirEntry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read expected.json: %w", err)
+		}
+		expectedController = &api.Controller{}
+		if err := json.Unmarshal(content, expectedController); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal instance.json: %w", err)
+		}
+	}
+
+	if len(expectedError) == 0 && expectedController == nil {
+		return nil, fmt.Errorf("must expect either error and value")
 	}
 
 	return &getStep{
 		stepID:             stepID,
 		key:                key,
 		cosmosContainer:    cosmosContainer,
-		expectedController: &controller,
+		expectedController: expectedController,
+		expectedError:      expectedError,
 	}, nil
 }
 
@@ -267,7 +294,13 @@ func (l *getStep) RunTest(ctx context.Context, t *testing.T) {
 
 	controllerCRUDClient := database.NewControllerCRUD(l.cosmosContainer, parentResourceType, l.key.SubscriptionID, l.key.ResourceGroup, l.key.ParentName)
 	actualController, err := controllerCRUDClient.Get(ctx, l.expectedController.ControllerName)
-	require.NoError(t, err)
+	switch {
+	case len(l.expectedError) > 0:
+		require.ErrorContains(t, err, l.expectedError)
+		return
+	default:
+		require.NoError(t, err)
+	}
 
 	if !controllersEqual(l.expectedController, actualController) {
 		t.Logf("actual:\n%v", string(api.Must(json.MarshalIndent(actualController, "", "\t"))))

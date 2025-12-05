@@ -1,0 +1,6 @@
+{
+	"subscriptionID": "subscriptionID",
+	"parentResourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+	"resourceGroupName": "otherResourceGroupName",
+	"parentName": "parentCluster"
+}
