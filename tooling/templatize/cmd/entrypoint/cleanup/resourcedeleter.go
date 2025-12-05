@@ -23,14 +23,14 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
 
 const (
@@ -38,6 +38,27 @@ const (
 	maxRetries    = 3
 	dnsMaxRetries = 3
 )
+
+// Resource types excluded from bulk application resource deletion
+// These are handled in specific deletion steps due to dependency ordering
+var excludedFromBulkDeletion = []string{
+	// Networking resources
+	"Microsoft.Network/networkSecurityPerimeters",
+	"Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+	"Microsoft.Network/privateEndpointConnections",
+	"Microsoft.Network/privateEndpoints",
+	"Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+	"Microsoft.Network/privateLinkServices",
+	"Microsoft.Network/privateDnsZones",
+	"Microsoft.Network/dnszones",
+	"Microsoft.Network/virtualNetworks",
+	"Microsoft.Network/networkSecurityGroups",
+	// Monitoring resources
+	"Microsoft.Insights/dataCollectionRules",
+	"Microsoft.Insights/dataCollectionEndpoints",
+	// Container instances (excluded to avoid disruption)
+	"Microsoft.ContainerInstance/containerGroups",
+}
 
 // deletionStep defines a resource type to be deleted with its retry configuration
 type deletionStep struct {
@@ -52,14 +73,7 @@ type resourceGroupDeleter struct {
 	subscriptionID    string
 	credential        azcore.TokenCredential
 	logger            logr.Logger
-	dryRun            bool
-}
-
-// deletionStats tracks the outcome of resource deletion operations
-type deletionStats struct {
-	deleted int
-	skipped int
-	failed  int
+	wait              bool
 }
 
 // execute performs ordered resource deletion following the delete.sh logic
@@ -70,12 +84,6 @@ func (d *resourceGroupDeleter) execute(ctx context.Context) error {
 		return fmt.Errorf("failed to create resources client: %w", err)
 	}
 
-	if d.dryRun {
-		d.logger.Info("Starting ordered resource deletion (DRY-RUN MODE)")
-	} else {
-		d.logger.Info("Starting ordered resource deletion")
-	}
-
 	// Check if resource group exists
 	rgClient, err := armresources.NewResourceGroupsClient(d.subscriptionID, d.credential, nil)
 	if err != nil {
@@ -84,112 +92,96 @@ func (d *resourceGroupDeleter) execute(ctx context.Context) error {
 
 	_, err = rgClient.Get(ctx, d.resourceGroupName, nil)
 	if err != nil {
-		d.logger.Info("Resource group does not exist, skipping deletion")
 		return nil
 	}
 
-	// In dry-run mode, list all resources first
-	if d.dryRun {
-		if err := d.listAllResources(ctx, resourcesClient); err != nil {
-			d.logger.Error(err, "Failed to list resources")
-		}
-	}
+	// Define deletion steps in dependency order
+	deletionSteps := []deletionStep{
+		// Step 1: Network Security Perimeters (no dependencies)
+		{resourceType: "Microsoft.Network/networkSecurityPerimeters", description: "network security perimeters", retries: 1},
 
-	// Step 1: Delete NSP (Network Security Perimeters)
-	if err := d.deleteResourcesByType(ctx, resourcesClient, "Microsoft.Network/networkSecurityPerimeters", "NSPs", 1); err != nil {
-		return fmt.Errorf("failed to delete NSPs: %w", err)
-	}
-
-	// Step 2: Delete private networking components in order
-	privateNetworkingSteps := []deletionStep{
+		// Step 2: Private networking components (in dependency order)
 		{resourceType: "Microsoft.Network/privateEndpoints/privateDnsZoneGroups", description: "private DNS zone groups", retries: 1},
 		{resourceType: "Microsoft.Network/privateEndpointConnections", description: "private endpoint connections", retries: 1},
 		{resourceType: "Microsoft.Network/privateEndpoints", description: "private endpoints", retries: 1},
 		{resourceType: "Microsoft.Network/privateDnsZones/virtualNetworkLinks", description: "private DNS zone virtual network links", retries: 1},
 		{resourceType: "Microsoft.Network/privateLinkServices", description: "private link services", retries: 1},
 		{resourceType: "Microsoft.Network/privateDnsZones", description: "private DNS zones", retries: dnsMaxRetries},
+
+		// Step 3: Public DNS zones
+		{resourceType: "Microsoft.Network/dnszones", description: "public DNS zones", retries: 1},
 	}
 
-	for _, step := range privateNetworkingSteps {
+	// Execute initial deletion steps (networking dependencies)
+	for _, step := range deletionSteps {
 		if err := d.deleteResourcesByType(ctx, resourcesClient, step.resourceType, step.description, step.retries); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", step.description, err)
 		}
 	}
 
-	// Step 3: Delete public DNS zones with delegation cleanup
-	if err := d.deletePublicDNSZones(ctx, resourcesClient); err != nil {
-		return fmt.Errorf("failed to delete public DNS zones: %w", err)
-	}
-
-	// Step 4: Delete application and infrastructure resources (excluding VNETs/NSGs/DCRs/DCEs/Container Instances)
+	// Step 4: Delete application and infrastructure resources (VMs, storage, databases, etc.)
+	// This happens after DNS/networking dependencies but before monitoring and core networking
 	if err := d.deleteNonNetworkingResources(ctx, resourcesClient); err != nil {
 		return fmt.Errorf("failed to delete application resources: %w", err)
 	}
 
-	// Step 5: Delete monitoring resources
+	// Step 5: Delete monitoring resources (after applications since they may monitor them)
 	monitoringSteps := []deletionStep{
 		{resourceType: "Microsoft.Insights/dataCollectionRules", description: "data collection rules", retries: maxRetries},
 		{resourceType: "Microsoft.Insights/dataCollectionEndpoints", description: "data collection endpoints", retries: maxRetries},
 	}
-
 	for _, step := range monitoringSteps {
 		if err := d.deleteResourcesByType(ctx, resourcesClient, step.resourceType, step.description, step.retries); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", step.description, err)
 		}
 	}
 
-	// Step 6: Delete VNETs and NSGs
-	coreNetworkingSteps := []deletionStep{
+	// Step 6: Delete core networking (VNETs, NSGs) last since applications depend on them
+	networkingSteps := []deletionStep{
 		{resourceType: "Microsoft.Network/virtualNetworks", description: "virtual networks", retries: 1},
 		{resourceType: "Microsoft.Network/networkSecurityGroups", description: "network security groups", retries: 1},
 	}
-
-	for _, step := range coreNetworkingSteps {
+	for _, step := range networkingSteps {
 		if err := d.deleteResourcesByType(ctx, resourcesClient, step.resourceType, step.description, step.retries); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", step.description, err)
 		}
 	}
 
 	// Step 7: Delete the resource group itself
-	if d.dryRun {
-		d.logger.Info("[DRY RUN] Would delete resource group")
-	} else {
-		d.logger.Info("Step: Deleting resource group")
-		poller, err := rgClient.BeginDelete(ctx, d.resourceGroupName, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin resource group deletion: %w", err)
-		}
+	poller, err := rgClient.BeginDelete(ctx, d.resourceGroupName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin resource group deletion: %w", err)
+	}
 
+	if d.wait {
 		_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
 			Frequency: pollInterval,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to delete resource group: %w", err)
 		}
-
-		d.logger.Info("Resource group deleted successfully")
 	}
 
-	// Step 8: Purge soft-deleted Key Vaults
-	if !d.dryRun {
+	// Step 8: Purge soft-deleted Key Vaults (only if waiting for completion)
+	if d.wait {
 		if err := d.purgeSoftDeletedKeyVaults(ctx); err != nil {
 			// Log but don't fail - purging is best effort
 			d.logger.Error(err, "Failed to purge soft-deleted Key Vaults")
 		}
 	}
 
-	// Final summary with statistics
-	if err := d.logFinalSummary(ctx, resourcesClient); err != nil {
-		d.logger.Error(err, "Failed to generate final summary")
+	// Final summary with statistics (only if waiting)
+	if d.wait {
+		if err := d.logFinalSummary(ctx, resourcesClient); err != nil {
+			d.logger.Error(err, "Failed to generate final summary")
+		}
 	}
 
 	return nil
 }
 
-// deleteResourcesByType deletes all resources of a given type
+// deleteResourcesByType deletes all resources of a given type in parallel
 func (d *resourceGroupDeleter) deleteResourcesByType(ctx context.Context, client *armresources.Client, resourceType, description string, retries int) error {
-	d.logger.Info("Step: Deleting resources", "type", resourceType, "description", description)
-
 	// List resources of this type
 	filter := fmt.Sprintf("resourceType eq '%s'", resourceType)
 	pager := client.NewListByResourceGroupPager(d.resourceGroupName, &armresources.ClientListByResourceGroupOptions{
@@ -206,14 +198,13 @@ func (d *resourceGroupDeleter) deleteResourcesByType(ctx context.Context, client
 	}
 
 	if len(resources) == 0 {
-		d.logger.Info("No resources found", "type", resourceType)
 		return nil
 	}
 
-	d.logger.Info("Found resources to delete", "count", len(resources), "type", resourceType)
+	d.logger.Info("Deleting resources", "type", description, "count", len(resources))
 
-	// Delete each resource with retries
-	stats := &deletionStats{}
+	// Delete all resources in parallel
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	for _, resource := range resources {
 		if resource.ID == nil || resource.Name == nil {
@@ -224,49 +215,34 @@ func (d *resourceGroupDeleter) deleteResourcesByType(ctx context.Context, client
 		resourceID := *resource.ID
 
 		// Check for locks
-		if d.hasLocks(ctx, resourceID) {
+		if d.hasLocks(groupCtx, resourceID) {
 			d.logger.Info("Skipping locked resource", "name", resourceName, "type", resourceType)
-			stats.skipped++
 			continue
 		}
 
-		if d.dryRun {
-			d.logger.Info("[DRY RUN] Would delete resource", "name", resourceName, "type", resourceType)
-			stats.deleted++
-		} else {
-			if err := d.deleteResourceWithRetries(ctx, client, resourceID, resourceName, resourceType, retries); err != nil {
-				d.logger.Error(err, "Failed to delete resource after retries", "name", resourceName, "type", resourceType)
-				stats.failed++
-				// Continue with other resources even if one fails
-			} else {
-				stats.deleted++
+		// Launch deletion in parallel
+		group.Go(func() error {
+			if err := d.deleteResourceWithRetries(groupCtx, client, resourceID, resourceName, resourceType, retries); err != nil {
+				d.logger.Error(err, "Failed to delete resource", "name", resourceName, "type", resourceType)
+				// Don't return error - continue with other resources
+				return nil
 			}
-		}
+			return nil
+		})
 	}
 
-	d.logger.Info("Deletion summary",
-		"type", resourceType,
-		"deleted", stats.deleted,
-		"skipped", stats.skipped,
-		"failed", stats.failed)
+	// Wait for all deletions to complete
+	if err := group.Wait(); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-// deleteNonNetworkingResources deletes all resources except VNETs, NSGs, DCRs, DCEs, and Container Instances
+// deleteNonNetworkingResources deletes all application and infrastructure resources
+// that aren't explicitly handled in the ordered deletion steps
 func (d *resourceGroupDeleter) deleteNonNetworkingResources(ctx context.Context, client *armresources.Client) error {
-	d.logger.Info("Step: Deleting application and infrastructure resources")
-
-	// List all resources
 	pager := client.NewListByResourceGroupPager(d.resourceGroupName, nil)
-
-	excludedTypes := []string{
-		"Microsoft.Network/virtualNetworks",
-		"Microsoft.Network/networkSecurityGroups",
-		"Microsoft.Insights/dataCollectionRules",
-		"Microsoft.Insights/dataCollectionEndpoints",
-		"Microsoft.ContainerInstance/containerGroups",
-	}
 
 	var resources []*armresources.GenericResourceExpanded
 	for pager.More() {
@@ -276,9 +252,9 @@ func (d *resourceGroupDeleter) deleteNonNetworkingResources(ctx context.Context,
 		}
 		for _, resource := range page.Value {
 			if resource.ID != nil && resource.Type != nil && resource.Name != nil {
-				// Skip excluded types
+				// Skip resources that are handled in explicit deletion steps
 				excluded := false
-				for _, excludedType := range excludedTypes {
+				for _, excludedType := range excludedFromBulkDeletion {
 					if strings.EqualFold(*resource.Type, excludedType) {
 						excluded = true
 						break
@@ -292,14 +268,13 @@ func (d *resourceGroupDeleter) deleteNonNetworkingResources(ctx context.Context,
 	}
 
 	if len(resources) == 0 {
-		d.logger.Info("No application resources found to delete")
 		return nil
 	}
 
-	d.logger.Info("Found application resources to delete", "count", len(resources))
+	d.logger.Info("Deleting application resources", "count", len(resources))
 
-	// Delete each resource
-	stats := &deletionStats{}
+	// Delete all resources in parallel
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	for _, resource := range resources {
 		resourceName := *resource.Name
@@ -307,30 +282,26 @@ func (d *resourceGroupDeleter) deleteNonNetworkingResources(ctx context.Context,
 		resourceID := *resource.ID
 
 		// Check for locks
-		if d.hasLocks(ctx, resourceID) {
+		if d.hasLocks(groupCtx, resourceID) {
 			d.logger.Info("Skipping locked resource", "name", resourceName, "type", resourceType)
-			stats.skipped++
 			continue
 		}
 
-		if d.dryRun {
-			d.logger.Info("[DRY RUN] Would delete resource", "name", resourceName, "type", resourceType)
-			stats.deleted++
-		} else {
-			if err := d.deleteResourceWithRetries(ctx, client, resourceID, resourceName, resourceType, 1); err != nil {
+		// Launch deletion in parallel
+		group.Go(func() error {
+			if err := d.deleteResourceWithRetries(groupCtx, client, resourceID, resourceName, resourceType, 1); err != nil {
 				d.logger.Error(err, "Failed to delete resource", "name", resourceName, "type", resourceType)
-				stats.failed++
-				// Continue with other resources
-			} else {
-				stats.deleted++
+				// Don't return error - continue with other resources
+				return nil
 			}
-		}
+			return nil
+		})
 	}
 
-	d.logger.Info("Application resources deletion summary",
-		"deleted", stats.deleted,
-		"skipped", stats.skipped,
-		"failed", stats.failed)
+	// Wait for all deletions to complete
+	if err := group.Wait(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -345,7 +316,6 @@ func (d *resourceGroupDeleter) deleteResourceWithRetries(ctx context.Context, cl
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
-			d.logger.Info("Retrying resource deletion", "name", resourceName, "type", resourceType, "attempt", attempt, "maxRetries", maxRetries)
 			time.Sleep(10 * time.Second)
 		}
 
@@ -356,18 +326,21 @@ func (d *resourceGroupDeleter) deleteResourceWithRetries(ctx context.Context, cl
 			continue
 		}
 
-		// Wait for completion
-		_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-			Frequency: pollInterval,
-		})
-		if err != nil {
-			lastErr = err
-			if attempt < maxRetries {
-				d.logger.Info("Deletion attempt failed, will retry", "name", resourceName, "type", resourceType, "attempt", attempt)
-				continue
+		if d.wait {
+			// Wait for completion
+			_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+				Frequency: pollInterval,
+			})
+			if err != nil {
+				lastErr = err
+				if attempt < maxRetries {
+					continue
+				}
+			} else {
+				return nil
 			}
 		} else {
-			d.logger.Info("Successfully deleted resource", "name", resourceName, "type", resourceType)
+			// Don't wait - just start the deletion
 			return nil
 		}
 	}
@@ -435,43 +408,29 @@ func (d *resourceGroupDeleter) hasLocks(ctx context.Context, resourceID string) 
 	// Create management locks client
 	locksClient, err := armlocks.NewManagementLocksClient(d.subscriptionID, d.credential, nil)
 	if err != nil {
-		d.logger.Error(err, "Failed to create locks client, assuming no locks")
 		return false
 	}
 
-	// Parse resource ID to extract components
-	// Format: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
-	parts := strings.Split(strings.Trim(resourceID, "/"), "/")
-	if len(parts) < 8 {
-		return false // Invalid resource ID format
+	// Parse resource ID using Azure SDK utility
+	parsedID, err := azcorearm.ParseResourceID(resourceID)
+	if err != nil {
+		// Invalid resource ID format
+		return false
 	}
 
-	resourceGroupName := parts[3]
-	resourceProviderNamespace := parts[5]
-	resourceType := parts[6]
-	resourceName := parts[7]
-
-	// Build parent resource path if exists
+	// Build parent resource path for child resources
 	parentResourcePath := ""
-	if len(parts) > 8 {
-		// For child resources, build the parent path
-		for i := 7; i < len(parts)-2; i += 2 {
-			if parentResourcePath != "" {
-				parentResourcePath += "/"
-			}
-			parentResourcePath += parts[i] + "/" + parts[i+1]
-		}
-		resourceType = parts[len(parts)-2]
-		resourceName = parts[len(parts)-1]
+	if parsedID.Parent != nil {
+		parentResourcePath = parsedID.Parent.String()
 	}
 
 	// List locks at resource level
 	pager := locksClient.NewListAtResourceLevelPager(
-		resourceGroupName,
-		resourceProviderNamespace,
+		parsedID.ResourceGroupName,
+		parsedID.ResourceType.Namespace,
 		parentResourcePath,
-		resourceType,
-		resourceName,
+		parsedID.ResourceType.Type,
+		parsedID.Name,
 		nil,
 	)
 
@@ -490,167 +449,8 @@ func (d *resourceGroupDeleter) hasLocks(ctx context.Context, resourceID string) 
 	return false
 }
 
-// deletePublicDNSZones handles deletion of public DNS zones with delegation cleanup
-func (d *resourceGroupDeleter) deletePublicDNSZones(ctx context.Context, resourcesClient *armresources.Client) error {
-	d.logger.Info("Step: Deleting public DNS zones with delegation cleanup")
-
-	// List DNS zones in the resource group
-	filter := "resourceType eq 'Microsoft.Network/dnszones'"
-	pager := resourcesClient.NewListByResourceGroupPager(d.resourceGroupName, &armresources.ClientListByResourceGroupOptions{
-		Filter: &filter,
-	})
-
-	var zones []*armresources.GenericResourceExpanded
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list DNS zones: %w", err)
-		}
-		zones = append(zones, page.Value...)
-	}
-
-	if len(zones) == 0 {
-		d.logger.Info("No public DNS zones found")
-		return nil
-	}
-
-	d.logger.Info("Found public DNS zones", "count", len(zones))
-
-	// Get list of all subscriptions for cross-subscription delegation search
-	subsClient, err := armsubscriptions.NewClient(d.credential, nil)
-	if err != nil {
-		d.logger.Error(err, "Failed to create subscriptions client, skipping delegation cleanup")
-		// Continue with deletion even if we can't clean up delegations
-	}
-
-	var subscriptionIDs []string
-	if subsClient != nil {
-		subsPager := subsClient.NewListPager(nil)
-		for subsPager.More() {
-			page, err := subsPager.NextPage(ctx)
-			if err != nil {
-				d.logger.Error(err, "Failed to list subscriptions")
-				break
-			}
-			for _, sub := range page.Value {
-				if sub.SubscriptionID != nil {
-					subscriptionIDs = append(subscriptionIDs, *sub.SubscriptionID)
-				}
-			}
-		}
-	}
-
-	stats := &deletionStats{}
-
-	for _, zone := range zones {
-		if zone.Name == nil {
-			continue
-		}
-
-		zoneName := *zone.Name
-		d.logger.Info("Processing DNS zone", "name", zoneName)
-
-		// Check if this is a subdomain (has parent zone)
-		if strings.Count(zoneName, ".") >= 2 {
-			// Extract parent domain
-			parts := strings.SplitN(zoneName, ".", 2)
-			if len(parts) == 2 {
-				subdomainName := parts[0]
-				parentDomain := parts[1]
-
-				d.logger.Info("Zone appears to be subdomain, searching for parent", "subdomain", subdomainName, "parent", parentDomain)
-
-				// Search for parent zone across subscriptions
-				if err := d.removeNSDelegation(ctx, subscriptionIDs, parentDomain, subdomainName); err != nil {
-					d.logger.Error(err, "Failed to remove NS delegation", "zone", zoneName)
-					// Continue anyway
-				}
-			}
-		}
-
-		// Delete the DNS zone
-		if zone.ID != nil {
-			if err := d.deleteResourceWithRetries(ctx, resourcesClient, *zone.ID, zoneName, "Microsoft.Network/dnszones", 1); err != nil {
-				d.logger.Error(err, "Failed to delete DNS zone", "name", zoneName)
-				stats.failed++
-			} else {
-				stats.deleted++
-			}
-		}
-	}
-
-	d.logger.Info("DNS zones deletion summary", "deleted", stats.deleted, "failed", stats.failed)
-	return nil
-}
-
-// removeNSDelegation removes NS delegation records from parent DNS zone
-func (d *resourceGroupDeleter) removeNSDelegation(ctx context.Context, subscriptionIDs []string, parentDomain, subdomainName string) error {
-	// Search for parent zone across all subscriptions
-	for _, subID := range subscriptionIDs {
-		dnsClient, err := armdns.NewZonesClient(subID, d.credential, nil)
-		if err != nil {
-			continue
-		}
-
-		// List zones and find matching parent
-		pager := dnsClient.NewListPager(nil)
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				break
-			}
-
-			for _, zone := range page.Value {
-				if zone.Name != nil && strings.EqualFold(*zone.Name, parentDomain) {
-					// Found parent zone - try to delete NS record
-					d.logger.Info("Found parent DNS zone", "parent", parentDomain, "subscription", subID)
-
-					if zone.ID == nil {
-						continue
-					}
-
-					// Extract resource group from zone ID
-					parts := strings.Split(*zone.ID, "/")
-					if len(parts) < 5 {
-						continue
-					}
-					parentRG := parts[4]
-
-					// Check if NS record exists
-					recordsClient, err := armdns.NewRecordSetsClient(subID, d.credential, nil)
-					if err != nil {
-						continue
-					}
-
-					_, err = recordsClient.Get(ctx, parentRG, parentDomain, subdomainName, armdns.RecordTypeNS, nil)
-					if err != nil {
-						// NS record doesn't exist, nothing to delete
-						d.logger.Info("No NS delegation found", "subdomain", subdomainName, "parent", parentDomain)
-						return nil
-					}
-
-					// Delete the NS record
-					d.logger.Info("Removing NS delegation", "subdomain", subdomainName, "parent", parentDomain)
-					_, err = recordsClient.Delete(ctx, parentRG, parentDomain, subdomainName, armdns.RecordTypeNS, nil)
-					if err != nil {
-						return fmt.Errorf("failed to delete NS record: %w", err)
-					}
-
-					d.logger.Info("Successfully removed NS delegation", "subdomain", subdomainName, "parent", parentDomain)
-					return nil
-				}
-			}
-		}
-	}
-
-	d.logger.Info("Parent DNS zone not found in any subscription", "parent", parentDomain)
-	return nil
-}
-
-// purgeSoftDeletedKeyVaults purges soft-deleted Key Vaults
+// purgeSoftDeletedKeyVaults purges soft-deleted Key Vaults in parallel
 func (d *resourceGroupDeleter) purgeSoftDeletedKeyVaults(ctx context.Context) error {
-	d.logger.Info("Step: Purging soft-deleted Key Vaults")
-
 	// Create Key Vault vaults client
 	vaultsClient, err := armkeyvault.NewVaultsClient(d.subscriptionID, d.credential, nil)
 	if err != nil {
@@ -670,13 +470,13 @@ func (d *resourceGroupDeleter) purgeSoftDeletedKeyVaults(ctx context.Context) er
 	}
 
 	if len(deletedVaults) == 0 {
-		d.logger.Info("No soft-deleted Key Vaults found")
 		return nil
 	}
 
-	d.logger.Info("Found soft-deleted Key Vaults", "count", len(deletedVaults))
+	d.logger.Info("Purging soft-deleted Key Vaults", "count", len(deletedVaults))
 
-	stats := &deletionStats{}
+	// Purge all vaults in parallel
+	group, groupCtx := errgroup.WithContext(ctx)
 
 	for _, vault := range deletedVaults {
 		if vault.Name == nil || vault.Properties == nil || vault.Properties.Location == nil {
@@ -696,90 +496,52 @@ func (d *resourceGroupDeleter) purgeSoftDeletedKeyVaults(ctx context.Context) er
 			}
 		}
 
-		d.logger.Info("Purging soft-deleted Key Vault", "name", vaultName, "location", location)
-
-		// Purge with retries
-		var lastErr error
-		for attempt := 1; attempt <= maxRetries; attempt++ {
-			if attempt > 1 {
-				d.logger.Info("Retrying Key Vault purge", "name", vaultName, "attempt", attempt)
-				time.Sleep(10 * time.Second)
-			}
-
-			poller, err := vaultsClient.BeginPurgeDeleted(ctx, vaultName, location, nil)
-			if err != nil {
-				// Check if it's a 404 - vault already purged
-				var respErr *azcore.ResponseError
-				if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-					d.logger.Info("Key Vault already purged", "name", vaultName)
-					stats.deleted++
-					break
+		// Launch purge in parallel
+		group.Go(func() error {
+			// Purge with retries
+			var lastErr error
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				if attempt > 1 {
+					time.Sleep(10 * time.Second)
 				}
-				lastErr = err
-				continue
-			}
 
-			// Wait for purge to complete
-			_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-				Frequency: pollInterval,
-			})
-			if err != nil {
-				lastErr = err
-				if attempt < maxRetries {
+				poller, err := vaultsClient.BeginPurgeDeleted(groupCtx, vaultName, location, nil)
+				if err != nil {
+					// Check if it's a 404 - vault already purged
+					var respErr *azcore.ResponseError
+					if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+						return nil
+					}
+					lastErr = err
 					continue
 				}
-			} else {
-				d.logger.Info("Successfully purged Key Vault", "name", vaultName)
-				stats.deleted++
-				break
+
+				// Wait for purge to complete
+				_, err = poller.PollUntilDone(groupCtx, &runtime.PollUntilDoneOptions{
+					Frequency: pollInterval,
+				})
+				if err != nil {
+					lastErr = err
+					if attempt < maxRetries {
+						continue
+					}
+				} else {
+					return nil
+				}
 			}
-		}
 
-		if lastErr != nil {
-			d.logger.Error(lastErr, "Failed to purge Key Vault after retries", "name", vaultName)
-			stats.failed++
-		}
+			if lastErr != nil {
+				d.logger.Error(lastErr, "Failed to purge Key Vault", "name", vaultName)
+				// Don't return error - continue with other vaults
+				return nil
+			}
+			return nil
+		})
 	}
 
-	d.logger.Info("Key Vault purging summary", "purged", stats.deleted, "failed", stats.failed)
-	return nil
-}
-
-// listAllResources lists all resources in the resource group for dry-run mode
-func (d *resourceGroupDeleter) listAllResources(ctx context.Context, client *armresources.Client) error {
-	d.logger.Info("Listing all resources in resource group", "resourceGroup", d.resourceGroupName)
-
-	pager := client.NewListByResourceGroupPager(d.resourceGroupName, nil)
-
-	var resources []*armresources.GenericResourceExpanded
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list resources: %w", err)
-		}
-		resources = append(resources, page.Value...)
-	}
-
-	if len(resources) == 0 {
-		d.logger.Info("No resources found in resource group")
-		return nil
-	}
-
-	d.logger.Info("Resources in resource group", "count", len(resources))
-
-	// Group resources by type for cleaner output
-	resourcesByType := make(map[string][]string)
-	for _, resource := range resources {
-		if resource.Type != nil && resource.Name != nil {
-			resourceType := *resource.Type
-			resourceName := *resource.Name
-			resourcesByType[resourceType] = append(resourcesByType[resourceType], resourceName)
-		}
-	}
-
-	// Log each resource type and its resources
-	for resourceType, names := range resourcesByType {
-		d.logger.Info("Resource type", "type", resourceType, "count", len(names), "resources", names)
+	// Wait for all purges to complete
+	if err := group.Wait(); err != nil {
+		return err
 	}
 
 	return nil
@@ -787,54 +549,9 @@ func (d *resourceGroupDeleter) listAllResources(ctx context.Context, client *arm
 
 // logFinalSummary logs final statistics about the cleanup operation
 func (d *resourceGroupDeleter) logFinalSummary(ctx context.Context, client *armresources.Client) error {
-	// If we deleted the resource group, there are no remaining resources
-	if !d.dryRun {
-		d.logger.Info("✓ Cleanup completed successfully",
-			"resourceGroup", d.resourceGroupName,
-			"status", "Resource group and all resources deleted")
-		return nil
-	}
-
-	// In dry-run mode, count remaining resources and locked resources
-	pager := client.NewListByResourceGroupPager(d.resourceGroupName, nil)
-
-	totalCount := 0
-	lockedCount := 0
-
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list resources for summary: %w", err)
-		}
-
-		for _, resource := range page.Value {
-			if resource.ID == nil {
-				continue
-			}
-			totalCount++
-
-			// Check if resource has locks
-			if d.hasLocks(ctx, *resource.ID) {
-				lockedCount++
-			}
-		}
-	}
-
-	if totalCount == 0 {
-		d.logger.Info("✓ All resources have been deleted from the resource group",
-			"resourceGroup", d.resourceGroupName)
-	} else if lockedCount > 0 {
-		d.logger.Info("Resource group cleanup completed",
-			"resourceGroup", d.resourceGroupName,
-			"remainingResources", totalCount,
-			"lockedResources", lockedCount,
-			"status", "Some resources remain (including locked resources)")
-	} else {
-		d.logger.Info("Resource group cleanup completed",
-			"resourceGroup", d.resourceGroupName,
-			"remainingResources", totalCount,
-			"status", "Some resources remain (may have failed to delete due to dependencies or errors)")
-	}
-
+	// Cleanup completed successfully - resource group and all resources deleted
+	d.logger.Info("✓ Cleanup completed successfully",
+		"resourceGroup", d.resourceGroupName,
+		"status", "Resource group and all resources deleted")
 	return nil
 }
