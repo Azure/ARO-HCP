@@ -15,72 +15,11 @@
 package output
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
-
-func TestPrintSummary(t *testing.T) {
-	tests := []struct {
-		name         string
-		totalImages  int
-		updatedCount int
-		dryRun       bool
-		wantContains []string
-	}{
-		{
-			name:         "dry run with updates",
-			totalImages:  5,
-			updatedCount: 2,
-			dryRun:       true,
-			wantContains: []string{
-				"Summary",
-				"Total images checked: 5",
-				"Updates available:    2",
-				"dry-run",
-				"No files were modified",
-			},
-		},
-		{
-			name:         "actual run with updates",
-			totalImages:  5,
-			updatedCount: 2,
-			dryRun:       false,
-			wantContains: []string{
-				"Summary",
-				"Total images checked: 5",
-				"Images updated:       2",
-			},
-		},
-		{
-			name:         "no updates needed",
-			totalImages:  5,
-			updatedCount: 0,
-			dryRun:       false,
-			wantContains: []string{
-				"Summary",
-				"Total images checked: 5",
-				"Images updated:       0",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			PrintSummary(&buf, tt.totalImages, tt.updatedCount, tt.dryRun)
-			output := buf.String()
-
-			for _, want := range tt.wantContains {
-				if !strings.Contains(output, want) {
-					t.Errorf("PrintSummary() output missing %q\nGot:\n%s", want, output)
-				}
-			}
-		})
-	}
-}
 
 func TestGenerateCommitMessage(t *testing.T) {
 	tests := []struct {
@@ -102,7 +41,6 @@ func TestGenerateCommitMessage(t *testing.T) {
 				},
 			},
 			wantContains: []string{
-				"Updated images in target config files:",
 				"| Image | Old SHA | New SHA | Version | Timestamp |",
 				"| frontend | abc123d… | 789xyz0… | v1.2.3 | 2025-12-05 10:30 |",
 			},

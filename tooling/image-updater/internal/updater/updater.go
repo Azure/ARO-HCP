@@ -17,7 +17,6 @@ package updater
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -87,9 +86,6 @@ func (u *Updater) UpdateImages(ctx context.Context) error {
 			}
 		}
 	}
-
-	// Always show summary
-	output.PrintSummary(os.Stderr, totalImages, updatedCount, u.DryRun)
 
 	if !u.DryRun && len(u.Updates) > 0 {
 		for filePath, updates := range u.Updates {

@@ -16,31 +16,11 @@ package output
 
 import (
 	"fmt"
-	"io"
 	"strings"
 	"text/template"
 
 	"github.com/Azure/ARO-HCP/tooling/image-updater/internal/yaml"
 )
-
-// summaryTemplate is a Go template for the summary output.
-// Available fields:
-//   - .TotalImages: total number of images processed
-//   - .UpdatedCount: number of images updated
-//   - .DryRun: whether this is a dry-run
-const summaryTemplate = `
-Summary
--------
-{{- if .DryRun }}
-Total images checked: {{ .TotalImages }}
-Updates available:    {{ .UpdatedCount }}
-
-This was a dry-run. No files were modified.
-{{- else }}
-Total images checked: {{ .TotalImages }}
-Images updated:       {{ .UpdatedCount }}
-{{- end }}
-`
 
 // commitMessageTemplate is a Go template for the commit message.
 // Available fields in .Updates array:
@@ -49,21 +29,12 @@ Images updated:       {{ .UpdatedCount }}
 //   - .NewSHA: new digest (truncated)
 //   - .Version: version tag
 //   - .Timestamp: build timestamp
-const commitMessageTemplate = `Updated images in target config files:
-
-| Image | Old SHA | New SHA | Version | Timestamp |
+const commitMessageTemplate = `| Image | Old SHA | New SHA | Version | Timestamp |
 |-------|---------|---------|---------|-----------|
 {{- range .Updates }}
 | {{ .Name }} | {{ .OldSHA }} | {{ .NewSHA }} | {{ .Version }} | {{ .Timestamp }} |
 {{- end }}
 `
-
-// summaryData holds data for the summary template
-type summaryData struct {
-	TotalImages  int
-	UpdatedCount int
-	DryRun       bool
-}
 
 // updateData holds data for a single update in the commit message
 type updateData struct {
@@ -77,25 +48,6 @@ type updateData struct {
 // commitMessageData holds data for the commit message template
 type commitMessageData struct {
 	Updates []updateData
-}
-
-// PrintSummary prints a formatted summary of the update operation
-func PrintSummary(w io.Writer, totalImages, updatedCount int, dryRun bool) {
-	tmpl, err := template.New("summary").Parse(summaryTemplate)
-	if err != nil {
-		fmt.Fprintf(w, "error parsing summary template: %v\n", err)
-		return
-	}
-
-	data := summaryData{
-		TotalImages:  totalImages,
-		UpdatedCount: updatedCount,
-		DryRun:       dryRun,
-	}
-
-	if err := tmpl.Execute(w, data); err != nil {
-		fmt.Fprintf(w, "error executing summary template: %v\n", err)
-	}
 }
 
 // GenerateCommitMessage creates a markdown table commit message for the updated images
