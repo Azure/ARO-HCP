@@ -45,6 +45,8 @@ type perBinaryInvocationTestContext struct {
 	location                 string
 	isDevelopmentEnvironment bool
 	skipCleanup              bool
+	pooledIdentities         bool
+	leasedIdentityContainers []string
 
 	contextLock      sync.RWMutex
 	subscriptionID   string
@@ -72,13 +74,15 @@ func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
 			artifactDir:              artifactDir(),
-			sharedDir:                sharedDir(),
+			sharedDir:                SharedDir(),
 			subscriptionName:         subscriptionName(),
 			tenantID:                 tenantID(),
 			testUserClientID:         testUserClientID(),
 			location:                 location(),
 			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
 			skipCleanup:              skipCleanup(),
+			pooledIdentities:         pooledIdentities(),
+			leasedIdentityContainers: leasedIdentityContainers(),
 		}
 	})
 	return invocationContextInstance
@@ -187,6 +191,14 @@ func (tc *perBinaryInvocationTestContext) Location() string {
 	return tc.location
 }
 
+func (tc *perBinaryInvocationTestContext) UsePooledIdentities() bool {
+	return tc.pooledIdentities
+}
+
+func (tc *perBinaryInvocationTestContext) LeasedIdentityContainers() []string {
+	return tc.leasedIdentityContainers
+}
+
 func skipCleanup() bool {
 	ret, _ := strconv.ParseBool(os.Getenv("ARO_E2E_SKIP_CLEANUP"))
 	return ret
@@ -198,10 +210,20 @@ func artifactDir() string {
 	return os.Getenv("ARTIFACT_DIR")
 }
 
-// sharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
+func pooledIdentities() bool {
+	b, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(UsePooledIdentitiesEnvvar)))
+	return b
+}
+
+func leasedIdentityContainers() []string {
+	leased := strings.Fields(strings.TrimSpace(os.Getenv(LeasedMSIContainersEnvvar)))
+	return leased
+}
+
+// SharedDir is SHARED_DIR.  It is a spot to store *files only* that can be shared between ci-operator steps.
 // We can use this for anything, but currently we have a backup cleanup and collection scripts that use files
 // here to cleanup and debug testing resources.
-func sharedDir() string {
+func SharedDir() string {
 	// can't use gomega in this method since it is used outside of It()
 	return os.Getenv("SHARED_DIR")
 }

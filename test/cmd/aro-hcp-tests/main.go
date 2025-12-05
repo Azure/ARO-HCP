@@ -27,7 +27,9 @@ import (
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/cleanup"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
+	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
@@ -101,9 +103,14 @@ func main() {
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
 	//
-	// specs.AddBeforeAll(func() {
-	// 	initializeTestFramework()
-	// })
+	specs.AddBeforeAll(func() {
+		tc := framework.NewTestContext()
+		if tc.UsePooledIdentities() {
+			if err := tc.CreateIdentitiesPoolStateFileUnlocked(); err != nil {
+				panic(fmt.Sprintf("failed to create managed identities pool state file: %v", err))
+			}
+		}
+	})
 	//
 	// specs.AddBeforeEach(func(spec ExtensionTestSpec) {
 	//	if spec.Name == "my test" {
@@ -167,7 +174,7 @@ func main() {
 	}
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
-	root.AddCommand(newCleanupCommand())
+	root.AddCommand(cleanup.NewCommand())
 	visualizeCmd, err := visualize.NewCommand()
 	if err != nil {
 		panic(err)

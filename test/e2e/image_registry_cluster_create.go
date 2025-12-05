@@ -49,6 +49,11 @@ var _ = Describe("Customer", func() {
 			)
 			tc := framework.NewTestContext()
 
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "disabled-image-registry", tc.Location())
 			Expect(err).NotTo(HaveOccurred())

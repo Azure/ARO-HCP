@@ -51,6 +51,7 @@ type perItOrDescribeTestContext struct {
 	contextLock                   sync.RWMutex
 	knownResourceGroups           []string
 	knownAppRegistrationIDs       []string
+	knownLeasedIdentityContainers []string
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
@@ -151,6 +152,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	tc.contextLock.RLock()
 	resourceGroupNames := tc.knownResourceGroups
 	appRegistrations := tc.knownAppRegistrationIDs
+	leasedContainers := tc.knownLeasedIdentityContainers
 	defer tc.contextLock.RUnlock()
 	ginkgo.GinkgoLogr.Info("deleting created resources")
 
@@ -161,12 +163,16 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	}
 	errCleanupResourceGroups := tc.CleanupResourceGroups(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupsClientFactory.NewResourceGroupsClient(), opts)
 	if errCleanupResourceGroups != nil {
-		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete: %w", errCleanupResourceGroups)
+		ginkgo.GinkgoLogr.Error(errCleanupResourceGroups, "at least one resource group failed to delete")
 	}
 
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
-		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete: %w", err)
+		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
+	}
+
+	if err := tc.ReleaseLeasedIdentities(ctx, leasedContainers); err != nil {
+		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
@@ -254,7 +260,11 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 
 	// deletion takes a while, it's worth it to do this in parallel
 	waitGroup, ctx := errgroup.WithContext(ctx)
-	for _, resourceGroupName := range tc.knownResourceGroups {
+	resourceGroups := append(
+		append([]string(nil), tc.knownResourceGroups...),
+		tc.knownLeasedIdentityContainers...,
+	)
+	for _, resourceGroupName := range resourceGroups {
 		currResourceGroupName := resourceGroupName
 		waitGroup.Go(func() error {
 			// prevent a stray panic from exiting the process. Don't do this generally because ginkgo/gomega rely on panics to function.
@@ -265,7 +275,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfo(ctx context.Context) {
 	}
 	if err := waitGroup.Wait(); err != nil {
 		// remember that Wait only shows the first error, not all the errors.
-		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect: %w", err)
+		ginkgo.GinkgoLogr.Error(err, "at least one resource group failed to collect")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished collecting debug info")
