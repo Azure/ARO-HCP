@@ -17,6 +17,8 @@ package database
 import (
 	"fmt"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -50,10 +52,6 @@ func (o *NodePool) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
 }
 
-func (o *NodePool) GetResourceDocument() *ResourceDocument {
-	return &o.ResourceDocument
+func (o *NodePool) SetResourceID(newResourceID *azcorearm.ResourceID) {
+	o.ResourceDocument.SetResourceID(newResourceID)
 }
-
-var FilterNodePoolState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &NodePoolInternalState{} },
-)

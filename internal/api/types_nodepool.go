@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -38,9 +39,9 @@ var _ CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 
 func (o *HCPOpenShiftClusterNodePool) GetCosmosData() CosmosData {
 	return CosmosData{
-		ID:                o.ID,
-		ProvisioningState: o.Properties.ProvisioningState,
-		ClusterServiceID:  o.ServiceProviderProperties.ClusterServiceID,
+		CosmosUID:    o.ServiceProviderProperties.CosmosUID,
+		PartitionKey: azcosmos.NewPartitionKeyString(strings.ToLower(o.ID.SubscriptionID)),
+		ItemID:       o.ID,
 	}
 }
 

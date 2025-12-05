@@ -34,6 +34,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
+// fuzzerFor can randomly populate api objects that are destined for version.
+func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
+	f := randfill.New().NilChance(.5).NumElements(0, 1)
+	if src != nil {
+		f.RandSource(src)
+	}
+	f.Funcs(funcs...)
+	return f
+}
+
 func TestRoundTripClusterInternalCosmosInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)

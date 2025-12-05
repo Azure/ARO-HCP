@@ -22,36 +22,33 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
-type ExternalAuth struct {
+type Controller struct {
 	TypedDocument `json:",inline"`
 
-	ExternalAuthProperties `json:"properties"`
+	ControllerProperties ControllerProperties `json:"properties"`
 }
 
-var _ ResourceProperties = &ExternalAuth{}
+var _ ResourceProperties = &Controller{}
 
-type ExternalAuthProperties struct {
-	ResourceDocument `json:",inline"`
+type ControllerProperties struct {
+	// ResourceID must be serialized exactly here for the generic CRUD to work.
+	ResourceID *azcorearm.ResourceID `json:"resourceId"`
 
-	// TODO we may need look-aside data that we want to store in the same place.  Build the nesting to allow it
-	InternalState ExternalAuthInternalState `json:"internalState"`
+	InternalState api.Controller `json:"internalState"`
 }
 
-type ExternalAuthInternalState struct {
-	InternalAPI api.HCPOpenShiftClusterExternalAuth `json:"internalAPI"`
-}
-
-func (o *ExternalAuth) ValidateResourceType() error {
-	if o.ResourceType != api.ExternalAuthResourceType.String() {
+func (o *Controller) ValidateResourceType() error {
+	if o.ResourceType != api.ControllerResourceType.String() {
 		return fmt.Errorf("invalid resource type: %s", o.ResourceType)
 	}
 	return nil
 }
 
-func (o *ExternalAuth) GetTypedDocument() *TypedDocument {
+func (o *Controller) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
 }
 
-func (o *ExternalAuth) SetResourceID(newResourceID *azcorearm.ResourceID) {
-	o.ResourceDocument.SetResourceID(newResourceID)
+func (o *Controller) SetResourceID(_ *azcorearm.ResourceID) {
+	// do nothing.  There is no real resource ID to set and we don't need to worry about conforming to ARM casing rules.
+	// TODO, consider whether this should be done in the frontend and not in storage (likely)
 }

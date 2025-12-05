@@ -15,8 +15,9 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 )
@@ -51,53 +52,6 @@ func (o *HCPCluster) GetTypedDocument() *TypedDocument {
 	return &o.TypedDocument
 }
 
-func (o *HCPCluster) GetResourceDocument() *ResourceDocument {
-	return &o.ResourceDocument
-}
-
-var FilterHCPClusterState ResourceDocumentStateFilter = newJSONRoundTripFilterer(
-	func() any { return &ClusterInternalState{} },
-)
-
-type jsonRoundTripFilterer struct {
-	newInternalStateFn func() any
-}
-
-func newJSONRoundTripFilterer(newInternalStateFn func() any) ResourceDocumentStateFilter {
-	return jsonRoundTripFilterer{
-		newInternalStateFn: newInternalStateFn,
-	}
-}
-
-func (r jsonRoundTripFilterer) RemoveUnknownFields(toMutate *ResourceDocument) error {
-	filteredInternalState, err := superExpensiveButSimpleRoundFilterForUnknownFields(toMutate.InternalState, r.newInternalStateFn())
-	if err != nil {
-		return err
-	}
-	toMutate.InternalState = filteredInternalState
-
-	return nil
-}
-
-func superExpensiveButSimpleRoundFilterForUnknownFields(startingMap map[string]any, filterObj any) (map[string]any, error) {
-	if len(startingMap) == 0 {
-		return startingMap, nil
-	}
-	currBytes, err := json.Marshal(startingMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal original: %w", err)
-	}
-	if err := json.Unmarshal(currBytes, filterObj); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal into filterObj: %w", err)
-	}
-	filteredBytes, err := json.Marshal(filterObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal filterObj: %w", err)
-	}
-	filteredMap := map[string]any{}
-	if err := json.Unmarshal(filteredBytes, &filteredMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal into filtered map: %w", err)
-	}
-
-	return filteredMap, nil
+func (o *HCPCluster) SetResourceID(newResourceID *azcorearm.ResourceID) {
+	o.ResourceDocument.SetResourceID(newResourceID)
 }
