@@ -157,16 +157,17 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			continue
 		}
 
+		if o.DryRun {
+			rgLogger.Info("Would delete resource group.")
+			continue
+		}
+
 		subscriptionID, err := o.SubscriptionLookup(ctx, resourceGroup.Subscription)
 		if err != nil {
 			return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
 		}
 
-		if o.DryRun {
-			rgLogger.Info("Would delete resource group (dry-run mode)")
-		} else {
-			rgLogger.Info("Deleting resource group with ordered resource cleanup")
-		}
+		rgLogger.Info("Deleting resource group with ordered resource cleanup")
 
 		// Create deleter for this resource group
 		deleter := &resourceGroupDeleter{
@@ -174,28 +175,18 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 			subscriptionID:    subscriptionID,
 			credential:        o.AzureCredential,
 			logger:            rgLogger,
-			dryRun:            o.DryRun,
+			wait:              o.Wait,
 		}
 
-		if o.Wait {
-			// Capture for goroutine
-			group.Go(func() error {
-				return deleter.execute(groupCtx)
-			})
-		} else {
-			// Fire and forget
-			go func() {
-				if err := deleter.execute(ctx); err != nil {
-					rgLogger.Error(err, "Failed to delete resource group asynchronously")
-				}
-			}()
-		}
+		// Always execute in parallel via errgroup
+		group.Go(func() error {
+			return deleter.execute(groupCtx)
+		})
 	}
 
-	if o.Wait {
-		if err := group.Wait(); err != nil {
-			return err
-		}
+	// Always wait for the errgroup to ensure all deletions are started
+	if err := group.Wait(); err != nil {
+		return err
 	}
 
 	if !o.DryRun {
