@@ -39,29 +39,32 @@ type ClusterIdRow struct {
 }
 
 type QueryOptions struct {
-	ClusterIds        []string
-	SubscriptionId    string
-	ResourceGroupName string
-	TimestampMin      time.Time
-	TimestampMax      time.Time
-	Limit             int
+	ClusterIds         []string
+	SubscriptionId     string
+	ResourceGroupNames []string
+	TimestampMin       time.Time
+	TimestampMax       time.Time
+	Limit              int
 }
 
 func getServicesQueries(opts QueryOptions) []*kusto.ConfigurableQuery {
 	queries := []*kusto.ConfigurableQuery{}
 	for _, table := range servicesTables {
-		query := kusto.NewConfigurableQuery(table, servicesDatabase)
-		if opts.Limit < 0 {
-			query.WithNoTruncation()
-		}
-		query.WithTable(table).WithDefaultFields()
+		for _, rg := range opts.ResourceGroupNames {
+			query := kusto.NewConfigurableQuery(table, servicesDatabase)
+			if opts.Limit < 0 {
+				query.WithNoTruncation()
+			}
+			query.WithTable(table).WithDefaultFields()
 
-		query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
-		query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, opts.ResourceGroupName)
-		if opts.Limit > 0 {
-			query.WithLimit(opts.Limit)
+			query.WithTimestampMinAndMax(getTimeMinMax(opts.TimestampMin, opts.TimestampMax))
+			query.WithClusterIdOrSubscriptionAndResourceGroup(opts.ClusterIds, opts.SubscriptionId, rg)
+			if opts.Limit > 0 {
+				query.WithLimit(opts.Limit)
+			}
+			queries = append(queries, query)
 		}
-		queries = append(queries, query)
+
 	}
 	return queries
 }

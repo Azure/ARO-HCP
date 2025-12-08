@@ -35,7 +35,7 @@ type RawMustGatherOptions struct {
 	OutputPath                  string        // Path to write the output file
 	QueryTimeout                time.Duration // Timeout for query execution
 	SubscriptionID              string        // Subscription ID
-	ResourceGroup               string        // Resource group
+	ResourceGroups              []string      // List of Resource groups
 	SkipHostedControlePlaneLogs bool          // Skip hosted control plane logs
 	TimestampMin                time.Time     // Timestamp minimum
 	TimestampMax                time.Time     // Timestamp maximum
@@ -84,7 +84,7 @@ func BindMustGatherOptions(opts *RawMustGatherOptions, cmd *cobra.Command) error
 	cmd.Flags().DurationVar(&opts.QueryTimeout, "query-timeout", opts.QueryTimeout, "timeout for query execution")
 	cmd.Flags().StringVar(&opts.OutputPath, "output-path", opts.OutputPath, "path to write the output file")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "subscription ID")
-	cmd.Flags().StringVar(&opts.ResourceGroup, "resource-group", opts.ResourceGroup, "resource group")
+	cmd.Flags().StringArrayVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "resource group")
 	cmd.Flags().BoolVar(&opts.SkipHostedControlePlaneLogs, "skip-hcp-logs", opts.SkipHostedControlePlaneLogs, "Do not gather customer (ocm namespaces) logs")
 	cmd.Flags().TimeVar(&opts.TimestampMin, "timestamp-min", opts.TimestampMin, []string{time.DateTime}, "timestamp minimum")
 	cmd.Flags().TimeVar(&opts.TimestampMax, "timestamp-max", opts.TimestampMax, []string{time.DateTime}, "timestamp maximum")
@@ -144,18 +144,18 @@ func (o *RawMustGatherOptions) Validate(ctx context.Context) (*ValidatedMustGath
 	}
 
 	// Validate resource group
-	if o.ResourceGroup == "" {
+	if len(o.ResourceGroups) <= 0 {
 		return nil, fmt.Errorf("resource-group is required")
 	}
 
 	return &ValidatedMustGatherOptions{
 		RawMustGatherOptions: o,
 		QueryOptions: QueryOptions{
-			SubscriptionId:    o.SubscriptionID,
-			ResourceGroupName: o.ResourceGroup,
-			TimestampMin:      o.TimestampMin,
-			TimestampMax:      o.TimestampMax,
-			Limit:             o.Limit,
+			SubscriptionId:     o.SubscriptionID,
+			ResourceGroupNames: o.ResourceGroups,
+			TimestampMin:       o.TimestampMin,
+			TimestampMax:       o.TimestampMax,
+			Limit:              o.Limit,
 		},
 	}, nil
 }

@@ -51,13 +51,18 @@ func newQueryCommandLegacy() (*cobra.Command, error) {
 
 func (opts *MustGatherOptions) RunLegacy(ctx context.Context) error {
 	logger := logr.FromContextOrDiscard(ctx)
-	clusterIds, err := executeClusterIdQuery(ctx, opts, getKubeSystemClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
-	if err != nil {
-		return fmt.Errorf("failed to execute cluster id query: %w", err)
+
+	var clusterIds []string
+	for _, rg := range opts.ResourceGroups {
+		clusterIds, err := executeClusterIdQuery(ctx, opts, getKubeSystemClusterIdQuery(opts.SubscriptionID, rg))
+		if err != nil {
+			return fmt.Errorf("failed to execute cluster id query: %w", err)
+		}
+		clusterIds = append(clusterIds, clusterIds...)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
-	err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
+	err := serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to write query options to file: %w", err)
 	}
@@ -102,8 +107,11 @@ func processKubesystemLogsRow(row *KubesystemLogsRow) error {
 }
 
 func executeKubeSystemQueries(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {
-	query := getKubeSystemQuery(opts.SubscriptionID, opts.ResourceGroup, queryOpts.ClusterIds)
-	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, []*kusto.ConfigurableQuery{query})
+	var queries []*kusto.ConfigurableQuery
+	for _, rg := range opts.ResourceGroups {
+		queries = append(queries, getKubeSystemQuery(opts.SubscriptionID, rg, queryOpts.ClusterIds))
+	}
+	return castQueryAndWriteToFile(ctx, opts, ServicesLogDirectory, queries)
 }
 
 func executeKubeSystemHostedControlPlaneLogsQuery(ctx context.Context, opts *MustGatherOptions, queryOpts QueryOptions) error {

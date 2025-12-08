@@ -65,13 +65,17 @@ func (opts *MustGatherOptions) Run(ctx context.Context) error {
 		}
 	}()
 
-	clusterIds, err := executeClusterIdQuery(ctx, opts, getClusterIdQuery(opts.SubscriptionID, opts.ResourceGroup))
-	if err != nil {
-		return fmt.Errorf("failed to execute cluster id query: %w", err)
+	var clusterIds []string
+	for _, rg := range opts.ResourceGroups {
+		clusterIds, err := executeClusterIdQuery(ctx, opts, getClusterIdQuery(opts.SubscriptionID, rg))
+		if err != nil {
+			return fmt.Errorf("failed to execute cluster id query: %w", err)
+		}
+		clusterIds = append(clusterIds, clusterIds...)
 	}
 	logger.V(1).Info("Obtained following clusterIDs", "clusterIds", strings.Join(clusterIds, ", "))
 	opts.QueryOptions.ClusterIds = clusterIds
-	err = serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
+	err := serializeOutputToFile(opts.OutputPath, OptionsOutputFile, opts.QueryOptions)
 	if err != nil {
 		return fmt.Errorf("failed to write query options to file: %w", err)
 	}
