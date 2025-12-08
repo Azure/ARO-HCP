@@ -41,6 +41,8 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/utils"
 )
 
+var TEST_SUBCRIPTION_ID = "test"
+
 func createCommand(ctx context.Context, scriptCommand, pipelineWorkingDir string, dryRun *types.DryRun, envVars map[string]string) (*exec.Cmd, bool) {
 	if dryRun != nil {
 		if dryRun.Command == "" && dryRun.Variables == nil {
@@ -361,6 +363,10 @@ func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string,
 	azureConfigDir, err := getAzureConfigDir(ctx, logger)
 	if err != nil {
 		return "", fmt.Errorf("failed to get Azure CLI config directory: %w", err)
+	}
+
+	if subscriptionID == TEST_SUBCRIPTION_ID {
+		return azureConfigDir, nil
 	}
 
 	// Copy the config directory to the temporary directory

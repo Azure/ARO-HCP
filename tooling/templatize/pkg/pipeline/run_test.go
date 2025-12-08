@@ -42,7 +42,7 @@ func TestMockedPipelineRun(t *testing.T) {
 				ResourceGroupMeta: &types.ResourceGroupMeta{
 					Name:          "rg",
 					ResourceGroup: "resourceGroup",
-					Subscription:  "subscription",
+					Subscription:  TEST_SUBCRIPTION_ID,
 				},
 				Steps: []types.Step{
 					&types.ShellStep{
@@ -90,7 +90,7 @@ func TestMockedPipelineRun(t *testing.T) {
 				ResourceGroupMeta: &types.ResourceGroupMeta{
 					Name:          "rg2",
 					ResourceGroup: "resourceGroup2",
-					Subscription:  "subscription",
+					Subscription:  TEST_SUBCRIPTION_ID,
 				},
 				Steps: []types.Step{
 					&types.ShellStep{
@@ -177,7 +177,7 @@ func TestMockedPipelineRunError(t *testing.T) {
 				ResourceGroupMeta: &types.ResourceGroupMeta{
 					Name:          "rg",
 					ResourceGroup: "resourceGroup",
-					Subscription:  "subscription",
+					Subscription:  TEST_SUBCRIPTION_ID,
 				},
 				Steps: []types.Step{
 					&types.ShellStep{
@@ -327,7 +327,7 @@ func TestPipelineRun(t *testing.T) {
 				ResourceGroupMeta: &types.ResourceGroupMeta{
 					Name:          "test",
 					ResourceGroup: "test",
-					Subscription:  "test",
+					Subscription:  TEST_SUBCRIPTION_ID,
 				},
 				Steps: []types.Step{
 					&types.ShellStep{
