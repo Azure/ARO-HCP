@@ -15,6 +15,8 @@
 package database
 
 import (
+	"strings"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -30,7 +32,7 @@ func InternalToCosmosNodePool(internalObj *api.HCPOpenShiftClusterNodePool) (*No
 			BaseDocument: BaseDocument{
 				ID: internalObj.ServiceProviderProperties.CosmosUID,
 			},
-			PartitionKey: internalObj.ID.SubscriptionID,
+			PartitionKey: strings.ToLower(internalObj.ID.SubscriptionID),
 			ResourceType: internalObj.ID.ResourceType.String(),
 		},
 		NodePoolProperties: NodePoolProperties{
