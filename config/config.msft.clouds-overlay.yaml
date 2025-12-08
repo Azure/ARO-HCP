@@ -17,7 +17,7 @@ clouds:
           # Cluster Service
           clustersService:
             image:
-              digest: sha256:dff593b00a629d8366ef63502c56fadd66c627eca60e0d10f1663d74e0998b28 # a68ce00 (2025-12-05 07:23)
+              digest: sha256:81bccec7b75e913433d36d8beba40be3284197de110b43679bcdf3f1ff8d1504 # 26bf31c (2025-12-07 10:53)
           # ACR Pull
           acrPull:
             image:
@@ -73,17 +73,17 @@ clouds:
           # RP Frontend
           frontend:
             image:
-              digest: sha256:2c3b877314500fa336e5e642b80876f29d5533c909b45226fa64f38447ccfdca # 21f3f7a (2025-12-05 09:19)
+              digest: sha256:e2992c65b44a5f054e076e10a91ce4af316c66b78a343ad2de52d7d026eddef0 # 0246cff (2025-12-05 16:32)
             audit:
               connectSocket: true
           # RP Backend
           backend:
             image:
-              digest: sha256:accfff6438ad546dabf2547709afb1e099dcd0d1fcba24f54012194c1fa7d28c # 21f3f7a (2025-12-05 09:19)
+              digest: sha256:5f0c19745cbed4ad01aef23a48a2eaac793a052f76607e7fc9c38687e0ee4784 # 0246cff (2025-12-05 16:32)
           # Admin API
           adminApi:
             image:
-              digest: sha256:6689a91b1a0422e563fee00f40c9d9c3b16ddc541d263627ef0c727c79edcffc # 21f3f7a (2025-12-05 09:19)
+              digest: sha256:690719e2739fcd3dce51972a3b31601601879c4f0b859d8d84586a17fb8a7a0d # 0246cff (2025-12-05 16:32)
           # Hypershift
           hypershift:
             image:
@@ -100,7 +100,7 @@ clouds:
           imageSync:
             ocMirror:
               image:
-                digest: sha256:58352276ca9d7640cfa69a6fe9b75ef62b77553c0fc961d7dccf8d244f6f0f57 # 21f3f7a (2025-12-05 09:21)
+                digest: sha256:5f68b8f33e4f6fdf72440064b918103fb7df9aef6f5de33f205c99438237273a # 0246cff (2025-12-05 16:32)
           # Mise
           mise:
             image:
