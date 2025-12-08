@@ -370,7 +370,7 @@ func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string,
 	}
 
 	// Copy the config directory to the temporary directory
-	if err := copyDirectory(azureConfigDir, tmpDir); err != nil {
+	if err := os.CopyFS(azureConfigDir, os.DirFS(tmpDir)); err != nil {
 		return "", fmt.Errorf("failed to copy Azure CLI config directory: %w", err)
 	}
 
@@ -393,9 +393,4 @@ func configureAzureCLILogin(ctx context.Context, subscriptionID string) (string,
 	}
 	// Return the temporary directory
 	return tmpDir, nil
-}
-
-// copyDirectory recursively copies a directory from src to dst
-func copyDirectory(src, dst string) error {
-	return os.CopyFS(dst, os.DirFS(src))
 }
