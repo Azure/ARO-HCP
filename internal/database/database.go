@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -685,8 +686,19 @@ func (d *cosmosDBClient) ListAllSubscriptionDocs() DBClientIterator[arm.Subscrip
 }
 
 func (d *cosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
+	parts := []string{
+		"/subscriptions",
+		subscriptionID,
+	}
+	if len(resourceGroupName) > 0 {
+		parts = append(parts,
+			"resourceGroups",
+			resourceGroupName)
+	}
+	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+
 	return &hcpClusterCRUD{
-		topLevelCosmosResourceCRUD: newTopLevelResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, api.ClusterResourceType, subscriptionID, resourceGroupName),
+		nestedCosmosResourceCRUD: newNestedCosmosResourceCRUD[api.HCPOpenShiftCluster, HCPCluster](d.resources, parentResourceID, api.ClusterResourceType),
 	}
 }
 
